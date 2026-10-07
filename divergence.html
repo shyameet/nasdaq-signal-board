@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Divergence · Nasdaq Signal Board</title>
+<meta name="description" content="Where the 10 biggest Nasdaq-100 stocks and the Nasdaq-100 itself disagree on Hyperliquid, what usually happens next, and a live scoreboard.">
+<meta name="theme-color" content="#0a0d12">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="manifest" href="brand/site.webmanifest">
+<link rel="canonical" href="https://shyameet.github.io/nasdaq-signal-board/divergence.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Nasdaq Signal Board">
+<meta property="og:title" content="Divergence · Nasdaq Signal Board">
+<meta property="og:description" content="Where the 10 biggest Nasdaq-100 stocks and the index disagree, and what usually happens next.">
+<meta property="og:url" content="https://shyameet.github.io/nasdaq-signal-board/divergence.html">
+<meta property="og:image" content="https://shyameet.github.io/nasdaq-signal-board/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://shyameet.github.io/nasdaq-signal-board/brand/og-image.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="lightweight-charts.js"></script>
+<style>
+  /* The Divergence page: where the 10-stock signal (NDX10) and the index signal (NAS100) disagree. One XYZ100 chart
+     marked only at those moments, the two signals as strips under it, and a scoreboard of what followed. */
+  :root {
+    color-scheme: dark;
+    --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --line: #1c2430; --line-strong: #283240;
+    --text: #e8eef6; --muted: #8d99ab; --faint: #5c6879;
+    --up: #2bb68a; --up-soft: rgba(43, 182, 138, .14); --down: #f0555f; --down-soft: rgba(240, 85, 95, .14);
+    --alone: #ff8a3d; --other: #8d99ab; --accent: #5b8cff; --warn: #f2b33d;
+    --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text);
+         font: 13px/1.4 var(--font-ui); -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+  .up { color: var(--up); } .down { color: var(--down); }
+
+  /* ---- top bar (as on the Signals page) ---- */
+  .topbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; padding: 10px 16px;
+            background: var(--surface); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .mark { width: 30px; height: 30px; flex: none; display: block; }
+  .brand b { display: block; font-size: 14px; font-weight: 700; letter-spacing: .01em; }
+  .brand small { display: block; color: var(--muted); font-size: 11px; }
+  .tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .tabs a { padding: 5px 12px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 500; }
+  .tabs a:hover { color: var(--text); }
+  .tabs a[aria-current="page"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .quote { display: flex; align-items: baseline; gap: 8px; }
+  .quote .sym { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; }
+  .quote .px { font-size: 20px; font-weight: 600; }
+  .chg { font-size: 12px; font-weight: 500; }
+  .spacer { flex: 1; }
+  .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .seg button { padding: 5px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
+                font-family: var(--font-num); font-size: 12px; }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .toggle { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border: 1px solid var(--line); border-radius: 8px;
+            background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+  .toggle::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .toggle[aria-pressed="true"] { color: var(--text); border-color: var(--line-strong); }
+  .toggle[aria-pressed="true"]::before { background: var(--up); box-shadow: 0 0 6px var(--up); }
+  .live { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .dot.ok { background: var(--up); box-shadow: 0 0 6px var(--up); }
+  .dot.stale { background: var(--warn); }
+
+  /* ---- the page ---- */
+  .dv { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .dv-head { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 10px 20px;
+             padding: 14px 16px 12px; border-bottom: 1px solid var(--line); }
+  .eyebrow { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+  h1 { margin: 2px 0 0; font-size: 20px; font-weight: 700; }
+  .dv-note { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; max-width: 720px; }
+  .state { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  .state-word { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 8px; font-weight: 700;
+                font-size: 14px; letter-spacing: .1em; background: var(--tile); color: var(--muted); white-space: nowrap;
+                box-shadow: inset 0 0 0 1px var(--line-strong); transition: background .3s, color .3s, box-shadow .3s; }
+  .state-word::before { content: "="; font-size: 13px; }
+  .state.first .state-word { background: var(--up); color: #04150f; box-shadow: 0 0 22px rgba(43, 182, 138, .35); }
+  .state.first .state-word::before { content: "▲"; }
+  .state.alone .state-word { background: var(--alone); color: #2a1203; box-shadow: 0 0 22px rgba(255, 138, 61, .35); }
+  .state.alone .state-word::before { content: "◆"; }
+  .state.other .state-word { color: var(--text); }
+  .state.other .state-word::before { content: "◇"; }
+  .state-since { color: var(--muted); font-size: 11px; }
+  .tiles { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: 620px; }
+  .rule { min-width: 0; padding: 7px 10px; border-radius: 8px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
+  .rule.pass { background: var(--up-soft); box-shadow: inset 0 0 0 1px rgba(43, 182, 138, .35); }
+  .rule.fail { background: var(--down-soft); box-shadow: inset 0 0 0 1px rgba(240, 85, 95, .3); }
+  .r-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .r-tf { font-size: 13px; font-weight: 700; }
+  .r-mark { font-size: 12px; font-weight: 700; color: var(--faint); }
+  .rule.pass .r-mark { color: var(--up); } .rule.fail .r-mark { color: var(--down); }
+  .r-name { margin-top: 1px; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .r-val { margin-top: 3px; font-family: var(--font-num); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .dv-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 330px; }
+  .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-right: 1px solid var(--line); }
+  .tag { position: absolute; top: 6px; left: 8px; z-index: 5; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 7px;
+         max-width: calc(100% - 100px); padding: 2px 8px; border-radius: 6px; background: rgba(10, 13, 18, .72); pointer-events: none;
+         font: 11px var(--font-num); color: var(--muted); }
+  .tag b { color: var(--text); font-family: var(--font-ui); font-weight: 600; }
+  .tag .ohlc b { font-family: var(--font-num); font-weight: 500; }
+  .tag .t-time { color: var(--text); }
+  .tag .t-row { flex-basis: 100%; display: flex; gap: 10px; font-family: var(--font-ui); }
+  .tag .t-kind { font-weight: 700; letter-spacing: .03em; color: var(--muted); }
+  .tag .t-kind.alone { color: var(--alone); } .tag .t-kind.first { color: var(--up); } .tag .t-kind.other { color: var(--text); }
+
+  .side { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 12px; background: var(--surface); }
+  .card { padding: 12px 14px; border-radius: 10px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
+  .card h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 10px; font-size: 12px;
+             color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+  .card h3 small { font-size: 11px; letter-spacing: 0; text-transform: none; color: var(--faint); font-weight: 500; }
+  .sc { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 9px 0; border-top: 1px solid var(--line); }
+  .sc:first-of-type { border-top: 0; padding-top: 0; }
+  .sc-name { font-weight: 700; display: flex; align-items: center; gap: 7px; }
+  .sc-name i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .sc-big { font: 600 20px var(--font-num); text-align: right; line-height: 1.1; }
+  .sc-sub { color: var(--muted); font-size: 11.5px; }
+  .sc-sub.r { text-align: right; font-family: var(--font-num); }
+  .base { margin: 8px 0 0; color: var(--faint); font-size: 11.5px; }
+  .recent { list-style: none; margin: 10px 0 0; padding: 8px 0 0; border-top: 1px solid var(--line); display: grid; gap: 5px; }
+  .recent li { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 8px; font-size: 12px; }
+  .recent .t { color: var(--muted); font-family: var(--font-num); }
+  .recent .res { font-family: var(--font-num); text-align: right; }
+  .legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+  .legend li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 9px; font-size: 12px; color: var(--muted); }
+  .legend b { display: block; color: var(--text); }
+  .sw { width: 14px; height: 14px; border-radius: 4px; margin-top: 2px; }
+  .sw.alone { background: rgba(255, 138, 61, .55); } .sw.first { background: rgba(43, 182, 138, .55); }
+  .sw.other { background: rgba(141, 153, 171, .4); }
+  .sw.strips { background: linear-gradient(var(--up) 0 45%, transparent 45% 55%, #3a4554 55%); }
+
+  /* ---- footer ---- */
+  .foot { flex: none; position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px;
+          background: var(--surface); border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; }
+  .how { position: relative; }
+  .how summary { cursor: pointer; list-style: none; padding: 4px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); }
+  .how summary::-webkit-details-marker { display: none; }
+  .how[open] summary { color: var(--text); border-color: var(--line-strong); }
+  .how-body { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 30; width: min(460px, calc(100vw - 32px)); padding: 14px 16px;
+              border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 12.5px;
+              line-height: 1.5; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
+  .how-body h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+  .how-body p { margin: 0 0 8px; }
+  .how-body .alone { color: var(--alone); }
+  .credit { margin-left: auto; }
+  .credit a { color: var(--muted); }
+
+  #flash { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .8s; }
+  #banner { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 40; max-width: calc(100vw - 32px); padding: 8px 14px;
+            border: 1px solid rgba(242, 179, 61, .45); border-radius: 8px; background: #241c0b; color: #f6d68a; font-size: 12.5px; }
+  #loading { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center;
+             gap: 18px; background: var(--bg); color: var(--muted); }
+  #loading img { width: 64px; height: 64px; }
+  #loading b { color: var(--text); font-size: 18px; letter-spacing: .01em; }
+  #loading div { display: flex; align-items: center; gap: 10px; }
+  #loading div::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-strong);
+                         border-top-color: var(--accent); animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { #loading div::before { animation: none; } .state-word { transition: none; } }
+
+  @media (max-width: 900px) {  /* the scoreboard goes under the chart */
+    html, body { height: auto; }
+    .dv-body { grid-template-columns: minmax(0, 1fr); }
+    .pane { height: 68vh; min-height: 420px; border-right: 0; border-bottom: 1px solid var(--line); }
+    .side { overflow: visible; }
+  }
+  @media (max-width: 560px) {
+    .topbar { gap: 8px 12px; }
+    .dv-head { grid-template-columns: minmax(0, 1fr); }
+    .state { align-items: flex-start; }
+    .tag .ohlc { display: none; }
+    .hovering .tag .ohlc { display: inline; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><img class="mark" src="brand/logo.svg" alt="" width="30" height="30"><div><b>Nasdaq Signal Board</b><small>Live from Hyperliquid</small></div></div>
+  <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html" aria-current="page">Divergence</a></nav>
+  <div class="quote"><span class="sym">XYZ100</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
+  <div class="spacer"></div>
+  <div class="seg" id="tfs" role="group" aria-label="Candle size"></div>
+  <button class="toggle" id="alerts" aria-pressed="false" title="Browser notification and sound when an Index alone or 10 stocks first mark appears">Alerts off</button>
+  <div class="live"><span class="dot" id="dot"></span><span id="live">connecting</span></div>
+</header>
+<main class="dv">
+  <section class="dv-head">
+    <div>
+      <div class="eyebrow">10 stocks vs the Nasdaq-100</div>
+      <h1>Divergence</h1>
+      <p class="dv-note" id="note">Marks only the moments when the 10-stock signal and the index signal disagree.</p>
+    </div>
+    <div class="state" id="state"><span class="state-word">LOADING</span><span class="state-since" id="since"></span></div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+  <section class="dv-body">
+    <div class="pane" id="pmain"><div class="tag" id="tag"></div></div>
+    <aside class="side">
+      <div class="card" id="score"><h3>Scoreboard</h3><div class="sc-sub">Waiting for data…</div></div>
+      <div class="card">
+        <h3>What the marks mean</h3>
+        <ul class="legend">
+          <li><span class="sw alone"></span><div><b>Index alone</b>The index turned bullish, the 10 stocks didn't. So far this has often faded.</div></li>
+          <li><span class="sw first"></span><div><b>10 stocks first</b>The 10 stocks turned bullish, the index not yet. The index has often followed.</div></li>
+          <li><span class="sw other"></span><div><b>Other difference</b>They disagree some other way. No clear pattern so far.</div></li>
+          <li><span class="sw strips"></span><div><b>The two strips</b>Under the candles: the 10 stocks' signal on top, the index's below. Green bullish, red bearish, gray neutral.</div></li>
+        </ul>
+      </div>
+    </aside>
+  </section>
+</main>
+<footer class="foot">
+  <details class="how">
+    <summary>How it works</summary>
+    <div class="how-body">
+      <h3>What this page shows</h3>
+      <p>The Signals page runs the same four rules on two series: the 10 biggest Nasdaq-100 stocks combined (NDX10) and the Nasdaq-100 itself (XYZ100). They agree about three quarters of the time. This page marks only the moments they disagree; when they agree, the chart stays clean.</p>
+      <h3>The two patterns</h3>
+      <p><b class="alone">Index alone</b>: the index turned bullish while the 10 stocks didn't. In a 3-day study, XYZ100 was lower 15 minutes later about 7 times out of 10, on every day. <b class="up">10 stocks first</b>: the 10 stocks turned bullish while the index hadn't yet. XYZ100 was higher 30 minutes later about 7 times out of 10, but less consistently. Other differences showed no clear pattern.</p>
+      <h3>The scoreboard</h3>
+      <p>It replays the history loaded on this page (about two days online, three and a half on the local version) and counts how often each mark was followed by the expected move, from the minute the mark appeared. New marks are added as they happen. A few days is not much data, so treat the patterns as hints and watch the scoreboard.</p>
+      <p>For information only, not investment advice.</p>
+    </div>
+  </details>
+  <div class="credit">Not investment advice · Data: Hyperliquid · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></div>
+</footer>
+<div id="flash"></div>
+<div id="banner" hidden></div>
+<div id="loading"><img src="brand/logo.svg" alt=""><b>Nasdaq Signal Board</b><div id="loading-text">Loading Hyperliquid history…</div></div>
+<script>
+const DAY = 86400000, MIN = 60000, TFS = [1, 3, 5, 7, 15];
+const C = { up: '#2bb68a', down: '#f0555f', alone: '#ff8a3d', other: '#8d99ab', grid: '#121821', text: '#7d899b', line: '#1c2430',
+            cross: '#3a4554', label: '#283240', bg: '#0a0d12' };
+// What a disagreement is called, and what has tended to follow it (the 3-day study; the scoreboard keeps checking)
+const PATTERN = {
+  alone: { name: 'Index alone', word: 'INDEX ALONE', band: 'rgba(255, 138, 61, 0.16)', color: C.alone, horizon: 15, expect: -1,
+           test: 'lower 15 min later', blurb: "The index turned bullish, the 10 stocks didn't. So far this has often faded." },
+  first: { name: '10 stocks first', word: '10 STOCKS FIRST', band: 'rgba(43, 182, 138, 0.16)', color: C.up, horizon: 30, expect: 1,
+           test: 'higher 30 min later', blurb: 'The 10 stocks turned bullish, the index not yet. The index has often followed.' },
+  other: { name: 'Other difference', word: 'DIFFERENT', band: 'rgba(141, 153, 171, 0.10)', color: C.other,
+           blurb: 'They disagree some other way. No clear pattern so far.' },
+};
+const STATE_COLOR = { BULLISH: C.up, BEARISH: C.down, NEUTRAL: '#3a4554' };
+const SYM = { BULLISH: '▲', BEARISH: '▼', NEUTRAL: '–' };
+// the two signals at one moment -> null when they agree, else which kind of disagreement
+const classify = (sn, sx) => !sn || !sx || sn === sx ? null : sx === 'BULLISH' ? 'alone' : sn === 'BULLISH' ? 'first' : 'other';
+
+const $ = id => document.getElementById(id);
+const sec = ms => Math.floor(ms / 1000);
+const two = n => String(n).padStart(2, '0');
+const ok = v => v !== null && v !== undefined && isFinite(v);
+const num = (v, d = 2) => ok(v) ? v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
+const pts = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1);
+const pct = v => ok(v) ? (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(2) + '%' : '';
+const dur = ms => { const s = Math.max(0, Math.floor(ms / 1000));
+  return s >= 3600 ? `${Math.floor(s / 3600)}h ${two(Math.floor(s % 3600 / 60))}m` : `${Math.floor(s / 60)}m ${two(s % 60)}s`; };
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// bars restart at 00:00 UTC each day, exactly as on the Signals page and the server
+const bucketStart = (t, m) => { const d0 = t - (t % DAY), s = m * MIN; return d0 + Math.floor((t - d0) / s) * s; };
+const bucketEnd = (t, m) => Math.min(bucketStart(t, m) + m * MIN, t - (t % DAY) + DAY);
+const hhmm = ms => { const d = new Date(ms); return `${two(d.getHours())}:${two(d.getMinutes())}`; };
+const when = ms => new Date(ms).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+const shortWhen = ms => new Date(ms).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+
+function upsert(arr, bar) {  // insert or replace a bar by time: 'append', 'last', 'older' or 'same'
+  const n = arr.length;
+  if (!n || bar.time > arr[n - 1].time) { arr.push(bar); return 'append'; }
+  if (bar.time === arr[n - 1].time) { arr[n - 1] = bar; return 'last'; }
+  let lo = 0, hi = n - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (arr[mid].time < bar.time) lo = mid + 1; else hi = mid; }
+  if (arr[lo].time === bar.time) {
+    if (Object.keys(bar).every(k => arr[lo][k] === bar[k])) return 'same';
+    arr[lo] = bar;
+  } else arr.splice(lo, 0, bar);
+  return 'older';
+}
+function aggregate(bars, m) {
+  const out = [];
+  for (const b of bars) {
+    const s = bucketStart(b.time, m), last = out[out.length - 1];
+    if (!last || last.time !== s) out.push({ time: s, open: b.open, high: b.high, low: b.low, close: b.close });
+    else { last.high = Math.max(last.high, b.high); last.low = Math.min(last.low, b.low); last.close = b.close; }
+  }
+  return out;
+}
+function options() {
+  return {
+    autoSize: true,
+    watermark: { visible: true, text: 'XYZ100', color: 'rgba(232, 238, 246, 0.04)', fontSize: 44, fontStyle: '700' },
+    layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 10.5,
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },  // credited in the footer
+    grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
+    rightPriceScale: { borderColor: C.line, minimumWidth: 76 },
+    timeScale: { borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 6,
+      tickMarkFormatter: (t, type) => { const d = new Date(t * 1000);
+        return type < 3 ? `${d.getDate()} ${MON[d.getMonth()]}` : `${two(d.getHours())}:${two(d.getMinutes())}`; } },
+    localization: { timeFormatter: t => when(t * 1000) },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label },
+      horzLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label } },
+  };
+}
+
+// ---- state --------------------------------------------------------------------------------------
+let tf = 3;
+try { const saved = Number(localStorage.getItem('ndx10.tf')); if (TFS.includes(saved)) tf = saved; } catch (e) {}
+let bars1m = [], boot = null, gen = null, lastSeq = 0, lastTickAt = 0, lost = false, es = null, pending = null, engine = null;
+let live = null, latestMinute = 0, hovering = false, alertsOn = false, audio = null, alertKind, alertSince = 0, alerted;
+const stateAt = { ndx10: new Map(), nas100: new Map() };  // minute -> each signal's state at that minute's close
+let mainBars = [], pairs = [], index = new Map(), markersKey = '';
+let chart, candles, layer;
+
+// ---- the chart: candles, a band wherever the two signals disagree, and the two signals as strips ---------------
+class DivLayer {  // a Lightweight Charts series primitive
+  constructor() {
+    this.bands = []; this.cells = [];
+    this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: t => this.render(t) }) },
+                  { zOrder: () => 'top', renderer: () => ({ draw: t => this.labels(t) }) }];
+  }
+  attached({ requestUpdate }) { this.requestUpdate = requestUpdate; }
+  detached() { this.requestUpdate = null; }
+  paneViews() { return this.views; }
+  updateAllViews() {  // runs of equal values become one band or cell, edge to edge
+    const ts = chart.timeScale(), n = pairs.length, bands = [], cells = [];
+    const x0 = n ? ts.logicalToCoordinate(0) : null, x1 = n ? ts.logicalToCoordinate(1) : null;
+    if (x0 !== null && x1 !== null) {
+      const step = x1 - x0, x = i => x0 + i * step;
+      const runs = (key, out) => {
+        for (let i = 0, j; i < n; i = j + 1) {
+          for (j = i; j + 1 < n && pairs[j + 1][key] === pairs[i][key];) j++;
+          if (pairs[i][key]) out(i, j, pairs[i][key]);
+        }
+      };
+      runs('kind', (i, j, k) => bands.push([x(i) - step / 2, x(j) + step / 2, PATTERN[k].band]));
+      runs('sn', (i, j, s) => cells.push([0, x(i) - step / 2, x(j) + step / 2, STATE_COLOR[s]]));
+      runs('sx', (i, j, s) => cells.push([1, x(i) - step / 2, x(j) + step / 2, STATE_COLOR[s]]));
+    }
+    this.bands = bands; this.cells = cells;
+  }
+  render(target) {
+    target.useBitmapCoordinateSpace(({ context: c, bitmapSize: size, horizontalPixelRatio: hr, verticalPixelRatio: vr }) => {
+      const span = (l, r) => [Math.max(0, Math.round(l * hr)), Math.min(size.width, Math.round(r * hr))];
+      for (const [l, r, color] of this.bands) { const [a, b] = span(l, r); if (b > a) { c.fillStyle = color; c.fillRect(a, 0, b - a, size.height); } }
+      const rowH = Math.round(9 * vr), gap = Math.round(3 * vr), bottom = size.height - Math.round(6 * vr);
+      for (const [row, l, r, color] of this.cells) {
+        const [a, b] = span(l, r);
+        if (b > a) { c.fillStyle = color; c.fillRect(a, bottom - (2 - row) * rowH - (1 - row) * gap, b - a, rowH); }
+      }
+    });
+  }
+  labels(target) {  // the strips' names, at the left
+    target.useMediaCoordinateSpace(({ context: c, mediaSize: m }) => {
+      c.font = '500 10px "IBM Plex Mono", ui-monospace, Consolas, monospace';
+      c.textBaseline = 'middle';
+      for (const [text, y] of [['10 stocks', m.height - 22.5], ['Index', m.height - 10.5]]) {
+        const w = c.measureText(text).width + 8;
+        c.fillStyle = 'rgba(10, 13, 18, 0.85)'; c.fillRect(4, y - 6, w, 12);
+        c.fillStyle = '#c7d0dc'; c.fillText(text, 8, y);
+      }
+    });
+  }
+}
+function makeChart() {
+  chart = LightweightCharts.createChart($('pmain'), options());
+  candles = chart.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
+  candles.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: 0.17 } });  // room for the strips
+  layer = new DivLayer();
+  candles.attachPrimitive(layer);
+  chart.subscribeCrosshairMove(p => {
+    if (p.sourceEvent) hovering = p.time !== undefined;  // without a mouse event: the chart moved under a still mouse
+    document.body.classList.toggle('hovering', hovering);
+    if (hovering && p.time !== undefined) tag(p.time); else if (!hovering) tag();
+  });
+  $('pmain').addEventListener('mouseleave', () => { hovering = false; document.body.classList.remove('hovering'); tag(); });
+}
+const closedState = (map, b) => {  // a signal at the candle's last finished minute
+  for (let t = bucketEnd(b.time, tf) - MIN; t >= b.time; t -= MIN) { const s = map.get(t); if (s) return s; }
+  return null;
+};
+function computePairs() {  // both signals at every candle's close; the forming candle shows them live
+  const n = mainBars.length;
+  pairs = mainBars.map((b, i) => {
+    const lastOne = i === n - 1 && live;
+    const sn = lastOne ? live.ndx10.state : closedState(stateAt.ndx10, b);
+    const sx = lastOne ? live.nas100.state : closedState(stateAt.nas100, b);
+    return { sn, sx, kind: classify(sn, sx) };
+  });
+}
+function setMarkers(force) {  // a mark where an Index alone or a 10 stocks first stretch begins
+  const m = [];
+  for (let i = 1; i < pairs.length; i++) {
+    const k = pairs[i].kind, time = sec(mainBars[i].time);
+    if (k === pairs[i - 1].kind) continue;
+    if (k === 'alone') m.push({ time, position: 'aboveBar', color: C.alone, shape: 'arrowDown', text: 'Index alone' });
+    if (k === 'first') m.push({ time, position: 'belowBar', color: C.up, shape: 'arrowUp', text: '10 stocks first' });
+  }
+  const key = JSON.stringify(m);
+  if (force || key !== markersKey) { markersKey = key; candles.setMarkers(m); }
+}
+const bucketFrom1m = start => { const parts = []; for (let i = bars1m.length - 1; i >= 0 && bars1m[i].time >= start; i--) parts.unshift(bars1m[i]); return aggregate(parts, tf)[0]; };
+const point = b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close });
+function draw() {  // everything again: after a snapshot, a candle-size change, or an older bar changing
+  mainBars = aggregate(bars1m, tf);
+  computePairs();
+  candles.setData(mainBars.map(point));
+  setMarkers(true);
+  index = new Map(mainBars.map((b, i) => [sec(b.time), i]));
+  chart.applyOptions({ watermark: { text: `XYZ100 · ${tf}m` } });
+  if (layer.requestUpdate) layer.requestUpdate();
+}
+function update(older) {  // each tick: the newest candle, and both signals (late states settle older candles too)
+  const last1m = bars1m[bars1m.length - 1], n = mainBars.length;
+  if (older || !n || !last1m) { draw(); return; }
+  const cur = bucketStart(last1m.time, tf);
+  if (cur > mainBars[n - 1].time) {
+    mainBars[n - 1] = bucketFrom1m(mainBars[n - 1].time) || mainBars[n - 1];
+    candles.update(point(mainBars[n - 1]));
+    mainBars.push(bucketFrom1m(cur));
+    index.set(sec(cur), n);
+  } else mainBars[n - 1] = bucketFrom1m(cur);
+  candles.update(point(mainBars[mainBars.length - 1]));
+  computePairs();
+  setMarkers(false);
+  if (layer.requestUpdate) layer.requestUpdate();
+}
+function showRecent() {
+  requestAnimationFrame(() => {
+    const n = mainBars.length, span = Math.round(6 * 60 / tf);  // about 6 hours
+    chart.timeScale().setVisibleLogicalRange({ from: n - span, to: n + 5 });
+  });
+}
+function tag(t) {  // the label in the chart's corner: the candle, and both signals at its close
+  const i = t === undefined ? mainBars.length - 1 : index.get(t), b = mainBars[i], p = pairs[i];
+  if (!b || !p) return;
+  $('tag').innerHTML = `<b>XYZ100</b><span>${tf}m</span>` + (t === undefined ? '' : `<span class="t-time">${when(b.time)}</span>`)
+    + `<span class="ohlc">O <b>${num(b.open)}</b> H <b>${num(b.high)}</b> L <b>${num(b.low)}</b> `
+    + `C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close)}</b></span>`
+    + `<span class="t-row"><span>10 stocks ${SYM[p.sn] || '·'}</span><span>index ${SYM[p.sx] || '·'}</span>`
+    + `<span class="t-kind ${p.kind || ''}">${p.kind ? PATTERN[p.kind].name : 'in sync'}</span></span>`;
+}
+
+// ---- the header: the situation right now ---------------------------------------------------------------
+function since(k) {  // when the current situation (in sync, or this kind of disagreement) began
+  let start = live.nas100.time;
+  for (let m = latestMinute; m; m -= MIN) {
+    const sn = stateAt.ndx10.get(m), sx = stateAt.nas100.get(m);
+    if (!sn || !sx || classify(sn, sx) !== k) break;
+    start = m;
+  }
+  return start;
+}
+function showHead() {
+  if (!live) return;
+  const sn = live.ndx10.state, sx = live.nas100.state, k = classify(sn, sx), box = $('state');
+  box.className = 'state ' + (k || 'sync');
+  box.querySelector('.state-word').textContent = k ? PATTERN[k].word : 'IN SYNC';
+  $('since').textContent = `for ${dur(live.nas100.time - since(k))}`;
+  $('note').textContent = k ? PATTERN[k].blurb : `Both signals say ${sn.toLowerCase()}. Nothing to mark.`;
+  const tile = (name, sub, s) => `<div class="rule ${s.state === 'BULLISH' ? 'pass' : s.state === 'BEARISH' ? 'fail' : ''}">`
+    + `<div class="r-top"><span class="r-tf">${name}</span><span class="r-mark">${SYM[s.state]}</span></div>`
+    + `<div class="r-name">${sub}</div><div class="r-val">${s.state} · for ${dur(s.time - s.since)}</div></div>`;
+  $('tiles').innerHTML = tile('10 stocks', 'NDX10 composite signal', live.ndx10) + tile('Index', 'NAS100 signal · XYZ100', live.nas100);
+}
+function showQuote(k) {
+  const px = k.price.last;
+  if (!ok(px)) return;
+  $('px').textContent = num(px);
+  const target = Date.now() - DAY;
+  let ref = null;
+  if (bars1m.length && bars1m[0].time <= target) {
+    let lo = 0, hi = bars1m.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (bars1m[mid].time <= target) lo = mid; else hi = mid - 1; }
+    ref = bars1m[lo].close;
+  }
+  const ch = ref ? px / ref - 1 : null;
+  $('pxchg').textContent = ch === null ? '' : `${pct(ch)} 24h`;
+  $('pxchg').className = 'chg num ' + (ch >= 0 ? 'up' : 'down');
+}
+
+// ---- the scoreboard: every mark in the loaded history, and what XYZ100 did after it --------------------------
+function showScore() {
+  const closeAt = new Map(), closed = bars1m.slice(0, -1);  // the newest 1-minute bar is still forming
+  for (const b of closed) closeAt.set(b.time, b.close);
+  const lastClosed = closed.length ? closed[closed.length - 1].time : 0;
+  const minutes = [...stateAt.nas100.keys()].filter(m => stateAt.ndx10.has(m)).sort((a, b) => a - b);
+  if (!minutes.length) return;
+  const events = [];
+  let prev = null, prevM = null;
+  for (const m of minutes) {
+    const k = classify(stateAt.ndx10.get(m), stateAt.nas100.get(m));
+    if (prevM !== m - MIN) prev = null;  // a hole in the history: start over
+    if ((k === 'alone' || k === 'first') && k !== prev) events.push({ m, kind: k });
+    prev = k; prevM = m;
+  }
+  const stats = { alone: { n: 0, worked: 0, moves: [], open: 0 }, first: { n: 0, worked: 0, moves: [], open: 0 } };
+  for (const e of events) {
+    const P = PATTERN[e.kind], a = closeAt.get(e.m), end = e.m + P.horizon * MIN, b = closeAt.get(end), s = stats[e.kind];
+    if (a === undefined) continue;
+    if (end > lastClosed || b === undefined) { e.open = true; s.open += 1; continue; }
+    e.move = b - a; e.worked = Math.sign(e.move) === P.expect;
+    s.n += 1; s.moves.push(e.move); if (e.worked) s.worked += 1;
+  }
+  const baseline = h => { let up = 0, all = 0;
+    for (const m of minutes) { const a = closeAt.get(m), b = closeAt.get(m + h * MIN); if (a !== undefined && b !== undefined) { all += 1; if (b > a) up += 1; } }
+    return all ? Math.round(up / all * 100) : null; };
+  const days = (minutes[minutes.length - 1] - minutes[0]) / DAY;
+  const row = k => {
+    const P = PATTERN[k], s = stats[k], rate = s.n ? Math.round(s.worked / s.n * 100) : null;
+    const avg = s.moves.length ? s.moves.reduce((x, y) => x + y, 0) / s.moves.length : null;
+    return `<div class="sc"><div class="sc-name"><i style="background:${P.color}"></i>${P.name}</div>`
+      + `<div class="sc-big" style="color:${rate === null ? 'var(--muted)' : rate >= 60 ? P.color : 'var(--text)'}">${rate === null ? '—' : rate + '%'}</div>`
+      + `<div class="sc-sub">Worked when XYZ100 was ${P.test}</div>`
+      + `<div class="sc-sub r">${s.worked} of ${s.n}${s.open ? ` · ${s.open} open` : ''}</div>`
+      + `<div class="sc-sub">Average move after it</div><div class="sc-sub r">${avg === null ? '—' : pts(avg) + ' pts'}</div></div>`;
+  };
+  const recent = events.slice(-6).reverse().map(e => {
+    const P = PATTERN[e.kind];
+    const res = e.open ? '<span style="color:var(--muted)">waiting</span>'
+      : `<span style="color:${e.worked ? P.color : 'var(--muted)'}">${pts(e.move)} ${e.worked ? '✓' : '✗'}</span>`;
+    return `<li><span class="t">${shortWhen(e.m)}</span><span>${P.name}</span><span class="res">${res}</span></li>`;
+  }).join('');
+  const b15 = baseline(15), b30 = baseline(30);
+  $('score').innerHTML = `<h3>Scoreboard <small>last ${days.toFixed(1)} days</small></h3>${row('alone')}${row('first')}`
+    + `<p class="base">For comparison, any minute: XYZ100 was higher 15 min later ${b15 ?? '—'}% of the time, 30 min later ${b30 ?? '—'}%.</p>`
+    + (recent ? `<ol class="recent">${recent}</ol>` : '');
+}
+
+// ---- alerts: when an Index alone or a 10 stocks first appears and holds for 3 s ----------------------------
+function beep(up) {
+  if (!audio) return;
+  const o = audio.createOscillator(), g = audio.createGain();
+  o.frequency.value = up ? 880 : 330; o.connect(g); g.connect(audio.destination);
+  g.gain.setValueAtTime(0.25, audio.currentTime); g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.6);
+  o.start(); o.stop(audio.currentTime + 0.6);
+}
+function checkAlert() {
+  const k = classify(live.ndx10.state, live.nas100.state), now = Date.now();
+  if (k !== alertKind) { alertKind = k; alertSince = now; }
+  if (alerted === undefined) { alerted = k; return; }  // the situation at load is not news
+  if (k !== 'alone' && k !== 'first') { alerted = k; return; }
+  if (k === alerted || now - alertSince < 3000) return;
+  alerted = k;
+  const P = PATTERN[k], fl = $('flash');
+  fl.style.background = k === 'first' ? 'rgba(43,182,138,.18)' : 'rgba(255,138,61,.18)';
+  fl.style.opacity = 1; setTimeout(() => fl.style.opacity = 0, 900);
+  if (!alertsOn) return;
+  beep(k === 'first');
+  if ('Notification' in window && Notification.permission === 'granted') new Notification(P.name, { body: P.blurb });
+}
+$('alerts').onclick = async () => {
+  audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+  if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission();
+  alertsOn = !alertsOn;
+  $('alerts').textContent = alertsOn ? 'Alerts on' : 'Alerts off';
+  $('alerts').setAttribute('aria-pressed', String(alertsOn));
+  if (alertsOn) beep(true);
+};
+function buildTfs() {
+  $('tfs').innerHTML = TFS.map(m => `<button type="button" data-m="${m}" aria-pressed="${m === tf}">${m}m</button>`).join('');
+  for (const b of $('tfs').children) b.onclick = () => {
+    tf = Number(b.dataset.m);
+    try { localStorage.setItem('ndx10.tf', tf); } catch (e) {}
+    buildTfs(); draw(); showRecent(); tag();
+  };
+}
+setInterval(() => {
+  const fresh = Date.now() - lastTickAt < 4000;
+  $('dot').className = 'dot ' + (lastTickAt ? (fresh ? 'ok' : 'stale') : '');
+  $('live').textContent = lastTickAt ? (fresh ? 'Live' : 'Reconnecting…') : 'Connecting…';
+}, 1000);
+
+// ---- data: the same two sources as the Signals page --------------------------------------------------------
+const loadingText = text => { const el = $('loading-text'); if (el) el.textContent = text; };
+async function pickSource() {
+  if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {  // perhaps the local server: ask it
+    try {
+      const r = await fetch('snapshot', { cache: 'no-store' });
+      if (r.ok && (r.headers.get('content-type') || '').includes('json')) return;
+    } catch (e) {}
+  }
+  await new Promise((resolve, reject) => {
+    const tagEl = document.createElement('script');
+    tagEl.src = 'engine.js'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
+    document.head.appendChild(tagEl);
+  });
+  const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();
+  engine = new NdxEngine(basketFile, { progress: loadingText });
+  engine.start().catch(e => loadingText(`Couldn't load Hyperliquid's data (${e.message}). Reload the page to try again.`));
+}
+async function fetchSnapshot() {
+  if (engine) { await engine.whenReady(); return engine.snapshot(); }
+  for (;;) {
+    try {
+      const s = await (await fetch('snapshot', { cache: 'no-store' })).json();
+      if (!s.loading) return s;
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 2000));
+  }
+}
+function apply(s) {
+  boot = s.boot; gen = s.gen; lastSeq = s.tick.seq;
+  bars1m = s.price.slice();
+  const newest = bars1m.length ? bars1m[bars1m.length - 1].time : -Infinity;
+  for (const b of s.tick.price.tail) if (b && b.time > newest) upsert(bars1m, b);
+  latestMinute = 0;
+  for (const key of ['ndx10', 'nas100']) {
+    const m = stateAt[key] = new Map();
+    for (const [a, b, st] of s.sections[key].signal) for (let t = a; t <= b; t += MIN) m.set(t, st);
+    for (const [t, st] of s.tick.sections[key].history_tail) if (!m.has(t)) m.set(t, st);
+    for (const t of m.keys()) if (t > latestMinute) latestMinute = t;
+  }
+  live = s.tick.sections;
+  $('banner').hidden = true;
+  draw(); showHead(); showScore(); showQuote(s.tick);
+}
+async function resync() {  // reload the snapshot, keep the view; ticks arriving meanwhile wait in `pending`
+  if (pending) return;
+  pending = [];
+  const r = chart.timeScale().getVisibleLogicalRange(), n = mainBars.length;
+  const view = r && n ? [r.from - n, r.to - n] : null;  // kept relative to the newest candle
+  try {
+    apply(await fetchSnapshot());
+    if (view) chart.timeScale().setVisibleLogicalRange({ from: mainBars.length + view[0], to: mainBars.length + view[1] });
+    tag();
+  } finally {
+    const queued = pending;
+    pending = null;
+    for (const k of queued) if (k.gen === gen && k.seq > lastSeq) onTick(k);
+  }
+}
+function onTick(k) {
+  if (pending) { pending.push(k); return; }
+  if (k.boot !== boot) { location.reload(); return; }  // the server restarted, perhaps with new code
+  if (k.gen < gen) return;  // from before a rebuild
+  if (k.gen > gen || k.seq !== lastSeq + 1) { resync(); pending.push(k); return; }  // rebuilt, or ticks were missed
+  lastSeq = k.seq;
+  lastTickAt = Date.now();
+  let older = false, history = false;
+  for (const b of k.price.tail) if (b && upsert(bars1m, b) === 'older') older = true;
+  for (const key of ['ndx10', 'nas100']) for (const [t, st] of k.sections[key].history_tail) {
+    if (stateAt[key].get(t) !== st) { stateAt[key].set(t, st); history = true; }
+    if (t > latestMinute) latestMinute = t;
+  }
+  live = k.sections;
+  update(older);
+  showHead();
+  if (history) showScore();
+  showQuote(k);
+  if (!hovering) tag();
+  checkAlert();
+}
+function connect() {
+  if (engine) { engine.on('tick', onTick); engine.on('status', d => { $('banner').textContent = d.text; $('banner').hidden = false; }); return; }
+  es = new EventSource('events');
+  es.addEventListener('tick', e => {
+    const k = JSON.parse(e.data);
+    if (lost) { lost = false; resync(); pending.push(k); return; }  // ticks were missed while disconnected
+    onTick(k);
+  });
+  es.addEventListener('status', e => { $('banner').textContent = JSON.parse(e.data).text; $('banner').hidden = false; });
+  es.onerror = () => { lost = true; };
+}
+(async () => {
+  buildTfs();
+  makeChart();
+  await pickSource();
+  apply(await fetchSnapshot());
+  tag();
+  $('loading').remove();
+  showRecent();
+  connect();
+})();
+</script>
+</body>
+</html>

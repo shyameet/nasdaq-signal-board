@@ -30,7 +30,8 @@ Hyperliquid or TradingView.
 
 | File | What it is |
 |---|---|
-| `index.html` | the page |
+| `index.html` | the Signals page |
+| `divergence.html` | the Divergence page: where the two signals disagree, and a scoreboard of what followed |
 | `engine.js` | the signal calculation |
 | `basket.json` | the NDX10 basket: stocks, weights and reference prices |
 | `lightweight-charts.js` | TradingView Lightweight Charts™ 4.2.3 |
