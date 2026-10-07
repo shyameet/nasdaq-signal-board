@@ -1,0 +1,1236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nasdaq Signal Board</title>
+<meta name="description" content="Live Nasdaq-100 trend signals from Hyperliquid's 24/7 stock perps: a 10-stock composite and the index itself, each on multi-timeframe MACD and EMA rules.">
+<meta name="theme-color" content="#0a0d12">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Nasdaq Signal Board">
+<meta property="og:description" content="Live Nasdaq-100 trend signals from Hyperliquid's 24/7 markets.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%232bb68a' d='M8 0h24L0 32V8a8 8 0 0 1 8-8z'/%3E%3Cpath fill='%23f0555f' d='M32 0v24a8 8 0 0 1-8 8H0z'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="lightweight-charts.js"></script>
+<style>
+  /* Layout: a two-column trading board. Each instrument gets a signal header (state + one tile
+     per rule), then XYZ100 candles with that signal's BUY/SELL marks and 3m EMAs, then the MACD panes.
+     One crosshair. */
+  :root {
+    color-scheme: dark;
+    --bg: #0a0d12;
+    --surface: #0e131a;
+    --tile: #121922;
+    --line: #1c2430;
+    --line-strong: #283240;
+    --text: #e8eef6;
+    --muted: #8d99ab;
+    --faint: #5c6879;
+    --up: #2bb68a;
+    --up-soft: rgba(43, 182, 138, .14);
+    --down: #f0555f;
+    --down-soft: rgba(240, 85, 95, .14);
+    --ema8: #f2b33d;
+    --ema21: #5b8cff;
+    --macd: #5b8cff;
+    --signal: #ff9f43;
+    --accent: #5b8cff;
+    --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text);
+         font: 13px/1.4 var(--font-ui); -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+  .up { color: var(--up); } .down { color: var(--down); }
+
+  /* ---- top bar ---- */
+  .topbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; padding: 10px 16px;
+            background: var(--surface); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .mark { width: 22px; height: 22px; border-radius: 6px; flex: none;
+                 background: linear-gradient(135deg, var(--up) 0 50%, var(--down) 50% 100%); }
+  .brand b { display: block; font-size: 14px; font-weight: 700; letter-spacing: .01em; }
+  .brand small { display: block; color: var(--muted); font-size: 11px; }
+  .quote { display: flex; align-items: baseline; gap: 8px; }
+  .quote .sym { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; }
+  .quote .px { font-size: 20px; font-weight: 600; }
+  .chg { font-size: 12px; font-weight: 500; }
+  .session { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--line);
+             border-radius: 999px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .session b { color: var(--text); font-weight: 600; }
+  .spacer { flex: 1; }
+  .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .seg button { padding: 5px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
+                font-family: var(--font-num); font-size: 12px; }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .toggle { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border: 1px solid var(--line); border-radius: 8px;
+            background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+  .toggle::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .toggle[aria-pressed="true"] { color: var(--text); border-color: var(--line-strong); }
+  .toggle[aria-pressed="true"]::before { background: var(--up); box-shadow: 0 0 6px var(--up); }
+  .live { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .dot.ok { background: var(--up); box-shadow: 0 0 6px var(--up); }
+  .dot.stale { background: var(--ema8); }
+
+  /* ---- the two panels ---- */
+  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); }
+  .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .panel + .panel { border-left: 1px solid var(--line-strong); }
+
+  /* ---- drawing tools: a rail left of the panels ---- */
+  .rail { background: var(--surface); border-right: 1px solid var(--line-strong); }
+  .rail-in { position: sticky; top: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 5px; }
+  .tool { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 7px;
+          background: transparent; color: var(--muted); cursor: pointer; }
+  .tool:hover { color: var(--text); background: var(--tile); }
+  .tool[aria-pressed="true"] { color: var(--accent); background: rgba(91, 140, 255, .14); box-shadow: inset 0 0 0 1px rgba(91, 140, 255, .45); }
+  .tool:disabled { opacity: .3; cursor: default; background: transparent; color: var(--muted); }
+  .tool svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .tool svg .fill { fill: currentColor; stroke: none; }
+  .rail .sep { width: 20px; height: 1px; margin: 6px 0; background: var(--line-strong); }
+  .pane.drawing { touch-action: none; }  /* with a tool picked, a finger draws instead of scrolling the page */
+  .phead { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
+  .phead-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  .ptitle { min-width: 0; }
+  .eyebrow { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+  .pline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 2px; }
+  .pname { font-size: 15px; font-weight: 700; }
+  .pval { font-size: 18px; font-weight: 600; }
+  .state { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  .state-word { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 8px; font-weight: 700;
+                font-size: 14px; letter-spacing: .12em; background: var(--tile); color: var(--muted);
+                box-shadow: inset 0 0 0 1px var(--line-strong); transition: background .3s, color .3s, box-shadow .3s; }
+  .state-word::before { content: "–"; font-size: 13px; }
+  .state.bull .state-word { background: var(--up); color: #04150f; box-shadow: 0 0 22px rgba(43, 182, 138, .35); }
+  .state.bull .state-word::before { content: "▲"; }
+  .state.bear .state-word { background: var(--down); color: #1e0507; box-shadow: 0 0 22px rgba(240, 85, 95, .35); }
+  .state.bear .state-word::before { content: "▼"; }
+  .state-since { color: var(--muted); font-size: 11px; }
+
+  .rules { display: grid; gap: 6px; }
+  .rule { min-width: 0; padding: 7px 9px; border-radius: 8px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
+  .rule.pass { background: var(--up-soft); box-shadow: inset 0 0 0 1px rgba(43, 182, 138, .35); }
+  .rule.fail { background: var(--down-soft); box-shadow: inset 0 0 0 1px rgba(240, 85, 95, .3); }
+  .r-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .r-tf { font-family: var(--font-num); font-size: 13px; font-weight: 600; }
+  .r-mark { font-size: 12px; font-weight: 700; }
+  .rule.pass .r-mark { color: var(--up); } .rule.fail .r-mark { color: var(--down); } .rule.info .r-mark { color: var(--faint); }
+  .r-name { margin-top: 1px; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .r-val { margin-top: 3px; font-family: var(--font-num); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .stack { flex: 1; min-height: 0; display: grid; }
+  .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }  /* lets charts shrink */
+  .tag { position: absolute; top: 6px; left: 8px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 96px);
+         padding: 2px 8px; border-radius: 6px; background: rgba(10, 13, 18, .72); pointer-events: none; font-size: 11px; color: var(--muted);
+         white-space: nowrap; overflow: hidden; }
+  .tag b { color: var(--text); font-weight: 600; }
+  .tag .t-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); flex: none; }
+  .tag .t-dot.pass { background: var(--up); } .tag .t-dot.fail { background: var(--down); }
+  .tag .t-vals { display: none; font-family: var(--font-num); color: var(--text); }
+  .hovering .tag .t-vals { display: inline; }
+  .tag .sw { width: 9px; height: 2px; border-radius: 1px; display: inline-block; vertical-align: middle; }
+  .tag.main { flex-wrap: wrap; row-gap: 2px; white-space: normal; max-width: calc(100% - 100px); font-family: var(--font-num); }
+  .tag.main b { font-family: var(--font-ui); }
+  .tag.main .ohlc b { font-family: var(--font-num); font-weight: 500; }
+  .tag .t-time { color: var(--text); }
+  .tag .t-state { font-family: var(--font-ui); font-weight: 700; letter-spacing: .06em; color: var(--muted); }
+  .tag .t-state.bull { color: var(--up); } .tag .t-state.bear { color: var(--down); }
+  .tag.main .t-ema { flex-basis: 100%; display: flex; align-items: center; gap: 6px; font-family: var(--font-ui); }
+  .tag .t-of { color: var(--faint); }
+
+  /* ---- footer ---- */
+  .foot { flex: none; position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px;
+          background: var(--surface); border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; }
+  .basket { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-width: 0; }
+  .flabel { color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; margin-right: 4px; }
+  .m { display: inline-flex; align-items: baseline; gap: 5px; padding: 2px 7px; border-radius: 6px; background: var(--tile); }
+  .m b { color: var(--text); font-weight: 600; font-size: 11px; }
+  .m .w { color: var(--faint); font-family: var(--font-num); font-size: 10.5px; }
+  .m .c { font-family: var(--font-num); font-size: 11px; }
+  .how { position: relative; margin-left: auto; }
+  .how summary { cursor: pointer; list-style: none; padding: 4px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); }
+  .how summary::-webkit-details-marker { display: none; }
+  .how[open] summary { color: var(--text); border-color: var(--line-strong); }
+  .how-body { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 30; width: min(440px, calc(100vw - 32px)); padding: 14px 16px;
+              border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 12.5px;
+              line-height: 1.5; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
+  .how-body h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+  .how-body p { margin: 0 0 8px; }
+  .how-body table { width: 100%; border-collapse: collapse; margin: 4px 0 10px; font-size: 12px; }
+  .how-body td, .how-body th { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+  .how-body th { color: var(--muted); font-weight: 500; }
+  .credit a { color: var(--muted); }
+
+  #flash { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .8s; }
+  #banner { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 40; max-width: calc(100vw - 32px); padding: 8px 14px;
+            border: 1px solid rgba(242, 179, 61, .45); border-radius: 8px; background: #241c0b; color: #f6d68a; font-size: 12.5px; }
+  #toast { position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 12px;
+           padding: 7px 8px 7px 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface);
+           box-shadow: 0 8px 30px rgba(0, 0, 0, .45); font-size: 12.5px; }
+  #toast[hidden] { display: none; }
+  #toast button { padding: 4px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--tile); cursor: pointer; }
+  #loading { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: var(--bg); color: var(--muted); }
+  #loading div { display: flex; align-items: center; gap: 10px; }
+  #loading div::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-strong);
+                         border-top-color: var(--accent); animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { #loading div::before { animation: none; } .state-word { transition: none; } }
+
+  @media (max-width: 1100px) {  /* too narrow for side by side: stack the two panels */
+    html, body { height: auto; }
+    .board { grid-template-columns: auto minmax(0, 1fr); }
+    .rail { grid-row: 1 / span 2; }
+    .panel { height: 96vh; min-height: 640px; }
+    .panel + .panel { border-left: 0; border-top: 1px solid var(--line-strong); }
+  }
+  @media (max-width: 560px) {
+    .topbar { gap: 8px 12px; }
+    .session { display: none; }
+    .rules { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+    .board { grid-template-columns: minmax(0, 1fr); }  /* the drawing tools become a row above the charts */
+    .rail { grid-row: auto; position: sticky; top: 0; z-index: 20; border-right: 0; border-bottom: 1px solid var(--line-strong); }
+    .rail-in { position: static; flex-direction: row; gap: 1px; overflow-x: auto; scrollbar-width: none; padding: 5px 4px; }
+    .rail .sep { width: 1px; height: 20px; margin: 0 6px; flex: none; }
+    .tool { flex: none; width: 30px; height: 30px; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="mark" aria-hidden="true"></span><div><b>Nasdaq Signal Board</b><small>Live from Hyperliquid</small></div></div>
+  <div class="quote"><span class="sym">XYZ100</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
+  <div class="session" id="session" title="US stock market session (New York time; holidays not shown)"></div>
+  <div class="spacer"></div>
+  <div class="seg" id="tfs" role="group" aria-label="Candle size of both price charts"></div>
+  <button class="toggle" id="alerts" aria-pressed="false" title="Browser notification and sound when either signal changes">Alerts off</button>
+  <div class="live"><span class="dot" id="dot"></span><span id="live">connecting</span></div>
+</header>
+<main class="board" id="board">
+  <nav class="rail" id="rail" aria-label="Drawing tools">
+    <div class="rail-in">
+      <button type="button" class="tool" data-tool="cursor" title="Cursor: drag to scroll, click a drawing to select it (Esc)" aria-label="Cursor">
+        <svg viewBox="0 0 20 20"><path d="M6 3.5v12l3-2.9 2.1 4.4 1.9-.9-2.1-4.3h4.3z"/></svg></button>
+      <button type="button" class="tool" data-tool="trend" title="Trend line: drag, or click two points" aria-label="Trend line">
+        <svg viewBox="0 0 20 20"><path d="M4.5 15.5l11-11"/><circle class="fill" cx="4.5" cy="15.5" r="1.9"/><circle class="fill" cx="15.5" cy="4.5" r="1.9"/></svg></button>
+      <button type="button" class="tool" data-tool="hline" title="Horizontal line: click a price" aria-label="Horizontal line">
+        <svg viewBox="0 0 20 20"><path d="M2.5 10h15"/><circle class="fill" cx="10" cy="10" r="1.9"/></svg></button>
+      <button type="button" class="tool" data-tool="vline" title="Vertical line: click a time" aria-label="Vertical line">
+        <svg viewBox="0 0 20 20"><path d="M10 2.5v15"/><circle class="fill" cx="10" cy="10" r="1.9"/></svg></button>
+      <button type="button" class="tool" data-tool="rect" title="Rectangle: drag, or click two corners" aria-label="Rectangle">
+        <svg viewBox="0 0 20 20"><rect x="3.5" y="5" width="13" height="10" rx="1"/></svg></button>
+      <button type="button" class="tool" data-tool="fib" title="Fib retracement: from the start of a swing to its end" aria-label="Fib retracement">
+        <svg viewBox="0 0 20 20"><path d="M3 4.5h14M3 8.2h14M3 11.8h14M3 15.5h14"/><path d="M5 15.5l10-11" stroke-dasharray="1.6 2"/></svg></button>
+      <button type="button" class="tool" data-tool="measure" title="Measure price, % and time: drag, or click two points (Shift+drag measures anytime)" aria-label="Measure">
+        <svg viewBox="0 0 20 20"><path d="M2.9 13.1l10.2-10.2 4 4-10.2 10.2z"/><path d="M5.6 10.4l1.5 1.5M7.8 8.2l1 1M10 6l1.5 1.5"/></svg></button>
+      <span class="sep" aria-hidden="true"></span>
+      <button type="button" class="tool" id="d-magnet" title="Magnet: snap points to a nearby open, high, low or close" aria-label="Magnet" aria-pressed="false">
+        <svg viewBox="0 0 20 20"><path d="M4.5 3.5h3.5v6.5a2 2 0 0 0 4 0V3.5h3.5v6.5a5.5 5.5 0 0 1-11 0z"/><path d="M4.5 7h3.5M12 7h3.5"/></svg></button>
+      <button type="button" class="tool" id="d-undo" title="Undo (Ctrl+Z)" aria-label="Undo">
+        <svg viewBox="0 0 20 20"><path d="M7.5 4.5L4 8l3.5 3.5"/><path d="M4.5 8h7.5a4.5 4.5 0 0 1 0 9H9"/></svg></button>
+      <button type="button" class="tool" id="d-delete" title="Delete the selected drawing (Del)" aria-label="Delete the selected drawing">
+        <svg viewBox="0 0 20 20"><path d="M4 6h12M8.5 6V4h3v2M5.8 6l.8 10.5h6.8l.8-10.5"/></svg></button>
+      <button type="button" class="tool" id="d-clear" title="Remove all drawings" aria-label="Remove all drawings">
+        <svg viewBox="0 0 20 20"><path d="M11.4 3.7l4.9 4.9-7.6 7.6H5.4l-2-2a1.2 1.2 0 0 1 0-1.7z"/><path d="M7.6 7.5l4.9 4.9M9 16.2h7.5"/></svg></button>
+    </div>
+  </nav>
+</main>
+<footer class="foot">
+  <div class="basket" id="basket"></div>
+  <details class="how">
+    <summary>How it works</summary>
+    <div class="how-body">
+      <h3>The signal</h3>
+      <p>Both panels apply the same four rules, each on its own candle size, checked every second on the bar still forming:</p>
+      <table>
+        <tr><th>Rule</th><th>Bullish</th><th>Bearish</th></tr>
+        <tr><td class="num">3m</td><td>EMA 8 above EMA 21</td><td>EMA 8 below EMA 21</td></tr>
+        <tr><td class="num">5m</td><td>MACD above 0</td><td>MACD below 0</td></tr>
+        <tr><td class="num">7m</td><td>MACD above 0</td><td>MACD below 0</td></tr>
+        <tr><td class="num">15m</td><td>MACD above its signal</td><td>MACD below its signal</td></tr>
+      </table>
+      <p>All four bullish: <b class="up">BULLISH</b>. All four bearish: <b class="down">BEARISH</b>. Anything else: NEUTRAL. MACD is 12/26/9.</p>
+      <h3>The two panels</h3>
+      <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same rules on the Nasdaq-100 perp itself, XYZ100; its 1m MACD (the first pane under its price chart) is for information only. The panes run from the shortest candle to the longest.</p>
+      <h3>The charts</h3>
+      <p><b class="up">▲ BUY</b> marks the candle where a panel's signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
+      <h3>Drawing tools</h3>
+      <p>The toolbar on the left draws on the price charts: trend line, horizontal and vertical line, rectangle, Fib retracement and measure. Drag from one point to the other, or click one and then the other. Click a drawing to select it, drag it or its handles to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. Drawings show on both price charts and are saved in this browser.</p>
+      <h3>Data</h3>
+      <p>Prices stream live from Hyperliquid's public API, around the clock, and the signals are recalculated every second. The page keeps nothing about you; your drawings and settings stay in this browser. For information only, not investment advice.</p>
+    </div>
+  </details>
+  <div class="credit">Not investment advice · Data: Hyperliquid · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></div>
+</footer>
+<div id="flash"></div>
+<div id="banner" hidden></div>
+<div id="toast" role="status" hidden><span id="toast-text"></span><button type="button" id="toast-undo">Undo</button></div>
+<div id="loading"><div id="loading-text">Loading Hyperliquid history…</div></div>
+<script>
+const DAY = 86400000, TFS = [1, 3, 5, 7, 15];
+const C = { up: '#2bb68a', down: '#f0555f', ema8: '#f2b33d', ema21: '#5b8cff', macd: '#5b8cff', sig: '#ff9f43',
+            grid: '#121821', text: '#7d899b', line: '#1c2430', cross: '#3a4554', label: '#283240', bg: '#0a0d12', zero: '#6b778a' };
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Both panels run the same rules on different series; only these settings differ. Their 3m EMAs are drawn on
+// the price chart, so the panes under it are MACDs. NDX10's EMAs are scaled onto NAS100's (see emaSource).
+const CFG = {
+  ndx10: { name: 'NDX10', eyebrow: '10-stock composite', panes: [5, 7, 15], digits: 2, macdDigits: 3,
+           rows: '52fr 16fr 16fr 16fr', scaleOnto: 'nas100' },
+  nas100: { name: 'NAS100', eyebrow: 'Nasdaq-100 actual · XYZ100', panes: [1, 5, 7, 15], digits: 1, macdDigits: 2,
+            rows: '52fr 12fr 12fr 12fr 12fr' },
+};
+const RULES = [  // [server key, rule text, pane], shortest candle first like the panes
+  ['3m EMA8 vs EMA21', 'EMA 8 › EMA 21', 3],
+  ['5m MACD vs 0', 'MACD › 0', 5],
+  ['7m MACD vs 0', 'MACD › 0', 7],
+  ['15m MACD vs signal', 'MACD › signal', 15],
+];
+
+const $ = id => document.getElementById(id);
+const sec = ms => Math.floor(ms / 1000);
+const two = n => String(n).padStart(2, '0');
+const ok = v => v !== null && v !== undefined && isFinite(v);
+const num = (v, d = 2) => ok(v) ? v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
+const sgn = (v, d = 3) => ok(v) ? (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(d) : '—';
+const pct = v => ok(v) ? (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(2) + '%' : '';
+const dur = ms => { const s = Math.max(0, Math.floor(ms / 1000));
+  return s >= 3600 ? `${Math.floor(s / 3600)}h ${two(Math.floor(s % 3600 / 60))}m` : `${Math.floor(s / 60)}m ${two(s % 60)}s`; };
+// bars restart at 00:00 UTC each day (a day ends with a short 7m bar), exactly as on the server
+const bucketStart = (t, m) => { const d0 = t - (t % DAY), s = m * 60000; return d0 + Math.floor((t - d0) / s) * s; };
+const bucketEnd = (t, m) => Math.min(bucketStart(t, m) + m * 60000, t - (t % DAY) + DAY);
+const stateKind = st => st === 'BULLISH' ? 'bull' : st === 'BEARISH' ? 'bear' : '';
+const hhmm = ms => { const d = new Date(ms); return `${two(d.getHours())}:${two(d.getMinutes())}`; };
+const when = ms => new Date(ms).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+const span = (ms, m) => `${hhmm(ms)}–${hhmm(bucketEnd(ms, m))}`;  // a bar's time window, in your timezone
+
+// Insert or replace `bar` in `arr` (sorted by time): 'append', 'last' (replaced the newest),
+// 'older' (changed or inserted an earlier bar: the chart needs a full redraw) or 'same'.
+function upsert(arr, bar) {
+  const n = arr.length;
+  if (!n || bar.time > arr[n - 1].time) { arr.push(bar); return 'append'; }
+  if (bar.time === arr[n - 1].time) { arr[n - 1] = bar; return 'last'; }
+  let lo = 0, hi = n - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (arr[mid].time < bar.time) lo = mid + 1; else hi = mid; }
+  if (arr[lo].time === bar.time) {
+    if (Object.keys(bar).every(k => arr[lo][k] === bar[k])) return 'same';
+    arr[lo] = bar;
+  } else arr.splice(lo, 0, bar);
+  return 'older';
+}
+function aggregate(bars, m) {
+  const out = [];
+  for (const b of bars) {
+    const s = bucketStart(b.time, m), last = out[out.length - 1];
+    if (!last || last.time !== s) out.push({ time: s, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 });
+    else { last.high = Math.max(last.high, b.high); last.low = Math.min(last.low, b.low); last.close = b.close; last.volume += b.volume || 0; }
+  }
+  return out;
+}
+// time at a fractional bar index (extrapolated past either end), and its inverse: lets charts with
+// different bar sizes show exactly the same stretch of time
+function timeAt(bars, minutes, x) {
+  const n = bars.length, step = minutes * 60000;
+  if (x <= 0) return bars[0].time + x * step;
+  if (x >= n - 1) return bars[n - 1].time + (x - n + 1) * step;
+  const i = Math.floor(x);
+  return bars[i].time + (x - i) * (bars[i + 1].time - bars[i].time);
+}
+function indexAt(bars, minutes, t) {
+  const n = bars.length, step = minutes * 60000;
+  if (t <= bars[0].time) return (t - bars[0].time) / step;
+  if (t >= bars[n - 1].time) return n - 1 + (t - bars[n - 1].time) / step;
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) lo = mid; else hi = mid; }
+  return lo + (t - bars[lo].time) / (bars[hi].time - bars[lo].time);
+}
+function options(showTime, isMain) {
+  return {
+    watermark: isMain ? { visible: true, text: 'XYZ100', color: 'rgba(232, 238, 246, 0.04)', fontSize: 44, fontStyle: '700' }
+                      : { visible: false },
+    autoSize: true,
+    handleScroll: isMain, handleScale: isMain,  // the rule panes follow their price chart
+    layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 10.5,
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },  // credited in the footer
+    grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
+    rightPriceScale: { borderColor: C.line, minimumWidth: 76 },
+    timeScale: { visible: showTime, borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 6,
+      tickMarkFormatter: (t, type) => { const d = new Date(t * 1000);
+        return type < 3 ? `${d.getDate()} ${MON[d.getMonth()]}` : `${two(d.getHours())}:${two(d.getMinutes())}`; } },
+    localization: { timeFormatter: t => when(t * 1000) },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label },
+      horzLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label } },
+  };
+}
+
+// ---- drawing tools ------------------------------------------------------------------------------
+// Trend lines, horizontal and vertical lines, rectangles, Fib retracements and a measure tool on the two price
+// charts. A point is stored as (time, price), so a drawing stays put at every candle size, and both price charts
+// show the same drawings because they plot the same XYZ100 bars. Saved in this browser only.
+const INK = '#a78bfa', INK_FILL = 'rgba(167, 139, 250, 0.10)', INK_TAG = '#7457d6';  // violet: unlike any line on the charts
+const FIB = [[0, '#8d99ab'], [0.236, '#f0555f'], [0.382, '#ff9f43'], [0.5, '#2bb68a'], [0.618, '#21b8c7'], [0.786, '#a78bfa'], [1, '#8d99ab']];
+const TWO_POINTS = ['trend', 'rect', 'fib', 'measure'];
+const draw = { tool: 'cursor', magnet: false, items: [], sel: null, hover: null, temp: null, tempPanel: null, measure: null,
+               gesture: null, press: false, undo: [] };
+try {
+  const pt = q => q && ok(q.t) && ok(q.p), saved = JSON.parse(localStorage.getItem('ndx10.drawings') || '[]');
+  if (Array.isArray(saved)) draw.items = saved.filter(d => d && ['trend', 'hline', 'vline', 'rect', 'fib'].includes(d.type)
+                                                         && pt(d.a) && (!TWO_POINTS.includes(d.type) || pt(d.b)));
+  draw.magnet = localStorage.getItem('ndx10.magnet') === '1';
+} catch (e) {}
+const uid = () => Math.random().toString(36).slice(2, 10);
+const copy = v => JSON.parse(JSON.stringify(v));
+const lasting = ms => { const all = Math.round(ms / 60000), d = Math.floor(all / 1440), h = Math.floor(all % 1440 / 60), m = all % 60;
+  return d ? `${d}d ${h}h` : h ? `${h}h ${two(m)}m` : `${m}m`; };
+const axisTag = (at, text, bg) => ({ coordinate: () => at, text: () => text, textColor: () => '#ffffff', backColor: () => bg,
+                                     visible: () => true, tickVisible: () => true });
+const fibPrice = (d, level) => d.b.p + (d.a.p - d.b.p) * level;  // level 0 at the second point, 1 at the first
+function segDist(x, y, x1, y1, x2, y2) {  // distance from (x, y) to the segment (x1, y1)-(x2, y2)
+  const dx = x2 - x1, dy = y2 - y1, len = dx * dx + dy * dy;
+  const k = len ? Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / len)) : 0;
+  return Math.hypot(x - x1 - k * dx, y - y1 - k * dy);
+}
+
+class DrawLayer {  // every drawing on one price chart, as a Lightweight Charts series primitive
+  constructor(panel) {
+    this.panel = panel; this.m = null; this.shapes = []; this.prices = []; this.times = [];
+    this.views = [{ zOrder: () => 'top', renderer: () => ({ draw: target => this.render(target) }) }];
+  }
+  attached({ requestUpdate }) { this.requestUpdate = requestUpdate; }
+  detached() { this.requestUpdate = null; }
+  paneViews() { return this.views; }
+  priceAxisViews() { return this.prices; }
+  timeAxisViews() { return this.times; }
+  map() {  // this chart's mapping between the screen and (time, price); null while it has no bars
+    const p = this.panel, bars = p.mainBars, ts = p.main.timeScale();
+    const x0 = bars.length ? ts.logicalToCoordinate(0) : null, x1 = bars.length ? ts.logicalToCoordinate(1) : null;
+    if (x0 === null || x1 === null || x1 === x0) return null;
+    const step = x1 - x0;
+    return { w: ts.width(), h: p.mainEl.clientHeight - ts.height(),
+             x: t => x0 + indexAt(bars, tf, t) * step, y: v => p.candles.priceToCoordinate(v),
+             index: x => (x - x0) / step, price: y => p.candles.coordinateToPrice(y) };
+  }
+  at(x, y) {  // the point under (x, y): its time snapped to the nearest bar; with the magnet on, its price to that
+    const m = this.map(), p = m && m.price(y);  // bar's open, high, low or close when one is within 30 px
+    if (!ok(p)) return null;
+    const i = Math.round(m.index(x)), b = draw.magnet ? this.panel.mainBars[i] : null;
+    let price = p, best = 30;
+    if (b) for (const v of [b.open, b.high, b.low, b.close]) { const gap = Math.abs(m.y(v) - y); if (gap < best) { best = gap; price = v; } }
+    return { t: timeAt(this.panel.mainBars, tf, i), p: price };
+  }
+  shape(d, m) {  // drawing d on the screen
+    if (d.type === 'vline') return { x: m.x(d.a.t) };
+    const y1 = m.y(d.a.p);
+    if (y1 === null) return null;
+    if (d.type === 'hline') return { y: y1 };
+    const y2 = m.y(d.b.p);
+    return y2 === null ? null : { x1: m.x(d.a.t), y1, x2: m.x(d.b.t), y2 };
+  }
+  hit(x, y) {  // the drawing under (x, y), and the part grabbed: a handle ('a', 'b', 'ab', 'ba') or the 'body'
+    const m = this.map();
+    if (!m) return null;
+    const sel = draw.items.find(d => d.id === draw.sel), near = (px, py) => Math.hypot(px - x, py - y) <= 8;
+    for (const d of [sel, ...draw.items.slice().reverse()]) {  // the selected drawing's handles first, then the newest on top
+      const s = d && this.shape(d, m);
+      if (!s) continue;
+      if (d.type === 'hline') { if (Math.abs(s.y - y) <= 5) return { item: d, part: 'body' }; continue; }
+      if (d.type === 'vline') { if (Math.abs(s.x - x) <= 5) return { item: d, part: 'body' }; continue; }
+      if (d === sel) {
+        if (near(s.x1, s.y1)) return { item: d, part: 'a' };
+        if (near(s.x2, s.y2)) return { item: d, part: 'b' };
+        if (d.type === 'rect' && near(s.x1, s.y2)) return { item: d, part: 'ab' };
+        if (d.type === 'rect' && near(s.x2, s.y1)) return { item: d, part: 'ba' };
+      }
+      const left = Math.min(s.x1, s.x2), right = Math.max(s.x1, s.x2);
+      if (d.type === 'rect' ? x >= left - 4 && x <= right + 4 && y >= Math.min(s.y1, s.y2) - 4 && y <= Math.max(s.y1, s.y2) + 4
+                            : segDist(x, y, s.x1, s.y1, s.x2, s.y2) <= 5) return { item: d, part: 'body' };
+      if (d.type === 'fib' && x >= left - 4 && x <= right + 4
+          && FIB.some(([level]) => { const ly = m.y(fibPrice(d, level)); return ly !== null && Math.abs(ly - y) <= 5; })) return { item: d, part: 'body' };
+    }
+    return null;
+  }
+  hitTest(x, y) {  // the chart asks on every mouse move; the answer sets the mouse cursor
+    let cursor = null;
+    if (draw.gesture) cursor = draw.gesture.kind === 'drag' ? 'grabbing' : 'crosshair';
+    else if (draw.tool !== 'cursor' || draw.temp) cursor = 'crosshair';
+    else {
+      const h = this.hit(x, y), id = h ? h.item.id : null;
+      if (id !== draw.hover) { draw.hover = id; queueMicrotask(redrawDrawings); }
+      if (h) cursor = h.part !== 'body' ? 'move' : h.item.type === 'hline' ? 'ns-resize' : h.item.type === 'vline' ? 'ew-resize' : 'grab';
+    }
+    return cursor && { cursorStyle: cursor, externalId: 'drawing', zOrder: 'top' };
+  }
+  updateAllViews() {
+    const m = this.map(), shapes = [], prices = [], times = [];
+    this.m = m; this.shapes = shapes; this.prices = prices; this.times = times;  // new arrays, so the chart re-reads the labels
+    if (!m) return;
+    const priceTag = (v, bg) => { const y = m.y(v); if (y !== null) prices.push(axisTag(y, num(v), bg)); };
+    const timeTag = (t, bg) => times.push(axisTag(m.x(t), when(t), bg));
+    const all = draw.items.map(d => ({ d, sel: d.id === draw.sel, hover: d.id === draw.hover }));
+    if (draw.temp) all.push({ d: draw.temp, sel: true });
+    if (draw.measure) all.push({ d: { type: 'measure', ...draw.measure }, sel: false });
+    for (const it of all) {
+      const s = this.shape(it.d, m), d = it.d;
+      if (!s) continue;
+      shapes.push({ ...it, s });
+      if (d.type === 'hline') priceTag(d.a.p, INK_TAG);
+      else if (d.type === 'vline') timeTag(d.a.t, INK_TAG);
+      else if (it.sel || d.type === 'measure') { priceTag(d.a.p, INK_TAG); priceTag(d.b.p, INK_TAG); timeTag(d.a.t, INK_TAG); timeTag(d.b.t, INK_TAG); }
+    }
+  }
+  render(target) {
+    const m = this.m;
+    if (!m || !this.shapes.length) return;
+    target.useBitmapCoordinateSpace(({ context: c, bitmapSize, horizontalPixelRatio: hr, verticalPixelRatio: vr }) => {
+      const W = bitmapSize.width, H = bitmapSize.height, X = x => x * hr, Y = y => y * vr;
+      const px = w => Math.max(1, Math.round(w * hr));  // a line width in device pixels
+      const crisp = (v, r, w) => Math.round(v * r) + (w % 2 ? 0.5 : 0);  // straight thin lines on whole pixels stay sharp
+      const seg = (x1, y1, x2, y2) => { c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); };
+      const handle = (x, y) => { c.beginPath(); c.arc(X(x), Y(y), 4.5 * hr, 0, 2 * Math.PI); c.fillStyle = C.bg; c.fill();
+                                 c.lineWidth = px(1.5); c.strokeStyle = INK; c.stroke(); };
+      const arrow = (x1, y1, x2, y2) => {  // screen points; the head at (x2, y2)
+        seg(X(x1), Y(y1), X(x2), Y(y2));
+        const len = Math.hypot(x2 - x1, y2 - y1);
+        if (len < 12) return;
+        const ux = (x2 - x1) / len, uy = (y2 - y1) / len;
+        c.beginPath(); c.moveTo(X(x2 - 7 * ux + 4 * uy), Y(y2 - 7 * uy - 4 * ux)); c.lineTo(X(x2), Y(y2));
+        c.lineTo(X(x2 - 7 * ux - 4 * uy), Y(y2 - 7 * uy + 4 * ux)); c.stroke();
+      };
+      const box = (x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+                                       c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
+      const font = (size, weight) => `${weight} ${Math.round(size * vr)}px "IBM Plex Mono", ui-monospace, Consolas, monospace`;
+      c.save();
+      c.lineCap = 'round';
+      for (const { d, s, sel, hover } of this.shapes) {
+        const bold = sel || hover;
+        c.setLineDash([]); c.strokeStyle = INK;
+        if (d.type === 'hline') {
+          const w = px(bold ? 2 : 1), y = crisp(s.y, vr, w);
+          c.lineWidth = w; seg(0, y, W, y);
+          if (sel) handle(W / hr / 2, s.y);
+        } else if (d.type === 'vline') {
+          const w = px(bold ? 2 : 1), x = crisp(s.x, hr, w);
+          c.lineWidth = w; seg(x, 0, x, H);
+          if (sel) handle(s.x, H / vr / 2);
+        } else if (d.type === 'trend') {
+          c.lineWidth = px(bold ? 2.5 : 2); seg(X(s.x1), Y(s.y1), X(s.x2), Y(s.y2));
+        } else if (d.type === 'rect') {
+          const w = px(bold ? 2 : 1), l = crisp(Math.min(s.x1, s.x2), hr, w), r = crisp(Math.max(s.x1, s.x2), hr, w);
+          const t = crisp(Math.min(s.y1, s.y2), vr, w), b = crisp(Math.max(s.y1, s.y2), vr, w);
+          c.fillStyle = INK_FILL; c.fillRect(l, t, r - l, b - t); c.lineWidth = w; c.strokeRect(l, t, r - l, b - t);
+        } else if (d.type === 'fib') {
+          const l = Math.min(s.x1, s.x2), r = Math.max(s.x1, s.x2);
+          c.lineWidth = px(1); c.strokeStyle = 'rgba(141, 153, 171, 0.55)'; c.setLineDash([4 * hr, 4 * hr]);
+          seg(X(s.x1), Y(s.y1), X(s.x2), Y(s.y2)); c.setLineDash([]);
+          c.font = font(10, 500); c.textBaseline = 'middle';
+          for (const [level, color] of FIB) {
+            const v = fibPrice(d, level), y = m.y(v);
+            if (y === null) continue;
+            const w = px(bold ? 1.5 : 1), text = `${level} (${num(v)})`, left = X(l) - 6 * hr - c.measureText(text).width >= 0;
+            c.strokeStyle = color; c.lineWidth = w; seg(X(l), crisp(y, vr, w), X(r), crisp(y, vr, w));
+            c.fillStyle = color; c.textAlign = left ? 'right' : 'left';  // the label left of the levels when it fits
+            c.fillText(text, left ? X(l) - 6 * hr : X(r) + 6 * hr, Y(y));
+          }
+        } else if (d.type === 'measure') {
+          const up = d.b.p >= d.a.p, col = up ? INK : C.down;
+          const l = Math.min(s.x1, s.x2), r = Math.max(s.x1, s.x2), t = Math.min(s.y1, s.y2), b = Math.max(s.y1, s.y2);
+          c.fillStyle = up ? 'rgba(167, 139, 250, 0.16)' : 'rgba(240, 85, 95, 0.16)'; c.fillRect(X(l), Y(t), X(r - l), Y(b - t));
+          c.strokeStyle = col; c.lineWidth = px(1.5);
+          arrow((s.x1 + s.x2) / 2, s.y1, (s.x1 + s.x2) / 2, s.y2); arrow(s.x1, (s.y1 + s.y2) / 2, s.x2, (s.y1 + s.y2) / 2);
+          const bars = this.panel.mainBars, dp = d.b.p - d.a.p;
+          const n = Math.round(Math.abs(indexAt(bars, tf, d.b.t) - indexAt(bars, tf, d.a.t)));
+          const lines = [`${sgn(dp, 2)}  (${pct(dp / d.a.p)})`, `${n} bar${n === 1 ? '' : 's'}, ${lasting(Math.abs(d.b.t - d.a.t))}`];
+          c.font = font(11, 600);
+          const bw = Math.max(...lines.map(text => c.measureText(text).width)) + 18 * hr, bh = 38 * vr;
+          const bx = Math.max(2 * hr, Math.min(W - bw - 2 * hr, X((l + r) / 2) - bw / 2));
+          const by = Math.max(2 * vr, Math.min(H - bh - 2 * vr, up ? Y(t) - bh - 8 * vr : Y(b) + 8 * vr));
+          box(bx, by, bw, bh, 5 * hr); c.fillStyle = col; c.fill();
+          c.fillStyle = '#ffffff'; c.textAlign = 'center'; c.textBaseline = 'middle';
+          c.fillText(lines[0], bx + bw / 2, by + bh * 0.3); c.fillText(lines[1], bx + bw / 2, by + bh * 0.72);
+        }
+        if (sel && d.type !== 'measure' && TWO_POINTS.includes(d.type)) {
+          handle(s.x1, s.y1); handle(s.x2, s.y2);
+          if (d.type === 'rect') { handle(s.x1, s.y2); handle(s.x2, s.y1); }
+        }
+      }
+      c.restore();
+    });
+  }
+}
+
+function redrawDrawings() { for (const p of Object.values(panels)) if (p.layer && p.layer.requestUpdate) p.layer.requestUpdate(); }
+function saveDrawings() { try { localStorage.setItem('ndx10.drawings', JSON.stringify(draw.items)); } catch (e) {} showRail(); }
+function remember(state = JSON.stringify(draw.items)) { draw.undo.push(state); if (draw.undo.length > 100) draw.undo.shift(); }
+function showRail() {
+  for (const b of document.querySelectorAll('#rail [data-tool]')) b.setAttribute('aria-pressed', String(b.dataset.tool === draw.tool));
+  $('d-magnet').setAttribute('aria-pressed', String(draw.magnet));
+  $('d-undo').disabled = !draw.undo.length;
+  $('d-delete').disabled = !draw.sel;
+  $('d-clear').disabled = !draw.items.length;
+}
+function setTool(tool) {
+  draw.tool = tool; draw.temp = null; draw.tempPanel = null;
+  for (const p of Object.values(panels)) p.mainEl.classList.toggle('drawing', tool !== 'cursor');
+  showRail(); redrawDrawings();
+}
+const pointer = (p, e) => { const r = p.mainEl.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+function onDrawDown(e, panel) {
+  if (e.button !== 0 || draw.gesture) return;
+  const layer = panel.layer, m = layer.map(), [x, y] = pointer(panel, e);
+  if (!m || x < 0 || y < 0 || x > m.w || y > m.h) return;  // the price and time axes keep their drag-to-scale
+  if (draw.temp) { finishTemp(layer.at(x, y)); draw.press = true; return; }  // the second click of click, move, click
+  if (draw.measure) { draw.measure = null; redrawDrawings(); }
+  const tool = draw.tool === 'cursor' && e.shiftKey ? 'measure' : draw.tool;  // Shift+drag: a quick measure
+  const start = { panel, x0: e.clientX, y0: e.clientY, moved: false };
+  if (tool === 'cursor') {
+    const h = layer.hit(x, y);
+    if (!h) { if (draw.sel) { draw.sel = null; showRail(); redrawDrawings(); } return; }  // empty space: the chart scrolls as usual
+    draw.sel = h.item.id;
+    draw.gesture = { ...start, kind: 'drag', item: h.item, part: h.part, orig: copy(h.item), before: JSON.stringify(draw.items),
+                     from: { i: m.index(x), p: m.price(y) } };
+  } else {
+    const pt = layer.at(x, y);
+    if (!pt) return;
+    if (tool === 'hline' || tool === 'vline') {  // placed at once; dragging before letting go moves it
+      const before = JSON.stringify(draw.items), item = { id: uid(), type: tool, a: pt };
+      draw.items.push(item); draw.sel = item.id;
+      setTool('cursor');
+      draw.gesture = { ...start, kind: 'drag', item, part: 'a', orig: copy(item), before, created: true };
+    } else {  // two points: drag from one to the other, or click one, move, click the other
+      draw.temp = { type: tool, a: pt, b: { ...pt } }; draw.tempPanel = panel;
+      draw.gesture = { ...start, kind: 'create' };
+    }
+  }
+  draw.press = true;
+  showRail(); redrawDrawings();
+}
+function dragTo(g, x, y) {
+  const m = g.panel.layer.map(), d = g.item, o = g.orig, bars = g.panel.mainBars;
+  if (!m) return;
+  if (g.part === 'body') {  // the whole drawing moves by whole bars in time and by the price difference
+    const di = Math.round(m.index(x) - g.from.i), dp = m.price(y) - g.from.p;
+    if (!ok(dp)) return;
+    const move = q => ({ t: timeAt(bars, tf, indexAt(bars, tf, q.t) + di), p: q.p + dp });
+    if (d.type === 'hline') d.a = { t: o.a.t, p: o.a.p + dp };
+    else if (d.type === 'vline') d.a = { t: move(o.a).t, p: o.a.p };
+    else { d.a = move(o.a); d.b = move(o.b); }
+    return;
+  }
+  const pt = g.panel.layer.at(x, y);
+  if (!pt) return;
+  if (g.part === 'a') d.a = pt;
+  else if (g.part === 'b') d.b = pt;
+  else if (g.part === 'ab') { d.a = { t: pt.t, p: d.a.p }; d.b = { t: d.b.t, p: pt.p }; }  // the corner at a's time and b's price
+  else { d.b = { t: pt.t, p: d.b.p }; d.a = { t: d.a.t, p: pt.p }; }                       // the corner at b's time and a's price
+}
+function onDrawMove(e) {
+  const g = draw.gesture;
+  if (g) {
+    if (!g.moved && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) > 3) g.moved = true;
+    const [x, y] = pointer(g.panel, e);
+    if (g.kind === 'create') { const pt = g.panel.layer.at(x, y); if (pt) draw.temp.b = pt; }
+    else if (g.moved) dragTo(g, x, y);
+    redrawDrawings();
+  } else if (draw.temp) {  // between the two clicks, the free end follows the pointer
+    const [x, y] = pointer(draw.tempPanel, e), pt = draw.tempPanel.layer.at(x, y);
+    if (pt) { draw.temp.b = pt; redrawDrawings(); }
+  }
+}
+function onDrawUp() {
+  draw.press = false;
+  const g = draw.gesture;
+  if (!g) return;
+  draw.gesture = null;
+  if (g.kind === 'create') { if (g.moved) finishTemp(null); }  // after a plain click it waits for the second click
+  else if (g.moved || g.created) { remember(g.before); saveDrawings(); }
+  redrawDrawings();
+}
+function finishTemp(pt) {
+  const t = draw.temp;
+  draw.temp = null; draw.tempPanel = null;
+  if (!t) return;
+  if (pt) t.b = pt;
+  if (t.type === 'measure') draw.measure = { a: t.a, b: t.b };  // shown until the next click or Esc
+  else if (t.a.t !== t.b.t || t.a.p !== t.b.p) {
+    remember();
+    const item = { id: uid(), type: t.type, a: t.a, b: t.b };
+    draw.items.push(item); draw.sel = item.id;
+    saveDrawings();
+  }
+  setTool('cursor');
+}
+function deleteDrawing() {
+  if (!draw.sel) return;
+  remember(); draw.items = draw.items.filter(d => d.id !== draw.sel); draw.sel = null;
+  saveDrawings(); redrawDrawings();
+}
+function undoDrawing() {
+  const prev = draw.undo.pop();
+  if (prev === undefined) return;
+  draw.items = JSON.parse(prev); draw.sel = null;
+  saveDrawings(); redrawDrawings();
+}
+let toastTimer = 0;
+function clearDrawings() {
+  const n = draw.items.length;
+  if (!n) return;
+  remember(); draw.items = []; draw.sel = null;
+  saveDrawings(); redrawDrawings();
+  $('toast-text').textContent = `Removed ${n} drawing${n === 1 ? '' : 's'}`; $('toast').hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 6000);
+}
+window.addEventListener('pointermove', onDrawMove);
+window.addEventListener('pointerup', onDrawUp);
+window.addEventListener('pointercancel', onDrawUp);
+window.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('input, textarea, select')) return;
+  if (e.key === 'Escape') {
+    const g = draw.gesture;
+    if (g && g.kind === 'drag') draw.items = JSON.parse(g.before);  // put a half-dragged drawing back
+    draw.gesture = null; draw.press = false; draw.measure = null; draw.sel = null;
+    setTool('cursor');
+  } else if ((e.key === 'Delete' || e.key === 'Backspace') && draw.sel && !draw.gesture) {
+    e.preventDefault(); deleteDrawing();
+  } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !draw.gesture) {
+    e.preventDefault(); undoDrawing();
+  }
+});
+for (const b of document.querySelectorAll('#rail [data-tool]')) b.onclick = () => setTool(b.dataset.tool === draw.tool ? 'cursor' : b.dataset.tool);
+$('d-magnet').onclick = () => {
+  draw.magnet = !draw.magnet;
+  try { localStorage.setItem('ndx10.magnet', draw.magnet ? '1' : '0'); } catch (e) {}
+  showRail();
+};
+$('d-undo').onclick = undoDrawing;
+$('d-delete').onclick = deleteDrawing;
+$('d-clear').onclick = clearDrawings;
+$('toast-undo').onclick = () => { undoDrawing(); $('toast').hidden = true; };
+showRail();
+
+// ---- shared state ------------------------------------------------------------------------------
+let tf = 3;
+try { const saved = Number(localStorage.getItem('ndx10.tf')); if (TFS.includes(saved)) tf = saved; } catch (e) {}
+let bars1m = [], boot = null, gen = null, lastSeq = 0, basket = null, hovering = false, alertsOn = false, audio = null;
+let lastTickAt = 0, lost = false, es = null, pending = null;  // pending: ticks that arrive while a resync runs
+const panels = {};
+const allCharts = [];
+
+function bucketFrom1m(start) {  // one price-chart bar rebuilt from its 1-minute bars
+  const parts = [];
+  for (let i = bars1m.length - 1; i >= 0 && bars1m[i].time >= start; i--) parts.unshift(bars1m[i]);
+  return aggregate(parts, tf)[0];
+}
+
+class Panel {
+  constructor(key, cfg) {
+    Object.assign(this, { key, cfg, panes: cfg.panes, stateAt: new Map(), liveState: 'NEUTRAL', mainBars: [], mainStates: [],
+                          baseMarkers: [], paneBars: {}, store: { main: new Map() }, pane: {}, last: null, ema3: [], emaPts: [] });
+    const tiles = RULES.length + (cfg.panes.includes(1) ? 1 : 0);
+    $('board').insertAdjacentHTML('beforeend', `
+      <section class="panel" id="${key}" aria-label="${cfg.eyebrow}">
+        <div class="phead">
+          <div class="phead-top">
+            <div class="ptitle">
+              <div class="eyebrow">${cfg.eyebrow}</div>
+              <div class="pline"><span class="pname">${cfg.name}</span><span class="pval num" id="${key}-val">—</span><span class="chg num" id="${key}-chg"></span></div>
+            </div>
+            <div class="state" id="${key}-state"><span class="state-word">LOADING</span><span class="state-since" id="${key}-since"></span></div>
+          </div>
+          <div class="rules" id="${key}-rules" style="grid-template-columns:repeat(${tiles}, minmax(0, 1fr))"></div>
+        </div>
+        <div class="stack" style="grid-template-rows:${cfg.rows}">
+          <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
+          ${cfg.panes.map(m => `<div class="pane" id="${key}-p${m}"><div class="tag" id="${key}-t${m}"></div></div>`).join('')}
+        </div>
+      </section>`);
+    const fine = { type: 'price', precision: cfg.macdDigits, minMove: 10 ** -cfg.macdDigits };
+    // the price chart has its own time axis, so hovering a candle shows that candle's exact time;
+    // the rule panes below are lined up with it and need none (their bars are other sizes)
+    this.main = LightweightCharts.createChart($(`${key}-pmain`), options(true, true));
+    this.vol = this.main.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
+    this.main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.88, bottom: 0 }, visible: false });
+    this.candles = this.main.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
+    this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0.14 } });
+    // the 3m EMA 8 and EMA 21 that the 3m rule tests, over the candles (see emaPoints)
+    const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+    this.e8 = emaLine(C.ema8); this.e21 = emaLine(C.ema21);
+    // drawings: the layer paints them; a press that starts a drawing or grabs one never reaches the chart,
+    // so the chart doesn't scroll at the same time (its crosshair still follows the mouse)
+    this.mainEl = $(`${key}-pmain`);
+    this.layer = new DrawLayer(this);
+    this.candles.attachPrimitive(this.layer);
+    this.mainEl.addEventListener('pointerdown', e => onDrawDown(e, this), true);
+    this.mainEl.addEventListener('mousedown', e => { if (draw.press) { e.stopPropagation(); e.preventDefault(); } }, true);
+    this.mainEl.addEventListener('touchstart', e => { if (draw.press) e.stopPropagation(); }, { capture: true, passive: true });
+    this.mainEl.addEventListener('mouseleave', () => { if (draw.hover) { draw.hover = null; redrawDrawings(); } });
+    allCharts.push({ panel: this, key: 'main', chart: this.main, anchor: this.candles, minutes: () => tf, value: b => b.close });
+    // MACD panes. Their scale always takes in 0, so the zero line (what the 5m and 7m rules test) stays in view
+    const withZero = base => { const r = base();
+      return r && { ...r, priceRange: { minValue: Math.min(r.priceRange.minValue, 0), maxValue: Math.max(r.priceRange.maxValue, 0) } }; };
+    for (const m of this.panes) {
+      const chart = LightweightCharts.createChart($(`${key}-p${m}`), options(false, false));
+      const p = { chart,
+                  line: chart.addLineSeries({ color: C.macd, lineWidth: 2, priceFormat: fine, priceLineVisible: false, crosshairMarkerVisible: false,
+                                              autoscaleInfoProvider: withZero }),
+                  sig: chart.addLineSeries({ color: C.sig, lineWidth: 2, priceFormat: fine, priceLineVisible: false, crosshairMarkerVisible: false }) };
+      p.line.createPriceLine({ price: 0, color: C.zero, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: false });
+      allCharts.push({ panel: this, key: m, chart, anchor: p.line, minutes: () => m, value: b => b.macd });
+      this.pane[m] = p; this.paneBars[m] = []; this.store[m] = new Map();
+    }
+    this.main.timeScale().subscribeVisibleLogicalRangeChange(() => { this.syncPanes(); syncMains(this); });
+  }
+
+  // ---- MACD panes ----
+  points(m, b) {
+    const time = sec(b.time), p = this.pane[m];
+    return [[p.line, { time, value: b.macd }], [p.sig, { time, value: b.signal }]];
+  }
+  setPane(m) {
+    const all = this.paneBars[m], data = new Map();
+    for (const b of all) for (const [s, pt] of this.points(m, b)) { if (!data.has(s)) data.set(s, []); data.get(s).push(pt); }
+    for (const [s, d] of data) s.setData(d);
+    this.store[m] = new Map(all.map(b => [sec(b.time), b]));
+  }
+  mergePane(m, b, redraw) {
+    const arr = this.paneBars[m], how = upsert(arr, b);
+    if (how === 'same') return;
+    this.store[m].set(sec(b.time), b);
+    if (how === 'older') redraw.add(m);
+    else if (!redraw.has(m)) for (const [s, pt] of this.points(m, b)) s.update(pt);
+  }
+
+  // ---- price chart: XYZ100 candles, with this panel's signal flips marked ----
+  closedState(b) {  // the signal at the bar's last finished minute
+    for (let t = bucketEnd(b.time, tf) - 60000; t >= b.time; t -= 60000) { const s = this.stateAt.get(t); if (s) return s; }
+    return null;
+  }
+  flips(i) { const st = this.mainStates[i]; return i > 0 && (st === 'BULLISH' || st === 'BEARISH') && st !== this.mainStates[i - 1]; }
+  arrow(b, st) {
+    return st === 'BULLISH' ? { time: sec(b.time), position: 'belowBar', color: C.up, shape: 'arrowUp', text: 'BUY' }
+                            : { time: sec(b.time), position: 'aboveBar', color: C.down, shape: 'arrowDown', text: 'SELL' };
+  }
+  mainPoints(b) {
+    const time = sec(b.time);
+    return [[this.candles, { time, open: b.open, high: b.high, low: b.low, close: b.close }],
+            [this.vol, { time, value: b.volume, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' }]];
+  }
+  drawMain() {
+    this.mainBars = aggregate(bars1m, tf);
+    const n = this.mainBars.length, data = new Map();
+    this.mainStates = this.mainBars.map((b, i) => i === n - 1 ? this.liveState : this.closedState(b));
+    this.mainBars.forEach(b => { for (const [s, p] of this.mainPoints(b)) { if (!data.has(s)) data.set(s, []); data.get(s).push(p); } });
+    for (const [s, d] of data) s.setData(d);
+    this.baseMarkers = [];
+    for (let i = 1; i < n - 1; i++) if (this.flips(i)) this.baseMarkers.push(this.arrow(this.mainBars[i], this.mainStates[i]));
+    this.setMarkers();
+    this.store.main = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
+    this.main.applyOptions({ watermark: { text: `XYZ100 · ${tf}m` } });
+  }
+  setMarkers() {
+    const n = this.mainBars.length, m = this.baseMarkers.slice();
+    if (this.flips(n - 1)) m.push(this.arrow(this.mainBars[n - 1], this.mainStates[n - 1]));
+    this.candles.setMarkers(m);
+  }
+  refreshClosedStates() {  // a finished bar's last minute state can arrive after the bar closed
+    const n = this.mainBars.length;
+    let changed = false;
+    for (let i = Math.max(0, n - 4); i < n - 1; i++) {
+      const st = this.closedState(this.mainBars[i]);
+      if (st && st !== this.mainStates[i]) { this.mainStates[i] = st; changed = true; }
+    }
+    if (!changed) return;
+    this.baseMarkers = [];
+    for (let i = 1; i < n - 1; i++) if (this.flips(i)) this.baseMarkers.push(this.arrow(this.mainBars[i], this.mainStates[i]));
+    this.setMarkers();
+    for (let i = Math.max(0, n - 4); i < n; i++) this.store.main.set(sec(this.mainBars[i].time), { ...this.mainBars[i], state: this.mainStates[i] });
+  }
+  updateMain() {
+    const last1m = bars1m[bars1m.length - 1], n = this.mainBars.length;
+    if (!last1m) return;
+    if (!n) { this.drawMain(); return; }  // the snapshot had no bars yet
+    const cur = bucketStart(last1m.time, tf);
+    if (cur > this.mainBars[n - 1].time) {  // a new bar opened: settle the finished one, then append
+      const done = bucketFrom1m(this.mainBars[n - 1].time);
+      if (done) { this.mainBars[n - 1] = done; this.mainStates[n - 1] = this.closedState(done) || this.mainStates[n - 1]; }
+      for (const [s, p] of this.mainPoints(this.mainBars[n - 1])) s.update(p);
+      if (this.flips(n - 1)) this.baseMarkers.push(this.arrow(this.mainBars[n - 1], this.mainStates[n - 1]));
+      this.store.main.set(sec(this.mainBars[n - 1].time), { ...this.mainBars[n - 1], state: this.mainStates[n - 1] });
+      this.mainBars.push(bucketFrom1m(cur)); this.mainStates.push(this.liveState);
+    } else {
+      this.mainBars[n - 1] = bucketFrom1m(cur); this.mainStates[n - 1] = this.liveState;
+    }
+    const i = this.mainBars.length - 1;
+    for (const [s, p] of this.mainPoints(this.mainBars[i])) s.update(p);
+    this.store.main.set(sec(this.mainBars[i].time), { ...this.mainBars[i], state: this.mainStates[i] });
+    this.setMarkers();
+  }
+  // ---- 3m EMA 8 / 21 on the price chart ----
+  emaSource() {  // this panel's 3m EMAs at XYZ100's price level (e8, e21), with the values its rule tests (v8, v21)
+    const own = this.ema3.map(b => ({ time: b.time, e8: b.ema8, e21: b.ema21, v8: b.ema8, v21: b.ema21 }));
+    if (!this.cfg.scaleOnto) return own;
+    // NDX10's EMAs are of its ~1000-point basket. Scaled by XYZ100's EMA 21 over the basket's, its EMA 21 lies on
+    // XYZ100's and its EMA 8 keeps the basket's own gap to it, so the two lines cross exactly when its 3m rule flips
+    const ref = new Map(panels[this.cfg.scaleOnto].ema3.map(b => [b.time, b.ema21]));
+    return own.filter(p => ref.has(p.time) && p.v21).map(p => { const f = ref.get(p.time) / p.v21; return { ...p, e8: p.v8 * f, e21: p.v21 * f }; });
+  }
+  emaPoints() {  // one point per candle: the 3m EMAs as of its close (never ahead of it); the forming candle shows them live
+    const src = this.emaSource(), bars = this.mainBars, out = [];
+    let k = -1, used = -1;
+    for (let i = 0; i < bars.length; i++) {
+      const end = bucketEnd(bars[i].time, tf);
+      while (k + 1 < src.length && bucketEnd(src[k + 1].time, 3) <= end) k++;
+      const j = i === bars.length - 1 ? src.length - 1 : k;
+      if (j < 0 || j === used) continue;  // no 3m bar closed inside this candle (1m candles): the line goes straight past it
+      used = j;
+      out.push({ ...src[j], time: sec(bars[i].time) });
+    }
+    return out;
+  }
+  setEmas() {  // redraw the EMA lines, or only move their newest point when that's all that changed
+    const pts = this.emaPoints(), old = this.emaPts, n = pts.length, k = old.length;
+    this.emaPts = pts;
+    const same = (a, b) => a.time === b.time && a.e8 === b.e8 && a.e21 === b.e21;
+    let i = 0;
+    while (i < n && i < k && same(pts[i], old[i])) i++;
+    if (i === n && n === k) return;
+    if (k && n >= k && n <= k + 1 && i >= k - 1 && pts[k - 1].time === old[k - 1].time) {
+      for (let j = k - 1; j < n; j++) { this.e8.update({ time: pts[j].time, value: pts[j].e8 }); this.e21.update({ time: pts[j].time, value: pts[j].e21 }); }
+      return;
+    }
+    this.e8.setData(pts.map(q => ({ time: q.time, value: q.e8 })));
+    this.e21.setData(pts.map(q => ({ time: q.time, value: q.e21 })));
+  }
+  emaAt(t) {  // the EMA point in effect at candle time t (seconds): the newest one at or before it
+    const a = this.emaPts;
+    let lo = 0, hi = a.length - 1, hit = null;
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (a[mid].time <= t) { hit = a[mid]; lo = mid + 1; } else hi = mid - 1; }
+    return hit;
+  }
+  syncPanes() {
+    const r = this.main.timeScale().getVisibleLogicalRange();
+    if (!r || !this.mainBars.length) return;
+    const from = timeAt(this.mainBars, tf, r.from), to = timeAt(this.mainBars, tf, r.to);
+    for (const m of this.panes) if (this.paneBars[m].length)
+      this.pane[m].chart.timeScale().setVisibleLogicalRange({ from: indexAt(this.paneBars[m], m, from), to: indexAt(this.paneBars[m], m, to) });
+  }
+
+  // ---- data ----
+  load(data, s) {
+    this.stateAt = new Map();
+    for (const [a, b, st] of data.signal) for (let t = a; t <= b; t += 60000) this.stateAt.set(t, st);
+    for (const [t, st] of s.history_tail) if (!this.stateAt.has(t)) this.stateAt.set(t, st);
+    this.liveState = s.state; this.last = s;
+    this.ema3 = data.bars[3].slice();  // 3m bars: their EMAs go on the price chart (newer tick bars only, as below)
+    const newest3 = this.ema3.length ? this.ema3[this.ema3.length - 1].time : -Infinity;
+    for (const b of s.tf[3]) if (b.time > newest3) upsert(this.ema3, b);
+    for (const m of this.panes) {
+      this.paneBars[m] = data.bars[m].slice();
+      // the snapshot's tick can be a second older than its bars: only take bars newer than them
+      const newest = this.paneBars[m].length ? this.paneBars[m][this.paneBars[m].length - 1].time : -Infinity;
+      for (const b of s.tf[m]) if (b.time > newest) upsert(this.paneBars[m], b);
+      this.setPane(m);
+    }
+    this.drawMain();
+    this.showHead(s);
+  }
+  applyTick(s, mainRedraw) {
+    this.liveState = s.state; this.last = s;
+    let history = false;
+    for (const [t, st] of s.history_tail) if (this.stateAt.get(t) !== st) { this.stateAt.set(t, st); history = true; }
+    for (const b of s.tf[3]) upsert(this.ema3, b);
+    const redraw = new Set();
+    for (const m of this.panes) for (const b of s.tf[m]) this.mergePane(m, b, redraw);
+    for (const m of redraw) this.setPane(m);
+    if (mainRedraw) this.drawMain(); else { this.updateMain(); if (history) this.refreshClosedStates(); }
+    this.syncPanes();
+    this.showHead(s);
+  }
+
+  // ---- text ----
+  showHead(s) {
+    const k = this.key, cfg = this.cfg, kind = stateKind(s.state);
+    const box = $(`${k}-state`);
+    box.className = 'state ' + kind;
+    box.querySelector('.state-word').textContent = s.state;
+    $(`${k}-since`).textContent = `for ${dur(s.time - s.since)}`;
+    $(`${k}-val`).textContent = num(s.value, cfg.digits);
+    const ch = s.ref ? s.value / s.ref - 1 : null;
+    $(`${k}-chg`).textContent = ch === null ? '' : `${pct(ch)} since ${s.ref_label.replace(/^since (the )?/, '')}`;
+    $(`${k}-chg`).className = 'chg num ' + (ch >= 0 ? 'up' : 'down');
+    const last = m => s.tf[m][s.tf[m].length - 1];
+    // each tile shows the number its rule tests: above 0 is the bullish side, near 0 is close to flipping
+    const tiles = RULES.map(([key, text, m]) => {
+      const pass = s.checks[key] > 0, b = last(m), gap = s.checks[key];
+      const val = m === 3 ? sgn(gap, cfg.digits) : sgn(gap, cfg.macdDigits);
+      const what = m === 3 ? `EMA 8 minus EMA 21 (${num(b.ema8, cfg.digits)} vs ${num(b.ema21, cfg.digits)})`
+                 : m === 15 ? `MACD minus signal (${sgn(b.macd, cfg.macdDigits)} vs ${sgn(b.signal, cfg.macdDigits)})` : 'MACD';
+      return `<div class="rule ${pass ? 'pass' : 'fail'}" title="${m}m ${text.replace('›', 'above')}: ${pass ? 'bullish' : 'bearish'}. Shown: ${what}">`
+           + `<div class="r-top"><span class="r-tf">${m}m</span><span class="r-mark">${pass ? '✓' : '✗'}</span></div>`
+           + `<div class="r-name">${text}</div><div class="r-val">${val}</div></div>`;
+    });
+    if (s.tf[1]) {
+      const b = last(1);
+      tiles.unshift(`<div class="rule info" title="1-minute MACD, shown for information; not part of the signal">`
+               + `<div class="r-top"><span class="r-tf">1m</span><span class="r-mark">info</span></div>`
+               + `<div class="r-name">MACD</div><div class="r-val">${sgn(b.macd, cfg.macdDigits)}</div></div>`);
+    }
+    $(`${k}-rules`).innerHTML = tiles.join('');
+  }
+  tag(key, t) {  // the small label in a chart's corner; values appear only while hovering
+    const live = t === undefined, k = this.key, cfg = this.cfg;
+    if (key === 'main') {
+      const b = live ? this.mainBars[this.mainBars.length - 1] : this.store.main.get(t);
+      if (!b) return;
+      const st = live ? this.liveState : b.state, kind = stateKind(st), e = live ? this.emaPts[this.emaPts.length - 1] : this.emaAt(t);
+      $(`${k}-tmain`).innerHTML = `<b>XYZ100</b><span>${tf}m</span>`
+        + (live ? '' : `<span class="t-time">${when(b.time)}</span>`)
+        + `<span class="ohlc">O <b>${num(b.open)}</b> H <b>${num(b.high)}</b> L <b>${num(b.low)}</b> `
+        + `C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close)}</b></span>`
+        + (st ? `<span class="t-state ${kind}">${st}</span>` : '')
+        + (e ? `<span class="t-ema"><b class="num">3m</b><span class="sw" style="background:${C.ema8}"></span>EMA 8`
+             + `<span class="sw" style="background:${C.ema21}"></span>EMA 21${cfg.scaleOnto ? `<span class="t-of">of ${cfg.name}</span>` : ''}`
+             + `<span class="t-dot ${e.v8 > e.v21 ? 'pass' : 'fail'}"></span>`
+             + `<span class="t-vals">${num(e.v8, cfg.digits)} / ${num(e.v21, cfg.digits)}</span></span>` : '');
+      return;
+    }
+    const arr = this.paneBars[key], b = live ? arr[arr.length - 1] : this.store[key].get(t);
+    if (!b) return;
+    const d = cfg.macdDigits, pass = key === 15 ? b.macd > b.signal : b.macd > 0;
+    $(`${k}-t${key}`).innerHTML = `<b class="num">${key}m</b><span>MACD${key === 1 ? ' · info' : ''}</span>`
+      + (key === 1 ? '' : `<span class="t-dot ${pass ? 'pass' : 'fail'}"></span>`)
+      + `<span class="t-vals">${span(b.time, key)} · ${sgn(b.macd, d)} / ${sgn(b.signal, d)}</span>`;
+  }
+}
+
+// the two price charts show the same bars, so they scroll and zoom together by bar index
+function syncMains(src) {
+  const r = src.main.timeScale().getVisibleLogicalRange();
+  if (!r) return;
+  for (const p of Object.values(panels)) {
+    if (p === src) continue;
+    const o = p.main.timeScale().getVisibleLogicalRange();
+    if (!o || Math.abs(o.from - r.from) > 1e-6 || Math.abs(o.to - r.to) > 1e-6) p.main.timeScale().setVisibleLogicalRange(r);
+  }
+}
+function showRecent() {
+  requestAnimationFrame(() => {
+    const p = Object.values(panels)[0], n = p.mainBars.length, span = Math.round(6 * 60 / tf);  // about 6 hours
+    p.main.timeScale().setVisibleLogicalRange({ from: n - span, to: n + 5 });
+  });
+}
+const allTags = () => allCharts.forEach(c => c.panel.tag(c.key));
+
+// one crosshair across every chart of both panels
+let hoverChart = null;  // the chart under the mouse
+function setupCrosshair() {
+  for (const c of allCharts) {
+    c.chart.subscribeCrosshairMove(p => {
+      // positions we set on the other charts carry no mouse event: skip them. The hovered chart's own updates
+      // count too: when a new bar shifts the chart, a still mouse points at another bar
+      if (p.sourceEvent) hoverChart = c;
+      else if (c !== hoverChart) return;
+      hovering = p.time !== undefined;
+      document.body.classList.toggle('hovering', hovering);
+      for (const o of allCharts) {
+        if (!hovering) { if (o !== c) o.chart.clearCrosshairPosition(); o.panel.tag(o.key); continue; }
+        if (o === c) { o.panel.tag(o.key, p.time); continue; }
+        const t = sec(bucketStart(p.time * 1000, o.minutes())), b = o.panel.store[o.key].get(t);
+        if (b) { o.chart.setCrosshairPosition(o.value(b), t, o.anchor); o.panel.tag(o.key, t); }
+        else { o.chart.clearCrosshairPosition(); o.panel.tag(o.key); }
+      }
+    });
+  }
+  for (const el of document.querySelectorAll('.pane')) el.addEventListener('mouseleave', () => {
+    hovering = false; hoverChart = null; document.body.classList.remove('hovering');
+    allCharts.forEach(o => o.chart.clearCrosshairPosition()); allTags();
+  });
+}
+
+// ---- top bar and footer -----------------------------------------------------------------------
+function priceAgo(ms) {  // XYZ100 close `ms` ago, from the 1-minute bars
+  const target = Date.now() - ms;
+  if (!bars1m.length || bars1m[0].time > target) return null;
+  let lo = 0, hi = bars1m.length - 1;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (bars1m[mid].time <= target) lo = mid; else hi = mid - 1; }
+  return bars1m[lo].close;
+}
+const ET = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: '2-digit', hourCycle: 'h23' });
+function usSession(now) {  // the US stock-market session in New York time (holidays not modelled)
+  const p = Object.fromEntries(ET.formatToParts(now).map(x => [x.type, x.value]));
+  const day = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(p.weekday), mins = Number(p.hour) * 60 + Number(p.minute);
+  const clock = `${two(Number(p.hour))}:${p.minute} ET`;
+  if (day === 5 || (day === 6 && mins < 1200) || (day === 4 && mins >= 1200)) return ['Weekend', clock, 'No US price feed: stock perps trade on Hyperliquid alone, inside bands around Friday\'s close'];
+  if (mins < 240 || mins >= 1200) return ['Overnight', clock, 'US stocks trade overnight on Blue Ocean ATS'];
+  if (mins < 570) return ['Pre-market', clock, 'US pre-market, 04:00 to 09:30 ET'];
+  if (mins < 960) return ['Market open', clock, 'US regular session, 09:30 to 16:00 ET'];
+  return ['After-hours', clock, 'US after-hours, 16:00 to 20:00 ET'];
+}
+function showSession() {
+  const [name, clock, note] = usSession(new Date());
+  $('session').innerHTML = `US <b>${name}</b><span class="num">${clock}</span>`;
+  $('session').title = note + ' (holidays not shown)';
+}
+function showGlobal(k) {
+  const px = k.price.last;
+  if (ok(px)) {
+    $('px').textContent = num(px);
+    const ref = priceAgo(DAY), ch = ref ? px / ref - 1 : null;
+    $('pxchg').textContent = ch === null ? '' : `${pct(ch)} 24h`;
+    $('pxchg').className = 'chg num ' + (ch >= 0 ? 'up' : 'down');
+  }
+  $('basket').innerHTML = `<span class="flabel">NDX10 basket</span>` + Object.entries(basket.members).map(([coin, m]) => {
+    const p = k.members[coin], ch = ok(p) ? p / m.ref_price - 1 : null;
+    return `<span class="m" title="${m.company}: ${(m.weight * 100).toFixed(1)}% of the basket; change since the reference close">`
+         + `<b>${coin.split(':')[1]}</b><span class="w">${(m.weight * 100).toFixed(1)}%</span>`
+         + `<span class="c ${ch >= 0 ? 'up' : 'down'}">${pct(ch)}</span></span>`;
+  }).join('');
+}
+setInterval(() => {
+  const fresh = Date.now() - lastTickAt < 4000;
+  $('dot').className = 'dot ' + (lastTickAt ? (fresh ? 'ok' : 'stale') : '');
+  $('live').textContent = lastTickAt ? (fresh ? 'Live' : 'Reconnecting…') : 'Connecting…';
+  showSession();
+}, 1000);
+
+// ---- controls -------------------------------------------------------------------------------
+function buildTfs() {
+  $('tfs').innerHTML = TFS.map(m => `<button type="button" data-m="${m}" aria-pressed="${m === tf}">${m}m</button>`).join('');
+  for (const b of $('tfs').children) b.onclick = () => {
+    tf = Number(b.dataset.m);
+    try { localStorage.setItem('ndx10.tf', tf); } catch (e) {}
+    buildTfs();
+    for (const p of Object.values(panels)) { p.drawMain(); p.setEmas(); }
+    showRecent(); allTags();
+  };
+}
+function beep(up) {
+  if (!audio) return;
+  const o = audio.createOscillator(), g = audio.createGain();
+  o.frequency.value = up ? 880 : 330; o.connect(g); g.connect(audio.destination);
+  g.gain.setValueAtTime(0.25, audio.currentTime); g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.6);
+  o.start(); o.stop(audio.currentTime + 0.6);
+}
+$('alerts').onclick = async () => {
+  audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+  if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission();
+  alertsOn = !alertsOn;
+  $('alerts').textContent = alertsOn ? 'Alerts on' : 'Alerts off';
+  $('alerts').setAttribute('aria-pressed', String(alertsOn));
+  if (alertsOn) beep(true);
+};
+
+// ---- data -----------------------------------------------------------------------------------
+// Two sources give the same snapshot and ticks: the local Python server (ndx10_live.py: /snapshot and /events),
+// or, when the page is hosted as plain files, engine.js, which computes everything in this browser.
+let engine = null;
+const loadingText = text => { const el = $('loading-text'); if (el) el.textContent = text; };
+async function pickSource() {
+  if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {  // perhaps the local server: ask it
+    try {
+      const r = await fetch('snapshot', { cache: 'no-store' });
+      if (r.ok && (r.headers.get('content-type') || '').includes('json')) return;
+    } catch (e) {}
+  }
+  await new Promise((resolve, reject) => {
+    const tag = document.createElement('script');
+    tag.src = 'engine.js'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
+    document.head.appendChild(tag);
+  });
+  const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();
+  engine = new NdxEngine(basketFile, { progress: loadingText });
+  engine.start().catch(e => loadingText(`Couldn't load Hyperliquid's data (${e.message}). Reload the page to try again.`));
+}
+async function fetchSnapshot() {
+  if (engine) { await engine.whenReady(); return engine.snapshot(); }
+  for (;;) {
+    try {
+      const s = await (await fetch('snapshot', { cache: 'no-store' })).json();
+      if (!s.loading) return s;
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 2000));
+  }
+}
+function apply(s) {
+  boot = s.boot; gen = s.gen; lastSeq = s.tick.seq; basket = s.basket;
+  bars1m = s.price.slice();
+  const newest = bars1m.length ? bars1m[bars1m.length - 1].time : -Infinity;
+  for (const b of s.tick.price.tail) if (b && b.time > newest) upsert(bars1m, b);
+  $('banner').hidden = true;
+  for (const [key, cfg] of Object.entries(CFG)) {
+    if (!panels[key]) panels[key] = new Panel(key, cfg);
+    panels[key].load(s.sections[key], s.tick.sections[key]);
+  }
+  for (const p of Object.values(panels)) p.setEmas();  // once every panel has its 3m bars: NDX10's scale uses NAS100's
+  showGlobal(s.tick);
+}
+async function resync() {  // reload the snapshot, keep the view; ticks arriving meanwhile wait in `pending`
+  if (pending) return;
+  pending = [];
+  const p0 = Object.values(panels)[0], r = p0.main.timeScale().getVisibleLogicalRange();
+  const view = r && p0.mainBars.length ? [timeAt(p0.mainBars, tf, r.from), timeAt(p0.mainBars, tf, r.to)] : null;
+  try {
+    apply(await fetchSnapshot());
+    if (view) p0.main.timeScale().setVisibleLogicalRange({ from: indexAt(p0.mainBars, tf, view[0]), to: indexAt(p0.mainBars, tf, view[1]) });
+    allTags();
+  } finally {
+    const queued = pending;
+    pending = null;
+    for (const k of queued) if (k.gen === gen && k.seq > lastSeq) onTick(k);
+  }
+}
+function onTick(k) {
+  if (pending) { pending.push(k); return; }
+  if (k.boot !== boot) { location.reload(); return; }  // the server restarted, perhaps with new code
+  if (k.gen < gen) return;  // from before a rebuild
+  if (k.gen > gen || k.seq !== lastSeq + 1) { resync(); pending.push(k); return; }  // rebuilt, or ticks were missed
+  lastSeq = k.seq;
+  lastTickAt = Date.now();
+  let mainRedraw = false;
+  for (const b of k.price.tail) if (b && upsert(bars1m, b) === 'older') mainRedraw = true;
+  for (const [key, s] of Object.entries(panels)) s.applyTick(k.sections[key], mainRedraw);
+  for (const p of Object.values(panels)) p.setEmas();
+  showGlobal(k);
+  if (!hovering) allTags();
+}
+function showStatus(d) { $('banner').textContent = d.text; $('banner').hidden = false; }
+function showAlert(a) {
+  const fl = $('flash');
+  fl.style.background = a.state === 'BULLISH' ? 'rgba(43,182,138,.18)' : a.state === 'BEARISH' ? 'rgba(240,85,95,.18)' : 'rgba(141,153,171,.14)';
+  fl.style.opacity = 1; setTimeout(() => fl.style.opacity = 0, 900);
+  if (!alertsOn) return;
+  beep(a.state === 'BULLISH');
+  if ('Notification' in window && Notification.permission === 'granted') new Notification(`${a.name} turned ${a.state}`, { body: a.body });
+}
+function connect() {
+  if (engine) { engine.on('tick', onTick); engine.on('status', showStatus); engine.on('alert', showAlert); return; }
+  es = new EventSource('events');
+  es.addEventListener('tick', e => {
+    const k = JSON.parse(e.data);
+    if (lost) { lost = false; resync(); pending.push(k); return; }  // ticks were missed while disconnected
+    onTick(k);
+  });
+  es.addEventListener('status', e => showStatus(JSON.parse(e.data)));
+  es.addEventListener('alert', e => showAlert(JSON.parse(e.data)));
+  es.onerror = () => { lost = true; };
+}
+(async () => {
+  showSession();
+  await pickSource();
+  apply(await fetchSnapshot());
+  setupCrosshair();
+  buildTfs();
+  allTags();
+  $('loading').remove();
+  showRecent();
+  connect();
+})();
+</script>
+</body>
+</html>

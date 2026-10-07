@@ -1,0 +1,87 @@
+{
+  "as_of": "10/05/2026",
+  "base": 1000.0,
+  "members": {
+    "xyz:NVDA": {
+      "company": "NVIDIA Corporation",
+      "tickers": [
+        "NVDA"
+      ],
+      "ref_price": 238.9,
+      "weight": 0.1716634619147733
+    },
+    "xyz:AAPL": {
+      "company": "Apple Inc.",
+      "tickers": [
+        "AAPL"
+      ],
+      "ref_price": 332.89,
+      "weight": 0.14485002372186911
+    },
+    "xyz:GOOGL": {
+      "company": "Alphabet Inc.",
+      "tickers": [
+        "GOOGL",
+        "GOOG"
+      ],
+      "ref_price": 346.47,
+      "weight": 0.11715586124803257
+    },
+    "xyz:MSFT": {
+      "company": "Microsoft Corporation",
+      "tickers": [
+        "MSFT"
+      ],
+      "ref_price": 525.18,
+      "weight": 0.11626131208339215
+    },
+    "xyz:MU": {
+      "company": "Micron Technology, Inc.",
+      "tickers": [
+        "MU"
+      ],
+      "ref_price": 1063.96,
+      "weight": 0.09890574428844993
+    },
+    "xyz:AMD": {
+      "company": "Advanced Micro Devices, Inc.",
+      "tickers": [
+        "AMD"
+      ],
+      "ref_price": 631.75,
+      "weight": 0.08488045355668469
+    },
+    "xyz:AMZN": {
+      "company": "Amazon.com, Inc.",
+      "tickers": [
+        "AMZN"
+      ],
+      "ref_price": 251.4,
+      "weight": 0.08083413948300212
+    },
+    "xyz:META": {
+      "company": "Meta Platforms, Inc.",
+      "tickers": [
+        "META"
+      ],
+      "ref_price": 741.9,
+      "weight": 0.06574777809089746
+    },
+    "xyz:SPCX": {
+      "company": "Space Exploration Technologies Corp.",
+      "tickers": [
+        "SPCX"
+      ],
+      "ref_price": 171.09,
+      "weight": 0.06039080393308826
+    },
+    "xyz:TSLA": {
+      "company": "Tesla, Inc.",
+      "tickers": [
+        "TSLA"
+      ],
+      "ref_price": 378.73,
+      "weight": 0.05931042167981037
+    }
+  }
+}
