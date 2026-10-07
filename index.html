@@ -289,7 +289,7 @@
       <h3>The two panels</h3>
       <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same rules on the Nasdaq-100 perp itself, XYZ100; its 1m MACD (the first pane under its price chart) is for information only. The panes run from the shortest candle to the longest.</p>
       <h3>The charts</h3>
-      <p>Green zones on the price charts are where a panel's signal was bullish at the candle's close, red zones where it was bearish; the forming candle shows it live. <b class="up">▲ BUY</b> marks the candle where the signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
+      <p>Zones: a green zone (green ribbon along the bottom, labeled BULLISH zone) is where all four of a panel's rules were bullish at the candle's close; a red zone is where all four were bearish; no color means the rules disagreed (neutral). The zone is the signal, not the candle: a red candle can sit in a green zone. Zones change a few candles after the price turns, because MACD and EMAs follow price. The left chart's zones come from the 10 stocks, the right chart's from the index itself. The forming candle shows the signal live. <b class="up">▲ BUY</b> marks the candle where the signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
       <h3>Drawing tools</h3>
       <p>The toolbar on the left draws on the price charts: trend line, horizontal and vertical line, rectangle, Fib retracement and measure. Drag from one point to the other, or click one and then the other. Click a drawing to select it, drag it or its handles to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. Drawings show on both price charts and are saved in this browser.</p>
       <h3>Data</h3>
@@ -430,10 +430,15 @@ function segDist(x, y, x1, y1, x2, y2) {  // distance from (x, y) to the segment
   return Math.hypot(x - x1 - k * dx, y - y1 - k * dy);
 }
 
+// Each zone also gets a solid ribbon along the bottom of the chart and, where it's wide enough, its name, so the
+// colors explain themselves: a zone is the panel's signal (all 4 rules agreeing), not the color of the candles.
+const ZONE_EDGE = { BULLISH: '#2bb68a', BEARISH: '#f0555f' };
+const ZONE_WORD = { BULLISH: '▲ BULLISH zone', BEARISH: '▼ BEARISH zone' };
 class ZoneLayer {  // green and red bands behind the candles: the panel's signal at each candle (a series primitive)
   constructor(panel) {
     this.panel = panel; this.bands = [];
-    this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: target => this.render(target) }) }];
+    this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: target => this.render(target) }) },
+                  { zOrder: () => 'top', renderer: () => ({ draw: target => this.labels(target) }) }];
   }
   attached({ requestUpdate }) { this.requestUpdate = requestUpdate; }
   detached() { this.requestUpdate = null; }
@@ -445,16 +450,33 @@ class ZoneLayer {  // green and red bands behind the candles: the panel's signal
       const step = x1 - x0;
       for (let i = 0, j; i < st.length; i = j + 1) {
         for (j = i; j + 1 < st.length && st[j + 1] === st[i];) j++;
-        if (ZONE[st[i]]) bands.push([x0 + (i - 0.5) * step, x0 + (j + 0.5) * step, ZONE[st[i]]]);
+        if (ZONE[st[i]]) bands.push([x0 + (i - 0.5) * step, x0 + (j + 0.5) * step, st[i]]);
       }
     }
     this.bands = bands;
   }
   render(target) {
-    target.useBitmapCoordinateSpace(({ context: c, bitmapSize: size, horizontalPixelRatio: hr }) => {
-      for (const [left, right, color] of this.bands) {
+    target.useBitmapCoordinateSpace(({ context: c, bitmapSize: size, horizontalPixelRatio: hr, verticalPixelRatio: vr }) => {
+      const ribbon = Math.max(3, Math.round(4 * vr));
+      for (const [left, right, st] of this.bands) {
         const a = Math.max(0, Math.round(left * hr)), b = Math.min(size.width, Math.round(right * hr));
-        if (b > a) { c.fillStyle = color; c.fillRect(a, 0, b - a, size.height); }
+        if (b <= a) continue;
+        c.fillStyle = ZONE[st]; c.fillRect(a, 0, b - a, size.height);                    // the tint
+        c.fillStyle = ZONE_EDGE[st]; c.fillRect(a, size.height - ribbon, b - a, ribbon);  // the ribbon
+      }
+    });
+  }
+  labels(target) {  // the zone's name, just above its ribbon, when the zone is wide enough to hold it
+    target.useMediaCoordinateSpace(({ context: c, mediaSize: m }) => {
+      c.font = '700 10px "IBM Plex Sans", "Segoe UI", sans-serif';
+      c.textBaseline = 'middle';
+      for (const [left, right, st] of this.bands) {
+        const text = ZONE_WORD[st], w = c.measureText(text).width + 12, x = Math.max(left, 0) + 4;
+        if (Math.min(right, m.width) - x < w + 2) continue;
+        const y = m.height - 19;
+        c.fillStyle = 'rgba(10, 13, 18, 0.82)';
+        c.beginPath(); c.roundRect ? c.roundRect(x, y - 8, w, 16, 4) : c.rect(x, y - 8, w, 16); c.fill();
+        c.fillStyle = ZONE_EDGE[st]; c.fillText(text, x + 6, y + 0.5);
       }
     });
   }

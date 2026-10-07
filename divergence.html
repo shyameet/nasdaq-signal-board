@@ -120,7 +120,11 @@
   .tag b { color: var(--text); font-family: var(--font-ui); font-weight: 600; }
   .tag .ohlc b { font-family: var(--font-num); font-weight: 500; }
   .tag .t-time { color: var(--text); }
-  .tag .t1, .tag .t2 { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+  .tag .t1, .tag .t2, .tag .t3 { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+  .tag .t3 { gap: 2px 12px; margin-top: 2px; }
+  .tag .t3 b { font-family: var(--font-num); font-weight: 500; }
+  .lk { display: inline-block; width: 13px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  .lk.e8 { background: #f2b33d; } .lk.e21 { background: #5b8cff; }
   .tag .t2 { gap: 2px 12px; margin-top: 2px; font-family: var(--font-ui); }
   .tag .t-kind { font-weight: 700; color: var(--muted); }
   .tag .t-kind.alone { color: var(--alone); } .tag .t-kind.first { color: var(--up); } .tag .t-kind.other { color: var(--text); }
@@ -225,6 +229,7 @@
         <span><i class="sw alone"></i><b>Index alone</b>often fades</span>
         <span><i class="sw first"></i><b>10 stocks first</b>index often follows</span>
         <span><i class="sw other"></i><b>Other</b>no clear pattern</span>
+        <span><i class="lk e8"></i><b>EMA 8</b><i class="lk e21"></i><b>EMA 21</b>3m, XYZ100</span>
         <span class="hint">Bottom strips: each signal · green bullish · red bearish · gray neutral</span>
       </div>
       <div class="pane" id="pmain"><div class="tag" id="tag"></div></div>
@@ -335,7 +340,8 @@ let bars1m = [], boot = null, gen = null, lastSeq = 0, lastTickAt = 0, lost = fa
 let live = null, latestMinute = 0, hovering = false, alertsOn = false, audio = null, alertKind, alertSince = 0, alerted;
 const stateAt = { ndx10: new Map(), nas100: new Map() };  // minute -> each signal's state at that minute's close
 let mainBars = [], pairs = [], index = new Map(), markersKey = '';
-let chart, candles, layer;
+let ema3 = [], emaPts = [];  // XYZ100's 3m bars with their EMA 8/21, and the points drawn from them
+let chart, candles, layer, e8, e21;
 
 // ---- the chart: candles, a band wherever the two signals disagree, the two signals as strips at the bottom ----------
 class DivLayer {  // a Lightweight Charts series primitive
@@ -397,6 +403,9 @@ function fitMargins() {  // keep the candles clear of the strips whatever the ch
 function makeChart() {
   chart = LightweightCharts.createChart($('pmain'), options());
   candles = chart.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
+  // the 3m EMA 8 and EMA 21 of XYZ100 (the index's own 3m rule), over the candles
+  const emaLine = color => chart.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+  e8 = emaLine('#f2b33d'); e21 = emaLine('#5b8cff');
   layer = new DivLayer();
   candles.attachPrimitive(layer);
   new ResizeObserver(fitMargins).observe($('pmain'));
@@ -434,12 +443,44 @@ function setMarkers(force) {  // a mark where an Index alone or a 10 stocks firs
   const key = JSON.stringify(m);
   if (force || key !== markersKey) { markersKey = key; candles.setMarkers(m); }
 }
+function emaPoints() {  // one point per candle: the 3m EMAs as of its close (never ahead of it); the forming one live
+  const out = [];
+  let k = -1, used = -1;
+  for (let i = 0; i < mainBars.length; i++) {
+    const end = bucketEnd(mainBars[i].time, tf);
+    while (k + 1 < ema3.length && bucketEnd(ema3[k + 1].time, 3) <= end) k++;
+    const j = i === mainBars.length - 1 ? ema3.length - 1 : k;
+    if (j < 0 || j === used) continue;  // no 3m bar closed inside this candle (1m candles): the line goes straight past
+    used = j;
+    out.push({ time: sec(mainBars[i].time), e8: ema3[j].ema8, e21: ema3[j].ema21 });
+  }
+  return out;
+}
+function setEmas() {  // redraw the EMA lines, or only move their newest point when that's all that changed
+  const pts = emaPoints(), old = emaPts, n = pts.length, k = old.length;
+  emaPts = pts;
+  let i = 0;
+  while (i < n && i < k && pts[i].time === old[i].time && pts[i].e8 === old[i].e8 && pts[i].e21 === old[i].e21) i++;
+  if (i === n && n === k) return;
+  if (k && n >= k && n <= k + 1 && i >= k - 1 && pts[k - 1].time === old[k - 1].time) {
+    for (let j = k - 1; j < n; j++) { e8.update({ time: pts[j].time, value: pts[j].e8 }); e21.update({ time: pts[j].time, value: pts[j].e21 }); }
+    return;
+  }
+  e8.setData(pts.map(p => ({ time: p.time, value: p.e8 })));
+  e21.setData(pts.map(p => ({ time: p.time, value: p.e21 })));
+}
+function emaAt(t) {  // the EMA point in effect at candle time t (seconds): the newest at or before it
+  let lo = 0, hi = emaPts.length - 1, hit = null;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (emaPts[mid].time <= t) { hit = emaPts[mid]; lo = mid + 1; } else hi = mid - 1; }
+  return hit;
+}
 const bucketFrom1m = start => { const parts = []; for (let i = bars1m.length - 1; i >= 0 && bars1m[i].time >= start; i--) parts.unshift(bars1m[i]); return aggregate(parts, tf)[0]; };
 const point = b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close });
 function draw() {  // everything again: after a snapshot, a candle-size change, or an older bar changing
   mainBars = aggregate(bars1m, tf);
   computePairs();
   candles.setData(mainBars.map(point));
+  setEmas();
   setMarkers(true);
   index = new Map(mainBars.map((b, i) => [sec(b.time), i]));
   chart.applyOptions({ watermark: { text: `XYZ100 · ${tf}m` } });
@@ -456,6 +497,7 @@ function update(older) {  // each tick: the newest candle, and both signals (lat
     index.set(sec(cur), n);
   } else mainBars[n - 1] = bucketFrom1m(cur);
   candles.update(point(mainBars[mainBars.length - 1]));
+  setEmas();
   computePairs();
   setMarkers(false);
   if (layer.requestUpdate) layer.requestUpdate();
@@ -473,7 +515,10 @@ function tag(t) {  // the label in the chart's corner: the candle, and both sign
     + `<span class="ohlc">O <b>${num(b.open)}</b> H <b>${num(b.high)}</b> L <b>${num(b.low)}</b> `
     + `C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close)}</b></span></div>`
     + `<div class="t2"><span>10 stocks ${SYM[p.sn] || '·'}</span><span>index ${SYM[p.sx] || '·'}</span>`
-    + `<span class="t-kind ${p.kind || ''}">${p.kind ? PATTERN[p.kind].name : 'in sync'}</span></div>`;
+    + `<span class="t-kind ${p.kind || ''}">${p.kind ? PATTERN[p.kind].name : 'in sync'}</span></div>`
+    + (() => { const e = t === undefined ? emaPts[emaPts.length - 1] : emaAt(t);
+        return e ? `<div class="t3"><span><i class="lk e8"></i>EMA 8 <b>${num(e.e8, 1)}</b></span>`
+                 + `<span><i class="lk e21"></i>EMA 21 <b>${num(e.e21, 1)}</b></span></div>` : ''; })();
 }
 
 // ---- the status row: the situation right now ----------------------------------------------------------
@@ -649,6 +694,9 @@ function apply(s) {
     for (const t of m.keys()) if (t > latestMinute) latestMinute = t;
   }
   live = s.tick.sections;
+  ema3 = s.sections.nas100.bars[3].slice();  // the snapshot's tick can be a second older than its bars: newer only
+  const newest3 = ema3.length ? ema3[ema3.length - 1].time : -Infinity;
+  for (const b of s.tick.sections.nas100.tf[3]) if (b.time > newest3) upsert(ema3, b);
   $('banner').hidden = true;
   draw(); showHead(); showScore(); showQuote(s.tick);
 }
@@ -681,6 +729,7 @@ function onTick(k) {
     if (t > latestMinute) latestMinute = t;
   }
   live = k.sections;
+  for (const b of k.sections.nas100.tf[3]) upsert(ema3, b);
   update(older);
   showHead();
   if (history) showScore();
