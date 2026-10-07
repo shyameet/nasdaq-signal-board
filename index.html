@@ -16,7 +16,7 @@
 <script src="lightweight-charts.js"></script>
 <style>
   /* Layout: a two-column trading board. Each instrument gets a signal header (state + one tile
-     per rule), then XYZ100 candles with that signal's BUY/SELL marks and 3m EMAs, then the MACD panes.
+     per rule), then XYZ100 candles with that signal's zones, BUY/SELL marks and 3m EMAs, then the MACD panes.
      One crosshair. */
   :root {
     color-scheme: dark;
@@ -262,7 +262,7 @@
       <h3>The two panels</h3>
       <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same rules on the Nasdaq-100 perp itself, XYZ100; its 1m MACD (the first pane under its price chart) is for information only. The panes run from the shortest candle to the longest.</p>
       <h3>The charts</h3>
-      <p><b class="up">▲ BUY</b> marks the candle where a panel's signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
+      <p>Green zones on the price charts are where a panel's signal was bullish at the candle's close, red zones where it was bearish; the forming candle shows it live. <b class="up">▲ BUY</b> marks the candle where the signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
       <h3>Drawing tools</h3>
       <p>The toolbar on the left draws on the price charts: trend line, horizontal and vertical line, rectangle, Fib retracement and measure. Drag from one point to the other, or click one and then the other. Click a drawing to select it, drag it or its handles to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. Drawings show on both price charts and are saved in this browser.</p>
       <h3>Data</h3>
@@ -279,6 +279,7 @@
 const DAY = 86400000, TFS = [1, 3, 5, 7, 15];
 const C = { up: '#2bb68a', down: '#f0555f', ema8: '#f2b33d', ema21: '#5b8cff', macd: '#5b8cff', sig: '#ff9f43',
             grid: '#121821', text: '#7d899b', line: '#1c2430', cross: '#3a4554', label: '#283240', bg: '#0a0d12', zero: '#6b778a' };
+const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.12)', BEARISH: 'rgba(240, 85, 95, 0.12)' };  // signal zones behind the candles
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // Both panels run the same rules on different series; only these settings differ. Their 3m EMAs are drawn on
 // the price chart, so the panes under it are MACDs. NDX10's EMAs are scaled onto NAS100's (see emaSource).
@@ -398,6 +399,36 @@ function segDist(x, y, x1, y1, x2, y2) {  // distance from (x, y) to the segment
   const dx = x2 - x1, dy = y2 - y1, len = dx * dx + dy * dy;
   const k = len ? Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / len)) : 0;
   return Math.hypot(x - x1 - k * dx, y - y1 - k * dy);
+}
+
+class ZoneLayer {  // green and red bands behind the candles: the panel's signal at each candle (a series primitive)
+  constructor(panel) {
+    this.panel = panel; this.bands = [];
+    this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: target => this.render(target) }) }];
+  }
+  attached({ requestUpdate }) { this.requestUpdate = requestUpdate; }
+  detached() { this.requestUpdate = null; }
+  paneViews() { return this.views; }
+  updateAllViews() {  // one band per run of candles in the same bullish or bearish state, edge to edge, so no gaps
+    const st = this.panel.mainStates, ts = this.panel.main.timeScale(), bands = [];
+    const x0 = st.length ? ts.logicalToCoordinate(0) : null, x1 = st.length ? ts.logicalToCoordinate(1) : null;
+    if (x0 !== null && x1 !== null) {
+      const step = x1 - x0;
+      for (let i = 0, j; i < st.length; i = j + 1) {
+        for (j = i; j + 1 < st.length && st[j + 1] === st[i];) j++;
+        if (ZONE[st[i]]) bands.push([x0 + (i - 0.5) * step, x0 + (j + 0.5) * step, ZONE[st[i]]]);
+      }
+    }
+    this.bands = bands;
+  }
+  render(target) {
+    target.useBitmapCoordinateSpace(({ context: c, bitmapSize: size, horizontalPixelRatio: hr }) => {
+      for (const [left, right, color] of this.bands) {
+        const a = Math.max(0, Math.round(left * hr)), b = Math.min(size.width, Math.round(right * hr));
+        if (b > a) { c.fillStyle = color; c.fillRect(a, 0, b - a, size.height); }
+      }
+    });
+  }
 }
 
 class DrawLayer {  // every drawing on one price chart, as a Lightweight Charts series primitive
@@ -763,6 +794,9 @@ class Panel {
     // the 3m EMA 8 and EMA 21 that the 3m rule tests, over the candles (see emaPoints)
     const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e8 = emaLine(C.ema8); this.e21 = emaLine(C.ema21);
+    // the signal zones behind the candles: green while bullish, red while bearish
+    this.zones = new ZoneLayer(this);
+    this.candles.attachPrimitive(this.zones);
     // drawings: the layer paints them; a press that starts a drawing or grabs one never reaches the chart,
     // so the chart doesn't scroll at the same time (its crosshair still follows the mouse)
     this.mainEl = $(`${key}-pmain`);
@@ -808,7 +842,7 @@ class Panel {
     else if (!redraw.has(m)) for (const [s, pt] of this.points(m, b)) s.update(pt);
   }
 
-  // ---- price chart: XYZ100 candles, with this panel's signal flips marked ----
+  // ---- price chart: XYZ100 candles, with this panel's signal as zones and BUY / SELL marks ----
   closedState(b) {  // the signal at the bar's last finished minute
     for (let t = bucketEnd(b.time, tf) - 60000; t >= b.time; t -= 60000) { const s = this.stateAt.get(t); if (s) return s; }
     return null;
@@ -848,6 +882,7 @@ class Panel {
       if (st && st !== this.mainStates[i]) { this.mainStates[i] = st; changed = true; }
     }
     if (!changed) return;
+    if (this.zones.requestUpdate) this.zones.requestUpdate();  // the states changed, not the bars
     this.baseMarkers = [];
     for (let i = 1; i < n - 1; i++) if (this.flips(i)) this.baseMarkers.push(this.arrow(this.mainBars[i], this.mainStates[i]));
     this.setMarkers();
@@ -872,6 +907,7 @@ class Panel {
     for (const [s, p] of this.mainPoints(this.mainBars[i])) s.update(p);
     this.store.main.set(sec(this.mainBars[i].time), { ...this.mainBars[i], state: this.mainStates[i] });
     this.setMarkers();
+    if (this.zones.requestUpdate) this.zones.requestUpdate();  // the live state may have changed with the same price
   }
   // ---- 3m EMA 8 / 21 on the price chart ----
   emaSource() {  // this panel's 3m EMAs at XYZ100's price level (e8, e21), with the values its rule tests (v8, v21)
