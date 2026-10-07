@@ -1,3 +1,5 @@
+[![Nasdaq Signal Board](brand/banner.png)](https://shyameet.github.io/nasdaq-signal-board/)
+
 # Nasdaq Signal Board
 
 Live Nasdaq-100 trend signals from Hyperliquid's 24/7 stock perps.
@@ -23,7 +25,8 @@ Everything runs in your browser. The page loads two days of 1-minute candles fro
 then follows its live candle stream. There is no server and no account; drawings and settings stay in your
 browser.
 
-For information only, not investment advice.
+For information only, not investment advice. An independent project, not affiliated with Nasdaq, Inc.,
+Hyperliquid or TradingView.
 
 | File | What it is |
 |---|---|
@@ -31,6 +34,8 @@ For information only, not investment advice.
 | `engine.js` | the signal calculation |
 | `basket.json` | the NDX10 basket: stocks, weights and reference prices |
 | `lightweight-charts.js` | TradingView Lightweight Charts™ 4.2.3 |
+| `brand/` | logo, icons, app manifest and the link-preview banner (made by `make_brand.py`) |
+| `404.html` | the page for addresses that don't exist |
 
 Charts: [TradingView Lightweight Charts™](https://www.tradingview.com/lightweight-charts/),
 Copyright (c) 2025 TradingView, Inc., Apache License 2.0.

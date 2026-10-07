@@ -8,8 +8,23 @@
 <meta name="theme-color" content="#0a0d12">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Nasdaq Signal Board">
-<meta property="og:description" content="Live Nasdaq-100 trend signals from Hyperliquid's 24/7 markets.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%232bb68a' d='M8 0h24L0 32V8a8 8 0 0 1 8-8z'/%3E%3Cpath fill='%23f0555f' d='M32 0v24a8 8 0 0 1-8 8H0z'/%3E%3C/svg%3E">
+<meta property="og:description" content="Live Nasdaq-100 trend signals, 24/7, from Hyperliquid's stock perps: a 10-stock composite and the index itself, on MACD and EMA rules.">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="manifest" href="brand/site.webmanifest">
+<link rel="canonical" href="https://shyameet.github.io/nasdaq-signal-board/">
+<meta name="apple-mobile-web-app-title" content="Signal Board">
+<meta property="og:site_name" content="Nasdaq Signal Board">
+<meta property="og:url" content="https://shyameet.github.io/nasdaq-signal-board/">
+<meta property="og:image" content="https://shyameet.github.io/nasdaq-signal-board/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Nasdaq Signal Board: live Nasdaq-100 trend signals with MACD and EMA rules">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Nasdaq Signal Board">
+<meta name="twitter:description" content="Live Nasdaq-100 trend signals, 24/7, from Hyperliquid's stock perps.">
+<meta name="twitter:image" content="https://shyameet.github.io/nasdaq-signal-board/brand/og-image.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
@@ -53,8 +68,7 @@
   .topbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; padding: 10px 16px;
             background: var(--surface); border-bottom: 1px solid var(--line); }
   .brand { display: flex; align-items: center; gap: 10px; }
-  .brand .mark { width: 22px; height: 22px; border-radius: 6px; flex: none;
-                 background: linear-gradient(135deg, var(--up) 0 50%, var(--down) 50% 100%); }
+  .brand .mark { width: 30px; height: 30px; flex: none; display: block; }
   .brand b { display: block; font-size: 14px; font-weight: 700; letter-spacing: .01em; }
   .brand small { display: block; color: var(--muted); font-size: 11px; }
   .quote { display: flex; align-items: baseline; gap: 8px; }
@@ -177,7 +191,10 @@
            box-shadow: 0 8px 30px rgba(0, 0, 0, .45); font-size: 12.5px; }
   #toast[hidden] { display: none; }
   #toast button { padding: 4px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--tile); cursor: pointer; }
-  #loading { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: var(--bg); color: var(--muted); }
+  #loading { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center;
+             gap: 18px; background: var(--bg); color: var(--muted); }
+  #loading img { width: 64px; height: 64px; }
+  #loading b { color: var(--text); font-size: 18px; letter-spacing: .01em; }
   #loading div { display: flex; align-items: center; gap: 10px; }
   #loading div::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-strong);
                          border-top-color: var(--accent); animation: spin .9s linear infinite; }
@@ -207,7 +224,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="mark" aria-hidden="true"></span><div><b>Nasdaq Signal Board</b><small>Live from Hyperliquid</small></div></div>
+  <div class="brand"><img class="mark" src="brand/logo.svg" alt="" width="30" height="30"><div><b>Nasdaq Signal Board</b><small>Live from Hyperliquid</small></div></div>
   <div class="quote"><span class="sym">XYZ100</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
   <div class="session" id="session" title="US stock market session (New York time; holidays not shown)"></div>
   <div class="spacer"></div>
@@ -266,7 +283,7 @@
       <h3>Drawing tools</h3>
       <p>The toolbar on the left draws on the price charts: trend line, horizontal and vertical line, rectangle, Fib retracement and measure. Drag from one point to the other, or click one and then the other. Click a drawing to select it, drag it or its handles to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. Drawings show on both price charts and are saved in this browser.</p>
       <h3>Data</h3>
-      <p>Prices stream live from Hyperliquid's public API, around the clock, and the signals are recalculated every second. The page keeps nothing about you; your drawings and settings stay in this browser. For information only, not investment advice.</p>
+      <p>Prices stream live from Hyperliquid's public API, around the clock, and the signals are recalculated every second. The page keeps nothing about you; your drawings and settings stay in this browser. For information only, not investment advice. An independent project, not affiliated with Nasdaq, Inc., Hyperliquid or TradingView.</p>
     </div>
   </details>
   <div class="credit">Not investment advice · Data: Hyperliquid · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></div>
@@ -274,7 +291,7 @@
 <div id="flash"></div>
 <div id="banner" hidden></div>
 <div id="toast" role="status" hidden><span id="toast-text"></span><button type="button" id="toast-undo">Undo</button></div>
-<div id="loading"><div id="loading-text">Loading Hyperliquid history…</div></div>
+<div id="loading"><img src="brand/logo.svg" alt=""><b>Nasdaq Signal Board</b><div id="loading-text">Loading Hyperliquid history…</div></div>
 <script>
 const DAY = 86400000, TFS = [1, 3, 5, 7, 15];
 const C = { up: '#2bb68a', down: '#f0555f', ema8: '#f2b33d', ema21: '#5b8cff', macd: '#5b8cff', sig: '#ff9f43',
