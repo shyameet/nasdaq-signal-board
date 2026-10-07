@@ -8,7 +8,12 @@
    an IP per minute), kept in localStorage so a reload only fetches what is new. Live: Hyperliquid's 1-minute
    candle stream. A minute closes 1.5 s after the exchange moves past it (any market trading in a later minute),
    so the viewer's clock doesn't matter; a quiet minute becomes a flat bar, as on the exchange. If the stream
-   drops, everything is rebuilt from the exchange's candles, as the server does. */
+   drops, everything is rebuilt from the exchange's candles, as the server does.
+
+   Safety nets, because a stream can also stay connected yet stop sending (pings still answered): if no market
+   updates for 2 minutes it is reconnected and rebuilt; every 3 minutes the newest bars are compared with the
+   official candles and corrected; and a reload always fetches the last 3 hours again, plus any long run of
+   minutes without trades, so a stuck stream's flat bars never survive in the cache. */
 (() => {
 'use strict';
 const API = 'https://api.hyperliquid.xyz/info', WS_URL = 'wss://api.hyperliquid.xyz/ws';
@@ -18,10 +23,13 @@ const HISTORY_MINUTES = 2 * 1440;
 const GRACE = 1500;      // how long past a minute's end to wait for its last updates (hl/live.py BAR_GRACE_MS)
 const LULL = 10000;      // no market traded since: minutes close by the viewer's clock, with this extra margin
 const SILENCE = 15000;   // nothing heard for this long while the page is visible: the connection is dead
+const STALL = 120000;    // connected, but no market has updated for this long: the stream is stuck
+const RECHECK = 3 * 60000, RECHECK_SPAN = 20;  // every 3 minutes, the last 20 closed minutes against the official candles
+const REFETCH = 180;     // minutes always fetched again on a reload or a reconnect
 const KEEP_BARS = 5000, KEEP_MINUTES = 7200;
 const TIMEFRAMES = { 3: 'ema', 5: 'macd', 7: 'macd', 15: 'macd' };  // minutes -> what runs on it
 const NAS100_TIMEFRAMES = { ...TIMEFRAMES, 1: 'macd' };             // plus a 1m MACD shown for information
-const CACHE = 'nsb.candles.v1.';
+const CACHE = 'nsb.candles.v2.';  // v1 caches can hold flat bars from a stuck stream: they are not read
 
 // ---- the signal: a line-for-line port of ndx10.py ----------------------------------------------
 const bucket = (t, minutes) => {  // [start, end] of the bar containing t; bars restart at 00:00 UTC each day
@@ -222,6 +230,13 @@ function contiguous(bars) {  // one bar per minute: missing minutes become flat 
   }
   return out;
 }
+function quietRunStart(bars, len) {  // the first minute of the last run of `len` or more minutes without trades
+  let found = null, start = null, run = 0;
+  for (const b of bars) {
+    if (b.n === 0) { if (run === 0) start = b.t; run += 1; if (run >= len) found = start; } else run = 0;
+  }
+  return found;
+}
 function loadCache(coin) {
   try {
     const rows = JSON.parse(localStorage.getItem(CACHE + coin));
@@ -259,6 +274,7 @@ class Engine {
     this.building = true; this.buffer = []; this.gap = null; this.retryAt = 0;
     this.ws = null; this.connects = 0; this.lastHeard = 0; this.nextTick = 0;
     this.exMinute = 0; this.exSince = 0;  // the newest minute any market has traded in, and when we first saw it
+    this.lastCandleAt = 0; this.lastUnstick = 0; this.nextRecheck = 0; this.rechecking = false;
   }
 
   on(event, fn) { this.handlers[event].push(fn); }
@@ -305,8 +321,14 @@ class Engine {
     await Promise.all(this.coins.map(async coin => {
       const mk = this.markets[coin];
       const have = (recovering ? mk.closed : loadCache(coin)).filter(b => b.t >= oldest);
-      // the last half hour is fetched again: bars closed from the live stream are replaced by the official candles
-      const from = have.length && have[0].t <= oldest + 60 * MIN ? Math.max(oldest, have[have.length - 1].t - 30 * MIN) : oldest;
+      // fetched again: the last 3 hours (bars closed from the live stream are replaced by the official candles), and
+      // any long run of minutes without trades, which may be a stream that got stuck rather than a quiet market
+      let from = oldest;
+      if (have.length && have[0].t <= oldest + 60 * MIN) {
+        from = Math.max(oldest, Math.min(have[have.length - 1].t - 30 * MIN, now - REFETCH * MIN));
+        const quiet = quietRunStart(have, 15);
+        if (quiet !== null) from = Math.max(oldest, Math.min(from, quiet));
+      }
       const rows = (await candleRows(coin, '1m', from, now, busy)).map(toBar);
       for (const b of rows) if (b.n > 0 && b.t > this.exMinute) { this.exMinute = b.t; this.exSince = Date.now(); }
       const byMinute = new Map(have.map(b => [b.t, b]));
@@ -321,6 +343,8 @@ class Engine {
     if (this.benchRef === null) await this.loadBenchRef(busy);
     for (const d of this.buffer.splice(0)) this.onCandle(d, true);  // updates that came in meanwhile
     this.rebuild();
+    this.lastCandleAt = Date.now();
+    this.nextRecheck = Date.now() + RECHECK;
     this.building = false;
   }
   async loadBenchRef(busy) {  // XYZ100 at the basket's reference close: its 1-minute bar, else the hour ending then
@@ -363,7 +387,7 @@ class Engine {
     const ws = this.ws = new WebSocket(WS_URL);
     ws.onopen = () => {
       this.connects += 1;
-      this.lastHeard = Date.now();
+      this.lastHeard = this.lastCandleAt = Date.now();
       for (const coin of this.coins) ws.send(JSON.stringify({ method: 'subscribe', subscription: { type: 'candle', coin, interval: '1m' } }));
       if (this.connects > 1) this.gap = 'reconnected';  // updates during the outage are missing: rebuild from candles
     };
@@ -372,6 +396,7 @@ class Engine {
       let m;
       try { m = JSON.parse(e.data); } catch (err) { return; }
       if (m.channel !== 'candle' || !m.data) return;
+      this.lastCandleAt = Date.now();
       if (m.data.t > this.exMinute) { this.exMinute = m.data.t; this.exSince = Date.now(); }
       if (this.building) this.buffer.push(m.data); else this.onCandle(m.data, false);
     };
@@ -403,17 +428,54 @@ class Engine {
     const now = Date.now();
     if (this.building || now < this.retryAt) return;
     if (this.gap) { this.recover(); return; }
-    if (document.visibilityState === 'visible' && this.ws && this.ws.readyState === WebSocket.OPEN && now - this.lastHeard > SILENCE) {
+    const open = this.ws && this.ws.readyState === WebSocket.OPEN;
+    if (document.visibilityState === 'visible' && open && now - this.lastHeard > SILENCE) {
       this.ws.close();  // silent: reconnect, which counts as a gap
       return;
     }
-    // Minutes before the exchange's newest one are over once its first update is 1.5 s old. In a lull with no
-    // trades anywhere, the viewer's clock decides, with a wider margin. A stalled connection closes nothing:
-    // its silence must not turn into flat bars that look like a quiet market.
+    if (open && now - this.lastCandleAt > STALL && now - this.lastUnstick > 5 * MIN) {
+      this.lastUnstick = now;  // connected, yet nothing for 2 minutes: stuck. Reconnect and rebuild (at most every 5 min,
+      this.ws.close();         // in case the market is only very quiet)
+      return;
+    }
+    // Minutes before the exchange's newest one are over once its first update is 1.5 s old. Only in a true lull, with
+    // no update from any market for 10 s, does the viewer's clock decide (a fast clock must not close minutes the
+    // exchange is still filling). A stalled connection closes nothing: its silence must not look like a quiet market.
     let upTo = this.exMinute && now - this.exSince >= GRACE ? this.exMinute : 0;
-    if (now - this.lastHeard <= SILENCE) upTo = Math.max(upTo, Math.floor((now - LULL) / MIN) * MIN);
+    if (now - this.lastHeard <= SILENCE && now - this.lastCandleAt > LULL) upTo = Math.max(upTo, Math.floor((now - LULL) / MIN) * MIN);
     for (const c of this.coins) { const mk = this.markets[c]; if (mk.cur && mk.cur.t < upTo) this.closeThrough(c, upTo); }
     if (now >= this.nextTick) { this.nextTick = now + 1000; this.tick(now); }
+    if (now >= this.nextRecheck) this.recheck();
+  }
+  // The newest closed bars against Hyperliquid's official candles. Whatever differs (an update the stream never
+  // delivered) is replaced and the signals rebuilt; if the stream showed a minute as quiet that in fact traded, it
+  // skipped a market, so it is reconnected as well.
+  async recheck() {
+    if (this.rechecking) return;
+    this.rechecking = true;
+    this.nextRecheck = Date.now() + RECHECK;
+    try {
+      const now = Date.now(), fixes = [];
+      await Promise.all(this.coins.map(async coin => {
+        const rows = (await candleRows(coin, '1m', now - RECHECK_SPAN * MIN, now)).map(toBar);
+        const mine = new Map(this.markets[coin].closed.slice(-(RECHECK_SPAN + 5)).map(b => [b.t, b]));
+        for (const r of rows) {
+          const b = mine.get(r.t);
+          if (b && (b.o !== r.o || b.h !== r.h || b.l !== r.l || b.c !== r.c)) fixes.push([coin, r, b]);
+        }
+      }));
+      if (!fixes.length || this.building) return;
+      for (const [coin, r] of fixes) {
+        const a = this.markets[coin].closed, i = a.findIndex(b => b.t === r.t);
+        if (i >= 0) a[i] = r;
+      }
+      this.rebuild();  // a new generation: the page reloads everything from the corrected bars
+      if (fixes.some(([, r, b]) => r.n > 0 && b.n === 0) && this.ws) this.ws.close();
+    } catch (e) {
+      /* tried again next time */
+    } finally {
+      this.rechecking = false;
+    }
   }
   async recover() {
     if (this.recovering) return;

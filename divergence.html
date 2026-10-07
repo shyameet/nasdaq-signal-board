@@ -268,7 +268,7 @@ const PATTERN = {
 };
 const STATE_COLOR = { BULLISH: C.up, BEARISH: C.down, NEUTRAL: '#3a4554' };
 const SYM = { BULLISH: '▲', BEARISH: '▼', NEUTRAL: '–' };
-const STRIP = { row: 9, gap: 3, pad: 7 };  // the two signal strips along the bottom of the price pane
+const STRIP = { row: 11, gap: 4, pad: 7 };  // the two signal strips along the bottom of the price pane
 const STRIP_H = STRIP.pad * 2 + STRIP.row * 2 + STRIP.gap;
 // the two signals at one moment -> null when they agree, else which kind of disagreement
 const classify = (sn, sx) => !sn || !sx || sn === sx ? null : sx === 'BULLISH' ? 'alone' : sn === 'BULLISH' ? 'first' : 'other';
@@ -422,11 +422,14 @@ function computePairs() {  // both signals at every candle's close; the forming 
 }
 function setMarkers(force) {  // a mark where an Index alone or a 10 stocks first stretch begins
   const m = [];
+  let lastAt = -Infinity;
   for (let i = 1; i < pairs.length; i++) {
     const k = pairs[i].kind, time = sec(mainBars[i].time);
-    if (k === pairs[i - 1].kind) continue;
-    if (k === 'alone') m.push({ time, position: 'aboveBar', color: C.alone, shape: 'arrowDown', text: 'Index alone' });
-    if (k === 'first') m.push({ time, position: 'belowBar', color: C.up, shape: 'arrowUp', text: '10 stocks first' });
+    if (k === pairs[i - 1].kind || (k !== 'alone' && k !== 'first')) continue;
+    const roomy = i - lastAt >= 8;  // marks close together keep their arrows but not their words, which would overlap
+    lastAt = i;
+    if (k === 'alone') m.push({ time, position: 'aboveBar', color: C.alone, shape: 'arrowDown', text: roomy ? 'Index alone' : '' });
+    if (k === 'first') m.push({ time, position: 'belowBar', color: C.up, shape: 'arrowUp', text: roomy ? '10 stocks first' : '' });
   }
   const key = JSON.stringify(m);
   if (force || key !== markersKey) { markersKey = key; candles.setMarkers(m); }
@@ -616,7 +619,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tagEl = document.createElement('script');
-    tagEl.src = 'engine.js'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
+    tagEl.src = 'engine.js?v=e92bcaf53a'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tagEl);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();
