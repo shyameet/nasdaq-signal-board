@@ -115,13 +115,13 @@
   .tool svg .fill { fill: currentColor; stroke: none; }
   .rail .sep { width: 20px; height: 1px; margin: 6px 0; background: var(--line-strong); }
   .pane.drawing { touch-action: none; }  /* with a tool picked, a finger draws instead of scrolling the page */
-  .phead { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
+  .phead { flex: none; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 12px; border-bottom: 1px solid var(--line); }
   .phead-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
   .ptitle { min-width: 0; }
   .eyebrow { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
   .pline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 2px; }
-  .pname { font-size: 15px; font-weight: 700; }
-  .pval { font-size: 18px; font-weight: 600; }
+  .pname { font-size: 16px; font-weight: 700; }
+  .pval { font-size: 20px; font-weight: 600; }
   .state { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
   .state-word { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 8px; font-weight: 700;
                 font-size: 14px; letter-spacing: .12em; background: var(--tile); color: var(--muted);
@@ -133,21 +133,24 @@
   .state.bear .state-word::before { content: "▼"; }
   .state-since { color: var(--muted); font-size: 11px; }
 
-  .rules { display: grid; gap: 6px; }
-  .rule { min-width: 0; padding: 7px 9px; border-radius: 8px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
-  .rule.pass { background: var(--up-soft); box-shadow: inset 0 0 0 1px rgba(43, 182, 138, .35); }
-  .rule.fail { background: var(--down-soft); box-shadow: inset 0 0 0 1px rgba(240, 85, 95, .3); }
-  .r-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-  .r-tf { font-family: var(--font-num); font-size: 13px; font-weight: 600; }
-  .r-mark { font-size: 12px; font-weight: 700; }
-  .rule.pass .r-mark { color: var(--up); } .rule.fail .r-mark { color: var(--down); } .rule.info .r-mark { color: var(--faint); }
-  .r-name { margin-top: 1px; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .r-val { margin-top: 3px; font-family: var(--font-num); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rules { display: grid; gap: 8px; }
+  .rule { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 8px 11px; border-radius: 10px;
+          background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
+  .rule.pass { background: rgba(43, 182, 138, .08); box-shadow: inset 0 0 0 1px rgba(43, 182, 138, .32); }
+  .rule.fail { background: rgba(240, 85, 95, .07); box-shadow: inset 0 0 0 1px rgba(240, 85, 95, .28); }
+  .rule .ic { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; flex: none;
+              background: var(--line-strong); color: var(--muted); font: 700 10px var(--font-ui); }
+  .rule.pass .ic { background: var(--up); color: #04150f; } .rule.fail .ic { background: var(--down); color: #1e0507; }
+  .rule.info .ic { background: transparent; box-shadow: inset 0 0 0 1.5px var(--faint); color: var(--muted); }
+  .rule .ic svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  .rule .r1 { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 13px; font-weight: 700; }
+  .rule .rn { min-width: 0; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rule .r2 { min-width: 0; font: 500 12px var(--font-num); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .stack { flex: 1; min-height: 0; display: grid; }
   .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }  /* lets charts shrink */
   .tag { position: absolute; top: 6px; left: 8px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 96px);
-         padding: 2px 8px; border-radius: 6px; background: rgba(10, 13, 18, .72); pointer-events: none; font-size: 11px; color: var(--muted);
+         padding: 3px 8px; border-radius: 6px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 11.5px; color: var(--muted);
          white-space: nowrap; overflow: hidden; }
   .tag b { color: var(--text); font-weight: 600; }
   .tag .t-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); flex: none; }
@@ -167,13 +170,15 @@
   /* ---- footer ---- */
   .foot { flex: none; position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px;
           background: var(--surface); border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; }
-  .basket { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-width: 0; }
-  .flabel { color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; margin-right: 4px; }
-  .m { display: inline-flex; align-items: baseline; gap: 5px; padding: 2px 7px; border-radius: 6px; background: var(--tile); }
+  .basket { flex: 1; display: flex; flex-wrap: nowrap; align-items: center; gap: 5px; min-width: 0; overflow-x: auto; scrollbar-width: none;
+            -webkit-mask-image: linear-gradient(90deg, #000 94%, transparent); mask-image: linear-gradient(90deg, #000 94%, transparent); }
+  .basket::-webkit-scrollbar { display: none; }
+  .flabel { flex: none; white-space: nowrap; color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; margin-right: 4px; }
+  .m { flex: none; display: inline-flex; align-items: baseline; gap: 5px; padding: 3px 8px; border-radius: 6px; background: var(--tile); }
   .m b { color: var(--text); font-weight: 600; font-size: 11px; }
   .m .w { color: var(--faint); font-family: var(--font-num); font-size: 10.5px; }
   .m .c { font-family: var(--font-num); font-size: 11px; }
-  .how { position: relative; margin-left: auto; }
+  .how { position: relative; margin-left: auto; flex: none; }
   .how summary { cursor: pointer; list-style: none; padding: 4px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); }
   .how summary::-webkit-details-marker { display: none; }
   .how[open] summary { color: var(--text); border-color: var(--line-strong); }
@@ -301,15 +306,15 @@
 const DAY = 86400000, TFS = [1, 3, 5, 7, 15];
 const C = { up: '#2bb68a', down: '#f0555f', ema8: '#f2b33d', ema21: '#5b8cff', macd: '#5b8cff', sig: '#ff9f43',
             grid: '#121821', text: '#7d899b', line: '#1c2430', cross: '#3a4554', label: '#283240', bg: '#0a0d12', zero: '#6b778a' };
-const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.12)', BEARISH: 'rgba(240, 85, 95, 0.12)' };  // signal zones behind the candles
+const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };  // signal zones behind the candles
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // Both panels run the same rules on different series; only these settings differ. Their 3m EMAs are drawn on
 // the price chart, so the panes under it are MACDs. NDX10's EMAs are scaled onto NAS100's (see emaSource).
 const CFG = {
   ndx10: { name: 'NDX10', eyebrow: '10-stock composite', panes: [5, 7, 15], digits: 2, macdDigits: 3,
-           rows: '52fr 16fr 16fr 16fr', scaleOnto: 'nas100' },
+           rows: '56fr 14.67fr 14.67fr 14.67fr', scaleOnto: 'nas100' },
   nas100: { name: 'NAS100', eyebrow: 'Nasdaq-100 actual · XYZ100', panes: [1, 5, 7, 15], digits: 1, macdDigits: 2,
-            rows: '52fr 12fr 12fr 12fr 12fr' },
+            rows: '56fr 11fr 11fr 11fr 11fr' },
 };
 const RULES = [  // [server key, rule text, pane], shortest candle first like the panes
   ['3m EMA8 vs EMA21', 'EMA 8 › EMA 21', 3],
@@ -330,6 +335,8 @@ const dur = ms => { const s = Math.max(0, Math.floor(ms / 1000));
 // bars restart at 00:00 UTC each day (a day ends with a short 7m bar), exactly as on the server
 const bucketStart = (t, m) => { const d0 = t - (t % DAY), s = m * 60000; return d0 + Math.floor((t - d0) / s) * s; };
 const bucketEnd = (t, m) => Math.min(bucketStart(t, m) + m * 60000, t - (t % DAY) + DAY);
+const ICON = { check: '<svg viewBox="0 0 12 12"><path d="M2.5 6.3l2.4 2.4 4.6-5"/></svg>',
+               cross: '<svg viewBox="0 0 12 12"><path d="M3.2 3.2l5.6 5.6M8.8 3.2l-5.6 5.6"/></svg>' };  // rule badges
 const stateKind = st => st === 'BULLISH' ? 'bull' : st === 'BEARISH' ? 'bear' : '';
 const hhmm = ms => { const d = new Date(ms); return `${two(d.getHours())}:${two(d.getMinutes())}`; };
 const when = ms => new Date(ms).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -381,7 +388,7 @@ function options(showTime, isMain) {
                       : { visible: false },
     autoSize: true,
     handleScroll: isMain, handleScale: isMain,  // the rule panes follow their price chart
-    layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 10.5,
+    layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
               fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },  // credited in the footer
     grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
     rightPriceScale: { borderColor: C.line, minimumWidth: 76 },
@@ -837,7 +844,9 @@ class Panel {
       const p = { chart,
                   line: chart.addLineSeries({ color: C.macd, lineWidth: 2, priceFormat: fine, priceLineVisible: false, crosshairMarkerVisible: false,
                                               autoscaleInfoProvider: withZero }),
-                  sig: chart.addLineSeries({ color: C.sig, lineWidth: 2, priceFormat: fine, priceLineVisible: false, crosshairMarkerVisible: false }) };
+                  sig: chart.addLineSeries({ color: C.sig, lineWidth: 2, priceFormat: fine, priceLineVisible: false, lastValueVisible: false,
+                                             crosshairMarkerVisible: false }) };  // its value shows in the pane's label on hover
+      p.line.priceScale().applyOptions({ scaleMargins: { top: 0.18, bottom: 0.14 } });
       p.line.createPriceLine({ price: 0, color: C.zero, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: false });
       allCharts.push({ panel: this, key: m, chart, anchor: p.line, minutes: () => m, value: b => b.macd });
       this.pane[m] = p; this.paneBars[m] = []; this.store[m] = new Map();
@@ -1032,14 +1041,14 @@ class Panel {
       const what = m === 3 ? `EMA 8 minus EMA 21 (${num(b.ema8, cfg.digits)} vs ${num(b.ema21, cfg.digits)})`
                  : m === 15 ? `MACD minus signal (${sgn(b.macd, cfg.macdDigits)} vs ${sgn(b.signal, cfg.macdDigits)})` : 'MACD';
       return `<div class="rule ${pass ? 'pass' : 'fail'}" title="${m}m ${text.replace('›', 'above')}: ${pass ? 'bullish' : 'bearish'}. Shown: ${what}">`
-           + `<div class="r-top"><span class="r-tf">${m}m</span><span class="r-mark">${pass ? '✓' : '✗'}</span></div>`
-           + `<div class="r-name">${text}</div><div class="r-val">${val}</div></div>`;
+           + `<div class="r1"><span>${m}m</span><span class="ic">${pass ? ICON.check : ICON.cross}</span></div>`
+           + `<div class="rn">${text}</div><div class="r2">${val}</div></div>`;
     });
     if (s.tf[1]) {
       const b = last(1);
       tiles.unshift(`<div class="rule info" title="1-minute MACD, shown for information; not part of the signal">`
-               + `<div class="r-top"><span class="r-tf">1m</span><span class="r-mark">info</span></div>`
-               + `<div class="r-name">MACD</div><div class="r-val">${sgn(b.macd, cfg.macdDigits)}</div></div>`);
+               + `<div class="r1"><span>1m</span><span class="ic">i</span></div>`
+               + `<div class="rn">MACD · info only</div><div class="r2">${sgn(b.macd, cfg.macdDigits)}</div></div>`);
     }
     $(`${k}-rules`).innerHTML = tiles.join('');
   }

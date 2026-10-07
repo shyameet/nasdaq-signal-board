@@ -26,21 +26,20 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <style>
-  /* The Divergence page: where the 10-stock signal (NDX10) and the index signal (NAS100) disagree. One XYZ100 chart
-     marked only at those moments, the two signals as strips under it, and a scoreboard of what followed. */
+  /* The Divergence page: where the 10-stock signal (NDX10) and the index signal (NAS100) disagree. A status row,
+     then one XYZ100 chart marked only at those moments (both signals as strips along its bottom), and a scoreboard. */
   :root {
     color-scheme: dark;
-    --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --line: #1c2430; --line-strong: #283240;
+    --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
     --text: #e8eef6; --muted: #8d99ab; --faint: #5c6879;
-    --up: #2bb68a; --up-soft: rgba(43, 182, 138, .14); --down: #f0555f; --down-soft: rgba(240, 85, 95, .14);
-    --alone: #ff8a3d; --other: #8d99ab; --accent: #5b8cff; --warn: #f2b33d;
+    --up: #2bb68a; --down: #f0555f; --alone: #ff8a3d; --other: #8d99ab; --accent: #5b8cff; --warn: #f2b33d;
     --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
     --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
   body { margin: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text);
-         font: 13px/1.4 var(--font-ui); -webkit-font-smoothing: antialiased; }
+         font: 13.5px/1.45 var(--font-ui); -webkit-font-smoothing: antialiased; }
   button { font: inherit; color: inherit; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
@@ -77,72 +76,79 @@
   .dot.ok { background: var(--up); box-shadow: 0 0 6px var(--up); }
   .dot.stale { background: var(--warn); }
 
-  /* ---- the page ---- */
-  .dv { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-  .dv-head { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 10px 20px;
-             padding: 14px 16px 12px; border-bottom: 1px solid var(--line); }
+  /* ---- shared pieces ---- */
+  .card { border-radius: 12px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
   .eyebrow { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
-  h1 { margin: 2px 0 0; font-size: 20px; font-weight: 700; }
-  .dv-note { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; max-width: 720px; }
-  .state { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
-  .state-word { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 8px; font-weight: 700;
-                font-size: 14px; letter-spacing: .1em; background: var(--tile); color: var(--muted); white-space: nowrap;
-                box-shadow: inset 0 0 0 1px var(--line-strong); transition: background .3s, color .3s, box-shadow .3s; }
-  .state-word::before { content: "="; font-size: 13px; }
-  .state.first .state-word { background: var(--up); color: #04150f; box-shadow: 0 0 22px rgba(43, 182, 138, .35); }
-  .state.first .state-word::before { content: "▲"; }
-  .state.alone .state-word { background: var(--alone); color: #2a1203; box-shadow: 0 0 22px rgba(255, 138, 61, .35); }
-  .state.alone .state-word::before { content: "◆"; }
-  .state.other .state-word { color: var(--text); }
-  .state.other .state-word::before { content: "◇"; }
-  .state-since { color: var(--muted); font-size: 11px; }
-  .tiles { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: 620px; }
-  .rule { min-width: 0; padding: 7px 10px; border-radius: 8px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
-  .rule.pass { background: var(--up-soft); box-shadow: inset 0 0 0 1px rgba(43, 182, 138, .35); }
-  .rule.fail { background: var(--down-soft); box-shadow: inset 0 0 0 1px rgba(240, 85, 95, .3); }
-  .r-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-  .r-tf { font-size: 13px; font-weight: 700; }
-  .r-mark { font-size: 12px; font-weight: 700; color: var(--faint); }
-  .rule.pass .r-mark { color: var(--up); } .rule.fail .r-mark { color: var(--down); }
-  .r-name { margin-top: 1px; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .r-val { margin-top: 3px; font-family: var(--font-num); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .sw.alone { background: var(--alone); } .sw.first { background: var(--up); } .sw.other { background: #5d6878; }
 
-  .dv-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 330px; }
-  .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-right: 1px solid var(--line); }
-  .tag { position: absolute; top: 6px; left: 8px; z-index: 5; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 7px;
-         max-width: calc(100% - 100px); padding: 2px 8px; border-radius: 6px; background: rgba(10, 13, 18, .72); pointer-events: none;
-         font: 11px var(--font-num); color: var(--muted); }
+  /* ---- status row: the situation now, and each signal ---- */
+  .dv { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .top { flex: none; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 14px 16px; }
+  .now { padding: 14px 16px; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 16px; row-gap: 4px; align-items: center; }
+  .now .eyebrow { grid-column: 1 / -1; }
+  .badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 9px; font-weight: 700; font-size: 15px;
+           letter-spacing: .08em; white-space: nowrap; background: var(--tile-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong);
+           transition: background .3s, color .3s, box-shadow .3s; }
+  .badge::before { content: "="; color: var(--muted); }
+  .badge.first { background: var(--up); color: #04150f; box-shadow: 0 0 24px rgba(43, 182, 138, .32); }
+  .badge.first::before { content: "▲"; color: inherit; }
+  .badge.alone { background: var(--alone); color: #2a1203; box-shadow: 0 0 24px rgba(255, 138, 61, .32); }
+  .badge.alone::before { content: "◆"; color: inherit; }
+  .badge.other::before { content: "◇"; }
+  .now-text { min-width: 0; }
+  .now-text p { margin: 0; color: var(--text); font-size: 13.5px; }
+  .now-text small { color: var(--muted); font-size: 12px; }
+  .sig { padding: 14px 16px; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
+  .sig-state { display: flex; align-items: center; gap: 9px; font-size: 18px; font-weight: 700; letter-spacing: .06em; }
+  .sig-state i { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); flex: none; }
+  .sig.bull .sig-state { color: var(--up); } .sig.bull .sig-state i { background: var(--up); box-shadow: 0 0 10px var(--up); }
+  .sig.bear .sig-state { color: var(--down); } .sig.bear .sig-state i { background: var(--down); box-shadow: 0 0 10px var(--down); }
+  .sig small { color: var(--muted); font-size: 12px; }
+
+  /* ---- chart and scoreboard ---- */
+  .body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 12px; padding: 0 16px 14px; }
+  .chart-card { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .legend { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; padding: 10px 14px; border-bottom: 1px solid var(--line);
+            color: var(--muted); font-size: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .legend b { color: var(--text); font-weight: 600; }
+  .legend .hint { margin-left: auto; color: var(--faint); }
+  .pane { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+  .tag { position: absolute; top: 8px; left: 10px; z-index: 5; display: block; max-width: calc(100% - 100px); padding: 3px 9px; border-radius: 7px; background: rgba(10, 13, 18, .8); pointer-events: none;
+         font: 11.5px var(--font-num); color: var(--muted); }
   .tag b { color: var(--text); font-family: var(--font-ui); font-weight: 600; }
   .tag .ohlc b { font-family: var(--font-num); font-weight: 500; }
   .tag .t-time { color: var(--text); }
-  .tag .t-row { flex-basis: 100%; display: flex; gap: 10px; font-family: var(--font-ui); }
-  .tag .t-kind { font-weight: 700; letter-spacing: .03em; color: var(--muted); }
+  .tag .t1, .tag .t2 { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+  .tag .t2 { gap: 2px 12px; margin-top: 2px; font-family: var(--font-ui); }
+  .tag .t-kind { font-weight: 700; color: var(--muted); }
   .tag .t-kind.alone { color: var(--alone); } .tag .t-kind.first { color: var(--up); } .tag .t-kind.other { color: var(--text); }
 
-  .side { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 12px; background: var(--surface); }
-  .card { padding: 12px 14px; border-radius: 10px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
-  .card h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 10px; font-size: 12px;
-             color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
-  .card h3 small { font-size: 11px; letter-spacing: 0; text-transform: none; color: var(--faint); font-weight: 500; }
-  .sc { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 9px 0; border-top: 1px solid var(--line); }
-  .sc:first-of-type { border-top: 0; padding-top: 0; }
-  .sc-name { font-weight: 700; display: flex; align-items: center; gap: 7px; }
-  .sc-name i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
-  .sc-big { font: 600 20px var(--font-num); text-align: right; line-height: 1.1; }
-  .sc-sub { color: var(--muted); font-size: 11.5px; }
-  .sc-sub.r { text-align: right; font-family: var(--font-num); }
-  .base { margin: 8px 0 0; color: var(--faint); font-size: 11.5px; }
-  .recent { list-style: none; margin: 10px 0 0; padding: 8px 0 0; border-top: 1px solid var(--line); display: grid; gap: 5px; }
-  .recent li { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 8px; font-size: 12px; }
-  .recent .t { color: var(--muted); font-family: var(--font-num); }
-  .recent .res { font-family: var(--font-num); text-align: right; }
-  .legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
-  .legend li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 9px; font-size: 12px; color: var(--muted); }
-  .legend b { display: block; color: var(--text); }
-  .sw { width: 14px; height: 14px; border-radius: 4px; margin-top: 2px; }
-  .sw.alone { background: rgba(255, 138, 61, .55); } .sw.first { background: rgba(43, 182, 138, .55); }
-  .sw.other { background: rgba(141, 153, 171, .4); }
-  .sw.strips { background: linear-gradient(var(--up) 0 45%, transparent 45% 55%, #3a4554 55%); }
+  .side { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; scrollbar-width: thin; }
+  .side .card { padding: 14px 16px; }
+  .card-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .card-h h2 { margin: 0; font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+  .card-h small { color: var(--faint); font-size: 11.5px; }
+  .pat + .pat { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .pat-h { display: flex; align-items: center; gap: 8px; }
+  .pat-h b { font-size: 13.5px; }
+  .pat-h .pct { margin-left: auto; font: 600 20px var(--font-num); }
+  .pat-q { margin-top: 1px; color: var(--muted); font-size: 12px; }
+  .bar { position: relative; height: 8px; margin: 9px 0 6px; border-radius: 999px; background: var(--line); overflow: visible; }
+  .bar span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; }
+  .bar i { position: absolute; top: -4px; bottom: -4px; width: 2px; border-radius: 1px; background: var(--muted); }
+  .pat-f { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; }
+  .pat-f b { color: var(--text); font-weight: 600; font-family: var(--font-num); }
+  .base { margin: 12px 0 0; color: var(--faint); font-size: 11.5px; }
+  .base i { display: inline-block; width: 2px; height: 10px; background: var(--muted); vertical-align: -1px; margin: 0 4px 0 1px; }
+  .recent { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .recent li { display: grid; grid-template-columns: 78px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; font-size: 12.5px; }
+  .recent li:nth-child(odd) { background: rgba(255, 255, 255, .02); }
+  .recent .t { color: var(--muted); font-family: var(--font-num); font-size: 12px; }
+  .recent .k { display: inline-flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .recent .r { font: 500 12px var(--font-num); text-align: right; white-space: nowrap; }
+  .empty { color: var(--muted); font-size: 12.5px; }
 
   /* ---- footer ---- */
   .foot { flex: none; position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px;
@@ -171,18 +177,23 @@
   #loading div::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-strong);
                          border-top-color: var(--accent); animation: spin .9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { #loading div::before { animation: none; } .state-word { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { #loading div::before { animation: none; } .badge { transition: none; } }
 
-  @media (max-width: 900px) {  /* the scoreboard goes under the chart */
+  @media (max-width: 1100px) {  /* the scoreboard goes under the chart */
     html, body { height: auto; }
-    .dv-body { grid-template-columns: minmax(0, 1fr); }
-    .pane { height: 68vh; min-height: 420px; border-right: 0; border-bottom: 1px solid var(--line); }
-    .side { overflow: visible; }
+    .body { grid-template-columns: minmax(0, 1fr); }
+    .chart-card { height: 66vh; min-height: 440px; }
+    .side { overflow: visible; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  }
+  @media (max-width: 760px) {
+    .top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .now { grid-column: 1 / -1; }
+    .legend .hint { display: none; }
   }
   @media (max-width: 560px) {
     .topbar { gap: 8px 12px; }
-    .dv-head { grid-template-columns: minmax(0, 1fr); }
-    .state { align-items: flex-start; }
+    .top, .body { padding-left: 12px; padding-right: 12px; }
+    .now { grid-template-columns: minmax(0, 1fr); }
     .tag .ohlc { display: none; }
     .hovering .tag .ohlc { display: inline; }
   }
@@ -195,32 +206,32 @@
   <div class="quote"><span class="sym">XYZ100</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
   <div class="spacer"></div>
   <div class="seg" id="tfs" role="group" aria-label="Candle size"></div>
-  <button class="toggle" id="alerts" aria-pressed="false" title="Browser notification and sound when an Index alone or 10 stocks first mark appears">Alerts off</button>
+  <button class="toggle" id="alerts" aria-pressed="false" title="Sound and browser notification when an Index alone or 10 stocks first mark appears">Alerts off</button>
   <div class="live"><span class="dot" id="dot"></span><span id="live">connecting</span></div>
 </header>
 <main class="dv">
-  <section class="dv-head">
-    <div>
-      <div class="eyebrow">10 stocks vs the Nasdaq-100</div>
-      <h1>Divergence</h1>
-      <p class="dv-note" id="note">Marks only the moments when the 10-stock signal and the index signal disagree.</p>
+  <section class="top" aria-label="Right now">
+    <div class="card now">
+      <div class="eyebrow">Right now · 10 stocks vs the index</div>
+      <span class="badge" id="badge">LOADING</span>
+      <div class="now-text"><p id="note">Waiting for data…</p><small id="since"></small></div>
     </div>
-    <div class="state" id="state"><span class="state-word">LOADING</span><span class="state-since" id="since"></span></div>
-    <div class="tiles" id="tiles"></div>
+    <div class="card sig" id="sig-ndx10"><div class="eyebrow">10 stocks · NDX10</div><div class="sig-state"><i></i><span>—</span></div><small></small></div>
+    <div class="card sig" id="sig-nas100"><div class="eyebrow">Index · NAS100</div><div class="sig-state"><i></i><span>—</span></div><small></small></div>
   </section>
-  <section class="dv-body">
-    <div class="pane" id="pmain"><div class="tag" id="tag"></div></div>
-    <aside class="side">
-      <div class="card" id="score"><h3>Scoreboard</h3><div class="sc-sub">Waiting for data…</div></div>
-      <div class="card">
-        <h3>What the marks mean</h3>
-        <ul class="legend">
-          <li><span class="sw alone"></span><div><b>Index alone</b>The index turned bullish, the 10 stocks didn't. So far this has often faded.</div></li>
-          <li><span class="sw first"></span><div><b>10 stocks first</b>The 10 stocks turned bullish, the index not yet. The index has often followed.</div></li>
-          <li><span class="sw other"></span><div><b>Other difference</b>They disagree some other way. No clear pattern so far.</div></li>
-          <li><span class="sw strips"></span><div><b>The two strips</b>Under the candles: the 10 stocks' signal on top, the index's below. Green bullish, red bearish, gray neutral.</div></li>
-        </ul>
+  <section class="body">
+    <div class="card chart-card">
+      <div class="legend">
+        <span><i class="sw alone"></i><b>Index alone</b>often fades</span>
+        <span><i class="sw first"></i><b>10 stocks first</b>index often follows</span>
+        <span><i class="sw other"></i><b>Other</b>no clear pattern</span>
+        <span class="hint">Bottom strips: each signal · green bullish · red bearish · gray neutral</span>
       </div>
+      <div class="pane" id="pmain"><div class="tag" id="tag"></div></div>
+    </div>
+    <aside class="side">
+      <div class="card" id="score"><div class="card-h"><h2>Scoreboard</h2></div><div class="empty">Waiting for data…</div></div>
+      <div class="card" id="latest"><div class="card-h"><h2>Latest marks</h2></div><div class="empty">Waiting for data…</div></div>
     </aside>
   </section>
 </main>
@@ -233,7 +244,7 @@
       <h3>The two patterns</h3>
       <p><b class="alone">Index alone</b>: the index turned bullish while the 10 stocks didn't. In a 3-day study, XYZ100 was lower 15 minutes later about 7 times out of 10, on every day. <b class="up">10 stocks first</b>: the 10 stocks turned bullish while the index hadn't yet. XYZ100 was higher 30 minutes later about 7 times out of 10, but less consistently. Other differences showed no clear pattern.</p>
       <h3>The scoreboard</h3>
-      <p>It replays the history loaded on this page (about two days online, three and a half on the local version) and counts how often each mark was followed by the expected move, from the minute the mark appeared. New marks are added as they happen. A few days is not much data, so treat the patterns as hints and watch the scoreboard.</p>
+      <p>It replays the history loaded on this page (about two days online, three and a half on the local version) and counts how often each mark was followed by the expected move. The gray line on each bar is how often XYZ100 moved that way anyway, at any minute: a pattern is only useful if it beats that line. New marks are added as they happen. A few days is not much data, so treat the patterns as hints.</p>
       <p>For information only, not investment advice.</p>
     </div>
   </details>
@@ -245,18 +256,20 @@
 <script>
 const DAY = 86400000, MIN = 60000, TFS = [1, 3, 5, 7, 15];
 const C = { up: '#2bb68a', down: '#f0555f', alone: '#ff8a3d', other: '#8d99ab', grid: '#121821', text: '#7d899b', line: '#1c2430',
-            cross: '#3a4554', label: '#283240', bg: '#0a0d12' };
+            cross: '#3a4554', label: '#283240', bg: '#0a0d12', strip: '#0e131a' };
 // What a disagreement is called, and what has tended to follow it (the 3-day study; the scoreboard keeps checking)
 const PATTERN = {
-  alone: { name: 'Index alone', word: 'INDEX ALONE', band: 'rgba(255, 138, 61, 0.16)', color: C.alone, horizon: 15, expect: -1,
-           test: 'lower 15 min later', blurb: "The index turned bullish, the 10 stocks didn't. So far this has often faded." },
-  first: { name: '10 stocks first', word: '10 STOCKS FIRST', band: 'rgba(43, 182, 138, 0.16)', color: C.up, horizon: 30, expect: 1,
-           test: 'higher 30 min later', blurb: 'The 10 stocks turned bullish, the index not yet. The index has often followed.' },
-  other: { name: 'Other difference', word: 'DIFFERENT', band: 'rgba(141, 153, 171, 0.10)', color: C.other,
-           blurb: 'They disagree some other way. No clear pattern so far.' },
+  alone: { name: 'Index alone', word: 'INDEX ALONE', band: 'rgba(255, 138, 61, 0.17)', color: C.alone, horizon: 15, expect: -1,
+           test: 'lower 15 min later', note: "The index turned bullish, the 10 stocks didn't. So far this has often faded." },
+  first: { name: '10 stocks first', word: '10 STOCKS FIRST', band: 'rgba(43, 182, 138, 0.17)', color: C.up, horizon: 30, expect: 1,
+           test: 'higher 30 min later', note: 'The 10 stocks turned bullish, the index not yet. The index has often followed.' },
+  other: { name: 'Other difference', word: 'DIFFERENT', band: 'rgba(141, 153, 171, 0.12)', color: C.other,
+           note: 'They disagree in another way. No clear pattern so far.' },
 };
 const STATE_COLOR = { BULLISH: C.up, BEARISH: C.down, NEUTRAL: '#3a4554' };
 const SYM = { BULLISH: '▲', BEARISH: '▼', NEUTRAL: '–' };
+const STRIP = { row: 9, gap: 3, pad: 7 };  // the two signal strips along the bottom of the price pane
+const STRIP_H = STRIP.pad * 2 + STRIP.row * 2 + STRIP.gap;
 // the two signals at one moment -> null when they agree, else which kind of disagreement
 const classify = (sn, sx) => !sn || !sx || sn === sx ? null : sx === 'BULLISH' ? 'alone' : sn === 'BULLISH' ? 'first' : 'other';
 
@@ -265,7 +278,7 @@ const sec = ms => Math.floor(ms / 1000);
 const two = n => String(n).padStart(2, '0');
 const ok = v => v !== null && v !== undefined && isFinite(v);
 const num = (v, d = 2) => ok(v) ? v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
-const pts = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1);
+const pts = v => Math.round(v) === 0 ? '0 pts' : (v > 0 ? '+' : '−') + Math.abs(Math.round(v)) + ' pts';
 const pct = v => ok(v) ? (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(2) + '%' : '';
 const dur = ms => { const s = Math.max(0, Math.floor(ms / 1000));
   return s >= 3600 ? `${Math.floor(s / 3600)}h ${two(Math.floor(s % 3600 / 60))}m` : `${Math.floor(s / 60)}m ${two(s % 60)}s`; };
@@ -273,7 +286,6 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 // bars restart at 00:00 UTC each day, exactly as on the Signals page and the server
 const bucketStart = (t, m) => { const d0 = t - (t % DAY), s = m * MIN; return d0 + Math.floor((t - d0) / s) * s; };
 const bucketEnd = (t, m) => Math.min(bucketStart(t, m) + m * MIN, t - (t % DAY) + DAY);
-const hhmm = ms => { const d = new Date(ms); return `${two(d.getHours())}:${two(d.getMinutes())}`; };
 const when = ms => new Date(ms).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
 const shortWhen = ms => new Date(ms).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
 
@@ -301,11 +313,11 @@ function aggregate(bars, m) {
 function options() {
   return {
     autoSize: true,
-    watermark: { visible: true, text: 'XYZ100', color: 'rgba(232, 238, 246, 0.04)', fontSize: 44, fontStyle: '700' },
-    layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 10.5,
+    watermark: { visible: true, text: 'XYZ100', color: 'rgba(232, 238, 246, 0.035)', fontSize: 44, fontStyle: '700' },
+    layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
               fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },  // credited in the footer
     grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
-    rightPriceScale: { borderColor: C.line, minimumWidth: 76 },
+    rightPriceScale: { borderColor: C.line, minimumWidth: 80 },
     timeScale: { borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 6,
       tickMarkFormatter: (t, type) => { const d = new Date(t * 1000);
         return type < 3 ? `${d.getDate()} ${MON[d.getMonth()]}` : `${two(d.getHours())}:${two(d.getMinutes())}`; } },
@@ -325,16 +337,17 @@ const stateAt = { ndx10: new Map(), nas100: new Map() };  // minute -> each sign
 let mainBars = [], pairs = [], index = new Map(), markersKey = '';
 let chart, candles, layer;
 
-// ---- the chart: candles, a band wherever the two signals disagree, and the two signals as strips ---------------
+// ---- the chart: candles, a band wherever the two signals disagree, the two signals as strips at the bottom ----------
 class DivLayer {  // a Lightweight Charts series primitive
   constructor() {
     this.bands = []; this.cells = [];
-    this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: t => this.render(t) }) },
-                  { zOrder: () => 'top', renderer: () => ({ draw: t => this.labels(t) }) }];
+    this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: t => this.render(t) }) }];
+    this.axis = [{ renderer: () => ({ draw: t => this.labels(t) }) }];
   }
   attached({ requestUpdate }) { this.requestUpdate = requestUpdate; }
   detached() { this.requestUpdate = null; }
   paneViews() { return this.views; }
+  priceAxisPaneViews() { return this.axis; }
   updateAllViews() {  // runs of equal values become one band or cell, edge to edge
     const ts = chart.timeScale(), n = pairs.length, bands = [], cells = [];
     const x0 = n ? ts.logicalToCoordinate(0) : null, x1 = n ? ts.logicalToCoordinate(1) : null;
@@ -352,35 +365,41 @@ class DivLayer {  // a Lightweight Charts series primitive
     }
     this.bands = bands; this.cells = cells;
   }
+  rowTop(row, height) { return height - STRIP_H + STRIP.pad + row * (STRIP.row + STRIP.gap); }  // media px
   render(target) {
     target.useBitmapCoordinateSpace(({ context: c, bitmapSize: size, horizontalPixelRatio: hr, verticalPixelRatio: vr }) => {
+      const H = size.height / vr, stripTop = Math.round((H - STRIP_H) * vr);
       const span = (l, r) => [Math.max(0, Math.round(l * hr)), Math.min(size.width, Math.round(r * hr))];
-      for (const [l, r, color] of this.bands) { const [a, b] = span(l, r); if (b > a) { c.fillStyle = color; c.fillRect(a, 0, b - a, size.height); } }
-      const rowH = Math.round(9 * vr), gap = Math.round(3 * vr), bottom = size.height - Math.round(6 * vr);
+      for (const [l, r, color] of this.bands) { const [a, b] = span(l, r); if (b > a) { c.fillStyle = color; c.fillRect(a, 0, b - a, stripTop); } }
+      c.fillStyle = C.strip; c.fillRect(0, stripTop, size.width, size.height - stripTop);  // the strip area, set apart from the candles
+      c.fillStyle = C.line; c.fillRect(0, stripTop, size.width, Math.max(1, Math.round(vr)));
       for (const [row, l, r, color] of this.cells) {
         const [a, b] = span(l, r);
-        if (b > a) { c.fillStyle = color; c.fillRect(a, bottom - (2 - row) * rowH - (1 - row) * gap, b - a, rowH); }
+        if (b > a) { c.fillStyle = color; c.fillRect(a, Math.round(this.rowTop(row, H) * vr), b - a, Math.round(STRIP.row * vr)); }
       }
     });
   }
-  labels(target) {  // the strips' names, at the left
+  labels(target) {  // the strips' names, in the price-axis column beside them
     target.useMediaCoordinateSpace(({ context: c, mediaSize: m }) => {
-      c.font = '500 10px "IBM Plex Mono", ui-monospace, Consolas, monospace';
-      c.textBaseline = 'middle';
-      for (const [text, y] of [['10 stocks', m.height - 22.5], ['Index', m.height - 10.5]]) {
-        const w = c.measureText(text).width + 8;
-        c.fillStyle = 'rgba(10, 13, 18, 0.85)'; c.fillRect(4, y - 6, w, 12);
-        c.fillStyle = '#c7d0dc'; c.fillText(text, 8, y);
-      }
+      const top = m.height - STRIP_H;
+      c.fillStyle = C.strip; c.fillRect(0, top, m.width, STRIP_H);
+      c.font = '500 10.5px "IBM Plex Sans", "Segoe UI", sans-serif';
+      c.textBaseline = 'middle'; c.fillStyle = '#aeb8c6';
+      c.fillText('10 stocks', 8, this.rowTop(0, m.height) + STRIP.row / 2 + 0.5);
+      c.fillText('Index', 8, this.rowTop(1, m.height) + STRIP.row / 2 + 0.5);
     });
   }
+}
+function fitMargins() {  // keep the candles clear of the strips whatever the chart's height
+  const h = $('pmain').clientHeight - chart.timeScale().height();
+  if (h > 0) candles.priceScale().applyOptions({ scaleMargins: { top: 0.09, bottom: Math.min(0.45, (STRIP_H + 16) / h) } });
 }
 function makeChart() {
   chart = LightweightCharts.createChart($('pmain'), options());
   candles = chart.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
-  candles.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: 0.17 } });  // room for the strips
   layer = new DivLayer();
   candles.attachPrimitive(layer);
+  new ResizeObserver(fitMargins).observe($('pmain'));
   chart.subscribeCrosshairMove(p => {
     if (p.sourceEvent) hovering = p.time !== undefined;  // without a mouse event: the chart moved under a still mouse
     document.body.classList.toggle('hovering', hovering);
@@ -447,14 +466,14 @@ function showRecent() {
 function tag(t) {  // the label in the chart's corner: the candle, and both signals at its close
   const i = t === undefined ? mainBars.length - 1 : index.get(t), b = mainBars[i], p = pairs[i];
   if (!b || !p) return;
-  $('tag').innerHTML = `<b>XYZ100</b><span>${tf}m</span>` + (t === undefined ? '' : `<span class="t-time">${when(b.time)}</span>`)
+  $('tag').innerHTML = `<div class="t1"><b>XYZ100</b><span>${tf}m</span>` + (t === undefined ? '' : `<span class="t-time">${when(b.time)}</span>`)
     + `<span class="ohlc">O <b>${num(b.open)}</b> H <b>${num(b.high)}</b> L <b>${num(b.low)}</b> `
-    + `C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close)}</b></span>`
-    + `<span class="t-row"><span>10 stocks ${SYM[p.sn] || '·'}</span><span>index ${SYM[p.sx] || '·'}</span>`
-    + `<span class="t-kind ${p.kind || ''}">${p.kind ? PATTERN[p.kind].name : 'in sync'}</span></span>`;
+    + `C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close)}</b></span></div>`
+    + `<div class="t2"><span>10 stocks ${SYM[p.sn] || '·'}</span><span>index ${SYM[p.sx] || '·'}</span>`
+    + `<span class="t-kind ${p.kind || ''}">${p.kind ? PATTERN[p.kind].name : 'in sync'}</span></div>`;
 }
 
-// ---- the header: the situation right now ---------------------------------------------------------------
+// ---- the status row: the situation right now ----------------------------------------------------------
 function since(k) {  // when the current situation (in sync, or this kind of disagreement) began
   let start = live.nas100.time;
   for (let m = latestMinute; m; m -= MIN) {
@@ -466,15 +485,17 @@ function since(k) {  // when the current situation (in sync, or this kind of dis
 }
 function showHead() {
   if (!live) return;
-  const sn = live.ndx10.state, sx = live.nas100.state, k = classify(sn, sx), box = $('state');
-  box.className = 'state ' + (k || 'sync');
-  box.querySelector('.state-word').textContent = k ? PATTERN[k].word : 'IN SYNC';
-  $('since').textContent = `for ${dur(live.nas100.time - since(k))}`;
-  $('note').textContent = k ? PATTERN[k].blurb : `Both signals say ${sn.toLowerCase()}. Nothing to mark.`;
-  const tile = (name, sub, s) => `<div class="rule ${s.state === 'BULLISH' ? 'pass' : s.state === 'BEARISH' ? 'fail' : ''}">`
-    + `<div class="r-top"><span class="r-tf">${name}</span><span class="r-mark">${SYM[s.state]}</span></div>`
-    + `<div class="r-name">${sub}</div><div class="r-val">${s.state} · for ${dur(s.time - s.since)}</div></div>`;
-  $('tiles').innerHTML = tile('10 stocks', 'NDX10 composite signal', live.ndx10) + tile('Index', 'NAS100 signal · XYZ100', live.nas100);
+  const sn = live.ndx10.state, sx = live.nas100.state, k = classify(sn, sx);
+  $('badge').className = 'badge ' + (k || 'sync');
+  $('badge').textContent = k ? PATTERN[k].word : 'IN SYNC';
+  $('note').textContent = k ? PATTERN[k].note : `Both signals say ${sn.toLowerCase()}. Nothing to mark.`;
+  $('since').textContent = `${k ? 'Different' : 'In sync'} for ${dur(live.nas100.time - since(k))}`;
+  for (const key of ['ndx10', 'nas100']) {
+    const s = live[key], card = $(`sig-${key}`);
+    card.className = 'card sig ' + (s.state === 'BULLISH' ? 'bull' : s.state === 'BEARISH' ? 'bear' : '');
+    card.querySelector('.sig-state span').textContent = s.state;
+    card.querySelector('small').textContent = `for ${dur(s.time - s.since)}`;
+  }
 }
 function showQuote(k) {
   const px = k.price.last;
@@ -507,37 +528,37 @@ function showScore() {
     if ((k === 'alone' || k === 'first') && k !== prev) events.push({ m, kind: k });
     prev = k; prevM = m;
   }
-  const stats = { alone: { n: 0, worked: 0, moves: [], open: 0 }, first: { n: 0, worked: 0, moves: [], open: 0 } };
+  const stats = { alone: { n: 0, worked: 0, sum: 0, open: 0 }, first: { n: 0, worked: 0, sum: 0, open: 0 } };
   for (const e of events) {
     const P = PATTERN[e.kind], a = closeAt.get(e.m), end = e.m + P.horizon * MIN, b = closeAt.get(end), s = stats[e.kind];
     if (a === undefined) continue;
     if (end > lastClosed || b === undefined) { e.open = true; s.open += 1; continue; }
     e.move = b - a; e.worked = Math.sign(e.move) === P.expect;
-    s.n += 1; s.moves.push(e.move); if (e.worked) s.worked += 1;
+    s.n += 1; s.sum += e.move; if (e.worked) s.worked += 1;
   }
-  const baseline = h => { let up = 0, all = 0;
-    for (const m of minutes) { const a = closeAt.get(m), b = closeAt.get(m + h * MIN); if (a !== undefined && b !== undefined) { all += 1; if (b > a) up += 1; } }
-    return all ? Math.round(up / all * 100) : null; };
+  const anyMinute = (h, dir) => { let hit = 0, all = 0;  // how often XYZ100 moved that way anyway
+    for (const m of minutes) { const a = closeAt.get(m), b = closeAt.get(m + h * MIN); if (a !== undefined && b !== undefined) { all += 1; if (Math.sign(b - a) === dir) hit += 1; } }
+    return all ? Math.round(hit / all * 100) : null; };
   const days = (minutes[minutes.length - 1] - minutes[0]) / DAY;
-  const row = k => {
-    const P = PATTERN[k], s = stats[k], rate = s.n ? Math.round(s.worked / s.n * 100) : null;
-    const avg = s.moves.length ? s.moves.reduce((x, y) => x + y, 0) / s.moves.length : null;
-    return `<div class="sc"><div class="sc-name"><i style="background:${P.color}"></i>${P.name}</div>`
-      + `<div class="sc-big" style="color:${rate === null ? 'var(--muted)' : rate >= 60 ? P.color : 'var(--text)'}">${rate === null ? '—' : rate + '%'}</div>`
-      + `<div class="sc-sub">Worked when XYZ100 was ${P.test}</div>`
-      + `<div class="sc-sub r">${s.worked} of ${s.n}${s.open ? ` · ${s.open} open` : ''}</div>`
-      + `<div class="sc-sub">Average move after it</div><div class="sc-sub r">${avg === null ? '—' : pts(avg) + ' pts'}</div></div>`;
+  const block = k => {
+    const P = PATTERN[k], s = stats[k], rate = s.n ? Math.round(s.worked / s.n * 100) : null, base = anyMinute(P.horizon, P.expect);
+    const color = rate === null ? 'var(--muted)' : base !== null && rate > base + 5 ? P.color : 'var(--text)';
+    return `<div class="pat"><div class="pat-h"><i class="sw ${k}"></i><b>${P.name}</b><span class="pct" style="color:${color}">${rate === null ? '—' : rate + '%'}</span></div>`
+      + `<div class="pat-q">Worked when XYZ100 was ${P.test}</div>`
+      + `<div class="bar"><span style="width:${rate ?? 0}%;background:${P.color}"></span>${base === null ? '' : `<i style="left:${base}%" title="Any minute: ${base}%"></i>`}</div>`
+      + `<div class="pat-f"><span>${s.worked} of ${s.n} worked${s.open ? ` · ${s.open} waiting` : ''}</span>`
+      + `<span>average <b>${s.n ? pts(s.sum / s.n) : '—'}</b></span></div></div>`;
   };
-  const recent = events.slice(-6).reverse().map(e => {
+  $('score').innerHTML = `<div class="card-h"><h2>Scoreboard</h2><small>last ${days.toFixed(1)} days</small></div>${block('alone')}${block('first')}`
+    + '<p class="base"><i></i>Gray line: how often XYZ100 moved that way anyway, at any minute.</p>';
+  const recent = events.slice(-8).reverse().map(e => {
     const P = PATTERN[e.kind];
-    const res = e.open ? '<span style="color:var(--muted)">waiting</span>'
+    const r = e.open ? '<span style="color:var(--muted)">waiting…</span>'
       : `<span style="color:${e.worked ? P.color : 'var(--muted)'}">${pts(e.move)} ${e.worked ? '✓' : '✗'}</span>`;
-    return `<li><span class="t">${shortWhen(e.m)}</span><span>${P.name}</span><span class="res">${res}</span></li>`;
+    return `<li><span class="t">${shortWhen(e.m)}</span><span class="k"><i class="sw ${e.kind}"></i>${P.name}</span><span class="r">${r}</span></li>`;
   }).join('');
-  const b15 = baseline(15), b30 = baseline(30);
-  $('score').innerHTML = `<h3>Scoreboard <small>last ${days.toFixed(1)} days</small></h3>${row('alone')}${row('first')}`
-    + `<p class="base">For comparison, any minute: XYZ100 was higher 15 min later ${b15 ?? '—'}% of the time, 30 min later ${b30 ?? '—'}%.</p>`
-    + (recent ? `<ol class="recent">${recent}</ol>` : '');
+  $('latest').innerHTML = '<div class="card-h"><h2>Latest marks</h2><small>result after 15 or 30 min</small></div>'
+    + (recent ? `<ol class="recent">${recent}</ol>` : '<div class="empty">No marks yet in the loaded history.</div>');
 }
 
 // ---- alerts: when an Index alone or a 10 stocks first appears and holds for 3 s ----------------------------
@@ -560,7 +581,7 @@ function checkAlert() {
   fl.style.opacity = 1; setTimeout(() => fl.style.opacity = 0, 900);
   if (!alertsOn) return;
   beep(k === 'first');
-  if ('Notification' in window && Notification.permission === 'granted') new Notification(P.name, { body: P.blurb });
+  if ('Notification' in window && Notification.permission === 'granted') new Notification(P.name, { body: P.note });
 }
 $('alerts').onclick = async () => {
   audio = audio || new (window.AudioContext || window.webkitAudioContext)();
@@ -680,6 +701,7 @@ function connect() {
   makeChart();
   await pickSource();
   apply(await fetchSnapshot());
+  fitMargins();
   tag();
   $('loading').remove();
   showRecent();
