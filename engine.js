@@ -28,7 +28,7 @@ const RECHECK = 3 * 60000, RECHECK_SPAN = 20;  // every 3 minutes, the last 20 c
 const REFETCH = 180;     // minutes always fetched again on a reload or a reconnect
 const KEEP_BARS = 5000, KEEP_MINUTES = 7200;
 const TIMEFRAMES = { 3: 'ema', 5: 'macd', 7: 'macd', 15: 'macd' };  // minutes -> what runs on it
-const NAS100_TIMEFRAMES = { ...TIMEFRAMES, 1: 'macd' };             // plus a 1m MACD shown for information
+const SHOWN = { ...TIMEFRAMES, 1: 'macd', 9: 'macd' };  // plus 1m and 9m MACD, drawn for information (not in the signal)
 const CACHE = 'nsb.candles.v2.';  // v1 caches can hold flat bars from a stuck stream: they are not read
 
 // ---- the signal: a line-for-line port of ndx10.py ----------------------------------------------
@@ -381,7 +381,7 @@ class Engine {
     } catch (e) { /* the change since the reference close is simply not shown */ }
   }
   rebuild() {  // fresh signals from every closed bar, minute by minute, as they would have arrived live
-    const ndx = new TrendSignal(this.coef), nas = new TrendSignal({ [BENCH]: 1 }, NAS100_TIMEFRAMES);
+    const ndx = new TrendSignal(this.coef, SHOWN), nas = new TrendSignal({ [BENCH]: 1 }, SHOWN);
     this.sections = [
       { key: 'ndx10', name: 'NDX10', digits: 2, signal: ndx, tracker: this.trackers.ndx10, ref: this.basket.base },
       { key: 'nas100', name: 'NAS100', digits: 1, signal: nas, tracker: this.trackers.nas100, ref: this.benchRef },

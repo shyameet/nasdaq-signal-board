@@ -163,6 +163,13 @@
   .tag .t-mm { display: inline-flex; align-items: center; gap: 5px; }
   .tag .t-mm .sw { width: 12px; height: 3px; }
   .tag .sw.dash { background: none !important; border-top: 2px dashed #f472b6; height: 0; }
+  .tag.mix { max-width: calc(100% - 90px); }
+  .tag .t-mm[data-k] { pointer-events: auto; cursor: pointer; padding: 1px 6px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--line-strong);
+                       user-select: none; -webkit-user-select: none; }
+  .tag .t-mm[data-k]:hover { background: var(--tile); }
+  .tag .t-mm.off { opacity: .45; box-shadow: inset 0 0 0 1px var(--line); }
+  .tag .t-mm.off .sw { background: transparent !important; box-shadow: inset 0 0 0 1px var(--faint); }
+  .tag .t-mm.off .t-vals, .tag .t-mm.off .t-dot { display: none; }
   .tag.main { flex-wrap: wrap; row-gap: 2px; white-space: normal; max-width: calc(100% - 100px); font-family: var(--font-num); }
   .tag.main b { font-family: var(--font-ui); }
   .tag.main .ohlc b { font-family: var(--font-num); font-weight: 500; }
@@ -293,7 +300,7 @@
       <p>All four bullish: <b class="up">BULLISH</b>. All four bearish: <b class="down">BEARISH</b>. Anything else: NEUTRAL. MACD is 12/26/9.</p>
       <h3>The two panels</h3>
       <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same rules on the Nasdaq-100 perp itself, XYZ100.</p>
-      <p>The MACD pane under each price chart draws the three MACD rules together: <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>, with the 15m signal line dashed. The 5m and 7m rules test their line against the zero line; the 15m rule tests its line against the dashed signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles.</p>
+      <p>The MACD pane under each price chart draws the MACDs together: the three rules, <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b> (its signal line dashed), plus <b style="color:#facc15">1m</b> and <b style="color:#2dd4bf">9m</b> for information. Click a name in the pane's label to switch that line off or on; the choice is remembered in this browser. Dashed vertical lines mark where a new day begins in your timezone. The 5m and 7m rules test their line against the zero line; the 15m rule tests its line against the dashed signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles.</p>
       <h3>The charts</h3>
       <p>Zones: a green zone (green ribbon along the bottom, labeled BULLISH zone) is where all four of a panel's rules were bullish at the candle's close; a red zone is where all four were bearish; no color means the rules disagreed (neutral). The zone is the signal, not the candle: a red candle can sit in a green zone. Zones change a few candles after the price turns, because MACD and EMAs follow price. The left chart's zones come from the 10 stocks, the right chart's from the index itself; the MACD pane under each chart is shaded the same way. The forming candle shows the signal live. <b class="up">▲ BUY</b> marks the candle where the signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
       <h3>Drawing tools</h3>
@@ -317,15 +324,78 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 // Both panels run the same rules on different series; only these settings differ. Their 3m EMAs are drawn on
 // the price chart, so the panes under it are MACDs. NDX10's EMAs are scaled onto NAS100's (see emaSource).
 const CFG = {
-  ndx10: { name: 'NDX10', eyebrow: '10-stock composite', panes: [5, 7, 15], digits: 2, macdDigits: 3,
+  ndx10: { name: 'NDX10', eyebrow: '10-stock composite', panes: [1, 5, 7, 9, 15], digits: 2, macdDigits: 3,
            rows: '72fr 28fr', scaleOnto: 'nas100' },
-  nas100: { name: 'NAS100', eyebrow: 'Nasdaq-100 actual · XYZ100', panes: [5, 7, 15], digits: 1, macdDigits: 2,
+  nas100: { name: 'NAS100', eyebrow: 'Nasdaq-100 actual · XYZ100', panes: [1, 5, 7, 9, 15], digits: 1, macdDigits: 2,
             rows: '72fr 28fr' },
 };
-// 5m, 7m and 15m MACD share one pane, one color each. Each line is drawn on the
+// 1m, 5m, 7m, 9m and 15m MACD share one pane, one color each; 5m, 7m and 15m are the signal's rules, 1m and 9m are
+// for information. Each can be switched off from the pane's label (remembered in this browser, for both pages). Each line is drawn on the
 // price chart's candles, at its value as of every candle's close, so the pane lines up with the candles above it.
-const MIX = [5, 7, 15];
-const MIXC = { 5: '#38bdf8', 7: '#c084fc', 15: '#f472b6', sig: 'rgba(244, 114, 182, 0.6)' };
+const MIX = [1, 5, 7, 9, 15], RULE_MACD = [5, 7, 15];
+const MIXC = { 1: '#facc15', 5: '#38bdf8', 7: '#c084fc', 9: '#2dd4bf', 15: '#f472b6', sig: 'rgba(244, 114, 182, 0.6)' };
+const MACD_KEY = 'nsb.macd.show';
+const macdShow = (() => {  // which lines are on: each MACD, and 'sig' for the 15m signal line
+  const all = { 1: true, 5: true, 7: true, 9: true, 15: true, sig: true };
+  try { const o = JSON.parse(localStorage.getItem(MACD_KEY)); if (o && typeof o === 'object') for (const k in all) if (typeof o[k] === 'boolean') all[k] = o[k]; } catch (e) {}
+  return all;
+})();
+function toggleMacd(k) {
+  macdShow[k] = !macdShow[k];
+  try { localStorage.setItem(MACD_KEY, JSON.stringify(macdShow)); } catch (e) {}
+  for (const p of Object.values(panels)) p.showMacds();
+  allTags();
+}
+// Day separators: a dashed line where a new day begins in your timezone, with its date along the top (a series primitive)
+const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+class DayLines {
+  constructor(chart, bars, labels) {
+    this.chart = chart; this.bars = bars; this.labels = labels; this.lines = [];
+    this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: t => this.render(t) }) }];
+  }
+  attached({ requestUpdate }) { this.requestUpdate = requestUpdate; }
+  detached() { this.requestUpdate = null; }
+  paneViews() { return this.views; }
+  updateAllViews() {
+    const bars = this.bars(), ts = this.chart().timeScale(), out = [];
+    const x0 = bars.length > 1 ? ts.logicalToCoordinate(0) : null, x1 = bars.length > 1 ? ts.logicalToCoordinate(1) : null;
+    if (x0 !== null && x1 !== null) {
+      const step = x1 - x0, day = t => { const d = new Date(t); return d.getFullYear() * 512 + d.getMonth() * 32 + d.getDate(); };
+      let prev = day(bars[0].time);
+      for (let i = 1; i < bars.length; i++) {
+        const k = day(bars[i].time);
+        if (k === prev) continue;
+        prev = k;
+        const d = new Date(bars[i].time);
+        out.push([x0 + (i - 0.5) * step, `${WEEKDAY[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`]);
+      }
+    }
+    this.lines = out;
+  }
+  render(target) {
+    target.useBitmapCoordinateSpace(({ context: c, bitmapSize: size, horizontalPixelRatio: hr, verticalPixelRatio: vr }) => {
+      c.save();
+      c.strokeStyle = 'rgba(160, 172, 190, 0.38)'; c.lineWidth = Math.max(1, Math.round(hr));
+      c.setLineDash([Math.round(4 * vr), Math.round(4 * vr)]);
+      for (const [x] of this.lines) {
+        const px = Math.round(x * hr) + 0.5;
+        if (px < 0 || px > size.width) continue;
+        c.beginPath(); c.moveTo(px, 0); c.lineTo(px, size.height); c.stroke();
+      }
+      c.setLineDash([]);
+      if (this.labels) {
+        c.font = `600 ${Math.round(10.5 * vr)}px "IBM Plex Sans", "Segoe UI", sans-serif`; c.textBaseline = 'top';
+        for (const [x, text] of this.lines) {
+          const px = Math.round(x * hr), w = c.measureText(text).width, pad = Math.round(5 * hr), y = Math.round(54 * vr);
+          if (px + 3 * hr + w + 2 * pad > size.width || px < 0) continue;
+          c.fillStyle = 'rgba(10, 13, 18, 0.85)'; c.fillRect(px + Math.round(3 * hr), y, w + 2 * pad, Math.round(16 * vr));
+          c.fillStyle = '#c3ccd8'; c.fillText(text, px + Math.round(3 * hr) + pad, y + Math.round(3 * vr));
+        }
+      }
+      c.restore();
+    });
+  }
+}
 const RULES = [  // [server key, rule text, pane], shortest candle first like the panes
   ['3m EMA8 vs EMA21', 'EMA 8 › EMA 21', 3],
   ['5m MACD vs 0', 'MACD › 0', 5],
@@ -828,7 +898,7 @@ class Panel {
   constructor(key, cfg) {
     Object.assign(this, { key, cfg, panes: cfg.panes, charted: cfg.panes.filter(m => !MIX.includes(m)), stateAt: new Map(), liveState: 'NEUTRAL', mainBars: [], mainStates: [],
                           baseMarkers: [], paneBars: {}, store: { main: new Map() }, pane: {}, last: null, ema3: [], emaPts: [] });
-    const tiles = RULES.length + (cfg.panes.includes(1) ? 1 : 0);
+    const tiles = RULES.length;
     $('board').insertAdjacentHTML('beforeend', `
       <section class="panel" id="${key}" aria-label="${cfg.eyebrow}">
         <div class="phead">
@@ -861,6 +931,7 @@ class Panel {
     // the signal zones behind the candles: green while bullish, red while bearish
     this.zones = new ZoneLayer(this);
     this.candles.attachPrimitive(this.zones);
+    this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, true));  // over the zones' tint
     // drawings: the layer paints them; a press that starts a drawing or grabs one never reaches the chart,
     // so the chart doesn't scroll at the same time (its crosshair still follows the mouse)
     this.mainEl = $(`${key}-pmain`);
@@ -887,20 +958,29 @@ class Panel {
       allCharts.push({ panel: this, key: m, chart, anchor: p.line, minutes: () => m, value: b => b.macd });
       this.pane[m] = p;
     }
-    {  // the shared 5m / 7m / 15m MACD pane
+    {  // the shared MACD pane
       const chart = LightweightCharts.createChart($(`${key}-pmix`), options(false, false));
       const line = (color, extra) => chart.addLineSeries({ color, lineWidth: 2, priceFormat: fine, priceLineVisible: false,
                                                            crosshairMarkerVisible: false, ...extra });
+      // the zero line as a series of its own (0 at every candle): always shown, whichever MACDs are switched off, and
+      // it carries the zones and day lines, which a hidden series would take with it
+      const zero = line(C.zero, { lineWidth: 1, lastValueVisible: false });
       const lines = {};
-      for (const m of MIX) lines[m] = line(MIXC[m], { autoscaleInfoProvider: withZero });
+      for (const m of MIX) lines[m] = line(MIXC[m], { lineWidth: m === 1 ? 1 : 2 });
       const sig = line(MIXC.sig, { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
-      lines[5].priceScale().applyOptions({ scaleMargins: { top: 0.16, bottom: 0.08 } });
-      lines[5].createPriceLine({ price: 0, color: C.zero, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: false });
-      this.mix = { chart, lines, sig, pts: [] };
+      zero.priceScale().applyOptions({ scaleMargins: { top: 0.16, bottom: 0.08 } });
+      this.mix = { chart, zero, lines, sig, pts: [] };
       this.mixZones = new ZoneLayer(this, () => chart, false);  // the price chart's zones, behind the MACD lines too
-      lines[5].attachPrimitive(this.mixZones);
+      zero.attachPrimitive(this.mixZones);
+      zero.attachPrimitive(new DayLines(() => chart, () => this.mainBars, false));
       this.store.mix = new Map();
-      allCharts.push({ panel: this, key: 'mix', chart, anchor: lines[15], minutes: () => tf, value: q => q.v[15] ?? q.v[7] ?? q.v[5] });
+      allCharts.push({ panel: this, key: 'mix', chart, anchor: zero, minutes: () => tf,
+                       value: q => { for (const m of [15, 9, 7, 5, 1]) if (macdShow[m] && ok(q.v[m])) return q.v[m]; return 0; } });
+      $(`${key}-tmix`).addEventListener('pointerdown', e => {  // the label's switches
+        const b = e.target.closest('[data-k]');
+        if (b) { e.preventDefault(); e.stopPropagation(); toggleMacd(b.dataset.k); }
+      });
+      this.showMacds();
     }
     this.main.timeScale().subscribeVisibleLogicalRangeChange(() => { this.syncPanes(); syncMains(this); });
   }
@@ -925,6 +1005,10 @@ class Panel {
     if (how === 'older') redraw.add(m);
     else if (!redraw.has(m) && this.pane[m]) for (const [s, pt] of this.points(m, b)) s.update(pt);
   }
+  showMacds() {
+    for (const m of MIX) this.mix.lines[m].applyOptions({ visible: macdShow[m] });
+    this.mix.sig.applyOptions({ visible: macdShow.sig });
+  }
   // ---- the shared MACD pane: each MACD as of every candle's close (never ahead of it); the forming candle live ----
   mixPoints() {
     const bars = this.mainBars, out = [], k = Object.fromEntries(MIX.map(m => [m, -1]));
@@ -932,7 +1016,7 @@ class Panel {
       const end = bucketEnd(bars[i].time, tf), v = {};
       let sig;
       for (const m of MIX) {
-        const a = this.paneBars[m];
+        const a = this.paneBars[m] || [];
         while (k[m] + 1 < a.length && bucketEnd(a[k[m] + 1].time, m) <= end) k[m]++;
         const j = i === bars.length - 1 ? a.length - 1 : k[m];
         if (j >= 0) { v[m] = a[j].macd; if (m === 15) sig = a[j].signal; }
@@ -955,12 +1039,14 @@ class Panel {
         const p = pts[j];
         for (const m of MIX) mx.lines[m].update(pt(p, p.v[m]));
         mx.sig.update(pt(p, p.sig));
+        mx.zero.update({ time: p.time, value: 0 });
         put(p);
       }
       return;
     }
     for (const m of MIX) mx.lines[m].setData(pts.map(p => pt(p, p.v[m])));
     mx.sig.setData(pts.map(p => pt(p, p.sig)));
+    mx.zero.setData(pts.map(p => ({ time: p.time, value: 0 })));
     this.store.mix = new Map();
     pts.forEach(put);
     this.syncPanes();
@@ -1095,10 +1181,10 @@ class Panel {
     const newest3 = this.ema3.length ? this.ema3[this.ema3.length - 1].time : -Infinity;
     for (const b of s.tf[3]) if (b.time > newest3) upsert(this.ema3, b);
     for (const m of this.panes) {
-      this.paneBars[m] = data.bars[m].slice();
+      this.paneBars[m] = (data.bars[m] || []).slice();
       // the snapshot's tick can be a second older than its bars: only take bars newer than them
       const newest = this.paneBars[m].length ? this.paneBars[m][this.paneBars[m].length - 1].time : -Infinity;
-      for (const b of s.tf[m]) if (b.time > newest) upsert(this.paneBars[m], b);
+      for (const b of s.tf[m] || []) if (b.time > newest) upsert(this.paneBars[m], b);
       this.setPane(m);
     }
     this.drawMain();
@@ -1110,7 +1196,7 @@ class Panel {
     for (const [t, st] of s.history_tail) if (this.stateAt.get(t) !== st) { this.stateAt.set(t, st); history = true; }
     for (const b of s.tf[3]) upsert(this.ema3, b);
     const redraw = new Set();
-    for (const m of this.panes) for (const b of s.tf[m]) this.mergePane(m, b, redraw);
+    for (const m of this.panes) for (const b of s.tf[m] || []) this.mergePane(m, b, redraw);
     for (const m of redraw) this.setPane(m);
     if (mainRedraw) this.drawMain(); else { this.updateMain(); if (history) this.refreshClosedStates(); }
     this.syncPanes();
@@ -1139,7 +1225,7 @@ class Panel {
            + `<div class="r1"><span>${m}m</span><span class="ic">${pass ? ICON.check : ICON.cross}</span></div>`
            + `<div class="rn">${text}</div><div class="r2">${val}</div></div>`;
     });
-    if (cfg.panes.includes(1) && s.tf[1]) {  // a 1m MACD tile, for a panel configured with a 1m pane
+    if (cfg.infoTile && s.tf[1]) {  // a 1m MACD tile, for a panel configured with one
       const b = last(1);
       tiles.unshift(`<div class="rule info" title="1-minute MACD, shown for information; not part of the signal">`
                + `<div class="r1"><span>1m</span><span class="ic">i</span></div>`
@@ -1168,11 +1254,16 @@ class Panel {
       const q = live ? this.mix.pts[this.mix.pts.length - 1] : this.store.mix.get(t);
       if (!q) return;
       const d = cfg.macdDigits, v = q.v;
-      const item = (m, pass, val) => `<span class="t-mm"><span class="sw" style="background:${MIXC[m]}"></span><b class="num">${m}m</b>`
-        + `<span class="t-dot ${ok(v[m]) ? (pass ? 'pass' : 'fail') : ''}"></span><span class="t-vals">${val}</span></span>`;
-      $(`${k}-tmix`).innerHTML = `<span>MACD</span>` + item(5, v[5] > 0, sgn(v[5], d)) + item(7, v[7] > 0, sgn(v[7], d))
-        + item(15, v[15] > q.sig, `${sgn(v[15], d)} / ${sgn(q.sig, d)}`)
-        + `<span class="t-mm"><span class="sw dash"></span><span class="t-of">15m signal</span></span>`;
+      const item = m => {
+        const pass = m === 15 ? v[m] > q.sig : v[m] > 0, rule = RULE_MACD.includes(m);
+        const tip = `${m}m MACD${rule ? (m === 15 ? ' vs its signal: a signal rule' : ' vs 0: a signal rule') : ': for information, not in the signal'}. Click to ${macdShow[m] ? 'hide' : 'show'}`;
+        return `<span class="t-mm${macdShow[m] ? '' : ' off'}" data-k="${m}" title="${tip}"><span class="sw" style="background:${MIXC[m]}"></span><b class="num">${m}m</b>`
+          + `<span class="t-dot ${ok(v[m]) ? (pass ? 'pass' : 'fail') : ''}"></span>`
+          + `<span class="t-vals">${m === 15 ? `${sgn(v[m], d)} / ${sgn(q.sig, d)}` : sgn(v[m], d)}</span></span>`;
+      };
+      $(`${k}-tmix`).innerHTML = `<span>MACD</span>` + MIX.map(item).join('')
+        + `<span class="t-mm${macdShow.sig ? '' : ' off'}" data-k="sig" title="The 15m signal line. Click to ${macdShow.sig ? 'hide' : 'show'}">`
+        + `<span class="sw dash"></span><span class="t-of">15m signal</span></span>`;
       return;
     }
     const arr = this.paneBars[key], b = live ? arr[arr.length - 1] : this.store[key].get(t);
@@ -1315,7 +1406,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tag = document.createElement('script');
-    tag.src = 'engine.js?v=13123d7ab0'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
+    tag.src = 'engine.js?v=48e3e0a264'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tag);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();
