@@ -28,7 +28,7 @@ const RECHECK = 3 * 60000, RECHECK_SPAN = 20;  // every 3 minutes, the last 20 c
 const REFETCH = 180;     // minutes always fetched again on a reload or a reconnect
 const KEEP_BARS = 5000, KEEP_MINUTES = 7200;
 const TIMEFRAMES = { 3: 'ema', 5: 'macd', 7: 'macd', 15: 'macd' };  // minutes -> what runs on it
-const SHOWN = { ...TIMEFRAMES, 1: 'macd', 9: 'macd' };  // plus 1m and 9m MACD, drawn for information (not in the signal)
+const SHOWN = { ...TIMEFRAMES, 1: 'macd', 9: 'macd', 11: 'macd' };  // plus 1m, 9m and 11m MACD, drawn for information (not in the signal)
 const CACHE = 'nsb.candles.v2.';  // v1 caches can hold flat bars from a stuck stream: they are not read
 
 // ---- the signal: a line-for-line port of ndx10.py ----------------------------------------------

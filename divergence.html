@@ -305,7 +305,7 @@
       <h3>The two patterns</h3>
       <p><b class="alone">Index alone</b>: the index turned bullish while the 10 stocks didn't. In a 3-day study, XYZ100 was lower 15 minutes later about 7 times out of 10, on every day. <b class="up">10 stocks first</b>: the 10 stocks turned bullish while the index hadn't yet. XYZ100 was higher 30 minutes later about 7 times out of 10, but less consistently. Other differences showed no clear pattern.</p>
       <h3>The MACD pane</h3>
-      <p>Under the chart: shaded green where both signals are bullish and red where both are bearish (the moments they agree), with XYZ100's <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b> MACD (12/26/9), the index's own three MACD rules, with the 15m signal line dashed, plus <b style="color:#facc15">1m</b> and <b style="color:#2dd4bf">9m</b> for information. Click a name in the pane's label to switch that line off or on; the choice is remembered in this browser. Dashed vertical lines on both panes mark where a new day begins in your timezone. The 5m and 7m rules test their line against zero, the 15m rule against the dashed signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles.</p>
+      <p>Under the chart: shaded green where both signals are bullish and red where both are bearish (the moments they agree), with XYZ100's <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b> MACD (12/26/9), the index's own three MACD rules, with the 15m signal line dashed, plus <b style="color:#facc15">1m</b> <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b> for information. Click a name in the pane's label to switch that line off or on; the choice is remembered in this browser. Dashed vertical lines on both panes mark where a new day begins in your timezone. The 5m and 7m rules test their line against zero, the 15m rule against the dashed signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles.</p>
       <p>For information only, not investment advice.</p>
     </div>
   </details>
@@ -401,13 +401,13 @@ let mainBars = [], pairs = [], index = new Map(), markersKey = '';
 let ema3 = [], emaPts = [];  // XYZ100's 3m bars with their EMA 8/21, and the points drawn from them
 let chart, candles, layer, e8, e21;
 // XYZ100's 5m, 7m and 15m MACD in one pane under the chart, one color each, drawn on the chart's candles
-// XYZ100's 1m, 5m, 7m, 9m and 15m MACD in one pane; 5m, 7m and 15m are its signal's rules, 1m and 9m are for information.
+// XYZ100's 1m, 5m, 7m, 9m, 11m and 15m MACD in one pane; 5m, 7m and 15m are its signal's rules, the others are for information.
 // Each can be switched off from the pane's label (remembered in this browser, shared with the Signals page).
-const MIX = [1, 5, 7, 9, 15], RULE_MACD = [5, 7, 15];
-const MIXC = { 1: '#facc15', 5: '#38bdf8', 7: '#c084fc', 9: '#2dd4bf', 15: '#f472b6', sig: 'rgba(244, 114, 182, 0.6)' };
+const MIX = [1, 5, 7, 9, 11, 15], RULE_MACD = [5, 7, 15];
+const MIXC = { 1: '#facc15', 5: '#38bdf8', 7: '#c084fc', 9: '#2dd4bf', 11: '#a3e635', 15: '#f472b6', sig: 'rgba(244, 114, 182, 0.6)' };
 const MACD_KEY = 'nsb.macd.show';
 const macdShow = (() => {  // which lines are on: each MACD, and 'sig' for the 15m signal line
-  const all = { 1: true, 5: true, 7: true, 9: true, 15: true, sig: true };
+  const all = { 1: true, 5: true, 7: true, 9: true, 11: true, 15: true, sig: true };
   try { const o = JSON.parse(localStorage.getItem(MACD_KEY)); if (o && typeof o === 'object') for (const k in all) if (typeof o[k] === 'boolean') all[k] = o[k]; } catch (e) {}
   return all;
 })();
@@ -582,7 +582,7 @@ function makeChart() {
   chart.subscribeCrosshairMove(p => hover(p, chart, mixChart, mixZero, t => {
     const q = mixStore.get(t);
     if (!q) return null;
-    for (const m of [15, 9, 7, 5, 1]) if (macdShow[m] && ok(q.v[m])) return q.v[m];
+    for (const m of [15, 11, 9, 7, 5, 1]) if (macdShow[m] && ok(q.v[m])) return q.v[m];
     return 0;
   }));
   mixChart.subscribeCrosshairMove(p => hover(p, mixChart, chart, candles, t => { const i = index.get(t); return i === undefined ? null : mainBars[i].close; }));
@@ -962,7 +962,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tagEl = document.createElement('script');
-    tagEl.src = 'engine.js?v=48e3e0a264'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
+    tagEl.src = 'engine.js?v=7fd59cecd6'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tagEl);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();

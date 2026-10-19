@@ -300,7 +300,7 @@
       <p>All four bullish: <b class="up">BULLISH</b>. All four bearish: <b class="down">BEARISH</b>. Anything else: NEUTRAL. MACD is 12/26/9.</p>
       <h3>The two panels</h3>
       <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same rules on the Nasdaq-100 perp itself, XYZ100.</p>
-      <p>The MACD pane under each price chart draws the MACDs together: the three rules, <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b> (its signal line dashed), plus <b style="color:#facc15">1m</b> and <b style="color:#2dd4bf">9m</b> for information. Click a name in the pane's label to switch that line off or on; the choice is remembered in this browser. Dashed vertical lines mark where a new day begins in your timezone. The 5m and 7m rules test their line against the zero line; the 15m rule tests its line against the dashed signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles.</p>
+      <p>The MACD pane under each price chart draws the MACDs together: the three rules, <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b> (its signal line dashed), plus <b style="color:#facc15">1m</b> <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b> for information. Click a name in the pane's label to switch that line off or on; the choice is remembered in this browser. Dashed vertical lines mark where a new day begins in your timezone. The 5m and 7m rules test their line against the zero line; the 15m rule tests its line against the dashed signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles.</p>
       <h3>The charts</h3>
       <p>Zones: a green zone (green ribbon along the bottom, labeled BULLISH zone) is where all four of a panel's rules were bullish at the candle's close; a red zone is where all four were bearish; no color means the rules disagreed (neutral). The zone is the signal, not the candle: a red candle can sit in a green zone. Zones change a few candles after the price turns, because MACD and EMAs follow price. The left chart's zones come from the 10 stocks, the right chart's from the index itself; the MACD pane under each chart is shaded the same way. The forming candle shows the signal live. <b class="up">▲ BUY</b> marks the candle where the signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
       <h3>Drawing tools</h3>
@@ -324,19 +324,19 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 // Both panels run the same rules on different series; only these settings differ. Their 3m EMAs are drawn on
 // the price chart, so the panes under it are MACDs. NDX10's EMAs are scaled onto NAS100's (see emaSource).
 const CFG = {
-  ndx10: { name: 'NDX10', eyebrow: '10-stock composite', panes: [1, 5, 7, 9, 15], digits: 2, macdDigits: 3,
+  ndx10: { name: 'NDX10', eyebrow: '10-stock composite', panes: [1, 5, 7, 9, 11, 15], digits: 2, macdDigits: 3,
            rows: '72fr 28fr', scaleOnto: 'nas100' },
-  nas100: { name: 'NAS100', eyebrow: 'Nasdaq-100 actual · XYZ100', panes: [1, 5, 7, 9, 15], digits: 1, macdDigits: 2,
+  nas100: { name: 'NAS100', eyebrow: 'Nasdaq-100 actual · XYZ100', panes: [1, 5, 7, 9, 11, 15], digits: 1, macdDigits: 2,
             rows: '72fr 28fr' },
 };
-// 1m, 5m, 7m, 9m and 15m MACD share one pane, one color each; 5m, 7m and 15m are the signal's rules, 1m and 9m are
-// for information. Each can be switched off from the pane's label (remembered in this browser, for both pages). Each line is drawn on the
+// 1m, 5m, 7m, 9m, 11m and 15m MACD share one pane, one color each; 5m, 7m and 15m are the signal's rules, 1m, 9m and
+// 11m are for information. Each can be switched off from the pane's label (remembered in this browser, for both pages). Each line is drawn on the
 // price chart's candles, at its value as of every candle's close, so the pane lines up with the candles above it.
-const MIX = [1, 5, 7, 9, 15], RULE_MACD = [5, 7, 15];
-const MIXC = { 1: '#facc15', 5: '#38bdf8', 7: '#c084fc', 9: '#2dd4bf', 15: '#f472b6', sig: 'rgba(244, 114, 182, 0.6)' };
+const MIX = [1, 5, 7, 9, 11, 15], RULE_MACD = [5, 7, 15];
+const MIXC = { 1: '#facc15', 5: '#38bdf8', 7: '#c084fc', 9: '#2dd4bf', 11: '#a3e635', 15: '#f472b6', sig: 'rgba(244, 114, 182, 0.6)' };
 const MACD_KEY = 'nsb.macd.show';
 const macdShow = (() => {  // which lines are on: each MACD, and 'sig' for the 15m signal line
-  const all = { 1: true, 5: true, 7: true, 9: true, 15: true, sig: true };
+  const all = { 1: true, 5: true, 7: true, 9: true, 11: true, 15: true, sig: true };
   try { const o = JSON.parse(localStorage.getItem(MACD_KEY)); if (o && typeof o === 'object') for (const k in all) if (typeof o[k] === 'boolean') all[k] = o[k]; } catch (e) {}
   return all;
 })();
@@ -975,7 +975,7 @@ class Panel {
       zero.attachPrimitive(new DayLines(() => chart, () => this.mainBars, false));
       this.store.mix = new Map();
       allCharts.push({ panel: this, key: 'mix', chart, anchor: zero, minutes: () => tf,
-                       value: q => { for (const m of [15, 9, 7, 5, 1]) if (macdShow[m] && ok(q.v[m])) return q.v[m]; return 0; } });
+                       value: q => { for (const m of [15, 11, 9, 7, 5, 1]) if (macdShow[m] && ok(q.v[m])) return q.v[m]; return 0; } });
       $(`${key}-tmix`).addEventListener('pointerdown', e => {  // the label's switches
         const b = e.target.closest('[data-k]');
         if (b) { e.preventDefault(); e.stopPropagation(); toggleMacd(b.dataset.k); }
@@ -1406,7 +1406,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tag = document.createElement('script');
-    tag.src = 'engine.js?v=48e3e0a264'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
+    tag.src = 'engine.js?v=7fd59cecd6'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tag);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();
