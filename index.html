@@ -300,9 +300,9 @@
       <p>All four bullish: <b class="up">BULLISH</b>. All four bearish: <b class="down">BEARISH</b>. Anything else: NEUTRAL. MACD is 12/26/9.</p>
       <h3>The two panels</h3>
       <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same rules on the Nasdaq-100 perp itself, XYZ100.</p>
-      <p>The MACD pane under each price chart draws the MACDs together: the three rules, <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b> (its signal line dashed), plus <b style="color:#facc15">1m</b> <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b> for information. Click a name in the pane's label to switch that line off or on; the choice is remembered in this browser. Dashed vertical lines mark where a new day begins in your timezone. The 5m and 7m rules test their line against the zero line; the 15m rule tests its line against the dashed signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles.</p>
+      <p>The MACD pane under each price chart draws the MACDs together: the three rules, <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b> (its signal line dashed), plus <b style="color:#facc15">1m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b> for information. Click a name in the pane's label to switch that line off or on; the choice is remembered in this browser. The pane is shaded where the 10 stocks' MACDs and the index's MACDs agree on every line switched on: green when all of them are above zero for both, red when all are below zero for both. Switch lines off or on and the shading follows. Dashed vertical lines mark where a new day begins in your timezone. The 5m and 7m rules test their line against the zero line; the 15m rule tests its line against the dashed signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles.</p>
       <h3>The charts</h3>
-      <p>Zones: a green zone (green ribbon along the bottom, labeled BULLISH zone) is where all four of a panel's rules were bullish at the candle's close; a red zone is where all four were bearish; no color means the rules disagreed (neutral). The zone is the signal, not the candle: a red candle can sit in a green zone. Zones change a few candles after the price turns, because MACD and EMAs follow price. The left chart's zones come from the 10 stocks, the right chart's from the index itself; the MACD pane under each chart is shaded the same way. The forming candle shows the signal live. <b class="up">▲ BUY</b> marks the candle where the signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
+      <p>Zones: a green zone (green ribbon along the bottom, labeled BULLISH zone) is where all four of a panel's rules were bullish at the candle's close; a red zone is where all four were bearish; no color means the rules disagreed (neutral). The zone is the signal, not the candle: a red candle can sit in a green zone. Zones change a few candles after the price turns, because MACD and EMAs follow price. The left chart's zones come from the 10 stocks, the right chart's from the index itself. The forming candle shows the signal live. <b class="up">▲ BUY</b> marks the candle where the signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
       <h3>Drawing tools</h3>
       <p>The toolbar on the left draws on the price charts: trend line, horizontal and vertical line, rectangle, Fib retracement and measure. Drag from one point to the other, or click one and then the other. Click a drawing to select it, drag it or its handles to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. Drawings show on both price charts and are saved in this browser.</p>
       <h3>Data</h3>
@@ -340,10 +340,53 @@ const macdShow = (() => {  // which lines are on: each MACD, and 'sig' for the 1
   try { const o = JSON.parse(localStorage.getItem(MACD_KEY)); if (o && typeof o === 'object') for (const k in all) if (typeof o[k] === 'boolean') all[k] = o[k]; } catch (e) {}
   return all;
 })();
+// The MACD pane's shading: where the 10 stocks' MACDs and the index's MACDs agree, on every line switched on. Green
+// when all of those lines are above zero for both, red when all are below zero for both; anything else is not shaded.
+const MATCH = { BULLISH: 'rgba(43, 182, 138, 0.13)', BEARISH: 'rgba(240, 85, 95, 0.12)' };
+function matchAt(a, b) {  // two series' MACD points at one candle -> 'BULLISH', 'BEARISH' or null
+  const on = MIX.filter(m => macdShow[m]);
+  if (!a || !b || !on.length || a.time !== b.time) return null;
+  let up = 0, down = 0;
+  for (const m of on) {
+    const x = a.v[m], y = b.v[m];
+    if (!ok(x) || !ok(y)) return null;
+    if (x > 0 && y > 0) up += 1; else if (x < 0 && y < 0) down += 1; else return null;
+  }
+  return up === on.length ? 'BULLISH' : down === on.length ? 'BEARISH' : null;
+}
+class MatchLayer {  // a series primitive behind the MACD lines: the bands where the two series' MACDs agree
+  constructor(chart, stocks, index) {  // the chart it is on, and the two series' MACD points (one per candle)
+    this.chart = chart; this.stocks = stocks; this.index = index; this.bands = [];
+    this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: t => this.render(t) }) }];
+  }
+  attached({ requestUpdate }) { this.requestUpdate = requestUpdate; }
+  detached() { this.requestUpdate = null; }
+  paneViews() { return this.views; }
+  updateAllViews() {  // one band per run of candles in the same state, edge to edge
+    const a = this.stocks(), b = this.index(), n = Math.min(a.length, b.length), ts = this.chart().timeScale(), bands = [];
+    const x0 = n ? ts.logicalToCoordinate(0) : null, x1 = n ? ts.logicalToCoordinate(1) : null;
+    if (x0 !== null && x1 !== null) {
+      const step = x1 - x0, st = Array.from({ length: n }, (_, i) => matchAt(a[i], b[i]));
+      for (let i = 0, j; i < n; i = j + 1) {
+        for (j = i; j + 1 < n && st[j + 1] === st[i];) j++;
+        if (st[i]) bands.push([x0 + (i - 0.5) * step, x0 + (j + 0.5) * step, MATCH[st[i]]]);
+      }
+    }
+    this.bands = bands;
+  }
+  render(target) {
+    target.useBitmapCoordinateSpace(({ context: c, bitmapSize: size, horizontalPixelRatio: hr }) => {
+      for (const [l, r, color] of this.bands) {
+        const x = Math.max(0, Math.round(l * hr)), y = Math.min(size.width, Math.round(r * hr));
+        if (y > x) { c.fillStyle = color; c.fillRect(x, 0, y - x, size.height); }
+      }
+    });
+  }
+}
 function toggleMacd(k) {
   macdShow[k] = !macdShow[k];
   try { localStorage.setItem(MACD_KEY, JSON.stringify(macdShow)); } catch (e) {}
-  for (const p of Object.values(panels)) p.showMacds();
+  for (const p of Object.values(panels)) { p.showMacds(); p.redrawZones(); }  // the shading follows the lines switched on
   allTags();
 }
 // Day separators: a dashed line where a new day begins in your timezone, with its date along the top (a series primitive)
@@ -970,7 +1013,8 @@ class Panel {
       const sig = line(MIXC.sig, { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
       zero.priceScale().applyOptions({ scaleMargins: { top: 0.16, bottom: 0.08 } });
       this.mix = { chart, zero, lines, sig, pts: [] };
-      this.mixZones = new ZoneLayer(this, () => chart, false);  // the price chart's zones, behind the MACD lines too
+      // shaded where the 10 stocks' and the index's MACDs agree (the same on both panels; their candles are the same)
+      this.mixZones = new MatchLayer(() => chart, () => panels.ndx10 ? panels.ndx10.mix.pts : [], () => panels.nas100 ? panels.nas100.mix.pts : []);
       zero.attachPrimitive(this.mixZones);
       zero.attachPrimitive(new DayLines(() => chart, () => this.mainBars, false));
       this.store.mix = new Map();
@@ -1461,7 +1505,7 @@ function onTick(k) {
   let mainRedraw = false;
   for (const b of k.price.tail) if (b && upsert(bars1m, b) === 'older') mainRedraw = true;
   for (const [key, s] of Object.entries(panels)) s.applyTick(k.sections[key], mainRedraw);
-  for (const p of Object.values(panels)) { p.setEmas(); p.setMix(); }
+  for (const p of Object.values(panels)) { p.setEmas(); p.setMix(); p.redrawZones(); }
   showGlobal(k);
   if (!hovering) allTags();
 }
