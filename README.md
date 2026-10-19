@@ -19,6 +19,9 @@ All four bullish: BULLISH. All four bearish: BEARISH. Anything else: NEUTRAL. MA
 
 - **NDX10**: the ten largest Nasdaq-100 weights that trade on Hyperliquid, as one composite (official index
   weights rescaled to 100%; 1000 = the 10/05/2026 close).
+  On the Divergence page you can instead tick any 1 to 10 of those stocks (**Stocks** button, top right):
+  their weights are rescaled to 100%, so the composite is still 1000 at the reference close, and the signal,
+  marks and scoreboard are rebuilt from the candles already loaded. The choice is saved in your browser.
 - **NAS100**: the Nasdaq-100 perp itself, `xyz:XYZ100`, plus a 1m MACD shown for information.
 
 Everything runs in your browser. The page loads two days of 1-minute candles from Hyperliquid's public API,

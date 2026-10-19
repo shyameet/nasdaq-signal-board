@@ -154,6 +154,37 @@
   .recent .r { font: 500 12px var(--font-num); text-align: right; white-space: nowrap; }
   .empty { color: var(--muted); font-size: 12.5px; }
 
+  /* ---- basket picker ---- */
+  .pick { position: relative; }
+  .pick-btn { display: inline-flex; align-items: center; gap: 8px; padding: 6px 11px; border: 1px solid var(--line); border-radius: 8px;
+              background: transparent; color: var(--text); cursor: pointer; font-size: 12px; }
+  .pick-btn:hover, .pick-btn[aria-expanded="true"] { border-color: var(--line-strong); background: var(--tile); }
+  .pick-btn small { color: var(--muted); font-size: 11.5px; }
+  .pick-btn .caret { color: var(--muted); font-size: 9px; }
+  .pick-btn.custom { border-color: rgba(91, 140, 255, .55); }
+  .pick-pop { position: fixed; z-index: 45; width: min(360px, calc(100vw - 24px)); padding: 14px;
+              border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); box-shadow: 0 16px 48px rgba(0, 0, 0, .55); }
+  .pick-pop h3 { margin: 0 0 2px; font-size: 13px; font-weight: 600; }
+  .pick-pop > p { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .presets button, .pick-actions button { padding: 5px 10px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted);
+                                          cursor: pointer; font-size: 12px; }
+  .presets button:hover, .pick-actions button:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); }
+  .stocks { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 2px; }
+  .stocks label { display: grid; grid-template-columns: 18px 56px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+  .stocks label:hover { background: var(--tile); }
+  .stocks input { accent-color: var(--accent); margin: 0; width: 15px; height: 15px; }
+  .stocks .tk { font: 600 12.5px var(--font-num); }
+  .stocks .co { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stocks .wt { font: 500 12px var(--font-num); color: var(--muted); }
+  .stocks input:checked ~ .tk { color: var(--text); }
+  .stocks li:not(.on) .tk, .stocks li:not(.on) .co { opacity: .55; }
+  .pick-actions { display: flex; align-items: center; gap: 8px; }
+  .pick-actions .msg { margin-right: auto; color: var(--muted); font-size: 11.5px; }
+  .pick-actions .msg.warn { color: var(--warn); }
+  .pick-actions .go { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
+  .pick-actions .go:disabled { opacity: .4; cursor: default; }
+
   /* ---- footer ---- */
   .foot { flex: none; position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px;
           background: var(--surface); border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; }
@@ -210,24 +241,34 @@
   <div class="quote"><span class="sym">XYZ100</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
   <div class="spacer"></div>
   <div class="seg" id="tfs" role="group" aria-label="Candle size"></div>
-  <button class="toggle" id="alerts" aria-pressed="false" title="Sound and browser notification when an Index alone or 10 stocks first mark appears">Alerts off</button>
+  <div class="pick" id="pick" hidden>
+    <button class="pick-btn" id="pickBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Choose which stocks make up the composite"><span id="pickLabel">Stocks</span><small id="pickSub"></small><span class="caret">▼</span></button>
+    <div class="pick-pop" id="pickPop" role="dialog" aria-label="Choose your stocks" hidden>
+      <h3>Choose your stocks</h3>
+      <p>Pick any of the 10 (even just one). The composite and every mark are rebuilt from the same candles.</p>
+      <div class="presets" id="presets"></div>
+      <ul class="stocks" id="stocks"></ul>
+      <div class="pick-actions"><span class="msg" id="pickMsg"></span><button type="button" id="pickCancel">Cancel</button><button type="button" class="go" id="pickGo">Apply</button></div>
+    </div>
+  </div>
+  <button class="toggle" id="alerts" aria-pressed="false" title="Sound and browser notification when an Index alone or a stocks-first mark appears">Alerts off</button>
   <div class="live"><span class="dot" id="dot"></span><span id="live">connecting</span></div>
 </header>
 <main class="dv">
   <section class="top" aria-label="Right now">
     <div class="card now">
-      <div class="eyebrow">Right now · 10 stocks vs the index</div>
+      <div class="eyebrow" id="nowEyebrow">Right now · 10 stocks vs the index</div>
       <span class="badge" id="badge">LOADING</span>
       <div class="now-text"><p id="note">Waiting for data…</p><small id="since"></small></div>
     </div>
-    <div class="card sig" id="sig-ndx10"><div class="eyebrow">10 stocks · NDX10</div><div class="sig-state"><i></i><span>—</span></div><small></small></div>
+    <div class="card sig" id="sig-ndx10"><div class="eyebrow" id="sigEyebrow">10 stocks · NDX10</div><div class="sig-state"><i></i><span>—</span></div><small></small></div>
     <div class="card sig" id="sig-nas100"><div class="eyebrow">Index · NAS100</div><div class="sig-state"><i></i><span>—</span></div><small></small></div>
   </section>
   <section class="body">
     <div class="card chart-card">
       <div class="legend">
         <span><i class="sw alone"></i><b>Index alone</b>often fades</span>
-        <span><i class="sw first"></i><b>10 stocks first</b>index often follows</span>
+        <span><i class="sw first"></i><b id="firstName">10 stocks first</b>index often follows</span>
         <span><i class="sw other"></i><b>Other</b>no clear pattern</span>
         <span><i class="lk e8"></i><b>EMA 8</b><i class="lk e21"></i><b>EMA 21</b>3m, XYZ100</span>
         <span class="hint">Bottom strips: each signal · green bullish · red bearish · gray neutral</span>
@@ -245,7 +286,7 @@
     <summary>How it works</summary>
     <div class="how-body">
       <h3>What this page shows</h3>
-      <p>The Signals page runs the same four rules on two series: the 10 biggest Nasdaq-100 stocks combined (NDX10) and the Nasdaq-100 itself (XYZ100). They agree about three quarters of the time. This page marks only the moments they disagree; when they agree, the chart stays clean.</p>
+      <p>The Signals page runs the same four rules on two series: the 10 biggest Nasdaq-100 stocks combined (NDX10) and the Nasdaq-100 itself (XYZ100). Here you can pick any of those 10 stocks (one to ten); their official weights are rescaled to 100% and everything below is rebuilt for your pick, with no new download. The percentages in the study below were measured on the full 10; for a custom basket, trust only the scoreboard. They agree about three quarters of the time. This page marks only the moments they disagree; when they agree, the chart stays clean.</p>
       <h3>The two patterns</h3>
       <p><b class="alone">Index alone</b>: the index turned bullish while the 10 stocks didn't. In a 3-day study, XYZ100 was lower 15 minutes later about 7 times out of 10, on every day. <b class="up">10 stocks first</b>: the 10 stocks turned bullish while the index hadn't yet. XYZ100 was higher 30 minutes later about 7 times out of 10, but less consistently. Other differences showed no clear pattern.</p>
       <h3>The scoreboard</h3>
@@ -263,11 +304,13 @@ const DAY = 86400000, MIN = 60000, TFS = [1, 3, 5, 7, 15];
 const C = { up: '#2bb68a', down: '#f0555f', alone: '#ff8a3d', other: '#8d99ab', grid: '#121821', text: '#7d899b', line: '#1c2430',
             cross: '#3a4554', label: '#283240', bg: '#0a0d12', strip: '#0e131a' };
 // What a disagreement is called, and what has tended to follow it (the 3-day study; the scoreboard keeps checking)
+let ACTIVE = [], ALL = [], BASKET = null;  // the stocks in the composite, the 10 on offer, basket.json
+let NLAB = '10 stocks';                      // how the composite is named on the page: "10 stocks", "6 stocks", "1 stock"
 const PATTERN = {
   alone: { name: 'Index alone', word: 'INDEX ALONE', band: 'rgba(255, 138, 61, 0.17)', color: C.alone, horizon: 15, expect: -1,
-           test: 'lower 15 min later', note: "The index turned bullish, the 10 stocks didn't. So far this has often faded." },
-  first: { name: '10 stocks first', word: '10 STOCKS FIRST', band: 'rgba(43, 182, 138, 0.17)', color: C.up, horizon: 30, expect: 1,
-           test: 'higher 30 min later', note: 'The 10 stocks turned bullish, the index not yet. The index has often followed.' },
+           test: 'lower 15 min later', get note() { return `The index turned bullish, the ${NLAB} didn't. So far this has often faded.`; } },
+  first: { get name() { return `${NLAB} first`; }, get word() { return `${NLAB.toUpperCase()} FIRST`; }, band: 'rgba(43, 182, 138, 0.17)', color: C.up, horizon: 30, expect: 1,
+           test: 'higher 30 min later', get note() { return `The ${NLAB} turned bullish, the index not yet. The index has often followed.`; } },
   other: { name: 'Other difference', word: 'DIFFERENT', band: 'rgba(141, 153, 171, 0.12)', color: C.other,
            note: 'They disagree in another way. No clear pattern so far.' },
 };
@@ -391,7 +434,7 @@ class DivLayer {  // a Lightweight Charts series primitive
       c.fillStyle = C.strip; c.fillRect(0, top, m.width, STRIP_H);
       c.font = '500 10.5px "IBM Plex Sans", "Segoe UI", sans-serif';
       c.textBaseline = 'middle'; c.fillStyle = '#aeb8c6';
-      c.fillText('10 stocks', 8, this.rowTop(0, m.height) + STRIP.row / 2 + 0.5);
+      c.fillText(NLAB, 8, this.rowTop(0, m.height) + STRIP.row / 2 + 0.5);
       c.fillText('Index', 8, this.rowTop(1, m.height) + STRIP.row / 2 + 0.5);
     });
   }
@@ -438,7 +481,7 @@ function setMarkers(force) {  // a mark where an Index alone or a 10 stocks firs
     const roomy = i - lastAt >= 8;  // marks close together keep their arrows but not their words, which would overlap
     lastAt = i;
     if (k === 'alone') m.push({ time, position: 'aboveBar', color: C.alone, shape: 'arrowDown', text: roomy ? 'Index alone' : '' });
-    if (k === 'first') m.push({ time, position: 'belowBar', color: C.up, shape: 'arrowUp', text: roomy ? '10 stocks first' : '' });
+    if (k === 'first') m.push({ time, position: 'belowBar', color: C.up, shape: 'arrowUp', text: roomy ? PATTERN.first.name : '' });
   }
   const key = JSON.stringify(m);
   if (force || key !== markersKey) { markersKey = key; candles.setMarkers(m); }
@@ -514,7 +557,7 @@ function tag(t) {  // the label in the chart's corner: the candle, and both sign
   $('tag').innerHTML = `<div class="t1"><b>XYZ100</b><span>${tf}m</span>` + (t === undefined ? '' : `<span class="t-time">${when(b.time)}</span>`)
     + `<span class="ohlc">O <b>${num(b.open)}</b> H <b>${num(b.high)}</b> L <b>${num(b.low)}</b> `
     + `C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close)}</b></span></div>`
-    + `<div class="t2"><span>10 stocks ${SYM[p.sn] || '·'}</span><span>index ${SYM[p.sx] || '·'}</span>`
+    + `<div class="t2"><span>${NLAB} ${SYM[p.sn] || '·'}</span><span>index ${SYM[p.sx] || '·'}</span>`
     + `<span class="t-kind ${p.kind || ''}">${p.kind ? PATTERN[p.kind].name : 'in sync'}</span></div>`
     + (() => { const e = t === undefined ? emaPts[emaPts.length - 1] : emaAt(t);
         return e ? `<div class="t3"><span><i class="lk e8"></i>EMA 8 <b>${num(e.e8, 1)}</b></span>`
@@ -598,7 +641,8 @@ function showScore() {
       + `<span>average <b>${s.n ? pts(s.sum / s.n) : '—'}</b></span></div></div>`;
   };
   $('score').innerHTML = `<div class="card-h"><h2>Scoreboard</h2><small>last ${days.toFixed(1)} days</small></div>${block('alone')}${block('first')}`
-    + '<p class="base"><i></i>Gray line: how often XYZ100 moved that way anyway, at any minute.</p>';
+    + '<p class="base"><i></i>Gray line: how often XYZ100 moved that way anyway, at any minute.</p>'
+    + (custom() ? `<p class="base">Your ${NLAB}: ${ACTIVE.map(tk).join(', ')}. The "often fades" and "index often follows" notes come from a study of all 10, so judge this basket by its own bars above.</p>` : '');
   const recent = events.slice(-8).reverse().map(e => {
     const P = PATTERN[e.kind];
     const r = e.open ? '<span style="color:var(--muted)">waiting…</span>'
@@ -653,6 +697,83 @@ setInterval(() => {
   $('live').textContent = lastTickAt ? (fresh ? 'Live' : 'Reconnecting…') : 'Connecting…';
 }, 1000);
 
+// ---- the stock picker: which of the 10 make up the composite --------------------------------------------------
+const SEL_KEY = 'nsb.div.stocks';  // this page only: the Signals page always shows all 10
+const tk = coin => coin.replace(/^xyz:/, '');
+const custom = () => ACTIVE.length !== ALL.length;
+function savedSelection() {
+  try { const a = JSON.parse(localStorage.getItem(SEL_KEY)); return Array.isArray(a) ? a : null; } catch (e) { return null; }
+}
+function setActive(list) {  // the composite's stocks changed (or were just loaded): names, labels and alerts follow
+  const same = ACTIVE.length === list.length && ACTIVE.every((c, i) => c === list[i]);
+  ACTIVE = list.slice();
+  NLAB = ACTIVE.length === 1 ? '1 stock' : `${ACTIVE.length} stocks`;
+  const name = custom() ? 'Basket' : 'NDX10';
+  $('nowEyebrow').textContent = `Right now · ${NLAB} vs the index`;
+  $('sigEyebrow').textContent = `${NLAB} · ${name}`;
+  $('firstName').textContent = PATTERN.first.name;
+  $('pickLabel').textContent = custom() ? `${ACTIVE.length} of ${ALL.length} stocks` : `All ${ALL.length} stocks`;
+  $('pickSub').textContent = ACTIVE.length <= 4 ? ACTIVE.map(tk).join(' ') : '';
+  $('pickBtn').classList.toggle('custom', custom());
+  $('pickBtn').title = `In the composite: ${ACTIVE.map(tk).join(', ')}`;
+  if (!same) { alertKind = undefined; alerted = undefined; }  // a different basket is not news
+}
+let draft = new Set(), picking = false;
+function renderPick() {
+  const members = BASKET.members, total = ALL.reduce((a, c) => a + (draft.has(c) ? members[c].weight : 0), 0);
+  $('stocks').innerHTML = ALL.map(c => `<li class="${draft.has(c) ? 'on' : ''}"><label><input type="checkbox" data-c="${c}"${draft.has(c) ? ' checked' : ''}>`
+    + `<span class="tk">${tk(c)}</span><span class="co">${members[c].company}</span>`
+    + `<span class="wt">${draft.has(c) ? (members[c].weight / total * 100).toFixed(1) + '%' : '—'}</span></label></li>`).join('');
+  for (const box of $('stocks').querySelectorAll('input')) box.onchange = () => {
+    if (box.checked) draft.add(box.dataset.c); else draft.delete(box.dataset.c);
+    renderPick();
+    $('stocks').querySelector(`input[data-c="${box.dataset.c}"]`).focus();
+  };
+  const list = ALL.filter(c => draft.has(c)), changed = list.join() !== ACTIVE.join();
+  $('pickMsg').textContent = !list.length ? 'Pick at least one stock' : `${list.length} selected`;
+  $('pickMsg').className = 'msg' + (list.length ? '' : ' warn');
+  $('pickGo').disabled = !list.length || !changed || picking;
+}
+function openPick(open) {
+  $('pickPop').hidden = !open;
+  $('pickBtn').setAttribute('aria-expanded', String(open));
+  if (open) { draft = new Set(ACTIVE); renderPick(); placePick(); }
+}
+function placePick() {  // under the button, kept inside the window whatever the width
+  const r = $('pickBtn').getBoundingClientRect(), w = Math.min(360, innerWidth - 24);
+  const pop = $('pickPop').style;
+  pop.top = `${Math.round(r.bottom + 8)}px`;
+  pop.left = `${Math.round(Math.max(12, Math.min(r.right - w, innerWidth - w - 12)))}px`;
+  pop.maxHeight = `${Math.max(240, innerHeight - r.bottom - 20)}px`; pop.overflowY = 'auto';
+}
+async function applyPick() {
+  const list = ALL.filter(c => draft.has(c));
+  if (!list.length || picking) return;
+  picking = true; renderPick();
+  $('pickLabel').textContent = 'Applying…';
+  try {
+    try { localStorage.setItem(SEL_KEY, JSON.stringify(list)); } catch (e) {}
+    if (engine.setSelection(list)) await resync();  // rebuilt from the loaded candles: no new download
+  } finally {
+    picking = false;
+    openPick(false);
+    setActive(ACTIVE);
+  }
+}
+function buildPicker() {
+  const top = n => ALL.slice(0, n);
+  const presets = [['Top 5', top(5)], ['Top 6', top(6)], ['Top 8', top(8)], ['All 10', ALL], ['None', []]];
+  $('presets').innerHTML = presets.map(([name], i) => `<button type="button" data-i="${i}">${name}</button>`).join('');
+  for (const b of $('presets').children) b.onclick = () => { draft = new Set(presets[b.dataset.i][1]); renderPick(); };
+  $('pickBtn').onclick = () => openPick($('pickPop').hidden);
+  $('pickCancel').onclick = () => { openPick(false); $('pickBtn').focus(); };
+  $('pickGo').onclick = applyPick;
+  addEventListener('resize', () => { if (!$('pickPop').hidden) placePick(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('pickPop').hidden) { openPick(false); $('pickBtn').focus(); } });
+  document.addEventListener('mousedown', e => { if (!$('pickPop').hidden && !$('pick').contains(e.target)) openPick(false); });
+  $('pick').hidden = false;
+}
+
 // ---- data: the same two sources as the Signals page --------------------------------------------------------
 const loadingText = text => { const el = $('loading-text'); if (el) el.textContent = text; };
 async function pickSource() {
@@ -664,11 +785,12 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tagEl = document.createElement('script');
-    tagEl.src = 'engine.js?v=e92bcaf53a'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
+    tagEl.src = 'engine.js?v=13123d7ab0'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tagEl);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();
-  engine = new NdxEngine(basketFile, { progress: loadingText });
+  BASKET = basketFile; ALL = Object.keys(basketFile.members);
+  engine = new NdxEngine(basketFile, { progress: loadingText, selection: savedSelection() });
   engine.start().catch(e => loadingText(`Couldn't load Hyperliquid's data (${e.message}). Reload the page to try again.`));
 }
 async function fetchSnapshot() {
@@ -683,6 +805,8 @@ async function fetchSnapshot() {
 }
 function apply(s) {
   boot = s.boot; gen = s.gen; lastSeq = s.tick.seq;
+  if (s.basket && !BASKET) { BASKET = s.basket; ALL = Object.keys(s.basket.members); }
+  setActive(s.selection || ALL);
   bars1m = s.price.slice();
   const newest = bars1m.length ? bars1m[bars1m.length - 1].time : -Infinity;
   for (const b of s.tick.price.tail) if (b && b.time > newest) upsert(bars1m, b);
@@ -752,6 +876,7 @@ function connect() {
   buildTfs();
   makeChart();
   await pickSource();
+  if (engine) buildPicker();  // the local server's snapshot is always the 10: nothing to pick there
   apply(await fetchSnapshot());
   fitMargins();
   tag();

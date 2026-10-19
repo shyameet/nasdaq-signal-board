@@ -256,11 +256,11 @@ const fixed = (v, d) => v.toLocaleString('en-US', { minimumFractionDigits: d, ma
 
 // ---- the engine -------------------------------------------------------------------------------
 class Engine {
-  constructor(basket, { progress } = {}) {
+  constructor(basket, { progress, selection } = {}) {
     this.basket = basket;
-    this.members = Object.keys(basket.members);
+    this.members = Object.keys(basket.members);  // every stock loaded and streamed, whether or not it is in the composite
     this.coins = [...this.members, BENCH];
-    this.coef = Object.fromEntries(this.members.map(c => [c, basket.base * basket.members[c].weight / basket.members[c].ref_price]));
+    this.setActive(selection);
     this.refCloseMs = referenceCloseMs(basket.as_of);
     this.benchRef = null;
     this.boot = Math.floor(Date.now() / 1000);
@@ -277,6 +277,30 @@ class Engine {
     this.lastCandleAt = 0; this.lastUnstick = 0; this.nextRecheck = 0; this.rechecking = false;
   }
 
+  // The stocks the composite is made of: a subset of the basket (all of it when `selection` is missing or empty).
+  // Their official weights are rescaled to 100%, so the composite is still 1000 at the reference close.
+  setActive(selection) {
+    const pick = Array.isArray(selection) ? this.members.filter(c => selection.includes(c)) : [];
+    this.active = pick.length ? pick : [...this.members];
+    const total = this.active.reduce((a, c) => a + this.basket.members[c].weight, 0);
+    this.coef = Object.fromEntries(this.active.map(c =>
+      [c, this.basket.base * (this.basket.members[c].weight / total) / this.basket.members[c].ref_price]));
+  }
+  // Switch the composite to another subset, with no new requests: every stock's candles are already loaded. The signal
+  // is rebuilt from them at once (a new generation, so the page reloads its snapshot) and its alert tracker starts over,
+  // so a change of stocks is never announced as a change of signal.
+  setSelection(selection) {
+    const before = this.active.join();
+    this.setActive(selection);
+    if (this.active.join() === before) return false;
+    this.trackers.ndx10 = new Tracker(3);
+    if (!this.building) {
+      this.rebuild();
+      this.lastTick = null;  // a snapshot waits for a tick of the new composite
+      this.nextTick = 0;
+    }
+    return true;
+  }
   on(event, fn) { this.handlers[event].push(fn); }
   whenReady() { return this.lastTick && !this.building ? Promise.resolve() : new Promise(r => this.waiters.push(r)); }
   publish(event, data) {
@@ -292,7 +316,7 @@ class Engine {
   snapshot() {
     if (!this.lastTick) return { loading: true };
     return JSON.parse(JSON.stringify({
-      boot: this.boot, gen: this.gen, basket: this.basket, bench: BENCH, price: this.priceBars, tick: this.lastTick,
+      boot: this.boot, gen: this.gen, basket: this.basket, selection: this.active, bench: BENCH, price: this.priceBars, tick: this.lastTick,
       sections: Object.fromEntries(this.sections.map(s => [s.key, {
         bars: Object.fromEntries(Object.entries(s.signal.tfs).map(([m, tf]) => [m, tf.bars])),
         signal: s.signal.historyRuns(),
@@ -380,7 +404,7 @@ class Engine {
       this.priceBars.push(priceBar(b));
       if (this.priceBars.length > KEEP_MINUTES + 500) this.priceBars.splice(0, 500);
       this.sections[1].signal.onMemberBar(coin, b.t, b.c);
-    } else this.sections[0].signal.onMemberBar(coin, b.t, b.c);
+    } else if (this.coef[coin] !== undefined) this.sections[0].signal.onMemberBar(coin, b.t, b.c);  // unticked stocks only keep loading
   }
 
   connect() {
