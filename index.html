@@ -158,6 +158,10 @@
   .tag .t-vals { display: none; font-family: var(--font-num); color: var(--text); }
   .hovering .tag .t-vals { display: inline; }
   .tag .sw { width: 9px; height: 2px; border-radius: 1px; display: inline-block; vertical-align: middle; }
+  .tag.mix { flex-wrap: wrap; row-gap: 2px; white-space: normal; }
+  .tag .t-mm { display: inline-flex; align-items: center; gap: 5px; }
+  .tag .t-mm .sw { width: 12px; height: 3px; }
+  .tag .sw.dash { background: none !important; border-top: 2px dashed #f472b6; height: 0; }
   .tag.main { flex-wrap: wrap; row-gap: 2px; white-space: normal; max-width: calc(100% - 100px); font-family: var(--font-num); }
   .tag.main b { font-family: var(--font-ui); }
   .tag.main .ohlc b { font-family: var(--font-num); font-weight: 500; }
@@ -287,7 +291,8 @@
       </table>
       <p>All four bullish: <b class="up">BULLISH</b>. All four bearish: <b class="down">BEARISH</b>. Anything else: NEUTRAL. MACD is 12/26/9.</p>
       <h3>The two panels</h3>
-      <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same rules on the Nasdaq-100 perp itself, XYZ100; its 1m MACD (the first pane under its price chart) is for information only. The panes run from the shortest candle to the longest.</p>
+      <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same rules on the Nasdaq-100 perp itself, XYZ100; its 1m MACD (the small pane under its price chart) is for information only.</p>
+      <p>The MACD pane under each price chart draws the three MACD rules together: <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>, with the 15m signal line dashed. The 5m and 7m rules test their line against the zero line; the 15m rule tests its line against the dashed signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles.</p>
       <h3>The charts</h3>
       <p>Zones: a green zone (green ribbon along the bottom, labeled BULLISH zone) is where all four of a panel's rules were bullish at the candle's close; a red zone is where all four were bearish; no color means the rules disagreed (neutral). The zone is the signal, not the candle: a red candle can sit in a green zone. Zones change a few candles after the price turns, because MACD and EMAs follow price. The left chart's zones come from the 10 stocks, the right chart's from the index itself. The forming candle shows the signal live. <b class="up">▲ BUY</b> marks the candle where the signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
       <h3>Drawing tools</h3>
@@ -312,10 +317,14 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 // the price chart, so the panes under it are MACDs. NDX10's EMAs are scaled onto NAS100's (see emaSource).
 const CFG = {
   ndx10: { name: 'NDX10', eyebrow: '10-stock composite', panes: [5, 7, 15], digits: 2, macdDigits: 3,
-           rows: '56fr 14.67fr 14.67fr 14.67fr', scaleOnto: 'nas100' },
+           rows: '60fr 40fr', scaleOnto: 'nas100' },
   nas100: { name: 'NAS100', eyebrow: 'Nasdaq-100 actual · XYZ100', panes: [1, 5, 7, 15], digits: 1, macdDigits: 2,
-            rows: '56fr 11fr 11fr 11fr 11fr' },
+            rows: '56fr 12fr 32fr' },
 };
+// 5m, 7m and 15m MACD share one pane, one color each (the 1m MACD keeps its own small pane). Each line is drawn on the
+// price chart's candles, at its value as of every candle's close, so the pane lines up with the candles above it.
+const MIX = [5, 7, 15];
+const MIXC = { 5: '#38bdf8', 7: '#c084fc', 15: '#f472b6', sig: 'rgba(244, 114, 182, 0.6)' };
 const RULES = [  // [server key, rule text, pane], shortest candle first like the panes
   ['3m EMA8 vs EMA21', 'EMA 8 › EMA 21', 3],
   ['5m MACD vs 0', 'MACD › 0', 5],
@@ -814,7 +823,7 @@ function bucketFrom1m(start) {  // one price-chart bar rebuilt from its 1-minute
 
 class Panel {
   constructor(key, cfg) {
-    Object.assign(this, { key, cfg, panes: cfg.panes, stateAt: new Map(), liveState: 'NEUTRAL', mainBars: [], mainStates: [],
+    Object.assign(this, { key, cfg, panes: cfg.panes, charted: cfg.panes.filter(m => !MIX.includes(m)), stateAt: new Map(), liveState: 'NEUTRAL', mainBars: [], mainStates: [],
                           baseMarkers: [], paneBars: {}, store: { main: new Map() }, pane: {}, last: null, ema3: [], emaPts: [] });
     const tiles = RULES.length + (cfg.panes.includes(1) ? 1 : 0);
     $('board').insertAdjacentHTML('beforeend', `
@@ -831,7 +840,8 @@ class Panel {
         </div>
         <div class="stack" style="grid-template-rows:${cfg.rows}">
           <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
-          ${cfg.panes.map(m => `<div class="pane" id="${key}-p${m}"><div class="tag" id="${key}-t${m}"></div></div>`).join('')}
+          ${cfg.panes.filter(m => !MIX.includes(m)).map(m => `<div class="pane" id="${key}-p${m}"><div class="tag" id="${key}-t${m}"></div></div>`).join('')}
+          <div class="pane" id="${key}-pmix"><div class="tag mix" id="${key}-tmix"></div></div>
         </div>
       </section>`);
     const fine = { type: 'price', precision: cfg.macdDigits, minMove: 10 ** -cfg.macdDigits };
@@ -861,7 +871,8 @@ class Panel {
     // MACD panes. Their scale always takes in 0, so the zero line (what the 5m and 7m rules test) stays in view
     const withZero = base => { const r = base();
       return r && { ...r, priceRange: { minValue: Math.min(r.priceRange.minValue, 0), maxValue: Math.max(r.priceRange.maxValue, 0) } }; };
-    for (const m of this.panes) {
+    for (const m of this.panes) { this.paneBars[m] = []; this.store[m] = new Map(); }
+    for (const m of this.charted) {
       const chart = LightweightCharts.createChart($(`${key}-p${m}`), options(false, false));
       const p = { chart,
                   line: chart.addLineSeries({ color: C.macd, lineWidth: 2, priceFormat: fine, priceLineVisible: false, crosshairMarkerVisible: false,
@@ -871,7 +882,20 @@ class Panel {
       p.line.priceScale().applyOptions({ scaleMargins: { top: 0.18, bottom: 0.14 } });
       p.line.createPriceLine({ price: 0, color: C.zero, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: false });
       allCharts.push({ panel: this, key: m, chart, anchor: p.line, minutes: () => m, value: b => b.macd });
-      this.pane[m] = p; this.paneBars[m] = []; this.store[m] = new Map();
+      this.pane[m] = p;
+    }
+    {  // the shared 5m / 7m / 15m MACD pane
+      const chart = LightweightCharts.createChart($(`${key}-pmix`), options(false, false));
+      const line = (color, extra) => chart.addLineSeries({ color, lineWidth: 2, priceFormat: fine, priceLineVisible: false,
+                                                           crosshairMarkerVisible: false, ...extra });
+      const lines = {};
+      for (const m of MIX) lines[m] = line(MIXC[m], { autoscaleInfoProvider: withZero });
+      const sig = line(MIXC.sig, { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
+      lines[5].priceScale().applyOptions({ scaleMargins: { top: 0.16, bottom: 0.08 } });
+      lines[5].createPriceLine({ price: 0, color: C.zero, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: false });
+      this.mix = { chart, lines, sig, pts: [] };
+      this.store.mix = new Map();
+      allCharts.push({ panel: this, key: 'mix', chart, anchor: lines[15], minutes: () => tf, value: q => q.v[15] ?? q.v[7] ?? q.v[5] });
     }
     this.main.timeScale().subscribeVisibleLogicalRangeChange(() => { this.syncPanes(); syncMains(this); });
   }
@@ -883,8 +907,10 @@ class Panel {
   }
   setPane(m) {
     const all = this.paneBars[m], data = new Map();
-    for (const b of all) for (const [s, pt] of this.points(m, b)) { if (!data.has(s)) data.set(s, []); data.get(s).push(pt); }
-    for (const [s, d] of data) s.setData(d);
+    if (this.pane[m]) {
+      for (const b of all) for (const [s, pt] of this.points(m, b)) { if (!data.has(s)) data.set(s, []); data.get(s).push(pt); }
+      for (const [s, d] of data) s.setData(d);
+    }
     this.store[m] = new Map(all.map(b => [sec(b.time), b]));
   }
   mergePane(m, b, redraw) {
@@ -892,7 +918,47 @@ class Panel {
     if (how === 'same') return;
     this.store[m].set(sec(b.time), b);
     if (how === 'older') redraw.add(m);
-    else if (!redraw.has(m)) for (const [s, pt] of this.points(m, b)) s.update(pt);
+    else if (!redraw.has(m) && this.pane[m]) for (const [s, pt] of this.points(m, b)) s.update(pt);
+  }
+  // ---- the shared MACD pane: each MACD as of every candle's close (never ahead of it); the forming candle live ----
+  mixPoints() {
+    const bars = this.mainBars, out = [], k = Object.fromEntries(MIX.map(m => [m, -1]));
+    for (let i = 0; i < bars.length; i++) {
+      const end = bucketEnd(bars[i].time, tf), v = {};
+      let sig;
+      for (const m of MIX) {
+        const a = this.paneBars[m];
+        while (k[m] + 1 < a.length && bucketEnd(a[k[m] + 1].time, m) <= end) k[m]++;
+        const j = i === bars.length - 1 ? a.length - 1 : k[m];
+        if (j >= 0) { v[m] = a[j].macd; if (m === 15) sig = a[j].signal; }
+      }
+      out.push({ time: sec(bars[i].time), v, sig });
+    }
+    return out;
+  }
+  setMix() {  // redraw the pane's lines, or only move their newest points when that's all that changed
+    const mx = this.mix, pts = this.mixPoints(), old = mx.pts, n = pts.length, k = old.length;
+    const same = (a, b) => a.time === b.time && a.sig === b.sig && MIX.every(m => a.v[m] === b.v[m]);
+    let i = 0;
+    while (i < n && i < k && same(pts[i], old[i])) i++;
+    if (i === n && n === k) return;
+    mx.pts = pts;
+    const pt = (p, value) => value === undefined ? { time: p.time } : { time: p.time, value };  // no value yet: blank, but the candle keeps its slot
+    const put = p => { if (MIX.some(m => p.v[m] !== undefined)) this.store.mix.set(p.time, p); };
+    if (k && n >= k && n <= k + 1 && i >= k - 1 && pts[k - 1].time === old[k - 1].time) {
+      for (let j = k - 1; j < n; j++) {
+        const p = pts[j];
+        for (const m of MIX) mx.lines[m].update(pt(p, p.v[m]));
+        mx.sig.update(pt(p, p.sig));
+        put(p);
+      }
+      return;
+    }
+    for (const m of MIX) mx.lines[m].setData(pts.map(p => pt(p, p.v[m])));
+    mx.sig.setData(pts.map(p => pt(p, p.sig)));
+    this.store.mix = new Map();
+    pts.forEach(put);
+    this.syncPanes();
   }
 
   // ---- price chart: XYZ100 candles, with this panel's signal as zones and BUY / SELL marks ----
@@ -1008,7 +1074,8 @@ class Panel {
     const r = this.main.timeScale().getVisibleLogicalRange();
     if (!r || !this.mainBars.length) return;
     const from = timeAt(this.mainBars, tf, r.from), to = timeAt(this.mainBars, tf, r.to);
-    for (const m of this.panes) if (this.paneBars[m].length)
+    this.mix.chart.timeScale().setVisibleLogicalRange(r);  // the same candles as the price chart: the same bar indexes
+    for (const m of this.charted) if (this.paneBars[m].length)
       this.pane[m].chart.timeScale().setVisibleLogicalRange({ from: indexAt(this.paneBars[m], m, from), to: indexAt(this.paneBars[m], m, to) });
   }
 
@@ -1089,6 +1156,17 @@ class Panel {
              + `<span class="sw" style="background:${C.ema21}"></span>EMA 21${cfg.scaleOnto ? `<span class="t-of">of ${cfg.name}</span>` : ''}`
              + `<span class="t-dot ${e.v8 > e.v21 ? 'pass' : 'fail'}"></span>`
              + `<span class="t-vals">${num(e.v8, cfg.digits)} / ${num(e.v21, cfg.digits)}</span></span>` : '');
+      return;
+    }
+    if (key === 'mix') {
+      const q = live ? this.mix.pts[this.mix.pts.length - 1] : this.store.mix.get(t);
+      if (!q) return;
+      const d = cfg.macdDigits, v = q.v;
+      const item = (m, pass, val) => `<span class="t-mm"><span class="sw" style="background:${MIXC[m]}"></span><b class="num">${m}m</b>`
+        + `<span class="t-dot ${ok(v[m]) ? (pass ? 'pass' : 'fail') : ''}"></span><span class="t-vals">${val}</span></span>`;
+      $(`${k}-tmix`).innerHTML = `<span>MACD</span>` + item(5, v[5] > 0, sgn(v[5], d)) + item(7, v[7] > 0, sgn(v[7], d))
+        + item(15, v[15] > q.sig, `${sgn(v[15], d)} / ${sgn(q.sig, d)}`)
+        + `<span class="t-mm"><span class="sw dash"></span><span class="t-of">15m signal</span></span>`;
       return;
     }
     const arr = this.paneBars[key], b = live ? arr[arr.length - 1] : this.store[key].get(t);
@@ -1197,7 +1275,7 @@ function buildTfs() {
     tf = Number(b.dataset.m);
     try { localStorage.setItem('ndx10.tf', tf); } catch (e) {}
     buildTfs();
-    for (const p of Object.values(panels)) { p.drawMain(); p.setEmas(); }
+    for (const p of Object.values(panels)) { p.drawMain(); p.setEmas(); p.setMix(); }
     showRecent(); allTags();
   };
 }
@@ -1258,7 +1336,7 @@ function apply(s) {
     if (!panels[key]) panels[key] = new Panel(key, cfg);
     panels[key].load(s.sections[key], s.tick.sections[key]);
   }
-  for (const p of Object.values(panels)) p.setEmas();  // once every panel has its 3m bars: NDX10's scale uses NAS100's
+  for (const p of Object.values(panels)) { p.setEmas(); p.setMix(); }  // once every panel has its 3m bars: NDX10's scale uses NAS100's
   showGlobal(s.tick);
 }
 async function resync() {  // reload the snapshot, keep the view; ticks arriving meanwhile wait in `pending`
@@ -1286,7 +1364,7 @@ function onTick(k) {
   let mainRedraw = false;
   for (const b of k.price.tail) if (b && upsert(bars1m, b) === 'older') mainRedraw = true;
   for (const [key, s] of Object.entries(panels)) s.applyTick(k.sections[key], mainRedraw);
-  for (const p of Object.values(panels)) p.setEmas();
+  for (const p of Object.values(panels)) { p.setEmas(); p.setMix(); }
   showGlobal(k);
   if (!hovering) allTags();
 }
