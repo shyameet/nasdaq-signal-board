@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Divergence · Nasdaq Signal Board</title>
-<meta name="description" content="Where the 10 biggest Nasdaq-100 stocks and the Nasdaq-100 itself disagree on Hyperliquid, what usually happens next, and a live scoreboard.">
+<meta name="description" content="Where the 10 biggest Nasdaq-100 stocks and the Nasdaq-100 itself disagree on Hyperliquid, and what usually happens next.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -27,7 +27,7 @@
 <script src="lightweight-charts.js"></script>
 <style>
   /* The Divergence page: where the 10-stock signal (NDX10) and the index signal (NAS100) disagree. A status row,
-     then one XYZ100 chart marked only at those moments (both signals as strips along its bottom), and a scoreboard. */
+     then one XYZ100 chart marked only at those moments (both signals as strips along its bottom), and XYZ100's MACD pane. */
   :root {
     color-scheme: dark;
     --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
@@ -107,7 +107,7 @@
   .sig small { color: var(--muted); font-size: 12px; }
 
   /* ---- chart and scoreboard ---- */
-  .body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 12px; padding: 0 16px 14px; }
+  .body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 0 16px 14px; }
   .chart-card { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   .legend { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; padding: 10px 14px; border-bottom: 1px solid var(--line);
             color: var(--muted); font-size: 12px; }
@@ -281,16 +281,13 @@
         <span><i class="sw first"></i><b id="firstName">10 stocks first</b>index often follows</span>
         <span><i class="sw other"></i><b>Other</b>no clear pattern</span>
         <span><i class="lk e8"></i><b>EMA 8</b><i class="lk e21"></i><b>EMA 21</b>3m, XYZ100</span>
+        <span><i class="sw" style="background:rgba(43,182,138,.45)"></i><i class="sw" style="background:rgba(240,85,95,.45)"></i><b>MACD shading</b>both agree</span>
         <span><i class="lk" style="background:#38bdf8"></i><i class="lk" style="background:#c084fc"></i><i class="lk" style="background:#f472b6"></i><b>MACD</b>5m · 7m · 15m, XYZ100</span>
         <span class="hint">Bottom strips: each signal · green bullish · red bearish · gray neutral</span>
       </div>
       <div class="pane" id="pmain"><div class="tag" id="tag"></div></div>
       <div class="pane mix" id="pmix"><div class="tag mixtag" id="mixtag"></div></div>
     </div>
-    <aside class="side">
-      <div class="card" id="score"><div class="card-h"><h2>Scoreboard</h2></div><div class="empty">Waiting for data…</div></div>
-      <div class="card" id="latest"><div class="card-h"><h2>Latest marks</h2></div><div class="empty">Waiting for data…</div></div>
-    </aside>
   </section>
 </main>
 <footer class="foot">
@@ -298,13 +295,11 @@
     <summary>How it works</summary>
     <div class="how-body">
       <h3>What this page shows</h3>
-      <p>The Signals page runs the same four rules on two series: the 10 biggest Nasdaq-100 stocks combined (NDX10) and the Nasdaq-100 itself (XYZ100). Here you can pick any of those 10 stocks (one to ten); their official weights are rescaled to 100% and everything below is rebuilt for your pick, with no new download. The percentages in the study below were measured on the full 10; for a custom basket, trust only the scoreboard. They agree about three quarters of the time. This page marks only the moments they disagree; when they agree, the chart stays clean.</p>
+      <p>The Signals page runs the same four rules on two series: the 10 biggest Nasdaq-100 stocks combined (NDX10) and the Nasdaq-100 itself (XYZ100). Here you can pick any of those 10 stocks (one to ten); their official weights are rescaled to 100% and everything below is rebuilt for your pick, with no new download. The percentages in the study below were measured on the full 10; for a custom basket, treat them as hints at best. They agree about three quarters of the time. This page marks only the moments they disagree; when they agree, the chart stays clean.</p>
       <h3>The two patterns</h3>
       <p><b class="alone">Index alone</b>: the index turned bullish while the 10 stocks didn't. In a 3-day study, XYZ100 was lower 15 minutes later about 7 times out of 10, on every day. <b class="up">10 stocks first</b>: the 10 stocks turned bullish while the index hadn't yet. XYZ100 was higher 30 minutes later about 7 times out of 10, but less consistently. Other differences showed no clear pattern.</p>
-      <h3>The scoreboard</h3>
-      <p>It replays the history loaded on this page (about two days online, three and a half on the local version) and counts how often each mark was followed by the expected move. The gray line on each bar is how often XYZ100 moved that way anyway, at any minute: a pattern is only useful if it beats that line. New marks are added as they happen. A few days is not much data, so treat the patterns as hints.</p>
       <h3>The MACD pane</h3>
-      <p>Under the chart: XYZ100's <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b> MACD (12/26/9), the index's own three MACD rules, with the 15m signal line dashed. The 5m and 7m rules test their line against zero, the 15m rule against the dashed signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles.</p>
+      <p>Under the chart: shaded green where both signals are bullish and red where both are bearish (the moments they agree), with XYZ100's <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b> MACD (12/26/9), the index's own three MACD rules, with the 15m signal line dashed. The 5m and 7m rules test their line against zero, the 15m rule against the dashed signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles.</p>
       <p>For information only, not investment advice.</p>
     </div>
   </details>
@@ -482,6 +477,8 @@ function makeChart() {
                                                           crosshairMarkerVisible: false, ...extra });
   for (const m of MIX) mixLines[m] = line(MIXC[m], { autoscaleInfoProvider: withZero });
   mixSig = line(MIXC.sig, { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
+  agree = new AgreeLayer();
+  mixLines[5].attachPrimitive(agree);
   mixLines[5].priceScale().applyOptions({ scaleMargins: { top: 0.2, bottom: 0.08 } });
   mixLines[5].createPriceLine({ price: 0, color: '#6b778a', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: false });
   chart.timeScale().subscribeVisibleLogicalRangeChange(syncMix);
@@ -565,6 +562,35 @@ function emaAt(t) {  // the EMA point in effect at candle time t (seconds): the 
   while (lo <= hi) { const mid = (lo + hi) >> 1; if (emaPts[mid].time <= t) { hit = emaPts[mid]; lo = mid + 1; } else hi = mid - 1; }
   return hit;
 }
+class AgreeLayer {  // behind the MACD lines: green where both signals are bullish, red where both are bearish
+  constructor() { this.bands = []; this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: t => this.render(t) }) }]; }
+  attached({ requestUpdate }) { this.requestUpdate = requestUpdate; }
+  detached() { this.requestUpdate = null; }
+  paneViews() { return this.views; }
+  updateAllViews() {  // the same candles as the chart above, so the same bar indexes
+    const ts = mixChart.timeScale(), n = pairs.length, bands = [];
+    const x0 = n ? ts.logicalToCoordinate(0) : null, x1 = n ? ts.logicalToCoordinate(1) : null;
+    if (x0 !== null && x1 !== null) {
+      const step = x1 - x0, both = i => pairs[i].sn && pairs[i].sn === pairs[i].sx && AGREE[pairs[i].sn] ? pairs[i].sn : null;
+      for (let i = 0, j; i < n; i = j + 1) {
+        const k = both(i);
+        for (j = i; j + 1 < n && both(j + 1) === k;) j++;
+        if (k) bands.push([x0 + (i - 0.5) * step, x0 + (j + 0.5) * step, AGREE[k]]);
+      }
+    }
+    this.bands = bands;
+  }
+  render(target) {
+    target.useBitmapCoordinateSpace(({ context: c, bitmapSize: size, horizontalPixelRatio: hr }) => {
+      for (const [l, r, color] of this.bands) {
+        const a = Math.max(0, Math.round(l * hr)), b = Math.min(size.width, Math.round(r * hr));
+        if (b > a) { c.fillStyle = color; c.fillRect(a, 0, b - a, size.height); }
+      }
+    });
+  }
+}
+const AGREE = { BULLISH: 'rgba(43, 182, 138, 0.12)', BEARISH: 'rgba(240, 85, 95, 0.11)' };
+let agree;
 function syncMix() {
   const r = chart.timeScale().getVisibleLogicalRange();
   if (r) mixChart.timeScale().setVisibleLogicalRange(r);
@@ -631,6 +657,7 @@ function draw() {  // everything again: after a snapshot, a candle-size change, 
   index = new Map(mainBars.map((b, i) => [sec(b.time), i]));
   chart.applyOptions({ watermark: { text: `XYZ100 · ${tf}m` } });
   if (layer.requestUpdate) layer.requestUpdate();
+  if (agree.requestUpdate) agree.requestUpdate();
 }
 function update(older) {  // each tick: the newest candle, and both signals (late states settle older candles too)
   const last1m = bars1m[bars1m.length - 1], n = mainBars.length;
@@ -648,6 +675,7 @@ function update(older) {  // each tick: the newest candle, and both signals (lat
   computePairs();
   setMarkers(false);
   if (layer.requestUpdate) layer.requestUpdate();
+  if (agree.requestUpdate) agree.requestUpdate();
 }
 function showRecent() {
   requestAnimationFrame(() => {
@@ -706,55 +734,6 @@ function showQuote(k) {
   const ch = ref ? px / ref - 1 : null;
   $('pxchg').textContent = ch === null ? '' : `${pct(ch)} 24h`;
   $('pxchg').className = 'chg num ' + (ch >= 0 ? 'up' : 'down');
-}
-
-// ---- the scoreboard: every mark in the loaded history, and what XYZ100 did after it --------------------------
-function showScore() {
-  const closeAt = new Map(), closed = bars1m.slice(0, -1);  // the newest 1-minute bar is still forming
-  for (const b of closed) closeAt.set(b.time, b.close);
-  const lastClosed = closed.length ? closed[closed.length - 1].time : 0;
-  const minutes = [...stateAt.nas100.keys()].filter(m => stateAt.ndx10.has(m)).sort((a, b) => a - b);
-  if (!minutes.length) return;
-  const events = [];
-  let prev = null, prevM = null;
-  for (const m of minutes) {
-    const k = classify(stateAt.ndx10.get(m), stateAt.nas100.get(m));
-    if (prevM !== m - MIN) prev = null;  // a hole in the history: start over
-    if ((k === 'alone' || k === 'first') && k !== prev) events.push({ m, kind: k });
-    prev = k; prevM = m;
-  }
-  const stats = { alone: { n: 0, worked: 0, sum: 0, open: 0 }, first: { n: 0, worked: 0, sum: 0, open: 0 } };
-  for (const e of events) {
-    const P = PATTERN[e.kind], a = closeAt.get(e.m), end = e.m + P.horizon * MIN, b = closeAt.get(end), s = stats[e.kind];
-    if (a === undefined) continue;
-    if (end > lastClosed || b === undefined) { e.open = true; s.open += 1; continue; }
-    e.move = b - a; e.worked = Math.sign(e.move) === P.expect;
-    s.n += 1; s.sum += e.move; if (e.worked) s.worked += 1;
-  }
-  const anyMinute = (h, dir) => { let hit = 0, all = 0;  // how often XYZ100 moved that way anyway
-    for (const m of minutes) { const a = closeAt.get(m), b = closeAt.get(m + h * MIN); if (a !== undefined && b !== undefined) { all += 1; if (Math.sign(b - a) === dir) hit += 1; } }
-    return all ? Math.round(hit / all * 100) : null; };
-  const days = (minutes[minutes.length - 1] - minutes[0]) / DAY;
-  const block = k => {
-    const P = PATTERN[k], s = stats[k], rate = s.n ? Math.round(s.worked / s.n * 100) : null, base = anyMinute(P.horizon, P.expect);
-    const color = rate === null ? 'var(--muted)' : base !== null && rate > base + 5 ? P.color : 'var(--text)';
-    return `<div class="pat"><div class="pat-h"><i class="sw ${k}"></i><b>${P.name}</b><span class="pct" style="color:${color}">${rate === null ? '—' : rate + '%'}</span></div>`
-      + `<div class="pat-q">Worked when XYZ100 was ${P.test}</div>`
-      + `<div class="bar"><span style="width:${rate ?? 0}%;background:${P.color}"></span>${base === null ? '' : `<i style="left:${base}%" title="Any minute: ${base}%"></i>`}</div>`
-      + `<div class="pat-f"><span>${s.worked} of ${s.n} worked${s.open ? ` · ${s.open} waiting` : ''}</span>`
-      + `<span>average <b>${s.n ? pts(s.sum / s.n) : '—'}</b></span></div></div>`;
-  };
-  $('score').innerHTML = `<div class="card-h"><h2>Scoreboard</h2><small>last ${days.toFixed(1)} days</small></div>${block('alone')}${block('first')}`
-    + '<p class="base"><i></i>Gray line: how often XYZ100 moved that way anyway, at any minute.</p>'
-    + (custom() ? `<p class="base">Your ${NLAB}: ${ACTIVE.map(tk).join(', ')}. The "often fades" and "index often follows" notes come from a study of all 10, so judge this basket by its own bars above.</p>` : '');
-  const recent = events.slice(-8).reverse().map(e => {
-    const P = PATTERN[e.kind];
-    const r = e.open ? '<span style="color:var(--muted)">waiting…</span>'
-      : `<span style="color:${e.worked ? P.color : 'var(--muted)'}">${pts(e.move)} ${e.worked ? '✓' : '✗'}</span>`;
-    return `<li><span class="t">${shortWhen(e.m)}</span><span class="k"><i class="sw ${e.kind}"></i>${P.name}</span><span class="r">${r}</span></li>`;
-  }).join('');
-  $('latest').innerHTML = '<div class="card-h"><h2>Latest marks</h2><small>result after 15 or 30 min</small></div>'
-    + (recent ? `<ol class="recent">${recent}</ol>` : '<div class="empty">No marks yet in the loaded history.</div>');
 }
 
 // ---- alerts: when an Index alone or a 10 stocks first appears and holds for 3 s ----------------------------
@@ -931,7 +910,7 @@ function apply(s) {
     for (const b of s.tick.sections.nas100.tf[m]) if (b.time > newestM) upsert(macd[m], b);
   }
   $('banner').hidden = true;
-  draw(); showHead(); showScore(); showQuote(s.tick);
+  draw(); showHead(); showQuote(s.tick);
 }
 async function resync() {  // reload the snapshot, keep the view; ticks arriving meanwhile wait in `pending`
   if (pending) return;
@@ -966,7 +945,6 @@ function onTick(k) {
   for (const m of MIX) for (const b of k.sections.nas100.tf[m]) upsert(macd[m], b);
   update(older);
   showHead();
-  if (history) showScore();
   showQuote(k);
   if (!hovering) { tag(); mixTag(); }
   checkAlert();

@@ -115,37 +115,38 @@
   .tool svg .fill { fill: currentColor; stroke: none; }
   .rail .sep { width: 20px; height: 1px; margin: 6px 0; background: var(--line-strong); }
   .pane.drawing { touch-action: none; }  /* with a tool picked, a finger draws instead of scrolling the page */
-  .phead { flex: none; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 12px; border-bottom: 1px solid var(--line); }
-  .phead-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  .phead { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 7px 12px; border-bottom: 1px solid var(--line); }
+  .phead-top { display: contents; }
   .ptitle { min-width: 0; }
   .eyebrow { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
-  .pline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 2px; }
-  .pname { font-size: 16px; font-weight: 700; }
-  .pval { font-size: 20px; font-weight: 600; }
-  .state { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
-  .state-word { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 8px; font-weight: 700;
-                font-size: 14px; letter-spacing: .12em; background: var(--tile); color: var(--muted);
+  .ptitle .eyebrow { display: none; }  /* the name says it; the full title is in the panel's tooltip */
+  .pline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+  .pname { font-size: 14px; font-weight: 700; }
+  .pval { font-size: 16px; font-weight: 600; }
+  .state { order: 3; margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .state-word { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 7px; font-weight: 700;
+                font-size: 12.5px; letter-spacing: .1em; background: var(--tile); color: var(--muted);
                 box-shadow: inset 0 0 0 1px var(--line-strong); transition: background .3s, color .3s, box-shadow .3s; }
   .state-word::before { content: "–"; font-size: 13px; }
   .state.bull .state-word { background: var(--up); color: #04150f; box-shadow: 0 0 22px rgba(43, 182, 138, .35); }
   .state.bull .state-word::before { content: "▲"; }
   .state.bear .state-word { background: var(--down); color: #1e0507; box-shadow: 0 0 22px rgba(240, 85, 95, .35); }
   .state.bear .state-word::before { content: "▼"; }
-  .state-since { color: var(--muted); font-size: 11px; }
+  .state-since { order: -1; color: var(--muted); font-size: 11px; white-space: nowrap; }
 
-  .rules { display: grid; gap: 8px; }
-  .rule { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 8px 11px; border-radius: 10px;
+  .rules { order: 2; display: flex !important; flex-wrap: wrap; gap: 5px; }
+  .rule { min-width: 0; display: flex; flex-direction: row; align-items: center; gap: 6px; padding: 3px 8px 3px 7px; border-radius: 7px; cursor: default;
           background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
   .rule.pass { background: rgba(43, 182, 138, .08); box-shadow: inset 0 0 0 1px rgba(43, 182, 138, .32); }
   .rule.fail { background: rgba(240, 85, 95, .07); box-shadow: inset 0 0 0 1px rgba(240, 85, 95, .28); }
-  .rule .ic { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  .rule .ic { width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; flex: none;
               background: var(--line-strong); color: var(--muted); font: 700 10px var(--font-ui); }
   .rule.pass .ic { background: var(--up); color: #04150f; } .rule.fail .ic { background: var(--down); color: #1e0507; }
   .rule.info .ic { background: transparent; box-shadow: inset 0 0 0 1.5px var(--faint); color: var(--muted); }
   .rule .ic svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
-  .rule .r1 { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 13px; font-weight: 700; }
-  .rule .rn { min-width: 0; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .rule .r2 { min-width: 0; font: 500 12px var(--font-num); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rule .r1 { display: flex; flex-direction: row-reverse; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; }
+  .rule .rn { display: none; min-width: 0; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rule .r2 { min-width: 0; font: 500 11.5px var(--font-num); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .stack { flex: 1; min-height: 0; display: grid; }
   .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }  /* lets charts shrink */
@@ -218,13 +219,13 @@
     html, body { height: auto; }
     .board { grid-template-columns: auto minmax(0, 1fr); }
     .rail { grid-row: 1 / span 2; }
-    .panel { height: 96vh; min-height: 640px; }
+    .panel { height: 92vh; min-height: 600px; }
     .panel + .panel { border-left: 0; border-top: 1px solid var(--line-strong); }
   }
   @media (max-width: 560px) {
     .topbar { gap: 8px 12px; }
     .session { display: none; }
-    .rules { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+    .state-since { display: none; }
     .board { grid-template-columns: minmax(0, 1fr); }  /* the drawing tools become a row above the charts */
     .rail { grid-row: auto; position: sticky; top: 0; z-index: 20; border-right: 0; border-bottom: 1px solid var(--line-strong); }
     .rail-in { position: static; flex-direction: row; gap: 1px; overflow-x: auto; scrollbar-width: none; padding: 5px 4px; }
@@ -291,10 +292,10 @@
       </table>
       <p>All four bullish: <b class="up">BULLISH</b>. All four bearish: <b class="down">BEARISH</b>. Anything else: NEUTRAL. MACD is 12/26/9.</p>
       <h3>The two panels</h3>
-      <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same rules on the Nasdaq-100 perp itself, XYZ100; its 1m MACD (the small pane under its price chart) is for information only.</p>
+      <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same rules on the Nasdaq-100 perp itself, XYZ100.</p>
       <p>The MACD pane under each price chart draws the three MACD rules together: <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>, with the 15m signal line dashed. The 5m and 7m rules test their line against the zero line; the 15m rule tests its line against the dashed signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles.</p>
       <h3>The charts</h3>
-      <p>Zones: a green zone (green ribbon along the bottom, labeled BULLISH zone) is where all four of a panel's rules were bullish at the candle's close; a red zone is where all four were bearish; no color means the rules disagreed (neutral). The zone is the signal, not the candle: a red candle can sit in a green zone. Zones change a few candles after the price turns, because MACD and EMAs follow price. The left chart's zones come from the 10 stocks, the right chart's from the index itself. The forming candle shows the signal live. <b class="up">▲ BUY</b> marks the candle where the signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
+      <p>Zones: a green zone (green ribbon along the bottom, labeled BULLISH zone) is where all four of a panel's rules were bullish at the candle's close; a red zone is where all four were bearish; no color means the rules disagreed (neutral). The zone is the signal, not the candle: a red candle can sit in a green zone. Zones change a few candles after the price turns, because MACD and EMAs follow price. The left chart's zones come from the 10 stocks, the right chart's from the index itself; the MACD pane under each chart is shaded the same way. The forming candle shows the signal live. <b class="up">▲ BUY</b> marks the candle where the signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
       <h3>Drawing tools</h3>
       <p>The toolbar on the left draws on the price charts: trend line, horizontal and vertical line, rectangle, Fib retracement and measure. Drag from one point to the other, or click one and then the other. Click a drawing to select it, drag it or its handles to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. Drawings show on both price charts and are saved in this browser.</p>
       <h3>Data</h3>
@@ -317,11 +318,11 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 // the price chart, so the panes under it are MACDs. NDX10's EMAs are scaled onto NAS100's (see emaSource).
 const CFG = {
   ndx10: { name: 'NDX10', eyebrow: '10-stock composite', panes: [5, 7, 15], digits: 2, macdDigits: 3,
-           rows: '60fr 40fr', scaleOnto: 'nas100' },
-  nas100: { name: 'NAS100', eyebrow: 'Nasdaq-100 actual · XYZ100', panes: [1, 5, 7, 15], digits: 1, macdDigits: 2,
-            rows: '56fr 12fr 32fr' },
+           rows: '72fr 28fr', scaleOnto: 'nas100' },
+  nas100: { name: 'NAS100', eyebrow: 'Nasdaq-100 actual · XYZ100', panes: [5, 7, 15], digits: 1, macdDigits: 2,
+            rows: '72fr 28fr' },
 };
-// 5m, 7m and 15m MACD share one pane, one color each (the 1m MACD keeps its own small pane). Each line is drawn on the
+// 5m, 7m and 15m MACD share one pane, one color each. Each line is drawn on the
 // price chart's candles, at its value as of every candle's close, so the pane lines up with the candles above it.
 const MIX = [5, 7, 15];
 const MIXC = { 5: '#38bdf8', 7: '#c084fc', 15: '#f472b6', sig: 'rgba(244, 114, 182, 0.6)' };
@@ -444,16 +445,18 @@ function segDist(x, y, x1, y1, x2, y2) {  // distance from (x, y) to the segment
 const ZONE_EDGE = { BULLISH: '#2bb68a', BEARISH: '#f0555f' };
 const ZONE_WORD = { BULLISH: '▲ BULLISH zone', BEARISH: '▼ BEARISH zone' };
 class ZoneLayer {  // green and red bands behind the candles: the panel's signal at each candle (a series primitive)
-  constructor(panel) {
-    this.panel = panel; this.bands = [];
-    this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: target => this.render(target) }) },
-                  { zOrder: () => 'top', renderer: () => ({ draw: target => this.labels(target) }) }];
+  // `chart` is the chart it sits on: the price chart, or the MACD pane under it (the same candles, so the same bands;
+  // there without the ribbon and the zone's name)
+  constructor(panel, chart = () => panel.main, full = true) {
+    this.panel = panel; this.chart = chart; this.full = full; this.bands = [];
+    this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: target => this.render(target) }) }];
+    if (full) this.views.push({ zOrder: () => 'top', renderer: () => ({ draw: target => this.labels(target) }) });
   }
   attached({ requestUpdate }) { this.requestUpdate = requestUpdate; }
   detached() { this.requestUpdate = null; }
   paneViews() { return this.views; }
   updateAllViews() {  // one band per run of candles in the same bullish or bearish state, edge to edge, so no gaps
-    const st = this.panel.mainStates, ts = this.panel.main.timeScale(), bands = [];
+    const st = this.panel.mainStates, ts = this.chart().timeScale(), bands = [];
     const x0 = st.length ? ts.logicalToCoordinate(0) : null, x1 = st.length ? ts.logicalToCoordinate(1) : null;
     if (x0 !== null && x1 !== null) {
       const step = x1 - x0;
@@ -471,7 +474,7 @@ class ZoneLayer {  // green and red bands behind the candles: the panel's signal
         const a = Math.max(0, Math.round(left * hr)), b = Math.min(size.width, Math.round(right * hr));
         if (b <= a) continue;
         c.fillStyle = ZONE[st]; c.fillRect(a, 0, b - a, size.height);                    // the tint
-        c.fillStyle = ZONE_EDGE[st]; c.fillRect(a, size.height - ribbon, b - a, ribbon);  // the ribbon
+        if (this.full) { c.fillStyle = ZONE_EDGE[st]; c.fillRect(a, size.height - ribbon, b - a, ribbon); }  // the ribbon
       }
     });
   }
@@ -832,7 +835,7 @@ class Panel {
           <div class="phead-top">
             <div class="ptitle">
               <div class="eyebrow">${cfg.eyebrow}</div>
-              <div class="pline"><span class="pname">${cfg.name}</span><span class="pval num" id="${key}-val">—</span><span class="chg num" id="${key}-chg"></span></div>
+              <div class="pline"><span class="pname" title="${cfg.eyebrow}">${cfg.name}</span><span class="pval num" id="${key}-val">—</span><span class="chg num" id="${key}-chg"></span></div>
             </div>
             <div class="state" id="${key}-state"><span class="state-word">LOADING</span><span class="state-since" id="${key}-since"></span></div>
           </div>
@@ -894,6 +897,8 @@ class Panel {
       lines[5].priceScale().applyOptions({ scaleMargins: { top: 0.16, bottom: 0.08 } });
       lines[5].createPriceLine({ price: 0, color: C.zero, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: false });
       this.mix = { chart, lines, sig, pts: [] };
+      this.mixZones = new ZoneLayer(this, () => chart, false);  // the price chart's zones, behind the MACD lines too
+      lines[5].attachPrimitive(this.mixZones);
       this.store.mix = new Map();
       allCharts.push({ panel: this, key: 'mix', chart, anchor: lines[15], minutes: () => tf, value: q => q.v[15] ?? q.v[7] ?? q.v[5] });
     }
@@ -961,6 +966,7 @@ class Panel {
     this.syncPanes();
   }
 
+  redrawZones() { for (const z of [this.zones, this.mixZones]) if (z && z.requestUpdate) z.requestUpdate(); }
   // ---- price chart: XYZ100 candles, with this panel's signal as zones and BUY / SELL marks ----
   closedState(b) {  // the signal at the bar's last finished minute
     for (let t = bucketEnd(b.time, tf) - 60000; t >= b.time; t -= 60000) { const s = this.stateAt.get(t); if (s) return s; }
@@ -1001,7 +1007,7 @@ class Panel {
       if (st && st !== this.mainStates[i]) { this.mainStates[i] = st; changed = true; }
     }
     if (!changed) return;
-    if (this.zones.requestUpdate) this.zones.requestUpdate();  // the states changed, not the bars
+    this.redrawZones();  // the states changed, not the bars
     this.baseMarkers = [];
     for (let i = 1; i < n - 1; i++) if (this.flips(i)) this.baseMarkers.push(this.arrow(this.mainBars[i], this.mainStates[i]));
     this.setMarkers();
@@ -1026,7 +1032,7 @@ class Panel {
     for (const [s, p] of this.mainPoints(this.mainBars[i])) s.update(p);
     this.store.main.set(sec(this.mainBars[i].time), { ...this.mainBars[i], state: this.mainStates[i] });
     this.setMarkers();
-    if (this.zones.requestUpdate) this.zones.requestUpdate();  // the live state may have changed with the same price
+    this.redrawZones();  // the live state may have changed with the same price
   }
   // ---- 3m EMA 8 / 21 on the price chart ----
   emaSource() {  // this panel's 3m EMAs at XYZ100's price level (e8, e21), with the values its rule tests (v8, v21)
@@ -1133,7 +1139,7 @@ class Panel {
            + `<div class="r1"><span>${m}m</span><span class="ic">${pass ? ICON.check : ICON.cross}</span></div>`
            + `<div class="rn">${text}</div><div class="r2">${val}</div></div>`;
     });
-    if (s.tf[1]) {
+    if (cfg.panes.includes(1) && s.tf[1]) {  // a 1m MACD tile, for a panel configured with a 1m pane
       const b = last(1);
       tiles.unshift(`<div class="rule info" title="1-minute MACD, shown for information; not part of the signal">`
                + `<div class="r1"><span>1m</span><span class="ic">i</span></div>`
