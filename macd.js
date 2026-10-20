@@ -22,17 +22,19 @@ const PANES = {
 };
 const LINES = [1, 2, 3, 5, 7, 9, 11, 15];  // every MACD drawn: the candle sizes the engine must provide
 const COLOR = { 1: '#facc15', 2: '#fb7185', 3: '#22d3ee', 5: '#38bdf8', 7: '#c084fc', 9: '#2dd4bf', 11: '#a3e635', 15: '#f472b6' };
-// Each wave is green while its MACD is above 0 and red while below, so its color flips where it crosses zero. Waves in a
-// pane are told apart by shade (light for short candles, dark for long ones) and by their dashed signal lines, which
-// keep the wave's own color (COLOR).
-const UP = ['#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d'];
-const DOWN = ['#fecaca', '#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c'];
-function shades(lines) {  // minutes -> [above-zero color, below-zero color], spread over the ramps
-  return Object.fromEntries(lines.map((m, i) => {
-    const k = lines.length < 2 ? 2 : Math.round(i * (UP.length - 1) / (lines.length - 1));
-    return [m, [UP[k], DOWN[k]]];
-  }));
-}
+// Each wave has two colors of its own: one while its MACD is above 0, another while below, so its color changes where it
+// crosses zero. No color repeats within a pane; the dashed signal lines are the wave's above-zero color, faded.
+const PAIRS = {  // minutes -> [above 0, below 0]
+  2: ['#fb7185', '#22c55e'],   // rose / green
+  3: ['#22d3ee', '#eab308'],   // cyan / gold
+  1: ['#facc15', '#8b5cf6'],   // yellow / violet
+  5: ['#38bdf8', '#f97316'],   // sky / orange
+  7: ['#c084fc', '#84cc16'],   // lilac / lime
+  9: ['#2dd4bf', '#ef4444'],   // teal / red
+  11: ['#e2e8f0', '#0369a1'],  // white / deep blue
+  15: ['#f472b6', '#b45309'],  // pink / brown
+};
+const shades = lines => Object.fromEntries(lines.map(m => [m, PAIRS[m]]));
 const faded = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}, ${a})`;
 const RULE = { 5: 'MACD vs 0, one of the gate\'s rules', 9: 'MACD vs 0, one of the gate\'s rules',
                11: 'MACD vs 0, one of the gate\'s rules' };
@@ -183,7 +185,7 @@ class MacdPane {
     for (const m of this.lines) this.series[m] = line(this.shade2[m][0], { lineWidth: m === 1 ? 1 : 2 });
     this.sigs = {};  // each line's signal line (Trend only): dashed, in the line's color
     if (PANES[this.kind].signals) for (const m of this.lines)
-      this.sigs[m] = line(faded(COLOR[m], 0.6), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
+      this.sigs[m] = line(faded(PAIRS[m][0], 0.55), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
     this.zero.priceScale().applyOptions({ scaleMargins: { top: 0.2, bottom: 0.06 } });
     this.shading = new Bands(() => chart, () => this.pts.length, i => {
       if (this.shade) return MATCH[this.shade(i)] || null;  // the page's state at candle i: the gate
@@ -246,7 +248,7 @@ class MacdPane {
     const v = q.v, d = this.digits;
     const item = m => {
       const pass = v[m] > 0;  // the dot: above or below zero, as the gate tests
-      const tip = `${m}m MACD (green above 0, red below)${RULE[m] ? `: ${RULE[m]}` : ' (not in the gate)'}. Click to ${show[m] ? 'hide' : 'show'}`;
+      const tip = `${m}m MACD (left color above 0, right color below)${RULE[m] ? `: ${RULE[m]}` : ' (not in the gate)'}. Click to ${show[m] ? 'hide' : 'show'}`;
       return `<span class="t-mm${show[m] ? '' : ' off'}" data-k="${m}" title="${tip}"><span class="sw" style="background:linear-gradient(90deg, ${this.shade2[m][0]} 50%, ${this.shade2[m][1]} 50%)"></span><b>${m}m</b>`
         + `<span class="t-dot ${ok(v[m]) ? (pass ? 'pass' : 'fail') : ''}"></span>`
         + `<span class="t-v">${this.sigs[m] ? `${sgn(v[m], d)} / ${sgn(q.sg[m], d)}` : sgn(v[m], d)}</span></span>`;
