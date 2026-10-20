@@ -29,7 +29,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
-<script src="macd.js?v=0df240244d"></script>
+<script src="macd.js?v=b53882dc6a"></script>
 <style>
   /* Layout: a two-column trading board. Each instrument gets a signal header (state + one tile
      per rule), then XYZ100 candles with that signal's zones, BUY/SELL marks and 3m EMAs, then the MACD panes.
@@ -294,7 +294,7 @@
       <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same rules on the Nasdaq-100 perp itself, XYZ100.</p>
       <p>Under each price chart are two MACD panes (12/26/9). <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>, the signal's three MACD rules (the 15m signal line dashed), plus <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>. <b>Entry</b>: <b style="color:#facc15">1m</b>, <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Each pane is shaded where the 10 stocks' MACDs and the index's MACDs agree on every line switched on in it: green when all are above zero for both, red when all are below zero for both. Dashed vertical lines mark where a new day begins in your timezone.</p>
       <h3>The charts</h3>
-      <p>Zones: a green zone (green ribbon along the bottom, labeled BULLISH zone) is where all four of a panel's rules were bullish at the candle's close; a red zone is where all four were bearish; no color means the rules disagreed (neutral). The zone is the signal, not the candle: a red candle can sit in a green zone. Zones change a few candles after the price turns, because MACD and EMAs follow price. The left chart's zones come from the 10 stocks, the right chart's from the index itself. The forming candle shows the signal live. <b class="up">▲ BUY</b> marks the candle where the signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
+      <p>Zones: a green zone (green ribbon along the bottom, labeled BULLISH zone) is where all four of a panel's rules were bullish at the candle's close; a red zone is where all four were bearish; no color means the rules disagreed (neutral). The zone is the signal, not the candle: a red candle can sit in a green zone. Zones change a few candles after the price turns, because MACD and EMAs follow price. The left chart's zones come from the 10 stocks, the right chart's from the index itself. The forming candle shows the signal live. <b class="up">▲ BUY</b> marks the candle where the signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone. The purple lines are an EMA stack: EMA 8, 21, 34, 55 and 89 of the candles shown (lightest is 8). Its badge says BULL STACK when each EMA is above the next, BEAR STACK when each is below, MIXED otherwise. Click a name in the chart label to hide that EMA, or the 3m EMA 8/21 pair.</p>
       <h3>Drawing tools</h3>
       <p>The toolbar on the left draws on the price charts: trend line, horizontal and vertical line, rectangle, Fib retracement and measure. Drag from one point to the other, or click one and then the other. Click a drawing to select it, drag it or its handles to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. Drawings show on both price charts and are saved in this browser.</p>
       <h3>Data</h3>
@@ -855,6 +855,10 @@ class Panel {
     // the 3m EMA 8 and EMA 21 that the 3m rule tests, over the candles (see emaPoints)
     const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e8 = emaLine(C.ema8); this.e21 = emaLine(C.ema21);
+    for (const s of [this.e8, this.e21]) s.applyOptions({ visible: NsbMacd.show.rule });
+    // the EMA stack (8, 21, 34, 55, 89) of the candles shown; its switches and the 3m pair's are in the chart's label
+    this.stack = new NsbMacd.EmaStack({ chart: this.main, bars: () => this.mainBars, tf: () => tf });
+    NsbMacd.chips($(`${key}-tmain`));
     // the signal zones behind the candles: green while bullish, red while bearish
     this.zones = new ZoneLayer(this);
     this.candles.attachPrimitive(this.zones);
@@ -921,6 +925,7 @@ class Panel {
   }
   setMacd() {  // both MACD panes from the latest bars; lined up with the price chart again after a full redraw
     let full = false;
+    this.stack.update();
     for (const pane of Object.values(this.macd)) if (pane.update()) full = true;
     if (full) this.syncPanes();
   }
@@ -1119,10 +1124,8 @@ class Panel {
         + `<span class="ohlc">O <b>${num(b.open)}</b> H <b>${num(b.high)}</b> L <b>${num(b.low)}</b> `
         + `C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close)}</b></span>`
         + (st ? `<span class="t-state ${kind}">${st}</span>` : '')
-        + (e ? `<span class="t-ema"><b class="num">3m</b><span class="sw" style="background:${C.ema8}"></span>EMA 8`
-             + `<span class="sw" style="background:${C.ema21}"></span>EMA 21${cfg.scaleOnto ? `<span class="t-of">of ${cfg.name}</span>` : ''}`
-             + `<span class="t-dot ${e.v8 > e.v21 ? 'pass' : 'fail'}"></span>`
-             + `<span class="t-vals">${num(e.v8, cfg.digits)} / ${num(e.v21, cfg.digits)}</span></span>` : '');
+        + (e ? NsbMacd.ruleChip(e.v8 - e.v21, cfg.digits, cfg.scaleOnto ? cfg.name : '') : '')
+        + this.stack.label(live ? undefined : t);
       return;
     }
     if (this.macd[key]) { this.macd[key].tag(t); return; }
@@ -1156,7 +1159,11 @@ const allTags = () => allCharts.forEach(c => c.panel.tag(c.key));
 // one crosshair across every chart of both panels
 let hoverChart = null;  // the chart under the mouse
 NsbMacd.onToggle(() => {
-  for (const p of Object.values(panels)) for (const pane of Object.values(p.macd)) pane.showLines();
+  for (const p of Object.values(panels)) {
+    for (const pane of Object.values(p.macd)) pane.showLines();
+    p.stack.showLines();
+    for (const s of [p.e8, p.e21]) s.applyOptions({ visible: NsbMacd.show.rule });
+  }
   allTags();
 });
 function setupCrosshair() {
