@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
-<script src="macd.js?v=a9ec031515"></script>
+<script src="macd.js?v=9437e4c3e3"></script>
 <style>
   /* The Divergence page: where the 10-stock signal (NDX10) and the index signal (NAS100) disagree. A status row,
      then one XYZ100 chart marked only at those moments, and XYZ100's Trend and Entry MACD panes. */
@@ -250,8 +250,8 @@
   <section class="body">
     <div class="card chart-card">
       <div class="pane" id="pmain"><div class="tag" id="tag"></div></div>
-      <div class="pane macd trend" id="ptrend"><div class="tag mix" id="ttrend"></div></div>
       <div class="pane macd entry" id="pentry"><div class="tag mix" id="tentry"></div></div>
+      <div class="pane macd trend" id="ptrend"><div class="tag mix" id="ttrend"></div></div>
     </div>
   </section>
 </main>
@@ -264,7 +264,7 @@
       <h3>The two patterns</h3>
       <p><b class="alone">Index alone</b>: the index turned bullish while the 10 stocks didn't. In a 3-day study, XYZ100 was lower 15 minutes later about 7 times out of 10, on every day. <b class="up">10 stocks first</b>: the 10 stocks turned bullish while the index hadn't yet. XYZ100 was higher 30 minutes later about 7 times out of 10, but less consistently. Other differences showed no clear pattern.</p>
       <h3>The MACD pane</h3>
-      <p>Under the chart are XYZ100's two MACD panes (12/26/9). <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>, the signal's three MACD rules (the 15m signal line dashed), plus <b style="color:#facc15">1m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>. <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Each pane is shaded where the stocks' MACDs and the index's MACDs agree on every line switched on in it: green when all are above zero for both, red when all are below zero for both. Dashed vertical lines mark where a new day begins in your timezone.</p>
+      <p>Under the chart are XYZ100's two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the signal. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>, the signal's three MACD rules, plus <b style="color:#facc15">1m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Each pane is shaded where the stocks' MACDs and the index's MACDs agree on every line switched on in it: green when all are above zero for both, red when all are below zero for both. Dashed vertical lines mark where a new day begins in your timezone.</p>
       <p>For information only, not investment advice.</p>
     </div>
   </details>
@@ -359,7 +359,7 @@ let ema3 = [], emaPts = [];  // XYZ100's 3m bars with their EMA 8/21, and the po
 let chart, candles, layer, e8, e21;
 // XYZ100's 5m, 7m and 15m MACD in one pane under the chart, one color each, drawn on the chart's candles
 // The Trend and Entry MACD panes, their switches and shading, and the day separators: macd.js, shared with Signals
-const { MacdPane, DayLines } = NsbMacd, MACD_KINDS = ['trend', 'entry'];
+const { MacdPane, DayLines } = NsbMacd, MACD_KINDS = ['entry', 'trend'];  // top to bottom under the chart
 let macd = {}, macdStocks = {}, panes = {};  // XYZ100's and the 10 stocks' MACD bars by candle size; the two panes
 // ---- the chart: candles, and a band wherever the two signals disagree ----------------------------------------------
 class DivLayer {  // a Lightweight Charts series primitive

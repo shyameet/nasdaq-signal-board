@@ -1,7 +1,7 @@
 /* Nasdaq Signal Board: the MACD panes under a price chart, and the day separators, shared by both pages.
 
-   Two panes: Trend (1m, 5m, 7m, 9m, 11m and 15m MACD; 5m, 7m and 15m are the signal's rules) and Entry (2m and 3m,
-   for timing). Every line is drawn on the price chart's own candles, at its value as of each candle's close (never
+   Two panes: Entry (2m and 3m MACD, for timing) above Trend (1m, 5m, 7m, 9m, 11m and 15m; 5m, 7m and 15m are the
+   signal's rules), each Trend line with its own signal line, dashed in its color. Every line is drawn on the price chart's own candles, at its value as of each candle's close (never
    ahead of it; the forming candle live), so a pane lines up bar for bar with the chart above it and scrolls with it.
    Any line can be switched off from its pane's label; the choice is kept in this browser and shared by both pages.
    Each pane is shaded where the 10 stocks' MACDs and the index's MACDs agree on every line switched on in it: green
@@ -16,12 +16,12 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const PANES = {
-  trend: { title: 'Trend', lines: [1, 5, 7, 9, 11, 15] },
   entry: { title: 'Entry', lines: [2, 3] },
+  trend: { title: 'Trend', lines: [1, 5, 7, 9, 11, 15], signals: true },
 };
 const LINES = [1, 2, 3, 5, 7, 9, 11, 15];  // every MACD drawn: the candle sizes the engine must provide
-const COLOR = { 1: '#facc15', 2: '#fb7185', 3: '#22d3ee', 5: '#38bdf8', 7: '#c084fc', 9: '#2dd4bf', 11: '#a3e635', 15: '#f472b6',
-                sig: 'rgba(244, 114, 182, 0.6)' };
+const COLOR = { 1: '#facc15', 2: '#fb7185', 3: '#22d3ee', 5: '#38bdf8', 7: '#c084fc', 9: '#2dd4bf', 11: '#a3e635', 15: '#f472b6' };
+const faded = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}, ${a})`;
 const RULE = { 5: 'MACD vs 0, one of the signal\'s rules', 7: 'MACD vs 0, one of the signal\'s rules',
                15: 'MACD vs its signal line, one of the signal\'s rules' };
 const MATCH = { BULLISH: 'rgba(43, 182, 138, 0.13)', BEARISH: 'rgba(240, 85, 95, 0.12)' };
@@ -45,15 +45,14 @@ function toggle(k) {
 function points(bars, tf, src, lines) {
   const out = [], k = Object.fromEntries(lines.map(m => [m, -1]));
   for (let i = 0; i < bars.length; i++) {
-    const end = bucketEnd(bars[i].time, tf), v = {};
-    let sig;
+    const end = bucketEnd(bars[i].time, tf), v = {}, sg = {};
     for (const m of lines) {
       const a = src[m] || [];
       while (k[m] + 1 < a.length && bucketEnd(a[k[m] + 1].time, m) <= end) k[m]++;
       const j = i === bars.length - 1 ? a.length - 1 : k[m];
-      if (j >= 0 && ok(a[j].macd)) { v[m] = a[j].macd; if (m === 15) sig = a[j].signal; }
+      if (j >= 0 && ok(a[j].macd)) { v[m] = a[j].macd; sg[m] = a[j].signal; }
     }
-    out.push({ time: Math.floor(bars[i].time / 1000), v, sig });
+    out.push({ time: Math.floor(bars[i].time / 1000), v, sg });
   }
   return out;
 }
@@ -169,7 +168,9 @@ class MacdPane {
     this.zero = line('#6b778a', { lineWidth: 1, lastValueVisible: false });
     this.series = {};
     for (const m of this.lines) this.series[m] = line(COLOR[m], { lineWidth: m === 1 ? 1 : 2 });
-    this.sig = this.lines.includes(15) ? line(COLOR.sig, { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false }) : null;
+    this.sigs = {};  // each line's signal line (Trend only): dashed, in the line's color
+    if (PANES[this.kind].signals) for (const m of this.lines)
+      this.sigs[m] = line(faded(COLOR[m], 0.6), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
     this.zero.priceScale().applyOptions({ scaleMargins: { top: 0.2, bottom: 0.06 } });
     this.shading = new Bands(() => chart, () => this.pts.length, i => {
       const [a, b] = this.pair();
@@ -186,7 +187,7 @@ class MacdPane {
   pair() { return this.match ? this.match() : [this.stockPts, this.pts]; }
   showLines() {
     for (const m of this.lines) this.series[m].applyOptions({ visible: show[m] });
-    if (this.sig) this.sig.applyOptions({ visible: show.sig });
+    for (const m in this.sigs) this.sigs[m].applyOptions({ visible: show[m] && show.sig });  // a hidden line takes its signal with it
     this.shading.update();
   }
   // Redraw from the latest bars, or only move the newest points when that's all that changed. True when it redrew
@@ -194,7 +195,7 @@ class MacdPane {
   update() {
     if (this.stocks) this.stockPts = points(this.bars(), this.tf(), this.stocks(), this.lines);
     const pts = points(this.bars(), this.tf(), this.src(), this.lines), old = this.pts, n = pts.length, k = old.length;
-    const same = (a, b) => a.time === b.time && a.sig === b.sig && this.lines.every(m => a.v[m] === b.v[m]);
+    const same = (a, b) => a.time === b.time && this.lines.every(m => a.v[m] === b.v[m] && a.sg[m] === b.sg[m]);
     let i = 0;
     while (i < n && i < k && same(pts[i], old[i])) i++;
     this.shading.update();
@@ -206,14 +207,14 @@ class MacdPane {
       for (let j = k - 1; j < n; j++) {
         const p = pts[j];
         for (const m of this.lines) this.series[m].update(pt(p, p.v[m]));
-        if (this.sig) this.sig.update(pt(p, p.sig));
+        for (const m in this.sigs) this.sigs[m].update(pt(p, p.sg[m]));
         this.zero.update({ time: p.time, value: 0 });
         put(p);
       }
       return false;
     }
     for (const m of this.lines) this.series[m].setData(pts.map(p => pt(p, p.v[m])));
-    if (this.sig) this.sig.setData(pts.map(p => pt(p, p.sig)));
+    for (const m in this.sigs) this.sigs[m].setData(pts.map(p => pt(p, p.sg[m])));
     this.zero.setData(pts.map(p => ({ time: p.time, value: 0 })));
     this.store.clear();
     pts.forEach(put);
@@ -229,15 +230,15 @@ class MacdPane {
     if (!q) return;
     const v = q.v, d = this.digits;
     const item = m => {
-      const pass = m === 15 ? v[m] > q.sig : v[m] > 0;
+      const pass = m === 15 ? v[m] > q.sg[m] : v[m] > 0;
       const tip = `${m}m MACD${RULE[m] ? `: ${RULE[m]}` : ' (not in the signal)'}. Click to ${show[m] ? 'hide' : 'show'}`;
       return `<span class="t-mm${show[m] ? '' : ' off'}" data-k="${m}" title="${tip}"><span class="sw" style="background:${COLOR[m]}"></span><b>${m}m</b>`
         + `<span class="t-dot ${ok(v[m]) ? (pass ? 'pass' : 'fail') : ''}"></span>`
-        + `<span class="t-v">${m === 15 ? `${sgn(v[m], d)} / ${sgn(q.sig, d)}` : sgn(v[m], d)}</span></span>`;
+        + `<span class="t-v">${this.sigs[m] ? `${sgn(v[m], d)} / ${sgn(q.sg[m], d)}` : sgn(v[m], d)}</span></span>`;
     };
     this.tagEl.innerHTML = `<span class="t-name">${this.name} <b>${PANES[this.kind].title}</b></span>` + this.lines.map(item).join('')
-      + (this.sig ? `<span class="t-mm${show.sig ? '' : ' off'}" data-k="sig" title="The 15m signal line. Click to ${show.sig ? 'hide' : 'show'}">`
-                  + `<span class="sw dash"></span><span class="t-of">signal</span></span>` : '');
+      + (Object.keys(this.sigs).length ? `<span class="t-mm${show.sig ? '' : ' off'}" data-k="sig" title="Every line's signal line (dashed, in its color). Click to ${show.sig ? 'hide' : 'show'} them">`
+                  + `<span class="sw dash"></span><span class="t-of">signals</span></span>` : '');
   }
 }
 
@@ -254,7 +255,7 @@ css.textContent = `
   .tag.mix .t-mm:hover { background: rgba(255, 255, 255, .06); }
   .tag.mix .t-mm b { color: var(--text); font: 600 11px var(--font-num); }
   .tag.mix .t-mm .sw { width: 11px; height: 3px; border-radius: 2px; display: inline-block; }
-  .tag.mix .t-mm .sw.dash { background: none !important; border-top: 2px dashed #f472b6; height: 0; }
+  .tag.mix .t-mm .sw.dash { background: none !important; border-top: 2px dashed var(--muted); height: 0; }
   .tag.mix .t-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); display: inline-block; }
   .tag.mix .t-dot.pass { background: var(--up); } .tag.mix .t-dot.fail { background: var(--down); }
   .tag.mix .t-v { display: none; font-family: var(--font-num); color: var(--text); }
