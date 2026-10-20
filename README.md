@@ -14,15 +14,12 @@ Each series gets a gate, checked every second on the bars still forming:
 | SHORT | all three below 0, and the EMA 21 below the EMA 47 |
 | NO TRADE | anything else |
 
-The combined gate is LONG only when both series are LONG and SHORT only when both are SHORT. It shades the charts
-and the MACD panes, and sets the BUY/SELL marks and the alerts. MACD is 12/26/9.
-
-- **NDX10**: the ten largest Nasdaq-100 weights that trade on Hyperliquid, as one composite (official index
-  weights rescaled to 100%; 1000 = the 10/05/2026 close).
-  On the Divergence page you can instead tick any 1 to 10 of those stocks (**Stocks** button, top right):
-  their weights are rescaled to 100%, so the composite is still 1000 at the reference close, and the signal,
-  marks and scoreboard are rebuilt from the candles already loaded. The choice is saved in your browser.
-- **NAS100**: the Nasdaq-100 perp itself, `xyz:XYZ100`, plus a 1m MACD shown for information.
+The **Signals** page runs the gate on your own composite of the stocks you pick: the ten largest Nasdaq-100
+weights that trade on Hyperliquid, any 1 to 10 of them (official index weights rescaled to 100% over your pick;
+1000 = the 10/05/2026 close). The chart is that composite's own candles (each minute: the weighted sum of the stocks'
+closes; open = the previous close; volume = the stocks' dollar volume), with the gate's zones, BUY/SELL marks, its
+3m EMA 21/47, and the Entry (2m/3m) and Trend (1m/5m/7m/9m/11m/15m) MACD panes. The **Divergence** page (unchanged
+for now) still compares the stocks' gate with the gate of the Nasdaq-100 perp, `xyz:XYZ100`.
 
 Everything runs in your browser. The page loads two days of 1-minute candles from Hyperliquid's public API,
 then follows its live candle stream. There is no server and no account; drawings and settings stay in your

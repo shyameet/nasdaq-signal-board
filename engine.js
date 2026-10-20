@@ -5,9 +5,13 @@
      LONG (state BULLISH)      5m, 9m and 11m MACD all above 0, and the 3m EMA 21 above the EMA 47
      SHORT (state BEARISH)     all three below 0, and the EMA 21 below the EMA 47
      NO TRADE (state NEUTRAL)  anything else
-   checked every second on the bars still forming. The combined gate is LONG only when both series are LONG and SHORT
-   only when both are SHORT; its changes are the alerts. (The local Python server, ndx10_live.py, still runs the old
-   four-rule signal.)
+   checked every second on the bars still forming. The page's gate (option `gate`): 'stocks', the stocks' own gate
+   (the Signals page), or 'both' (the default, Divergence): LONG only when both series are LONG and SHORT only when both
+   are SHORT. Its changes are the alerts. (The local Python server, ndx10_live.py, still runs the old four-rule signal.)
+
+   The stocks' composite is a series of its own, with candles at every size: each minute's close is the sum of
+   weight-scaled member closes, its open the previous minute's close, its high and low the larger and smaller of the
+   two (live minutes also know the values sampled in between), and its volume the members' dollar volume.
 
    History: two days of 1-minute candles per market (about 750 of the 1200 request weight Hyperliquid allows
    an IP per minute), kept in localStorage so a reload only fetches what is new. Live: Hyperliquid's 1-minute
@@ -71,11 +75,11 @@ class Timeframe {  // bars of one size: closed bars with their indicators, plus 
     this.bars = [];
     this.partial = null;  // the bar being filled by finished minutes
   }
-  addMinute(start, open, high, low, close) {
+  addMinute(start, open, high, low, close, volume = 0) {
     const [bStart, bEnd] = bucket(start, this.minutes);
     if (this.partial && this.partial.time !== bStart) this.close();  // its last minute never arrived
-    if (!this.partial) this.partial = { time: bStart, open, high, low, close };
-    else { const p = this.partial; p.high = Math.max(p.high, high); p.low = Math.min(p.low, low); p.close = close; }
+    if (!this.partial) this.partial = { time: bStart, open, high, low, close, volume };
+    else { const p = this.partial; p.high = Math.max(p.high, high); p.low = Math.min(p.low, low); p.close = close; p.volume += volume; }
     if (start + MIN >= bEnd) this.close();
   }
   close() {
@@ -107,12 +111,12 @@ class Timeframe {  // bars of one size: closed bars with their indicators, plus 
     if (now != null && start && now >= end) {
       let first = estimate ? estimate(end - MIN) : undefined;
       if (first == null) first = this.partial ? this.partial.close : last.close;
-      return Object.assign({ time: end, open: first, high: Math.max(first, price), low: Math.min(first, price), close: price },
+      return Object.assign({ time: end, open: first, high: Math.max(first, price), low: Math.min(first, price), close: price, volume: 0 },
                            this.indicatorsAfter(first, price));
     }
     let bar;
     if (this.partial) bar = { ...this.partial, high: Math.max(this.partial.high, price), low: Math.min(this.partial.low, price) };
-    else { const prev = last ? last.close : price; bar = { time: start, open: prev, high: Math.max(prev, price), low: Math.min(prev, price) }; }
+    else { const prev = last ? last.close : price; bar = { time: start, open: prev, high: Math.max(prev, price), low: Math.min(prev, price), volume: 0 }; }
     bar.close = price;
     return Object.assign(bar, this.indicators(price, false));
   }
@@ -128,21 +132,21 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     this.seenAtEnd = new Map();  // the last live value sampled in each recent minute
     this.history = [];           // [minute, signal state at that minute's close]
   }
-  onMemberBar(coin, start, close) {
+  onMemberBar(coin, start, close, volume = 0) {  // volume: the member's 1-minute volume, in its own units
     if (this.lastMinute !== null && start <= this.lastMinute) return;
     let slot = this.pending.get(start);
     if (!slot) this.pending.set(start, slot = new Map());
-    slot.set(coin, close);
+    slot.set(coin, [close, volume]);
     if (slot.size < this.coins.length) return;
     this.pending.delete(start);
     if (this.lastMinute === null || start !== this.lastMinute + MIN) {
       for (const m of [...this.pending.keys()]) if (m < start) this.pending.delete(m);  // minutes some member never had
     }
-    let value = 0;
-    for (const [c, px] of slot) value += this.coef[c] * px;
-    this.finishMinute(start, value);
+    let value = 0, dollars = 0;
+    for (const [c, [px, vol]] of slot) { value += this.coef[c] * px; dollars += vol * px; }
+    this.finishMinute(start, value, dollars);
   }
-  finishMinute(start, close) {
+  finishMinute(start, close, volume = 0) {
     const open = this.lastClose !== null ? this.lastClose : close;
     let high = Math.max(open, close), low = Math.min(open, close);
     if (this.extremes.has(start)) {  // live minutes also know the in-between highs and lows
@@ -156,7 +160,7 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
       if (this.history.length > KEEP_MINUTES + 500) this.history.splice(0, 500);
     }
     this.lastMinute = start; this.lastClose = close;
-    for (const tf of Object.values(this.tfs)) tf.addMinute(start, open, high, low, close);
+    for (const tf of Object.values(this.tfs)) tf.addMinute(start, open, high, low, close, volume);
   }
   value(prices) {
     let v = 0;
@@ -280,7 +284,8 @@ const fixed = (v, d) => v.toLocaleString('en-US', { minimumFractionDigits: d, ma
 
 // ---- the engine -------------------------------------------------------------------------------
 class Engine {
-  constructor(basket, { progress, selection } = {}) {
+  constructor(basket, { progress, selection, gate = 'both' } = {}) {
+    this.gateOf = gate;  // 'stocks': the stocks' own gate; 'both': LONG/SHORT only when both series agree
     this.basket = basket;
     this.members = Object.keys(basket.members);  // every stock loaded and streamed, whether or not it is in the composite
     this.coins = [...this.members, BENCH];
@@ -428,8 +433,8 @@ class Engine {
     if (coin === BENCH) {
       this.priceBars.push(priceBar(b));
       if (this.priceBars.length > KEEP_MINUTES + 500) this.priceBars.splice(0, 500);
-      this.sections[1].signal.onMemberBar(coin, b.t, b.c);
-    } else if (this.coef[coin] !== undefined) this.sections[0].signal.onMemberBar(coin, b.t, b.c);  // unticked stocks only keep loading
+      this.sections[1].signal.onMemberBar(coin, b.t, b.c, b.v);
+    } else if (this.coef[coin] !== undefined) this.sections[0].signal.onMemberBar(coin, b.t, b.c, b.v);  // unticked stocks only keep loading
   }
 
   connect() {
@@ -556,8 +561,11 @@ class Engine {
       s.tracker.update(ev.state, now, started);
     });
     // the combined gate: LONG only when both series are, SHORT only when both are
-    const gate = combine(evs.ndx10.state, evs.nas100.state), gt = this.trackers.gate;
-    const change = gt.update(gate, now, gt.state === null ? combinedStart(this.sections[0].signal.history, this.sections[1].signal.history, gate, now) : null);
+    const stocksOnly = this.gateOf === 'stocks', gt = this.trackers.gate;
+    const gate = stocksOnly ? evs.ndx10.state : combine(evs.ndx10.state, evs.nas100.state);
+    const started = gt.state !== null ? null : stocksOnly ? this.sections[0].signal.started(gate, now)
+      : combinedStart(this.sections[0].signal.history, this.sections[1].signal.history, gate, now);
+    const change = gt.update(gate, now, started);
     const forming = this.markets[BENCH].cur;
     this.publish('tick', {
       time: now,
@@ -573,7 +581,7 @@ class Engine {
       }])),
     });
     if (change) {
-      const body = this.sections.map(s => `${s.name} ${WORD[evs[s.key].state]}: `
+      const body = this.sections.filter(s => !stocksOnly || s.key === 'ndx10').map(s => `${s.name} ${WORD[evs[s.key].state]}: `
         + Object.entries(evs[s.key].checks).map(([k, v]) => `${k} ${v >= 0 ? '+' : ''}${v.toFixed(3)}`).join('; ')).join('\n');
       this.publish('alert', { name: 'Gate', state: change, time: now, body });
     }

@@ -31,9 +31,7 @@
 <script src="lightweight-charts.js"></script>
 <script src="macd.js?v=2757e73c3b"></script>
 <style>
-  /* Layout: a two-column trading board. Each instrument gets a signal header (state + one tile
-     per rule), then XYZ100 candles with that signal's zones, BUY/SELL marks and 3m EMAs, then the MACD panes.
-     One crosshair. */
+  /* Layout: one chart of your stocks' composite: a header (the gate and its four conditions), its candles with the gate's zones, BUY/SELL marks and 3m EMAs, then the Entry and Trend MACD panes. One crosshair. */
   :root {
     color-scheme: dark;
     --bg: #0a0d12;
@@ -80,12 +78,6 @@
   .quote .sym { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; }
   .quote .px { font-size: 18px; font-weight: 600; }
   .chg { font-size: 12px; font-weight: 500; }
-  .gate { display: inline-flex; align-items: center; gap: 8px; padding: 3px 4px 3px 10px; border: 1px solid var(--line-strong); border-radius: 8px; }
-  .gate-k { color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
-  .gate-w { padding: 2px 10px; border-radius: 6px; background: var(--tile); color: var(--muted); font-weight: 700; font-size: 12.5px; letter-spacing: .08em; }
-  .gate.bull .gate-w { background: var(--up); color: #04150f; box-shadow: 0 0 18px rgba(43, 182, 138, .35); }
-  .gate.bear .gate-w { background: var(--down); color: #1e0507; box-shadow: 0 0 18px rgba(240, 85, 95, .35); }
-  .gate-s { color: var(--muted); font-size: 11px; padding-right: 6px; white-space: nowrap; }
   .session { display: inline-flex; align-items: center; gap: 8px; padding: 3px 10px; border: 1px solid var(--line);
              border-radius: 999px; color: var(--muted); font-size: 12px; white-space: nowrap; }
   .session b { color: var(--text); font-weight: 600; }
@@ -106,7 +98,7 @@
   .dot.stale { background: var(--ema8); }
 
   /* ---- the two panels ---- */
-  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); }
+  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); }
   .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .panel + .panel { border-left: 1px solid var(--line-strong); }
 
@@ -175,6 +167,36 @@
   .tag.main .t-ema { flex-basis: 100%; display: flex; align-items: center; gap: 6px; font-family: var(--font-ui); }
   .tag .t-of { color: var(--faint); }
 
+  /* ---- basket picker ---- */
+  .pick { position: relative; }
+  .pick-btn { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px;
+              background: transparent; color: var(--text); cursor: pointer; font-size: 12px; }
+  .pick-btn:hover, .pick-btn[aria-expanded="true"] { border-color: var(--line-strong); background: var(--tile); }
+  .pick-btn small { color: var(--muted); font-size: 11.5px; }
+  .pick-btn .caret { color: var(--muted); font-size: 9px; }
+  .pick-btn.custom { border-color: rgba(91, 140, 255, .55); }
+  .pick-pop { position: fixed; z-index: 45; width: min(360px, calc(100vw - 24px)); padding: 14px;
+              border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); box-shadow: 0 16px 48px rgba(0, 0, 0, .55); }
+  .pick-pop h3 { margin: 0 0 2px; font-size: 13px; font-weight: 600; }
+  .pick-pop > p { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .presets button, .pick-actions button { padding: 5px 10px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted);
+                                          cursor: pointer; font-size: 12px; }
+  .presets button:hover, .pick-actions button:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); }
+  .stocks { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 2px; }
+  .stocks label { display: grid; grid-template-columns: 18px 56px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+  .stocks label:hover { background: var(--tile); }
+  .stocks input { accent-color: var(--accent); margin: 0; width: 15px; height: 15px; }
+  .stocks .tk { font: 600 12.5px var(--font-num); }
+  .stocks .co { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stocks .wt { font: 500 12px var(--font-num); color: var(--muted); }
+  .stocks input:checked ~ .tk { color: var(--text); }
+  .stocks li:not(.on) .tk, .stocks li:not(.on) .co { opacity: .55; }
+  .pick-actions { display: flex; align-items: center; gap: 8px; }
+  .pick-actions .msg { margin-right: auto; color: var(--muted); font-size: 11.5px; }
+  .pick-actions .msg.warn { color: var(--warn); }
+  .pick-actions .go { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
+  .pick-actions .go:disabled { opacity: .4; cursor: default; }
   /* ---- footer ---- */
   .foot { flex: none; position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 4px 12px;
           background: var(--surface); border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; }
@@ -245,12 +267,21 @@
 <header class="topbar">
   <div class="brand"><img class="mark" src="brand/logo.svg" alt="" width="30" height="30"><div><b>Nasdaq Signal Board</b><small>Live from Hyperliquid</small></div></div>
   <nav class="tabs" aria-label="Pages"><a href="./" aria-current="page">Signals</a><a href="divergence.html">Divergence</a></nav>
-  <div class="quote"><span class="sym">XYZ100</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
-  <div class="gate" id="gate" title="The combined gate: LONG only when both the 10 stocks and the index are LONG, SHORT only when both are SHORT"><span class="gate-k">Gate</span><span class="gate-w" id="gate-w">—</span><span class="gate-s" id="gate-s"></span></div>
+  <div class="quote"><span class="sym" id="sym">NDX10</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
   <div class="session" id="session" title="US stock market session (New York time; holidays not shown)"></div>
   <div class="spacer"></div>
   <div class="seg" id="tfs" role="group" aria-label="Candle size of both price charts"></div>
-  <button class="toggle" id="alerts" aria-pressed="false" title="Browser notification and sound when the combined gate turns LONG, SHORT or NO TRADE">Alerts off</button>
+  <div class="pick" id="pick" hidden>
+    <button class="pick-btn" id="pickBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Choose which stocks make up the composite"><span id="pickLabel">Stocks</span><small id="pickSub"></small><span class="caret">▼</span></button>
+    <div class="pick-pop" id="pickPop" role="dialog" aria-label="Choose your stocks" hidden>
+      <h3>Choose your stocks</h3>
+      <p>Pick any of the 10 (even just one). The composite and every mark are rebuilt from the same candles.</p>
+      <div class="presets" id="presets"></div>
+      <ul class="stocks" id="stocks"></ul>
+      <div class="pick-actions"><span class="msg" id="pickMsg"></span><button type="button" id="pickCancel">Cancel</button><button type="button" class="go" id="pickGo">Apply</button></div>
+    </div>
+  </div>
+  <button class="toggle" id="alerts" aria-pressed="false" title="Browser notification and sound when the gate turns LONG, SHORT or NO TRADE">Alerts off</button>
   <div class="live"><span class="dot" id="dot"></span><span id="live">connecting</span></div>
 </header>
 <main class="board" id="board">
@@ -288,21 +319,21 @@
     <summary>How it works</summary>
     <div class="how-body">
       <h3>The gate</h3>
-      <p>Each series (the 10 stocks combined, and the index) has a gate, checked every second on the bars still forming:</p>
+      <p>The gate runs on your stocks' composite, checked every second on the bars still forming:</p>
       <table>
         <tr><th>Gate</th><th>Condition</th></tr>
         <tr><td><b class="up">LONG</b></td><td>5m, 9m and 11m MACD all above 0, and the 3m EMA 21 above the EMA 47</td></tr>
         <tr><td><b class="down">SHORT</b></td><td>all three below 0, and the EMA 21 below the EMA 47</td></tr>
         <tr><td>NO TRADE</td><td>anything else</td></tr>
       </table>
-      <p>The <b>combined gate</b> (top bar) is LONG only when both series are LONG and SHORT only when both are SHORT. It shades the charts and the MACD panes, sets the BUY and SELL marks and the alerts. Each panel's header shows its own series' gate, so you can see which side is holding the other back. MACD is 12/26/9.</p>
-      <h3>The two panels</h3>
-      <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same gate on the Nasdaq-100 perp itself, XYZ100.</p>
-      <p>Under each price chart are two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the gate. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>, the gate's three MACD rules, plus <b style="color:#facc15">1m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Both panes are shaded by the combined gate: green while LONG, red while SHORT. Dashed vertical lines mark where a new day begins in your timezone.</p>
+      <p>It shades the chart and the MACD panes, and sets the BUY and SELL marks and the alerts. The header shows the gate and its four conditions. MACD is 12/26/9.</p>
+      <h3>Your stocks</h3>
+      <p>The chart is your own composite of the stocks you pick (<b>Stocks</b> button, top right; the 10 largest Nasdaq-100 weights that trade on Hyperliquid, any 1 to 10 of them). Their official index weights are rescaled to 100% over your pick, so the composite is 1000 at the basket's reference close. Each minute's close is the weighted sum of the stocks' closes; its open is the previous minute's close and its high and low the larger and smaller of the two (live candles also catch the highs and lows in between), so older candles have shorter wicks than live ones. Volume is the stocks' combined dollar volume. The pick is shared with the Divergence page and kept in this browser.</p>
+      <p>Under the price chart are two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the gate. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>, the gate's three MACD rules, plus <b style="color:#facc15">1m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Both panes are shaded by the gate: green while LONG, red while SHORT. Dashed vertical lines mark where a new day begins in your timezone.</p>
       <h3>The charts</h3>
-      <p>Zones: green while the combined gate is LONG (labeled ▲ LONG), red while it is SHORT, no color for NO TRADE. Both price charts show the same combined gate. The zone is the gate, not the candle: a red candle can sit in a green zone. The forming candle shows the gate live. <b class="up">▲ BUY</b> marks the candle where the combined gate turns LONG, <b class="down">▼ SELL</b> where it turns SHORT. The amber and blue lines are the 3m EMA 21 and EMA 47 the gate tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 47 sits on XYZ100's EMA 47 and EMA 21 keeps the basket's own gap to it, so they cross exactly when the basket's EMA condition flips. Times are in your timezone.</p>
+      <p>Zones: green while the gate is LONG (labeled ▲ LONG), red while it is SHORT, no color for NO TRADE. The zone is the gate, not the candle: a red candle can sit in a green zone. The forming candle shows the gate live. <b class="up">▲ BUY</b> marks the candle where the gate turns LONG, <b class="down">▼ SELL</b> where it turns SHORT. The amber and blue lines are your stocks' 3m EMA 21 and EMA 47 that the gate tests, as of each candle's close. Times are in your timezone.</p>
       <h3>Drawing tools</h3>
-      <p>The toolbar on the left draws on the price charts: trend line, horizontal and vertical line, rectangle, Fib retracement and measure. Drag from one point to the other, or click one and then the other. Click a drawing to select it, drag it or its handles to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. Drawings show on both price charts and are saved in this browser.</p>
+      <p>The toolbar on the left draws on the price chart: trend line, horizontal and vertical line, rectangle, Fib retracement and measure. Drag from one point to the other, or click one and then the other. Click a drawing to select it, drag it or its handles to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. Drawings are saved in this browser.</p>
       <h3>Data</h3>
       <p>Prices stream live from Hyperliquid's public API, around the clock, and the signals are recalculated every second. The page keeps nothing about you; your drawings and settings stay in this browser. For information only, not investment advice. An independent project, not affiliated with Nasdaq, Inc., Hyperliquid or TradingView.</p>
     </div>
@@ -319,13 +350,10 @@ const C = { up: '#2bb68a', down: '#f0555f', ema8: '#f2b33d', ema21: '#5b8cff', m
             grid: '#121821', text: '#7d899b', line: '#1c2430', cross: '#3a4554', label: '#283240', bg: '#0a0d12', zero: '#6b778a' };
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };  // signal zones behind the candles
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-// Both panels run the same rules on different series; only these settings differ. Their 3m EMAs are drawn on
-// the price chart, so the panes under it are MACDs. NDX10's EMAs are scaled onto NAS100's (see emaSource).
+// One series: the composite of the stocks you pick (the engine's 'ndx10' section). Its own candles, built from the
+// stocks' prices, are the price chart; its 3m EMAs are drawn on them, and its MACDs fill the panes under it.
 const CFG = {
-  ndx10: { name: 'NDX10', eyebrow: '10-stock composite', panes: NsbMacd.LINES, digits: 2, macdDigits: 3,
-           rows: '60fr 15fr 25fr', scaleOnto: 'nas100' },
-  nas100: { name: 'NAS100', eyebrow: 'Nasdaq-100 actual · XYZ100', panes: NsbMacd.LINES, digits: 1, macdDigits: 2,
-            rows: '60fr 15fr 25fr' },
+  ndx10: { name: 'NDX10', eyebrow: 'Your stocks, combined', panes: NsbMacd.LINES, digits: 2, macdDigits: 3, rows: '60fr 15fr 25fr' },
 };
 // The MACD panes (Trend and Entry), their switches and shading, and the day separators: macd.js, shared with Divergence
 const { MacdPane, DayLines } = NsbMacd, MACD_KINDS = ['entry', 'trend'];  // top to bottom under the chart
@@ -335,13 +363,10 @@ const RULES = [  // [engine key, rule text, candle size]: the gate's four condit
   ['9m MACD vs 0', 'MACD › 0', 9],
   ['11m MACD vs 0', 'MACD › 0', 11],
 ];
-// A series' gate is LONG (state BULLISH) when all four hold, SHORT (BEARISH) when all four are the other way, else
-// NO TRADE. The combined gate, which shades the charts and marks them, is LONG only when both series are LONG and
-// SHORT only when both are SHORT.
+// The gate is LONG (state BULLISH) when all four hold, SHORT (BEARISH) when all four are the other way, else NO TRADE.
 const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
-const combine = (a, b) => !a || !b ? null : a === b ? a : 'NEUTRAL';
-let liveGate = 'NEUTRAL';  // the combined gate right now (from the engine's tick)
-const gateAt = t => combine(panels.ndx10 && panels.ndx10.stateAt.get(t), panels.nas100 && panels.nas100.stateAt.get(t));
+let liveGate = 'NEUTRAL';  // the gate right now (from the engine's tick)
+const gateAt = t => panels.ndx10 ? panels.ndx10.stateAt.get(t) || null : null;
 
 const $ = id => document.getElementById(id);
 const sec = ms => Math.floor(ms / 1000);
@@ -404,7 +429,7 @@ function indexAt(bars, minutes, t) {
 }
 function options(showTime, isMain) {
   return {
-    watermark: isMain ? { visible: true, text: 'XYZ100', color: 'rgba(232, 238, 246, 0.04)', fontSize: 44, fontStyle: '700' }
+    watermark: isMain ? { visible: true, text: NAME, color: 'rgba(232, 238, 246, 0.04)', fontSize: 44, fontStyle: '700' }
                       : { visible: false },
     autoSize: true,
     handleScroll: isMain, handleScale: isMain,  // the rule panes follow their price chart
@@ -425,14 +450,14 @@ function options(showTime, isMain) {
 // ---- drawing tools ------------------------------------------------------------------------------
 // Trend lines, horizontal and vertical lines, rectangles, Fib retracements and a measure tool on the two price
 // charts. A point is stored as (time, price), so a drawing stays put at every candle size, and both price charts
-// show the same drawings because they plot the same XYZ100 bars. Saved in this browser only.
+// show your stocks' composite. Saved in this browser only.
 const INK = '#a78bfa', INK_FILL = 'rgba(167, 139, 250, 0.10)', INK_TAG = '#7457d6';  // violet: unlike any line on the charts
 const FIB = [[0, '#8d99ab'], [0.236, '#f0555f'], [0.382, '#ff9f43'], [0.5, '#2bb68a'], [0.618, '#21b8c7'], [0.786, '#a78bfa'], [1, '#8d99ab']];
 const TWO_POINTS = ['trend', 'rect', 'fib', 'measure'];
 const draw = { tool: 'cursor', magnet: false, items: [], sel: null, hover: null, temp: null, tempPanel: null, measure: null,
                gesture: null, press: false, undo: [] };
 try {
-  const pt = q => q && ok(q.t) && ok(q.p), saved = JSON.parse(localStorage.getItem('ndx10.drawings') || '[]');
+  const pt = q => q && ok(q.t) && ok(q.p), saved = JSON.parse(localStorage.getItem('nsb.drawings.basket') || '[]');
   if (Array.isArray(saved)) draw.items = saved.filter(d => d && ['trend', 'hline', 'vline', 'rect', 'fib'].includes(d.type)
                                                          && pt(d.a) && (!TWO_POINTS.includes(d.type) || pt(d.b)));
   draw.magnet = localStorage.getItem('ndx10.magnet') === '1';
@@ -672,7 +697,7 @@ class DrawLayer {  // every drawing on one price chart, as a Lightweight Charts 
 }
 
 function redrawDrawings() { for (const p of Object.values(panels)) if (p.layer && p.layer.requestUpdate) p.layer.requestUpdate(); }
-function saveDrawings() { try { localStorage.setItem('ndx10.drawings', JSON.stringify(draw.items)); } catch (e) {} showRail(); }
+function saveDrawings() { try { localStorage.setItem('nsb.drawings.basket', JSON.stringify(draw.items)); } catch (e) {} showRail(); }
 function remember(state = JSON.stringify(draw.items)) { draw.undo.push(state); if (draw.undo.length > 100) draw.undo.shift(); }
 function showRail() {
   for (const b of document.querySelectorAll('#rail [data-tool]')) b.setAttribute('aria-pressed', String(b.dataset.tool === draw.tool));
@@ -823,6 +848,7 @@ showRail();
 // ---- shared state ------------------------------------------------------------------------------
 let tf = 3;
 try { const saved = Number(localStorage.getItem('ndx10.tf')); if (TFS.includes(saved)) tf = saved; } catch (e) {}
+const candle = b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 });
 let bars1m = [], boot = null, gen = null, lastSeq = 0, basket = null, hovering = false, alertsOn = false, audio = null;
 let lastTickAt = 0, lost = false, es = null, pending = null;  // pending: ticks that arrive while a resync runs
 const panels = {};
@@ -845,7 +871,7 @@ class Panel {
           <div class="phead-top">
             <div class="ptitle">
               <div class="eyebrow">${cfg.eyebrow}</div>
-              <div class="pline"><span class="pname" title="${cfg.eyebrow}">${cfg.name}</span><span class="pval num" id="${key}-val">—</span><span class="chg num" id="${key}-chg"></span></div>
+              <div class="pline"><span class="pname" id="${key}-name" title="${cfg.eyebrow}">${NAME}</span><span class="pval num" id="${key}-val">—</span><span class="chg num" id="${key}-chg"></span></div>
             </div>
             <div class="state" id="${key}-state"><span class="state-word">LOADING</span><span class="state-since" id="${key}-since"></span></div>
           </div>
@@ -902,9 +928,8 @@ class Panel {
     this.macd = {};
     for (const kind of MACD_KINDS) {
       const pane = this.macd[kind] = new MacdPane({
-        el: $(`${key}-p${kind}`), tagEl: $(`${key}-t${kind}`), kind, name: cfg.name, digits: cfg.macdDigits, options: options(false, false),
+        el: $(`${key}-p${kind}`), tagEl: $(`${key}-t${kind}`), kind, name: NAME, digits: cfg.macdDigits, options: options(false, false),
         bars: () => this.mainBars, tf: () => tf, src: () => this.paneBars, shade: i => this.mainStates[i],
-        match: () => [panels.ndx10 ? panels.ndx10.macd[kind].pts : [], panels.nas100 ? panels.nas100.macd[kind].pts : []],
       });
       this.store[kind] = pane.store;
       allCharts.push({ panel: this, key: kind, chart: pane.chart, anchor: pane.zero, minutes: () => tf, value: q => pane.value(q) });
@@ -941,8 +966,8 @@ class Panel {
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const pane of Object.values(this.macd)) pane.shading.update();
   }
-  // ---- price chart: XYZ100 candles, with the combined gate as zones and BUY / SELL marks (the same on both panels) ----
-  closedState(b) {  // the combined gate at the bar's last finished minute
+  // ---- price chart: your stocks' candles, with the gate as zones and BUY / SELL marks ----
+  closedState(b) {  // the gate at the bar's last finished minute
     for (let t = bucketEnd(b.time, tf) - 60000; t >= b.time; t -= 60000) { const s = gateAt(t); if (s) return s; }
     return null;
   }
@@ -966,7 +991,7 @@ class Panel {
     for (let i = 1; i < n - 1; i++) if (this.flips(i)) this.baseMarkers.push(this.arrow(this.mainBars[i], this.mainStates[i]));
     this.setMarkers();
     this.store.main = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
-    this.main.applyOptions({ watermark: { text: `XYZ100 · ${tf}m` } });
+    this.main.applyOptions({ watermark: { text: `${NAME} · ${tf}m` } });
   }
   setMarkers() {
     const n = this.mainBars.length, m = this.baseMarkers.slice();
@@ -1009,14 +1034,8 @@ class Panel {
     this.redrawZones();  // the live state may have changed with the same price
   }
   // ---- 3m EMA 8 / 21 on the price chart ----
-  emaSource() {  // this panel's 3m EMAs at XYZ100's price level (e8, e21), with the values its rule tests (v8, v21)
-    // e8 / v8 hold the fast EMA (21), e21 / v21 the slow one (47): the gate's 3m pair
-    const own = this.ema3.filter(b => b.ema47 !== undefined).map(b => ({ time: b.time, e8: b.ema21, e21: b.ema47, v8: b.ema21, v21: b.ema47 }));
-    if (!this.cfg.scaleOnto) return own;
-    // NDX10's EMAs are of its ~1000-point basket. Scaled by XYZ100's EMA 47 over the basket's, its EMA 47 lies on
-    // XYZ100's and its EMA 21 keeps the basket's own gap to it, so the two lines cross exactly when its 3m rule flips
-    const ref = new Map(panels[this.cfg.scaleOnto].ema3.map(b => [b.time, b.ema47]));
-    return own.filter(p => ref.has(p.time) && p.v21).map(p => { const f = ref.get(p.time) / p.v21; return { ...p, e8: p.v8 * f, e21: p.v21 * f }; });
+  emaSource() {  // the composite's 3m EMAs: e8 / v8 hold the fast one (21), e21 / v21 the slow one (47), the gate's 3m pair
+    return this.ema3.filter(b => b.ema47 !== undefined).map(b => ({ time: b.time, e8: b.ema21, e21: b.ema47, v8: b.ema21, v21: b.ema47 }));
   }
   emaPoints() {  // one point per candle: the 3m EMAs as of its close (never ahead of it); the forming candle shows them live
     const src = this.emaSource(), bars = this.mainBars, out = [];
@@ -1098,7 +1117,7 @@ class Panel {
     const box = $(`${k}-state`);
     box.className = 'state ' + kind;
     box.querySelector('.state-word').textContent = WORD[s.state] || s.state;
-    box.title = `${cfg.name}'s own gate (the charts show the combined gate of both)`;
+    box.title = 'The gate, right now';
     $(`${k}-since`).textContent = `for ${dur(s.time - s.since)}`;
     $(`${k}-val`).textContent = num(s.value, cfg.digits);
     const ch = s.ref ? s.value / s.ref - 1 : null;
@@ -1128,11 +1147,11 @@ class Panel {
       const b = live ? this.mainBars[this.mainBars.length - 1] : this.store.main.get(t);
       if (!b) return;
       const st = live ? liveGate : b.state, kind = stateKind(st), e = live ? this.emaPts[this.emaPts.length - 1] : this.emaAt(t);
-      $(`${k}-tmain`).innerHTML = `<b>XYZ100</b><span>${tf}m</span>`
+      $(`${k}-tmain`).innerHTML = `<b>${NAME}</b><span>${tf}m</span>`
         + (live ? '' : `<span class="t-time">${when(b.time)}</span>`)
         + `<span class="ohlc">O <b>${num(b.open)}</b> H <b>${num(b.high)}</b> L <b>${num(b.low)}</b> `
         + `C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close)}</b></span>`
-        + (st ? `<span class="t-state ${kind}" title="The combined gate at this candle">GATE ${WORD[st]}</span>` : '')
+        + (st ? `<span class="t-state ${kind}" title="The gate at this candle">GATE ${WORD[st]}</span>` : '')
         + (e ? `<span class="t-ema"><b class="num">3m</b><span class="sw" style="background:${C.ema8}"></span>EMA 21`
              + `<span class="sw" style="background:${C.ema21}"></span>EMA 47${cfg.scaleOnto ? `<span class="t-of">of ${cfg.name}</span>` : ''}`
              + `<span class="t-dot ${e.v8 > e.v21 ? 'pass' : 'fail'}"></span>`
@@ -1198,7 +1217,7 @@ function setupCrosshair() {
 }
 
 // ---- top bar and footer -----------------------------------------------------------------------
-function priceAgo(ms) {  // XYZ100 close `ms` ago, from the 1-minute bars
+function priceAgo(ms) {  // your stocks' close `ms` ago, from the 1-minute bars
   const target = Date.now() - ms;
   if (!bars1m.length || bars1m[0].time > target) return null;
   let lo = 0, hi = bars1m.length - 1;
@@ -1221,25 +1240,19 @@ function showSession() {
   $('session').innerHTML = `US <b>${name}</b><span class="num">${clock}</span>`;
   $('session').title = note + ' (holidays not shown)';
 }
-function showGate(k) {  // the combined gate in the top bar
-  if (!k.gate) return;
-  $('gate').className = 'gate ' + stateKind(k.gate.state);
-  $('gate-w').textContent = WORD[k.gate.state];
-  $('gate-s').textContent = `for ${dur(k.time - k.gate.since)}`;
-}
 function showGlobal(k) {
-  showGate(k);
-  const px = k.price.last;
+  const px = k.sections.ndx10.value;
   if (ok(px)) {
     $('px').textContent = num(px);
     const ref = priceAgo(DAY), ch = ref ? px / ref - 1 : null;
     $('pxchg').textContent = ch === null ? '' : `${pct(ch)} 24h`;
     $('pxchg').className = 'chg num ' + (ch >= 0 ? 'up' : 'down');
   }
-  $('basket').innerHTML = `<span class="flabel">NDX10 basket</span>` + Object.entries(basket.members).map(([coin, m]) => {
-    const p = k.members[coin], ch = ok(p) ? p / m.ref_price - 1 : null;
-    return `<span class="m" title="${m.company}: ${(m.weight * 100).toFixed(1)}% of the basket; change since the reference close">`
-         + `<b>${coin.split(':')[1]}</b><span class="w">${(m.weight * 100).toFixed(1)}%</span>`
+  const total = ACTIVE.reduce((a, c) => a + basket.members[c].weight, 0);
+  $('basket').innerHTML = `<span class="flabel">${NAME}</span>` + ACTIVE.map(coin => {
+    const m = basket.members[coin], p = k.members[coin], ch = ok(p) ? p / m.ref_price - 1 : null, w = m.weight / total;
+    return `<span class="m" title="${m.company}: ${(w * 100).toFixed(1)}% of your stocks; change since the reference close">`
+         + `<b>${tk(coin)}</b><span class="w">${(w * 100).toFixed(1)}%</span>`
          + `<span class="c ${ch >= 0 ? 'up' : 'down'}">${pct(ch)}</span></span>`;
   }).join('');
 }
@@ -1277,6 +1290,85 @@ $('alerts').onclick = async () => {
   if (alertsOn) beep(true);
 };
 
+let ACTIVE = [], ALL = [], BASKET = null, NLAB = '10 stocks', NAME = 'NDX10';  // your stocks; the 10 on offer; basket.json
+// ---- the stock picker: which of the 10 make up the composite --------------------------------------------------
+const SEL_KEY = 'nsb.div.stocks';  // shared with the Divergence page: one choice of stocks for both
+const tk = coin => coin.replace(/^xyz:/, '');
+const custom = () => ACTIVE.length !== ALL.length;
+function savedSelection() {
+  try { const a = JSON.parse(localStorage.getItem(SEL_KEY)); return Array.isArray(a) ? a : null; } catch (e) { return null; }
+}
+function setActive(list) {  // the composite's stocks changed (or were just loaded): names and labels follow
+  ACTIVE = list.slice();
+  NLAB = ACTIVE.length === 1 ? '1 stock' : `${ACTIVE.length} stocks`;
+  NAME = custom() ? (ACTIVE.length <= 3 ? ACTIVE.map(tk).join('+') : `Basket ${ACTIVE.length}`) : 'NDX10';
+  $('sym').textContent = NAME;
+  for (const p of Object.values(panels)) {
+    $(`${p.key}-name`).textContent = NAME;
+    for (const pane of Object.values(p.macd)) pane.name = NAME;
+    p.main.applyOptions({ watermark: { text: `${NAME} · ${tf}m` } });
+  }
+  $('pickLabel').textContent = custom() ? `${ACTIVE.length} of ${ALL.length} stocks` : `All ${ALL.length} stocks`;
+  $('pickSub').textContent = ACTIVE.length <= 4 && custom() ? ACTIVE.map(tk).join(' ') : '';
+  $('pickBtn').classList.toggle('custom', custom());
+  $('pickBtn').title = `In the composite: ${ACTIVE.map(tk).join(', ')}`;
+}
+let draft = new Set(), picking = false;
+function renderPick() {
+  const members = BASKET.members, total = ALL.reduce((a, c) => a + (draft.has(c) ? members[c].weight : 0), 0);
+  $('stocks').innerHTML = ALL.map(c => `<li class="${draft.has(c) ? 'on' : ''}"><label><input type="checkbox" data-c="${c}"${draft.has(c) ? ' checked' : ''}>`
+    + `<span class="tk">${tk(c)}</span><span class="co">${members[c].company}</span>`
+    + `<span class="wt">${draft.has(c) ? (members[c].weight / total * 100).toFixed(1) + '%' : '—'}</span></label></li>`).join('');
+  for (const box of $('stocks').querySelectorAll('input')) box.onchange = () => {
+    if (box.checked) draft.add(box.dataset.c); else draft.delete(box.dataset.c);
+    renderPick();
+    $('stocks').querySelector(`input[data-c="${box.dataset.c}"]`).focus();
+  };
+  const list = ALL.filter(c => draft.has(c)), changed = list.join() !== ACTIVE.join();
+  $('pickMsg').textContent = !list.length ? 'Pick at least one stock' : `${list.length} selected`;
+  $('pickMsg').className = 'msg' + (list.length ? '' : ' warn');
+  $('pickGo').disabled = !list.length || !changed || picking;
+}
+function openPick(open) {
+  $('pickPop').hidden = !open;
+  $('pickBtn').setAttribute('aria-expanded', String(open));
+  if (open) { draft = new Set(ACTIVE); renderPick(); placePick(); }
+}
+function placePick() {  // under the button, kept inside the window whatever the width
+  const r = $('pickBtn').getBoundingClientRect(), w = Math.min(360, innerWidth - 24);
+  const pop = $('pickPop').style;
+  pop.top = `${Math.round(r.bottom + 8)}px`;
+  pop.left = `${Math.round(Math.max(12, Math.min(r.right - w, innerWidth - w - 12)))}px`;
+  pop.maxHeight = `${Math.max(240, innerHeight - r.bottom - 20)}px`; pop.overflowY = 'auto';
+}
+async function applyPick() {
+  const list = ALL.filter(c => draft.has(c));
+  if (!list.length || picking) return;
+  picking = true; renderPick();
+  $('pickLabel').textContent = 'Applying…';
+  try {
+    try { localStorage.setItem(SEL_KEY, JSON.stringify(list)); } catch (e) {}
+    if (engine.setSelection(list)) await resync();  // rebuilt from the loaded candles: no new download
+  } finally {
+    picking = false;
+    openPick(false);
+    setActive(ACTIVE);
+  }
+}
+function buildPicker() {
+  const top = n => ALL.slice(0, n);
+  const presets = [['Top 5', top(5)], ['Top 6', top(6)], ['Top 8', top(8)], ['All 10', ALL], ['None', []]];
+  $('presets').innerHTML = presets.map(([name], i) => `<button type="button" data-i="${i}">${name}</button>`).join('');
+  for (const b of $('presets').children) b.onclick = () => { draft = new Set(presets[b.dataset.i][1]); renderPick(); };
+  $('pickBtn').onclick = () => openPick($('pickPop').hidden);
+  $('pickCancel').onclick = () => { openPick(false); $('pickBtn').focus(); };
+  $('pickGo').onclick = applyPick;
+  addEventListener('resize', () => { if (!$('pickPop').hidden) placePick(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('pickPop').hidden) { openPick(false); $('pickBtn').focus(); } });
+  document.addEventListener('mousedown', e => { if (!$('pickPop').hidden && !$('pick').contains(e.target)) openPick(false); });
+  $('pick').hidden = false;
+}
+
 // ---- data -----------------------------------------------------------------------------------
 // Two sources give the same snapshot and ticks: the local Python server (ndx10_live.py: /snapshot and /events),
 // or, when the page is hosted as plain files, engine.js, which computes everything in this browser.
@@ -1291,11 +1383,12 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tag = document.createElement('script');
-    tag.src = 'engine.js?v=d0c2983ced'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
+    tag.src = 'engine.js?v=82677b5778'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tag);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();
-  engine = new NdxEngine(basketFile, { progress: loadingText });
+  BASKET = basketFile; ALL = Object.keys(basketFile.members);
+  engine = new NdxEngine(basketFile, { progress: loadingText, selection: savedSelection(), gate: 'stocks' });
   engine.start().catch(e => loadingText(`Couldn't load Hyperliquid's data (${e.message}). Reload the page to try again.`));
 }
 async function fetchSnapshot() {
@@ -1310,17 +1403,19 @@ async function fetchSnapshot() {
 }
 function apply(s) {
   boot = s.boot; gen = s.gen; lastSeq = s.tick.seq; basket = s.basket;
-  bars1m = s.price.slice();
+  if (s.basket && !BASKET) { BASKET = s.basket; ALL = Object.keys(s.basket.members); }
+  setActive(s.selection || ALL);
+  // the price chart: your stocks' composite, from its own 1-minute bars (newer tick bars only, as elsewhere)
+  bars1m = (s.sections.ndx10.bars[1] || []).map(candle);
   const newest = bars1m.length ? bars1m[bars1m.length - 1].time : -Infinity;
-  for (const b of s.tick.price.tail) if (b && b.time > newest) upsert(bars1m, b);
+  for (const b of s.tick.sections.ndx10.tf[1] || []) if (b.time > newest) upsert(bars1m, candle(b));
   $('banner').hidden = true;
   if (s.tick.gate) liveGate = s.tick.gate.state;
   for (const [key, cfg] of Object.entries(CFG)) {
     if (!panels[key]) panels[key] = new Panel(key, cfg);
     panels[key].load(s.sections[key], s.tick.sections[key]);
   }
-  for (const p of Object.values(panels)) p.drawMain();  // again, now that both series' states are in: the combined gate
-  for (const p of Object.values(panels)) { p.setEmas(); p.setMacd(); }  // once every panel has its 3m bars: NDX10's scale uses NAS100's
+  for (const p of Object.values(panels)) { p.setEmas(); p.setMacd(); }
   showGlobal(s.tick);
 }
 async function resync() {  // reload the snapshot, keep the view; ticks arriving meanwhile wait in `pending`
@@ -1346,10 +1441,10 @@ function onTick(k) {
   lastSeq = k.seq;
   lastTickAt = Date.now();
   let mainRedraw = false;
-  for (const b of k.price.tail) if (b && upsert(bars1m, b) === 'older') mainRedraw = true;
+  for (const b of k.sections.ndx10.tf[1] || []) if (upsert(bars1m, candle(b)) === 'older') mainRedraw = true;
   if (k.gate) liveGate = k.gate.state;
   for (const [key, s] of Object.entries(panels)) s.applyTick(k.sections[key], mainRedraw);
-  if (!mainRedraw) for (const p of Object.values(panels)) p.refreshClosedStates();  // either series' late minute moves the gate
+  if (!mainRedraw) for (const p of Object.values(panels)) p.refreshClosedStates();  // a late minute can settle the gate
   for (const p of Object.values(panels)) { p.setEmas(); p.setMacd(); p.redrawZones(); }
   showGlobal(k);
   if (!hovering) allTags();
@@ -1378,6 +1473,7 @@ function connect() {
 (async () => {
   showSession();
   await pickSource();
+  if (engine) buildPicker();  // the local server's snapshot is always the 10: nothing to pick there
   apply(await fetchSnapshot());
   setupCrosshair();
   buildTfs();
