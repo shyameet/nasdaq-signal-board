@@ -22,6 +22,17 @@ const PANES = {
 };
 const LINES = [1, 2, 3, 5, 7, 9, 11, 15];  // every MACD drawn: the candle sizes the engine must provide
 const COLOR = { 1: '#facc15', 2: '#fb7185', 3: '#22d3ee', 5: '#38bdf8', 7: '#c084fc', 9: '#2dd4bf', 11: '#a3e635', 15: '#f472b6' };
+// Each wave is green while its MACD is above 0 and red while below, so its color flips where it crosses zero. Waves in a
+// pane are told apart by shade (light for short candles, dark for long ones) and by their dashed signal lines, which
+// keep the wave's own color (COLOR).
+const UP = ['#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d'];
+const DOWN = ['#fecaca', '#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c'];
+function shades(lines) {  // minutes -> [above-zero color, below-zero color], spread over the ramps
+  return Object.fromEntries(lines.map((m, i) => {
+    const k = lines.length < 2 ? 2 : Math.round(i * (UP.length - 1) / (lines.length - 1));
+    return [m, [UP[k], DOWN[k]]];
+  }));
+}
 const faded = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}, ${a})`;
 const RULE = { 5: 'MACD vs 0, one of the gate\'s rules', 9: 'MACD vs 0, one of the gate\'s rules',
                11: 'MACD vs 0, one of the gate\'s rules' };
@@ -168,7 +179,8 @@ class MacdPane {
     // the shading and day lines, which a hidden series would take with it
     this.zero = line('#6b778a', { lineWidth: 1, lastValueVisible: false });
     this.series = {};
-    for (const m of this.lines) this.series[m] = line(COLOR[m], { lineWidth: m === 1 ? 1 : 2 });
+    this.shade2 = shades(this.lines);
+    for (const m of this.lines) this.series[m] = line(this.shade2[m][0], { lineWidth: m === 1 ? 1 : 2 });
     this.sigs = {};  // each line's signal line (Trend only): dashed, in the line's color
     if (PANES[this.kind].signals) for (const m of this.lines)
       this.sigs[m] = line(faded(COLOR[m], 0.6), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
@@ -204,18 +216,19 @@ class MacdPane {
     if (i === n && n === k) return false;
     this.pts = pts;
     const pt = (p, value) => value === undefined ? { time: p.time } : { time: p.time, value };  // blank, but the candle keeps its slot
+    const wave = (p, m) => { const v = p.v[m]; return v === undefined ? { time: p.time } : { time: p.time, value: v, color: this.shade2[m][v >= 0 ? 0 : 1] }; };
     const put = p => { if (this.lines.some(m => p.v[m] !== undefined)) this.store.set(p.time, p); };
     if (k && n >= k && n <= k + 1 && i >= k - 1 && pts[k - 1].time === old[k - 1].time) {
       for (let j = k - 1; j < n; j++) {
         const p = pts[j];
-        for (const m of this.lines) this.series[m].update(pt(p, p.v[m]));
+        for (const m of this.lines) this.series[m].update(wave(p, m));
         for (const m in this.sigs) this.sigs[m].update(pt(p, p.sg[m]));
         this.zero.update({ time: p.time, value: 0 });
         put(p);
       }
       return false;
     }
-    for (const m of this.lines) this.series[m].setData(pts.map(p => pt(p, p.v[m])));
+    for (const m of this.lines) this.series[m].setData(pts.map(p => wave(p, m)));
     for (const m in this.sigs) this.sigs[m].setData(pts.map(p => pt(p, p.sg[m])));
     this.zero.setData(pts.map(p => ({ time: p.time, value: 0 })));
     this.store.clear();
@@ -233,8 +246,8 @@ class MacdPane {
     const v = q.v, d = this.digits;
     const item = m => {
       const pass = v[m] > 0;  // the dot: above or below zero, as the gate tests
-      const tip = `${m}m MACD${RULE[m] ? `: ${RULE[m]}` : ' (not in the gate)'}. Click to ${show[m] ? 'hide' : 'show'}`;
-      return `<span class="t-mm${show[m] ? '' : ' off'}" data-k="${m}" title="${tip}"><span class="sw" style="background:${COLOR[m]}"></span><b>${m}m</b>`
+      const tip = `${m}m MACD (green above 0, red below)${RULE[m] ? `: ${RULE[m]}` : ' (not in the gate)'}. Click to ${show[m] ? 'hide' : 'show'}`;
+      return `<span class="t-mm${show[m] ? '' : ' off'}" data-k="${m}" title="${tip}"><span class="sw" style="background:linear-gradient(90deg, ${this.shade2[m][0]} 50%, ${this.shade2[m][1]} 50%)"></span><b>${m}m</b>`
         + `<span class="t-dot ${ok(v[m]) ? (pass ? 'pass' : 'fail') : ''}"></span>`
         + `<span class="t-v">${this.sigs[m] ? `${sgn(v[m], d)} / ${sgn(q.sg[m], d)}` : sgn(v[m], d)}</span></span>`;
     };
