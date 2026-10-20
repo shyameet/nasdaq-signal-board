@@ -1,8 +1,13 @@
 /* Nasdaq Signal Board: the in-browser engine.
 
-   The same two signals as ndx10.py and ndx10_live.py, computed in the viewer's browser from Hyperliquid's
-   public API, so the page needs no server of its own and can be hosted as plain files. It hands the page the
-   same snapshot and ticks as the Python server's /snapshot and /events, and the page draws them the same way.
+   The gate, computed in the viewer's browser from Hyperliquid's public API, so the page needs no server of its own
+   and can be hosted as plain files. For each series (the 10 stocks combined, and the index itself):
+     LONG (state BULLISH)      5m, 9m and 11m MACD all above 0, and the 3m EMA 21 above the EMA 47
+     SHORT (state BEARISH)     all three below 0, and the EMA 21 below the EMA 47
+     NO TRADE (state NEUTRAL)  anything else
+   checked every second on the bars still forming. The combined gate is LONG only when both series are LONG and SHORT
+   only when both are SHORT; its changes are the alerts. (The local Python server, ndx10_live.py, still runs the old
+   four-rule signal.)
 
    History: two days of 1-minute candles per market (about 750 of the 1200 request weight Hyperliquid allows
    an IP per minute), kept in localStorage so a reload only fetches what is new. Live: Hyperliquid's 1-minute
@@ -27,9 +32,9 @@ const STALL = 120000;    // connected, but no market has updated for this long: 
 const RECHECK = 3 * 60000, RECHECK_SPAN = 20;  // every 3 minutes, the last 20 closed minutes against the official candles
 const REFETCH = 180;     // minutes always fetched again on a reload or a reconnect
 const KEEP_BARS = 5000, KEEP_MINUTES = 7200;
-const TIMEFRAMES = { 3: 'ema', 5: 'macd', 7: 'macd', 15: 'macd' };  // minutes -> what runs on it
-// what the page draws, beyond the signal: MACD on 1m, 2m, 9m and 11m, and on 3m beside the EMAs (none of them in the signal)
-const SHOWN = { ...TIMEFRAMES, 1: 'macd', 2: 'macd', 3: 'both', 9: 'macd', 11: 'macd' };
+const TIMEFRAMES = { 3: 'ema', 5: 'macd', 9: 'macd', 11: 'macd' };  // the gate: minutes -> what runs on it
+// what the page draws, beyond the gate: MACD on 1m, 2m, 7m and 15m, and on 3m beside the EMAs (none of them in the gate)
+const SHOWN = { ...TIMEFRAMES, 1: 'macd', 2: 'macd', 3: 'both', 7: 'macd', 15: 'macd' };
 const CACHE = 'nsb.candles.v2.';  // v1 caches can hold flat bars from a stuck stream: they are not read
 
 // ---- the signal: a line-for-line port of ndx10.py ----------------------------------------------
@@ -62,6 +67,7 @@ class Timeframe {  // bars of one size: closed bars with their indicators, plus 
     this.macd = kind !== 'ema' ? new Macd() : null;
     this.ema8 = kind !== 'macd' ? new Ema(8) : null;
     this.ema21 = kind !== 'macd' ? new Ema(21) : null;
+    this.ema47 = kind !== 'macd' ? new Ema(47) : null;
     this.bars = [];
     this.partial = null;  // the bar being filled by finished minutes
   }
@@ -82,14 +88,14 @@ class Timeframe {  // bars of one size: closed bars with their indicators, plus 
   indicators(close, commit) {
     const out = {};
     if (this.macd) { const [line, signal] = commit ? this.macd.update(close) : this.macd.peek(close); Object.assign(out, { macd: line, signal, hist: line - signal }); }
-    if (this.ema8) Object.assign(out, commit ? { ema8: this.ema8.update(close), ema21: this.ema21.update(close) }
-                                             : { ema8: this.ema8.peek(close), ema21: this.ema21.peek(close) });
+    if (this.ema8) Object.assign(out, commit ? { ema8: this.ema8.update(close), ema21: this.ema21.update(close), ema47: this.ema47.update(close) }
+                                             : { ema8: this.ema8.peek(close), ema21: this.ema21.peek(close), ema47: this.ema47.peek(close) });
     return out;
   }
   indicatorsAfter(first, close) {  // a bar closing at `close`, right after one closing at `first`
     const out = {};
     if (this.macd) { const [line, signal] = this.macd.peek2(first, close); Object.assign(out, { macd: line, signal, hist: line - signal }); }
-    if (this.ema8) Object.assign(out, { ema8: this.ema8.peek2(first, close), ema21: this.ema21.peek2(first, close) });
+    if (this.ema8) Object.assign(out, { ema8: this.ema8.peek2(first, close), ema21: this.ema21.peek2(first, close), ema47: this.ema47.peek2(first, close) });
     return out;
   }
   // The forming bar priced at `price`. Just after a boundary the old bar's last minute is still on its way; its
@@ -163,8 +169,8 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     this.seenAtEnd.set(minute, value);
     for (const m of [...this.seenAtEnd.keys()]) if (m < minute - 600000) this.seenAtEnd.delete(m);
   }
-  get ready() {  // enough closed bars everywhere for the MACD (26 + 9) and the EMA 21 to have settled
-    return Object.values(this.tfs).every(tf => tf.bars.length >= (tf.macd ? 35 : 21));
+  get ready() {  // enough closed bars everywhere for the MACD (26 + 9) and the EMA 47 to have settled
+    return Object.values(this.tfs).every(tf => tf.bars.length >= Math.max(tf.macd ? 35 : 0, tf.ema47 ? 47 : 0));
   }
   started(state, fallback) {  // when the current run of `state` began
     let start = fallback;
@@ -179,14 +185,14 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     }
     return runs;
   }
-  evaluate(value, now) {  // the signal with `value` as the close of every forming bar
+  evaluate(value, now) {  // the gate with `value` as the close of every forming bar
     const f = {};
     for (const [m, tf] of Object.entries(this.tfs)) f[m] = tf.forming(value, now, k => this.seenAtEnd.get(k));
     const checks = {
-      '15m MACD vs signal': f[15].macd - f[15].signal,
-      '7m MACD vs 0': f[7].macd,
+      '3m EMA21 vs EMA47': f[3].ema21 - f[3].ema47,
       '5m MACD vs 0': f[5].macd,
-      '3m EMA8 vs EMA21': f[3].ema8 - f[3].ema21,
+      '9m MACD vs 0': f[9].macd,
+      '11m MACD vs 0': f[11].macd,
     };
     const v = Object.values(checks);
     const state = v.every(x => x > 0) ? 'BULLISH' : v.every(x => x < 0) ? 'BEARISH' : 'NEUTRAL';
@@ -202,6 +208,19 @@ class Tracker {  // the live state; reports a change once it has held for `debou
     else if (state !== this.alerted && now - this.since >= this.debounce) { this.alerted = state; return state; }
     return null;
   }
+}
+
+const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
+const combine = (a, b) => a === b ? a : 'NEUTRAL';  // the combined gate of two series' states
+function combinedStart(h1, h2, state, fallback) {  // when the combined gate's current run of `state` began
+  let start = fallback, i = h1.length - 1, j = h2.length - 1;
+  while (i >= 0 && j >= 0) {
+    if (h1[i][0] > h2[j][0]) { i--; continue; }
+    if (h2[j][0] > h1[i][0]) { j--; continue; }
+    if (combine(h1[i][1], h2[j][1]) !== state) break;
+    start = h1[i][0]; i--; j--;
+  }
+  return start;
 }
 
 // ---- Hyperliquid ------------------------------------------------------------------------------
@@ -274,7 +293,7 @@ class Engine {
     this.waiters = [];
     this.progress = progress || (() => {});
     this.markets = Object.fromEntries(this.coins.map(c => [c, { closed: [], cur: null }]));
-    this.trackers = { ndx10: new Tracker(3), nas100: new Tracker(3) };  // they outlive rebuilds, as on the server
+    this.trackers = { ndx10: new Tracker(3), nas100: new Tracker(3), gate: new Tracker(3) };  // they outlive rebuilds
     this.sections = null;
     this.building = true; this.buffer = []; this.gap = null; this.retryAt = 0;
     this.ws = null; this.connects = 0; this.lastHeard = 0; this.nextTick = 0;
@@ -299,6 +318,7 @@ class Engine {
     this.setActive(selection);
     if (this.active.join() === before) return false;
     this.trackers.ndx10 = new Tracker(3);
+    this.trackers.gate = new Tracker(3);
     if (!this.building) {
       this.rebuild();
       this.lastTick = null;  // a snapshot waits for a tick of the new composite
@@ -528,17 +548,20 @@ class Engine {
     for (const c of this.coins) { const mk = this.markets[c]; if (mk.cur) px[c] = mk.cur.c; }
     const values = this.sections.map(s => s.signal.value(px));
     if (values.some(v => v == null) || !this.sections.every(s => s.signal.ready)) return;
-    const evs = {}, changes = [];
+    const evs = {};
     this.sections.forEach((s, i) => {
       s.signal.sample(now, values[i]);
       const ev = evs[s.key] = s.signal.evaluate(values[i], now);
       const started = s.tracker.state === null ? s.signal.started(ev.state, now) : null;
-      const change = s.tracker.update(ev.state, now, started);
-      if (change) changes.push([s, change, ev]);
+      s.tracker.update(ev.state, now, started);
     });
+    // the combined gate: LONG only when both series are, SHORT only when both are
+    const gate = combine(evs.ndx10.state, evs.nas100.state), gt = this.trackers.gate;
+    const change = gt.update(gate, now, gt.state === null ? combinedStart(this.sections[0].signal.history, this.sections[1].signal.history, gate, now) : null);
     const forming = this.markets[BENCH].cur;
     this.publish('tick', {
       time: now,
+      gate: { state: gate, since: gt.since },
       members: Object.fromEntries(this.members.map(c => [c, px[c] ?? null])),
       // the last few bars, not just the newest: bars that close late still reach the page
       price: { last: px[BENCH] ?? null, tail: this.priceBars.slice(-3).concat(forming ? [priceBar(forming)] : []) },
@@ -549,14 +572,14 @@ class Engine {
         history_tail: s.signal.history.slice(-3),
       }])),
     });
-    for (const [s, change, ev] of changes) {
-      const body = `${s.name} ${fixed(ev.value, s.digits)}. `
-        + Object.entries(ev.checks).map(([k, v]) => `${k} ${v >= 0 ? '+' : ''}${v.toFixed(3)}`).join('; ');
-      this.publish('alert', { name: s.name, state: change, time: now, body });
+    if (change) {
+      const body = this.sections.map(s => `${s.name} ${WORD[evs[s.key].state]}: `
+        + Object.entries(evs[s.key].checks).map(([k, v]) => `${k} ${v >= 0 ? '+' : ''}${v.toFixed(3)}`).join('; ')).join('\n');
+      this.publish('alert', { name: 'Gate', state: change, time: now, body });
     }
   }
 }
 
 window.NdxEngine = Engine;
-window.NdxEngine.internals = { bucket, Ema, Macd, Timeframe, TrendSignal, Tracker, referenceCloseMs };  // for checking against Python
+window.NdxEngine.internals = { bucket, Ema, Macd, Timeframe, TrendSignal, Tracker, referenceCloseMs, combine };  // for checking against Python
 })();

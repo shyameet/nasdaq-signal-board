@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
-<script src="macd.js?v=9437e4c3e3"></script>
+<script src="macd.js?v=2757e73c3b"></script>
 <style>
   /* The Divergence page: where the 10-stock signal (NDX10) and the index signal (NAS100) disagree. A status row,
      then one XYZ100 chart marked only at those moments, and XYZ100's Trend and Entry MACD panes. */
@@ -240,10 +240,10 @@
     </div>
     <div class="card sig" id="sig-ndx10"><div class="eyebrow" id="sigEyebrow">10 stocks · NDX10</div><div class="sig-state"><i></i><span>—</span></div><small></small></div>
     <div class="legend" aria-label="What the chart marks">
-          <span title="The index turned bullish, the stocks didn't: often fades"><i class="sw alone"></i><b>Index alone</b></span>
-          <span title="The stocks turned bullish, the index not yet: the index often follows"><i class="sw first"></i><b id="firstName">10 stocks first</b></span>
-          <span title="They disagree in another way: no clear pattern"><i class="sw other"></i><b>Other</b></span>
-          <span title="XYZ100's 3m EMA 8 and EMA 21"><i class="lk e8"></i><b>EMA 8</b><i class="lk e21"></i><b>EMA 21</b></span>
+          <span title="The index's gate is LONG, the stocks' isn't"><i class="sw alone"></i><b>Index alone</b></span>
+          <span title="The stocks' gate is LONG, the index's not yet"><i class="sw first"></i><b id="firstName">10 stocks first</b></span>
+          <span title="Their gates differ in another way"><i class="sw other"></i><b>Other</b></span>
+          <span title="XYZ100's 3m EMA 21 and EMA 47, the gate's EMA pair"><i class="lk e8"></i><b>EMA 21</b><i class="lk e21"></i><b>EMA 47</b></span>
     </div>
     <div class="card sig" id="sig-nas100"><div class="eyebrow">Index · NAS100</div><div class="sig-state"><i></i><span>—</span></div><small></small></div>
   </section>
@@ -260,11 +260,11 @@
     <summary>How it works</summary>
     <div class="how-body">
       <h3>What this page shows</h3>
-      <p>The Signals page runs the same four rules on two series: the 10 biggest Nasdaq-100 stocks combined (NDX10) and the Nasdaq-100 itself (XYZ100). Here you can pick any of those 10 stocks (one to ten); their official weights are rescaled to 100% and everything below is rebuilt for your pick, with no new download. The percentages in the study below were measured on the full 10; for a custom basket, treat them as hints at best. They agree about three quarters of the time. This page marks only the moments they disagree; when they agree, the chart stays clean.</p>
-      <h3>The two patterns</h3>
-      <p><b class="alone">Index alone</b>: the index turned bullish while the 10 stocks didn't. In a 3-day study, XYZ100 was lower 15 minutes later about 7 times out of 10, on every day. <b class="up">10 stocks first</b>: the 10 stocks turned bullish while the index hadn't yet. XYZ100 was higher 30 minutes later about 7 times out of 10, but less consistently. Other differences showed no clear pattern.</p>
+      <p>Each series has a gate: <b class="up">LONG</b> when its 5m, 9m and 11m MACD are all above 0 and its 3m EMA 21 is above the EMA 47, <b class="down">SHORT</b> when all of that is the other way, NO TRADE otherwise. This page compares the gate of the stocks (the 10 biggest Nasdaq-100 stocks combined, or your own pick of them: their official weights are rescaled to 100%, rebuilt with no new download) with the gate of the Nasdaq-100 itself (XYZ100), and marks only where they differ; when they agree, the chart stays clean.</p>
+      <h3>The marks</h3>
+      <p><b class="alone">Index alone</b>: the index's gate is LONG while the stocks' isn't. <b class="up">Stocks first</b>: the stocks' gate is LONG while the index's isn't yet. <b>Other</b>: they differ in another way. These have not been studied for the gate yet, so the page makes no claim about what follows them.</p>
       <h3>The MACD pane</h3>
-      <p>Under the chart are XYZ100's two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the signal. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>, the signal's three MACD rules, plus <b style="color:#facc15">1m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Each pane is shaded where the stocks' MACDs and the index's MACDs agree on every line switched on in it: green when all are above zero for both, red when all are below zero for both. Dashed vertical lines mark where a new day begins in your timezone.</p>
+      <p>Under the chart are XYZ100's two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the gate. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>, the gate's three MACD rules, plus <b style="color:#facc15">1m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Both panes are shaded by the combined gate: green where both gates are LONG, red where both are SHORT. Dashed vertical lines mark where a new day begins in your timezone.</p>
       <p>For information only, not investment advice.</p>
     </div>
   </details>
@@ -277,16 +277,19 @@
 const DAY = 86400000, MIN = 60000, TFS = [1, 3, 5, 7, 15];
 const C = { up: '#2bb68a', down: '#f0555f', alone: '#ff8a3d', other: '#8d99ab', grid: '#121821', text: '#7d899b', line: '#1c2430',
             cross: '#3a4554', label: '#283240', bg: '#0a0d12', strip: '#0e131a' };
-// What a disagreement is called, and what has tended to follow it (the 3-day study; the scoreboard keeps checking)
+// What a disagreement between the stocks' gate and the index's gate is called. (The old "often fades / often follows"
+// notes were measured on the old four-rule signal, so they are gone: the gate has not been studied yet.)
+const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
+const combine = (a, b) => !a || !b ? null : a === b ? a : 'NEUTRAL';  // the combined gate
 let ACTIVE = [], ALL = [], BASKET = null;  // the stocks in the composite, the 10 on offer, basket.json
 let NLAB = '10 stocks';                      // how the composite is named on the page: "10 stocks", "6 stocks", "1 stock"
 const PATTERN = {
   alone: { name: 'Index alone', word: 'INDEX ALONE', band: 'rgba(255, 138, 61, 0.17)', color: C.alone, horizon: 15, expect: -1,
-           test: 'lower 15 min later', get note() { return `The index turned bullish, the ${NLAB} didn't. So far this has often faded.`; } },
+           test: 'lower 15 min later', get note() { return `The index's gate is LONG, the ${NLAB}' gate isn't.`; } },
   first: { get name() { return `${NLAB} first`; }, get word() { return `${NLAB.toUpperCase()} FIRST`; }, band: 'rgba(43, 182, 138, 0.17)', color: C.up, horizon: 30, expect: 1,
-           test: 'higher 30 min later', get note() { return `The ${NLAB} turned bullish, the index not yet. The index has often followed.`; } },
+           test: 'higher 30 min later', get note() { return `The ${NLAB}' gate is LONG, the index's not yet.`; } },
   other: { name: 'Other difference', word: 'DIFFERENT', band: 'rgba(141, 153, 171, 0.12)', color: C.other,
-           note: 'They disagree in another way. No clear pattern so far.' },
+           note: 'Their gates differ in another way.' },
 };
 const STATE_COLOR = { BULLISH: C.up, BEARISH: C.down, NEUTRAL: '#3a4554' };
 const SYM = { BULLISH: '▲', BEARISH: '▼', NEUTRAL: '–' };
@@ -355,7 +358,7 @@ let bars1m = [], boot = null, gen = null, lastSeq = 0, lastTickAt = 0, lost = fa
 let live = null, latestMinute = 0, hovering = false, alertsOn = false, audio = null, alertKind, alertSince = 0, alerted;
 const stateAt = { ndx10: new Map(), nas100: new Map() };  // minute -> each signal's state at that minute's close
 let mainBars = [], pairs = [], index = new Map(), markersKey = '';
-let ema3 = [], emaPts = [];  // XYZ100's 3m bars with their EMA 8/21, and the points drawn from them
+let ema3 = [], emaPts = [];  // XYZ100's 3m bars with their EMA 21/47, and the points drawn from them (e8: EMA 21, e21: EMA 47)
 let chart, candles, layer, e8, e21;
 // XYZ100's 5m, 7m and 15m MACD in one pane under the chart, one color each, drawn on the chart's candles
 // The Trend and Entry MACD panes, their switches and shading, and the day separators: macd.js, shared with Signals
@@ -397,7 +400,7 @@ function fitMargins() {  // a little room above and below the candles
 function makeChart() {
   chart = LightweightCharts.createChart($('pmain'), options());
   candles = chart.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
-  // the 3m EMA 8 and EMA 21 of XYZ100 (the index's own 3m rule), over the candles
+  // the 3m EMA 21 and EMA 47 of XYZ100 (the index gate's EMA pair), over the candles
   const emaLine = color => chart.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
   e8 = emaLine('#f2b33d'); e21 = emaLine('#5b8cff');
   layer = new DivLayer();
@@ -411,6 +414,7 @@ function makeChart() {
     el: $(`p${kind}`), tagEl: $(`t${kind}`), kind, name: 'XYZ100', digits: 2,
     options: { ...base, watermark: { visible: false }, handleScroll: false, handleScale: false, timeScale: { ...base.timeScale, visible: false } },
     bars: () => mainBars, tf: () => tf, src: () => macd, stocks: () => macdStocks,
+    shade: i => pairs[i] ? combine(pairs[i].sn, pairs[i].sx) : null,  // the combined gate
   });
   chart.timeScale().subscribeVisibleLogicalRangeChange(syncMix);
   NsbMacd.onToggle(() => { for (const pane of Object.values(panes)) pane.showLines(); mixTag(); });
@@ -475,7 +479,8 @@ function emaPoints() {  // one point per candle: the 3m EMAs as of its close (ne
     const j = i === mainBars.length - 1 ? ema3.length - 1 : k;
     if (j < 0 || j === used) continue;  // no 3m bar closed inside this candle (1m candles): the line goes straight past
     used = j;
-    out.push({ time: sec(mainBars[i].time), e8: ema3[j].ema8, e21: ema3[j].ema21 });
+    if (ema3[j].ema47 === undefined) continue;
+    out.push({ time: sec(mainBars[i].time), e8: ema3[j].ema21, e21: ema3[j].ema47 });
   }
   return out;
 }
@@ -551,11 +556,11 @@ function tag(t) {  // the label in the chart's corner: the candle, and both sign
   $('tag').innerHTML = `<div class="t1"><b>XYZ100</b><span>${tf}m</span>` + (t === undefined ? '' : `<span class="t-time">${when(b.time)}</span>`)
     + `<span class="ohlc">O <b>${num(b.open)}</b> H <b>${num(b.high)}</b> L <b>${num(b.low)}</b> `
     + `C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close)}</b></span></div>`
-    + `<div class="t2"><span>${NLAB} ${SYM[p.sn] || '·'}</span><span>index ${SYM[p.sx] || '·'}</span>`
+    + `<div class="t2"><span>${NLAB} ${WORD[p.sn] || '·'}</span><span>index ${WORD[p.sx] || '·'}</span>`
     + `<span class="t-kind ${p.kind || ''}">${p.kind ? PATTERN[p.kind].name : 'in sync'}</span></div>`
     + (() => { const e = t === undefined ? emaPts[emaPts.length - 1] : emaAt(t);
-        return e ? `<div class="t3"><span><i class="lk e8"></i>EMA 8 <b>${num(e.e8, 1)}</b></span>`
-                 + `<span><i class="lk e21"></i>EMA 21 <b>${num(e.e21, 1)}</b></span></div>` : ''; })();
+        return e ? `<div class="t3"><span><i class="lk e8"></i>EMA 21 <b>${num(e.e8, 1)}</b></span>`
+                 + `<span><i class="lk e21"></i>EMA 47 <b>${num(e.e21, 1)}</b></span></div>` : ''; })();
 }
 
 // ---- the status row: the situation right now ----------------------------------------------------------
@@ -573,12 +578,12 @@ function showHead() {
   const sn = live.ndx10.state, sx = live.nas100.state, k = classify(sn, sx);
   $('badge').className = 'badge ' + (k || 'sync');
   $('badge').textContent = k ? PATTERN[k].word : 'IN SYNC';
-  $('note').textContent = k ? PATTERN[k].note : `Both signals say ${sn.toLowerCase()}. Nothing to mark.`;
+  $('note').textContent = k ? PATTERN[k].note : `Both gates say ${WORD[sn]}. Nothing to mark.`;
   $('since').textContent = `${k ? 'Different' : 'In sync'} for ${dur(live.nas100.time - since(k))}`;
   for (const key of ['ndx10', 'nas100']) {
     const s = live[key], card = $(`sig-${key}`);
     card.className = 'card sig ' + (s.state === 'BULLISH' ? 'bull' : s.state === 'BEARISH' ? 'bear' : '');
-    card.querySelector('.sig-state span').textContent = s.state;
+    card.querySelector('.sig-state span').textContent = WORD[s.state] || s.state;
     card.querySelector('small').textContent = `for ${dur(s.time - s.since)}`;
   }
 }
@@ -730,7 +735,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tagEl = document.createElement('script');
-    tagEl.src = 'engine.js?v=6496e7e0a0'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
+    tagEl.src = 'engine.js?v=d0c2983ced'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tagEl);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();

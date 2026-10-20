@@ -6,16 +6,16 @@ Live Nasdaq-100 trend signals from Hyperliquid's 24/7 stock perps.
 
 **Open it: https://shyameet.github.io/nasdaq-signal-board/**
 
-Two panels apply the same four rules, each checked every second on the bar still forming:
+Each series gets a gate, checked every second on the bars still forming:
 
-| Rule | Bullish | Bearish |
-|---|---|---|
-| 3m | EMA 8 above EMA 21 | EMA 8 below EMA 21 |
-| 5m | MACD above 0 | MACD below 0 |
-| 7m | MACD above 0 | MACD below 0 |
-| 15m | MACD above its signal | MACD below its signal |
+| Gate | Condition |
+|---|---|
+| LONG | 5m, 9m and 11m MACD all above 0, and the 3m EMA 21 above the EMA 47 |
+| SHORT | all three below 0, and the EMA 21 below the EMA 47 |
+| NO TRADE | anything else |
 
-All four bullish: BULLISH. All four bearish: BEARISH. Anything else: NEUTRAL. MACD is 12/26/9.
+The combined gate is LONG only when both series are LONG and SHORT only when both are SHORT. It shades the charts
+and the MACD panes, and sets the BUY/SELL marks and the alerts. MACD is 12/26/9.
 
 - **NDX10**: the ten largest Nasdaq-100 weights that trade on Hyperliquid, as one composite (official index
   weights rescaled to 100%; 1000 = the 10/05/2026 close).

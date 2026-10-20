@@ -1,11 +1,12 @@
 /* Nasdaq Signal Board: the MACD panes under a price chart, and the day separators, shared by both pages.
 
-   Two panes: Entry (2m and 3m MACD, for timing) above Trend (1m, 5m, 7m, 9m, 11m and 15m; 5m, 7m and 15m are the
-   signal's rules), each Trend line with its own signal line, dashed in its color. Every line is drawn on the price chart's own candles, at its value as of each candle's close (never
-   ahead of it; the forming candle live), so a pane lines up bar for bar with the chart above it and scrolls with it.
-   Any line can be switched off from its pane's label; the choice is kept in this browser and shared by both pages.
-   Each pane is shaded where the 10 stocks' MACDs and the index's MACDs agree on every line switched on in it: green
-   when all of them are above zero for both, red when all are below zero for both. */
+   Two panes: Entry (2m and 3m MACD, for timing) above Trend (1m, 5m, 7m, 9m, 11m and 15m; 5m, 9m and 11m are the
+   gate's MACD rules), each Trend line with its own signal line, dashed in its color. Every line is drawn on the price
+   chart's own candles, at its value as of each candle's close (never ahead of it; the forming candle live), so a pane
+   lines up bar for bar with the chart above it and scrolls with it. Any line can be switched off from its pane's label;
+   the choice is kept in this browser and shared by both pages. A page can pass shade(i), the state at candle i, to
+   shade the panes by the gate (green LONG, red SHORT); without it a pane is shaded where the 10 stocks' MACDs and the
+   index's MACDs agree on every line switched on in it. */
 (() => {
 'use strict';
 const DAY = 86400000;
@@ -22,8 +23,8 @@ const PANES = {
 const LINES = [1, 2, 3, 5, 7, 9, 11, 15];  // every MACD drawn: the candle sizes the engine must provide
 const COLOR = { 1: '#facc15', 2: '#fb7185', 3: '#22d3ee', 5: '#38bdf8', 7: '#c084fc', 9: '#2dd4bf', 11: '#a3e635', 15: '#f472b6' };
 const faded = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}, ${a})`;
-const RULE = { 5: 'MACD vs 0, one of the signal\'s rules', 7: 'MACD vs 0, one of the signal\'s rules',
-               15: 'MACD vs its signal line, one of the signal\'s rules' };
+const RULE = { 5: 'MACD vs 0, one of the gate\'s rules', 9: 'MACD vs 0, one of the gate\'s rules',
+               11: 'MACD vs 0, one of the gate\'s rules' };
 const MATCH = { BULLISH: 'rgba(43, 182, 138, 0.13)', BEARISH: 'rgba(240, 85, 95, 0.12)' };
 
 // ---- which lines are on ------------------------------------------------------------------------------
@@ -173,6 +174,7 @@ class MacdPane {
       this.sigs[m] = line(faded(COLOR[m], 0.6), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
     this.zero.priceScale().applyOptions({ scaleMargins: { top: 0.2, bottom: 0.06 } });
     this.shading = new Bands(() => chart, () => this.pts.length, i => {
+      if (this.shade) return MATCH[this.shade(i)] || null;  // the page's state at candle i: the gate
       const [a, b] = this.pair();
       return MATCH[matchAt(a[i], b[i], this.lines)] || null;
     });
@@ -230,8 +232,8 @@ class MacdPane {
     if (!q) return;
     const v = q.v, d = this.digits;
     const item = m => {
-      const pass = m === 15 ? v[m] > q.sg[m] : v[m] > 0;
-      const tip = `${m}m MACD${RULE[m] ? `: ${RULE[m]}` : ' (not in the signal)'}. Click to ${show[m] ? 'hide' : 'show'}`;
+      const pass = v[m] > 0;  // the dot: above or below zero, as the gate tests
+      const tip = `${m}m MACD${RULE[m] ? `: ${RULE[m]}` : ' (not in the gate)'}. Click to ${show[m] ? 'hide' : 'show'}`;
       return `<span class="t-mm${show[m] ? '' : ' off'}" data-k="${m}" title="${tip}"><span class="sw" style="background:${COLOR[m]}"></span><b>${m}m</b>`
         + `<span class="t-dot ${ok(v[m]) ? (pass ? 'pass' : 'fail') : ''}"></span>`
         + `<span class="t-v">${this.sigs[m] ? `${sgn(v[m], d)} / ${sgn(q.sg[m], d)}` : sgn(v[m], d)}</span></span>`;

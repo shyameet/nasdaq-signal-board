@@ -29,7 +29,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
-<script src="macd.js?v=9437e4c3e3"></script>
+<script src="macd.js?v=2757e73c3b"></script>
 <style>
   /* Layout: a two-column trading board. Each instrument gets a signal header (state + one tile
      per rule), then XYZ100 candles with that signal's zones, BUY/SELL marks and 3m EMAs, then the MACD panes.
@@ -80,6 +80,12 @@
   .quote .sym { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; }
   .quote .px { font-size: 18px; font-weight: 600; }
   .chg { font-size: 12px; font-weight: 500; }
+  .gate { display: inline-flex; align-items: center; gap: 8px; padding: 3px 4px 3px 10px; border: 1px solid var(--line-strong); border-radius: 8px; }
+  .gate-k { color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .gate-w { padding: 2px 10px; border-radius: 6px; background: var(--tile); color: var(--muted); font-weight: 700; font-size: 12.5px; letter-spacing: .08em; }
+  .gate.bull .gate-w { background: var(--up); color: #04150f; box-shadow: 0 0 18px rgba(43, 182, 138, .35); }
+  .gate.bear .gate-w { background: var(--down); color: #1e0507; box-shadow: 0 0 18px rgba(240, 85, 95, .35); }
+  .gate-s { color: var(--muted); font-size: 11px; padding-right: 6px; white-space: nowrap; }
   .session { display: inline-flex; align-items: center; gap: 8px; padding: 3px 10px; border: 1px solid var(--line);
              border-radius: 999px; color: var(--muted); font-size: 12px; white-space: nowrap; }
   .session b { color: var(--text); font-weight: 600; }
@@ -240,10 +246,11 @@
   <div class="brand"><img class="mark" src="brand/logo.svg" alt="" width="30" height="30"><div><b>Nasdaq Signal Board</b><small>Live from Hyperliquid</small></div></div>
   <nav class="tabs" aria-label="Pages"><a href="./" aria-current="page">Signals</a><a href="divergence.html">Divergence</a></nav>
   <div class="quote"><span class="sym">XYZ100</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
+  <div class="gate" id="gate" title="The combined gate: LONG only when both the 10 stocks and the index are LONG, SHORT only when both are SHORT"><span class="gate-k">Gate</span><span class="gate-w" id="gate-w">—</span><span class="gate-s" id="gate-s"></span></div>
   <div class="session" id="session" title="US stock market session (New York time; holidays not shown)"></div>
   <div class="spacer"></div>
   <div class="seg" id="tfs" role="group" aria-label="Candle size of both price charts"></div>
-  <button class="toggle" id="alerts" aria-pressed="false" title="Browser notification and sound when either signal changes">Alerts off</button>
+  <button class="toggle" id="alerts" aria-pressed="false" title="Browser notification and sound when the combined gate turns LONG, SHORT or NO TRADE">Alerts off</button>
   <div class="live"><span class="dot" id="dot"></span><span id="live">connecting</span></div>
 </header>
 <main class="board" id="board">
@@ -280,21 +287,20 @@
   <details class="how">
     <summary>How it works</summary>
     <div class="how-body">
-      <h3>The signal</h3>
-      <p>Both panels apply the same four rules, each on its own candle size, checked every second on the bar still forming:</p>
+      <h3>The gate</h3>
+      <p>Each series (the 10 stocks combined, and the index) has a gate, checked every second on the bars still forming:</p>
       <table>
-        <tr><th>Rule</th><th>Bullish</th><th>Bearish</th></tr>
-        <tr><td class="num">3m</td><td>EMA 8 above EMA 21</td><td>EMA 8 below EMA 21</td></tr>
-        <tr><td class="num">5m</td><td>MACD above 0</td><td>MACD below 0</td></tr>
-        <tr><td class="num">7m</td><td>MACD above 0</td><td>MACD below 0</td></tr>
-        <tr><td class="num">15m</td><td>MACD above its signal</td><td>MACD below its signal</td></tr>
+        <tr><th>Gate</th><th>Condition</th></tr>
+        <tr><td><b class="up">LONG</b></td><td>5m, 9m and 11m MACD all above 0, and the 3m EMA 21 above the EMA 47</td></tr>
+        <tr><td><b class="down">SHORT</b></td><td>all three below 0, and the EMA 21 below the EMA 47</td></tr>
+        <tr><td>NO TRADE</td><td>anything else</td></tr>
       </table>
-      <p>All four bullish: <b class="up">BULLISH</b>. All four bearish: <b class="down">BEARISH</b>. Anything else: NEUTRAL. MACD is 12/26/9.</p>
+      <p>The <b>combined gate</b> (top bar) is LONG only when both series are LONG and SHORT only when both are SHORT. It shades the charts and the MACD panes, sets the BUY and SELL marks and the alerts. Each panel's header shows its own series' gate, so you can see which side is holding the other back. MACD is 12/26/9.</p>
       <h3>The two panels</h3>
-      <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same rules on the Nasdaq-100 perp itself, XYZ100.</p>
-      <p>Under each price chart are two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the signal. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>, the signal's three MACD rules, plus <b style="color:#facc15">1m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Each pane is shaded where the 10 stocks' MACDs and the index's MACDs agree on every line switched on in it: green when all are above zero for both, red when all are below zero for both. Dashed vertical lines mark where a new day begins in your timezone.</p>
+      <p><b>NDX10</b> combines the 10 largest Nasdaq-100 weights (official index weights rescaled to 100%, Hyperliquid prices; 1000 = the basket's reference close). <b>NAS100</b> runs the same gate on the Nasdaq-100 perp itself, XYZ100.</p>
+      <p>Under each price chart are two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the gate. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>, the gate's three MACD rules, plus <b style="color:#facc15">1m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Both panes are shaded by the combined gate: green while LONG, red while SHORT. Dashed vertical lines mark where a new day begins in your timezone.</p>
       <h3>The charts</h3>
-      <p>Zones: a green zone (green ribbon along the bottom, labeled BULLISH zone) is where all four of a panel's rules were bullish at the candle's close; a red zone is where all four were bearish; no color means the rules disagreed (neutral). The zone is the signal, not the candle: a red candle can sit in a green zone. Zones change a few candles after the price turns, because MACD and EMAs follow price. The left chart's zones come from the 10 stocks, the right chart's from the index itself. The forming candle shows the signal live. <b class="up">▲ BUY</b> marks the candle where the signal turns bullish, <b class="down">▼ SELL</b> where it turns bearish. The amber and blue lines are the 3m EMA 8 and EMA 21 that the 3m rule tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 21 sits on XYZ100's EMA 21 and EMA 8 keeps the basket's own gap to it, so they cross exactly when the left 3m rule flips. Times are in your timezone.</p>
+      <p>Zones: green while the combined gate is LONG (labeled ▲ LONG), red while it is SHORT, no color for NO TRADE. Both price charts show the same combined gate. The zone is the gate, not the candle: a red candle can sit in a green zone. The forming candle shows the gate live. <b class="up">▲ BUY</b> marks the candle where the combined gate turns LONG, <b class="down">▼ SELL</b> where it turns SHORT. The amber and blue lines are the 3m EMA 21 and EMA 47 the gate tests, as of each candle's close. On the left chart they are the basket's EMAs scaled to XYZ100's price: EMA 47 sits on XYZ100's EMA 47 and EMA 21 keeps the basket's own gap to it, so they cross exactly when the basket's EMA condition flips. Times are in your timezone.</p>
       <h3>Drawing tools</h3>
       <p>The toolbar on the left draws on the price charts: trend line, horizontal and vertical line, rectangle, Fib retracement and measure. Drag from one point to the other, or click one and then the other. Click a drawing to select it, drag it or its handles to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. Drawings show on both price charts and are saved in this browser.</p>
       <h3>Data</h3>
@@ -323,12 +329,19 @@ const CFG = {
 };
 // The MACD panes (Trend and Entry), their switches and shading, and the day separators: macd.js, shared with Divergence
 const { MacdPane, DayLines } = NsbMacd, MACD_KINDS = ['entry', 'trend'];  // top to bottom under the chart
-const RULES = [  // [server key, rule text, pane], shortest candle first like the panes
-  ['3m EMA8 vs EMA21', 'EMA 8 › EMA 21', 3],
+const RULES = [  // [engine key, rule text, candle size]: the gate's four conditions, shortest candle first
+  ['3m EMA21 vs EMA47', 'EMA 21 › EMA 47', 3],
   ['5m MACD vs 0', 'MACD › 0', 5],
-  ['7m MACD vs 0', 'MACD › 0', 7],
-  ['15m MACD vs signal', 'MACD › signal', 15],
+  ['9m MACD vs 0', 'MACD › 0', 9],
+  ['11m MACD vs 0', 'MACD › 0', 11],
 ];
+// A series' gate is LONG (state BULLISH) when all four hold, SHORT (BEARISH) when all four are the other way, else
+// NO TRADE. The combined gate, which shades the charts and marks them, is LONG only when both series are LONG and
+// SHORT only when both are SHORT.
+const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
+const combine = (a, b) => !a || !b ? null : a === b ? a : 'NEUTRAL';
+let liveGate = 'NEUTRAL';  // the combined gate right now (from the engine's tick)
+const gateAt = t => combine(panels.ndx10 && panels.ndx10.stateAt.get(t), panels.nas100 && panels.nas100.stateAt.get(t));
 
 const $ = id => document.getElementById(id);
 const sec = ms => Math.floor(ms / 1000);
@@ -440,7 +453,7 @@ function segDist(x, y, x1, y1, x2, y2) {  // distance from (x, y) to the segment
 // Each zone also gets a solid ribbon along the bottom of the chart and, where it's wide enough, its name, so the
 // colors explain themselves: a zone is the panel's signal (all 4 rules agreeing), not the color of the candles.
 const ZONE_EDGE = { BULLISH: '#2bb68a', BEARISH: '#f0555f' };
-const ZONE_WORD = { BULLISH: '▲ BULLISH zone', BEARISH: '▼ BEARISH zone' };
+const ZONE_WORD = { BULLISH: '▲ LONG', BEARISH: '▼ SHORT' };
 class ZoneLayer {  // green and red bands behind the candles: the panel's signal at each candle (a series primitive)
   // `chart` is the chart it sits on: the price chart, or the MACD pane under it (the same candles, so the same bands;
   // there without the ribbon and the zone's name)
@@ -890,7 +903,7 @@ class Panel {
     for (const kind of MACD_KINDS) {
       const pane = this.macd[kind] = new MacdPane({
         el: $(`${key}-p${kind}`), tagEl: $(`${key}-t${kind}`), kind, name: cfg.name, digits: cfg.macdDigits, options: options(false, false),
-        bars: () => this.mainBars, tf: () => tf, src: () => this.paneBars,
+        bars: () => this.mainBars, tf: () => tf, src: () => this.paneBars, shade: i => this.mainStates[i],
         match: () => [panels.ndx10 ? panels.ndx10.macd[kind].pts : [], panels.nas100 ? panels.nas100.macd[kind].pts : []],
       });
       this.store[kind] = pane.store;
@@ -928,9 +941,9 @@ class Panel {
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const pane of Object.values(this.macd)) pane.shading.update();
   }
-  // ---- price chart: XYZ100 candles, with this panel's signal as zones and BUY / SELL marks ----
-  closedState(b) {  // the signal at the bar's last finished minute
-    for (let t = bucketEnd(b.time, tf) - 60000; t >= b.time; t -= 60000) { const s = this.stateAt.get(t); if (s) return s; }
+  // ---- price chart: XYZ100 candles, with the combined gate as zones and BUY / SELL marks (the same on both panels) ----
+  closedState(b) {  // the combined gate at the bar's last finished minute
+    for (let t = bucketEnd(b.time, tf) - 60000; t >= b.time; t -= 60000) { const s = gateAt(t); if (s) return s; }
     return null;
   }
   flips(i) { const st = this.mainStates[i]; return i > 0 && (st === 'BULLISH' || st === 'BEARISH') && st !== this.mainStates[i - 1]; }
@@ -946,7 +959,7 @@ class Panel {
   drawMain() {
     this.mainBars = aggregate(bars1m, tf);
     const n = this.mainBars.length, data = new Map();
-    this.mainStates = this.mainBars.map((b, i) => i === n - 1 ? this.liveState : this.closedState(b));
+    this.mainStates = this.mainBars.map((b, i) => i === n - 1 ? liveGate : this.closedState(b));
     this.mainBars.forEach(b => { for (const [s, p] of this.mainPoints(b)) { if (!data.has(s)) data.set(s, []); data.get(s).push(p); } });
     for (const [s, d] of data) s.setData(d);
     this.baseMarkers = [];
@@ -985,9 +998,9 @@ class Panel {
       for (const [s, p] of this.mainPoints(this.mainBars[n - 1])) s.update(p);
       if (this.flips(n - 1)) this.baseMarkers.push(this.arrow(this.mainBars[n - 1], this.mainStates[n - 1]));
       this.store.main.set(sec(this.mainBars[n - 1].time), { ...this.mainBars[n - 1], state: this.mainStates[n - 1] });
-      this.mainBars.push(bucketFrom1m(cur)); this.mainStates.push(this.liveState);
+      this.mainBars.push(bucketFrom1m(cur)); this.mainStates.push(liveGate);
     } else {
-      this.mainBars[n - 1] = bucketFrom1m(cur); this.mainStates[n - 1] = this.liveState;
+      this.mainBars[n - 1] = bucketFrom1m(cur); this.mainStates[n - 1] = liveGate;
     }
     const i = this.mainBars.length - 1;
     for (const [s, p] of this.mainPoints(this.mainBars[i])) s.update(p);
@@ -997,11 +1010,12 @@ class Panel {
   }
   // ---- 3m EMA 8 / 21 on the price chart ----
   emaSource() {  // this panel's 3m EMAs at XYZ100's price level (e8, e21), with the values its rule tests (v8, v21)
-    const own = this.ema3.map(b => ({ time: b.time, e8: b.ema8, e21: b.ema21, v8: b.ema8, v21: b.ema21 }));
+    // e8 / v8 hold the fast EMA (21), e21 / v21 the slow one (47): the gate's 3m pair
+    const own = this.ema3.filter(b => b.ema47 !== undefined).map(b => ({ time: b.time, e8: b.ema21, e21: b.ema47, v8: b.ema21, v21: b.ema47 }));
     if (!this.cfg.scaleOnto) return own;
-    // NDX10's EMAs are of its ~1000-point basket. Scaled by XYZ100's EMA 21 over the basket's, its EMA 21 lies on
-    // XYZ100's and its EMA 8 keeps the basket's own gap to it, so the two lines cross exactly when its 3m rule flips
-    const ref = new Map(panels[this.cfg.scaleOnto].ema3.map(b => [b.time, b.ema21]));
+    // NDX10's EMAs are of its ~1000-point basket. Scaled by XYZ100's EMA 47 over the basket's, its EMA 47 lies on
+    // XYZ100's and its EMA 21 keeps the basket's own gap to it, so the two lines cross exactly when its 3m rule flips
+    const ref = new Map(panels[this.cfg.scaleOnto].ema3.map(b => [b.time, b.ema47]));
     return own.filter(p => ref.has(p.time) && p.v21).map(p => { const f = ref.get(p.time) / p.v21; return { ...p, e8: p.v8 * f, e21: p.v21 * f }; });
   }
   emaPoints() {  // one point per candle: the 3m EMAs as of its close (never ahead of it); the forming candle shows them live
@@ -1073,7 +1087,7 @@ class Panel {
     const redraw = new Set();
     for (const m of this.panes) for (const b of s.tf[m] || []) this.mergePane(m, b, redraw);
     for (const m of redraw) this.setPane(m);
-    if (mainRedraw) this.drawMain(); else { this.updateMain(); if (history) this.refreshClosedStates(); }
+    if (mainRedraw) this.drawMain(); else this.updateMain();
     this.syncPanes();
     this.showHead(s);
   }
@@ -1083,7 +1097,8 @@ class Panel {
     const k = this.key, cfg = this.cfg, kind = stateKind(s.state);
     const box = $(`${k}-state`);
     box.className = 'state ' + kind;
-    box.querySelector('.state-word').textContent = s.state;
+    box.querySelector('.state-word').textContent = WORD[s.state] || s.state;
+    box.title = `${cfg.name}'s own gate (the charts show the combined gate of both)`;
     $(`${k}-since`).textContent = `for ${dur(s.time - s.since)}`;
     $(`${k}-val`).textContent = num(s.value, cfg.digits);
     const ch = s.ref ? s.value / s.ref - 1 : null;
@@ -1094,9 +1109,8 @@ class Panel {
     const tiles = RULES.map(([key, text, m]) => {
       const pass = s.checks[key] > 0, b = last(m), gap = s.checks[key];
       const val = m === 3 ? sgn(gap, cfg.digits) : sgn(gap, cfg.macdDigits);
-      const what = m === 3 ? `EMA 8 minus EMA 21 (${num(b.ema8, cfg.digits)} vs ${num(b.ema21, cfg.digits)})`
-                 : m === 15 ? `MACD minus signal (${sgn(b.macd, cfg.macdDigits)} vs ${sgn(b.signal, cfg.macdDigits)})` : 'MACD';
-      return `<div class="rule ${pass ? 'pass' : 'fail'}" title="${m}m ${text.replace('›', 'above')}: ${pass ? 'bullish' : 'bearish'}. Shown: ${what}">`
+      const what = m === 3 ? `EMA 21 minus EMA 47 (${num(b.ema21, cfg.digits)} vs ${num(b.ema47, cfg.digits)})` : 'MACD';
+      return `<div class="rule ${pass ? 'pass' : 'fail'}" title="${m}m ${text.replace('›', 'above')}: ${pass ? 'the LONG side' : 'the SHORT side'}. Shown: ${what}">`
            + `<div class="r1"><span>${m}m</span><span class="ic">${pass ? ICON.check : ICON.cross}</span></div>`
            + `<div class="rn">${text}</div><div class="r2">${val}</div></div>`;
     });
@@ -1113,14 +1127,14 @@ class Panel {
     if (key === 'main') {
       const b = live ? this.mainBars[this.mainBars.length - 1] : this.store.main.get(t);
       if (!b) return;
-      const st = live ? this.liveState : b.state, kind = stateKind(st), e = live ? this.emaPts[this.emaPts.length - 1] : this.emaAt(t);
+      const st = live ? liveGate : b.state, kind = stateKind(st), e = live ? this.emaPts[this.emaPts.length - 1] : this.emaAt(t);
       $(`${k}-tmain`).innerHTML = `<b>XYZ100</b><span>${tf}m</span>`
         + (live ? '' : `<span class="t-time">${when(b.time)}</span>`)
         + `<span class="ohlc">O <b>${num(b.open)}</b> H <b>${num(b.high)}</b> L <b>${num(b.low)}</b> `
         + `C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close)}</b></span>`
-        + (st ? `<span class="t-state ${kind}">${st}</span>` : '')
-        + (e ? `<span class="t-ema"><b class="num">3m</b><span class="sw" style="background:${C.ema8}"></span>EMA 8`
-             + `<span class="sw" style="background:${C.ema21}"></span>EMA 21${cfg.scaleOnto ? `<span class="t-of">of ${cfg.name}</span>` : ''}`
+        + (st ? `<span class="t-state ${kind}" title="The combined gate at this candle">GATE ${WORD[st]}</span>` : '')
+        + (e ? `<span class="t-ema"><b class="num">3m</b><span class="sw" style="background:${C.ema8}"></span>EMA 21`
+             + `<span class="sw" style="background:${C.ema21}"></span>EMA 47${cfg.scaleOnto ? `<span class="t-of">of ${cfg.name}</span>` : ''}`
              + `<span class="t-dot ${e.v8 > e.v21 ? 'pass' : 'fail'}"></span>`
              + `<span class="t-vals">${num(e.v8, cfg.digits)} / ${num(e.v21, cfg.digits)}</span></span>` : '');
       return;
@@ -1207,7 +1221,14 @@ function showSession() {
   $('session').innerHTML = `US <b>${name}</b><span class="num">${clock}</span>`;
   $('session').title = note + ' (holidays not shown)';
 }
+function showGate(k) {  // the combined gate in the top bar
+  if (!k.gate) return;
+  $('gate').className = 'gate ' + stateKind(k.gate.state);
+  $('gate-w').textContent = WORD[k.gate.state];
+  $('gate-s').textContent = `for ${dur(k.time - k.gate.since)}`;
+}
 function showGlobal(k) {
+  showGate(k);
   const px = k.price.last;
   if (ok(px)) {
     $('px').textContent = num(px);
@@ -1270,7 +1291,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tag = document.createElement('script');
-    tag.src = 'engine.js?v=6496e7e0a0'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
+    tag.src = 'engine.js?v=d0c2983ced'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tag);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();
@@ -1293,10 +1314,12 @@ function apply(s) {
   const newest = bars1m.length ? bars1m[bars1m.length - 1].time : -Infinity;
   for (const b of s.tick.price.tail) if (b && b.time > newest) upsert(bars1m, b);
   $('banner').hidden = true;
+  if (s.tick.gate) liveGate = s.tick.gate.state;
   for (const [key, cfg] of Object.entries(CFG)) {
     if (!panels[key]) panels[key] = new Panel(key, cfg);
     panels[key].load(s.sections[key], s.tick.sections[key]);
   }
+  for (const p of Object.values(panels)) p.drawMain();  // again, now that both series' states are in: the combined gate
   for (const p of Object.values(panels)) { p.setEmas(); p.setMacd(); }  // once every panel has its 3m bars: NDX10's scale uses NAS100's
   showGlobal(s.tick);
 }
@@ -1324,7 +1347,9 @@ function onTick(k) {
   lastTickAt = Date.now();
   let mainRedraw = false;
   for (const b of k.price.tail) if (b && upsert(bars1m, b) === 'older') mainRedraw = true;
+  if (k.gate) liveGate = k.gate.state;
   for (const [key, s] of Object.entries(panels)) s.applyTick(k.sections[key], mainRedraw);
+  if (!mainRedraw) for (const p of Object.values(panels)) p.refreshClosedStates();  // either series' late minute moves the gate
   for (const p of Object.values(panels)) { p.setEmas(); p.setMacd(); p.redrawZones(); }
   showGlobal(k);
   if (!hovering) allTags();
@@ -1336,7 +1361,7 @@ function showAlert(a) {
   fl.style.opacity = 1; setTimeout(() => fl.style.opacity = 0, 900);
   if (!alertsOn) return;
   beep(a.state === 'BULLISH');
-  if ('Notification' in window && Notification.permission === 'granted') new Notification(`${a.name} turned ${a.state}`, { body: a.body });
+  if ('Notification' in window && Notification.permission === 'granted') new Notification(`${a.name}: ${WORD[a.state] || a.state}`, { body: a.body });
 }
 function connect() {
   if (engine) { engine.on('tick', onTick); engine.on('status', showStatus); engine.on('alert', showAlert); return; }
