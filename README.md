@@ -36,6 +36,7 @@ Hyperliquid or TradingView.
 | `index.html` | the Signals page |
 | `divergence.html` | the Divergence page: where the two signals disagree, and a scoreboard of what followed |
 | `engine.js` | the signal calculation |
+| `macd.js` | the Trend and Entry MACD panes, their on/off switches and shading, and the day separators (both pages) |
 | `basket.json` | the NDX10 basket: stocks, weights and reference prices |
 | `lightweight-charts.js` | TradingView Lightweight Charts™ 4.2.3 |
 | `brand/` | logo, icons, app manifest and the link-preview banner (made by `make_brand.py`) |

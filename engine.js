@@ -28,7 +28,8 @@ const RECHECK = 3 * 60000, RECHECK_SPAN = 20;  // every 3 minutes, the last 20 c
 const REFETCH = 180;     // minutes always fetched again on a reload or a reconnect
 const KEEP_BARS = 5000, KEEP_MINUTES = 7200;
 const TIMEFRAMES = { 3: 'ema', 5: 'macd', 7: 'macd', 15: 'macd' };  // minutes -> what runs on it
-const SHOWN = { ...TIMEFRAMES, 1: 'macd', 9: 'macd', 11: 'macd' };  // plus 1m, 9m and 11m MACD, drawn for information (not in the signal)
+// what the page draws, beyond the signal: MACD on 1m, 2m, 9m and 11m, and on 3m beside the EMAs (none of them in the signal)
+const SHOWN = { ...TIMEFRAMES, 1: 'macd', 2: 'macd', 3: 'both', 9: 'macd', 11: 'macd' };
 const CACHE = 'nsb.candles.v2.';  // v1 caches can hold flat bars from a stuck stream: they are not read
 
 // ---- the signal: a line-for-line port of ndx10.py ----------------------------------------------
@@ -56,11 +57,11 @@ class Macd {
 }
 
 class Timeframe {  // bars of one size: closed bars with their indicators, plus the forming bar
-  constructor(minutes, kind) {
+  constructor(minutes, kind) {  // kind: 'macd', 'ema' (EMA 8 and 21) or 'both'
     this.minutes = minutes; this.kind = kind;
-    this.macd = kind === 'macd' ? new Macd() : null;
-    this.ema8 = kind === 'ema' ? new Ema(8) : null;
-    this.ema21 = kind === 'ema' ? new Ema(21) : null;
+    this.macd = kind !== 'ema' ? new Macd() : null;
+    this.ema8 = kind !== 'macd' ? new Ema(8) : null;
+    this.ema21 = kind !== 'macd' ? new Ema(21) : null;
     this.bars = [];
     this.partial = null;  // the bar being filled by finished minutes
   }
@@ -79,13 +80,17 @@ class Timeframe {  // bars of one size: closed bars with their indicators, plus 
     if (this.bars.length > KEEP_BARS + 500) this.bars.splice(0, 500);
   }
   indicators(close, commit) {
-    if (this.macd) { const [line, signal] = commit ? this.macd.update(close) : this.macd.peek(close); return { macd: line, signal, hist: line - signal }; }
-    return commit ? { ema8: this.ema8.update(close), ema21: this.ema21.update(close) }
-                  : { ema8: this.ema8.peek(close), ema21: this.ema21.peek(close) };
+    const out = {};
+    if (this.macd) { const [line, signal] = commit ? this.macd.update(close) : this.macd.peek(close); Object.assign(out, { macd: line, signal, hist: line - signal }); }
+    if (this.ema8) Object.assign(out, commit ? { ema8: this.ema8.update(close), ema21: this.ema21.update(close) }
+                                             : { ema8: this.ema8.peek(close), ema21: this.ema21.peek(close) });
+    return out;
   }
   indicatorsAfter(first, close) {  // a bar closing at `close`, right after one closing at `first`
-    if (this.macd) { const [line, signal] = this.macd.peek2(first, close); return { macd: line, signal, hist: line - signal }; }
-    return { ema8: this.ema8.peek2(first, close), ema21: this.ema21.peek2(first, close) };
+    const out = {};
+    if (this.macd) { const [line, signal] = this.macd.peek2(first, close); Object.assign(out, { macd: line, signal, hist: line - signal }); }
+    if (this.ema8) Object.assign(out, { ema8: this.ema8.peek2(first, close), ema21: this.ema21.peek2(first, close) });
+    return out;
   }
   // The forming bar priced at `price`. Just after a boundary the old bar's last minute is still on its way; its
   // time is up, so it closes provisionally at estimate(its last minute) and the new bar forms after it.
@@ -159,7 +164,7 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     for (const m of [...this.seenAtEnd.keys()]) if (m < minute - 600000) this.seenAtEnd.delete(m);
   }
   get ready() {  // enough closed bars everywhere for the MACD (26 + 9) and the EMA 21 to have settled
-    return Object.values(this.tfs).every(tf => tf.bars.length >= (tf.kind === 'macd' ? 35 : 21));
+    return Object.values(this.tfs).every(tf => tf.bars.length >= (tf.macd ? 35 : 21));
   }
   started(state, fallback) {  // when the current run of `state` began
     let start = fallback;
