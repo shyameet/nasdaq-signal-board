@@ -17,7 +17,7 @@ Each series gets a gate, checked every second on the bars still forming:
 The **Signals** page runs the gate on your own composite of the stocks you pick: the ten largest Nasdaq-100
 weights that trade on Hyperliquid, any 1 to 10 of them (official index weights rescaled to 100% over your pick;
 1000 = the 10/05/2026 close). The chart is that composite's own candles (each minute: the weighted sum of the stocks'
-closes; open = the previous close; volume = the stocks' dollar volume), with the gate's zones, BUY/SELL marks, its
+closes; open = the previous close; volume = the stocks' dollar volume), with the gate's zones, its
 3m EMA 21/47, and the Entry (2m/3m) and Trend (1m/5m/7m/9m/11m/15m) MACD panes. The **Divergence** page (unchanged
 for now) still compares the stocks' gate with the gate of the Nasdaq-100 perp, `xyz:XYZ100`.
 

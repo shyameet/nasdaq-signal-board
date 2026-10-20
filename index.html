@@ -31,7 +31,7 @@
 <script src="lightweight-charts.js"></script>
 <script src="macd.js?v=2757e73c3b"></script>
 <style>
-  /* Layout: one chart of your stocks' composite: a header (the gate and its four conditions), its candles with the gate's zones, BUY/SELL marks and 3m EMAs, then the Entry and Trend MACD panes. One crosshair. */
+  /* Layout: one chart of your stocks' composite: a header (the gate and its four conditions), its candles with the gate's zones and 3m EMAs, then the Entry and Trend MACD panes. One crosshair. */
   :root {
     color-scheme: dark;
     --bg: #0a0d12;
@@ -326,12 +326,12 @@
         <tr><td><b class="down">SHORT</b></td><td>all three below 0, and the EMA 21 below the EMA 47</td></tr>
         <tr><td>NO TRADE</td><td>anything else</td></tr>
       </table>
-      <p>It shades the chart and the MACD panes, and sets the BUY and SELL marks and the alerts. The header shows the gate and its four conditions. MACD is 12/26/9.</p>
+      <p>It shades the chart and the MACD panes, and sets the alerts. The header shows the gate and its four conditions. MACD is 12/26/9.</p>
       <h3>Your stocks</h3>
       <p>The chart is your own composite of the stocks you pick (<b>Stocks</b> button, top right; the 10 largest Nasdaq-100 weights that trade on Hyperliquid, any 1 to 10 of them). Their official index weights are rescaled to 100% over your pick, so the composite is 1000 at the basket's reference close. Each minute's close is the weighted sum of the stocks' closes; its open is the previous minute's close and its high and low the larger and smaller of the two (live candles also catch the highs and lows in between), so older candles have shorter wicks than live ones. Volume is the stocks' combined dollar volume. The pick is shared with the Divergence page and kept in this browser.</p>
       <p>Under the price chart are two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the gate. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>, the gate's three MACD rules, plus <b style="color:#facc15">1m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Both panes are shaded by the gate: green while LONG, red while SHORT. Dashed vertical lines mark where a new day begins in your timezone.</p>
       <h3>The charts</h3>
-      <p>Zones: green while the gate is LONG (labeled ▲ LONG), red while it is SHORT, no color for NO TRADE. The zone is the gate, not the candle: a red candle can sit in a green zone. The forming candle shows the gate live. <b class="up">▲ BUY</b> marks the candle where the gate turns LONG, <b class="down">▼ SELL</b> where it turns SHORT. The amber and blue lines are your stocks' 3m EMA 21 and EMA 47 that the gate tests, as of each candle's close. Times are in your timezone.</p>
+      <p>Zones: green while the gate is LONG (labeled ▲ LONG), red while it is SHORT, no color for NO TRADE. The zone is the gate, not the candle: a red candle can sit in a green zone. The forming candle shows the gate live. The amber and blue lines are your stocks' 3m EMA 21 and EMA 47 that the gate tests, as of each candle's close. Times are in your timezone.</p>
       <h3>Drawing tools</h3>
       <p>The toolbar on the left draws on the price chart: trend line, horizontal and vertical line, rectangle, Fib retracement and measure. Drag from one point to the other, or click one and then the other. Click a drawing to select it, drag it or its handles to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. Drawings are saved in this browser.</p>
       <h3>Data</h3>
@@ -966,7 +966,7 @@ class Panel {
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const pane of Object.values(this.macd)) pane.shading.update();
   }
-  // ---- price chart: your stocks' candles, with the gate as zones and BUY / SELL marks ----
+  // ---- price chart: your stocks' candles, with the gate as zones ----
   closedState(b) {  // the gate at the bar's last finished minute
     for (let t = bucketEnd(b.time, tf) - 60000; t >= b.time; t -= 60000) { const s = gateAt(t); if (s) return s; }
     return null;
@@ -993,11 +993,8 @@ class Panel {
     this.store.main = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
     this.main.applyOptions({ watermark: { text: `${NAME} · ${tf}m` } });
   }
-  setMarkers() {
-    const n = this.mainBars.length, m = this.baseMarkers.slice();
-    if (this.flips(n - 1)) m.push(this.arrow(this.mainBars[n - 1], this.mainStates[n - 1]));
-    this.candles.setMarkers(m);
-  }
+  setMarkers() {}  // no BUY / SELL marks on the chart: the zones show the gate
+
   refreshClosedStates() {  // a finished bar's last minute state can arrive after the bar closed
     const n = this.mainBars.length;
     let changed = false;
