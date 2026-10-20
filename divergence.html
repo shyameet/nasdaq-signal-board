@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
-<script src="macd.js?v=b53882dc6a"></script>
+<script src="macd.js?v=0df240244d"></script>
 <style>
   /* The Divergence page: where the 10-stock signal (NDX10) and the index signal (NAS100) disagree. A status row,
      then one XYZ100 chart marked only at those moments (both signals as strips along its bottom), and XYZ100's MACD pane. */
@@ -266,7 +266,7 @@
       <h3>The two patterns</h3>
       <p><b class="alone">Index alone</b>: the index turned bullish while the 10 stocks didn't. In a 3-day study, XYZ100 was lower 15 minutes later about 7 times out of 10, on every day. <b class="up">10 stocks first</b>: the 10 stocks turned bullish while the index hadn't yet. XYZ100 was higher 30 minutes later about 7 times out of 10, but less consistently. Other differences showed no clear pattern.</p>
       <h3>The MACD pane</h3>
-      <p>Under the chart are XYZ100's two MACD panes (12/26/9). <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>, the index signal's three MACD rules (the 15m signal line dashed), plus <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>. <b>Entry</b>: <b style="color:#facc15">1m</b>, <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Each pane is shaded where the stocks' MACDs and the index's MACDs agree on every line switched on in it: green when all are above zero for both, red when all are below zero for both. Dashed vertical lines mark where a new day begins in your timezone. The purple lines are an EMA stack: EMA 8, 21, 34, 55 and 89 of the candles shown (lightest is 8). Its badge says BULL STACK when each EMA is above the next, BEAR STACK when each is below, MIXED otherwise. Click a name in the chart label to hide that EMA, or the 3m EMA 8/21 pair.</p>
+      <p>Under the chart are XYZ100's two MACD panes (12/26/9). <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>, the index signal's three MACD rules (the 15m signal line dashed), plus <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>. <b>Entry</b>: <b style="color:#facc15">1m</b>, <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Each pane is shaded where the stocks' MACDs and the index's MACDs agree on every line switched on in it: green when all are above zero for both, red when all are below zero for both. Dashed vertical lines mark where a new day begins in your timezone.</p>
       <p>For information only, not investment advice.</p>
     </div>
   </details>
@@ -364,7 +364,7 @@ let chart, candles, layer, e8, e21;
 // XYZ100's 5m, 7m and 15m MACD in one pane under the chart, one color each, drawn on the chart's candles
 // The Trend and Entry MACD panes, their switches and shading, and the day separators: macd.js, shared with Signals
 const { MacdPane, DayLines } = NsbMacd, MACD_KINDS = ['trend', 'entry'];
-let macd = {}, macdStocks = {}, panes = {}, stack;  // XYZ100's and the 10 stocks' MACD bars by candle size; the two panes
+let macd = {}, macdStocks = {}, panes = {};  // XYZ100's and the 10 stocks' MACD bars by candle size; the two panes
 // ---- the chart: candles, a band wherever the two signals disagree, the two signals as strips at the bottom ----------
 class DivLayer {  // a Lightweight Charts series primitive
   constructor() {
@@ -428,10 +428,6 @@ function makeChart() {
   // the 3m EMA 8 and EMA 21 of XYZ100 (the index's own 3m rule), over the candles
   const emaLine = color => chart.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
   e8 = emaLine('#f2b33d'); e21 = emaLine('#5b8cff');
-  for (const s of [e8, e21]) s.applyOptions({ visible: NsbMacd.show.rule });
-  // the EMA stack (8, 21, 34, 55, 89) of the candles shown; its switches and the 3m pair's are in the chart's label
-  stack = new NsbMacd.EmaStack({ chart, bars: () => mainBars, tf: () => tf });
-  NsbMacd.chips($('tag'));
   layer = new DivLayer();
   candles.attachPrimitive(layer);
   candles.attachPrimitive(new DayLines(() => chart, () => mainBars, 52));
@@ -445,13 +441,7 @@ function makeChart() {
     bars: () => mainBars, tf: () => tf, src: () => macd, stocks: () => macdStocks,
   });
   chart.timeScale().subscribeVisibleLogicalRangeChange(syncMix);
-  NsbMacd.onToggle(() => {
-    for (const pane of Object.values(panes)) pane.showLines();
-    stack.showLines();
-    for (const s of [e8, e21]) s.applyOptions({ visible: NsbMacd.show.rule });
-    if (!hovering) tag();
-    mixTag();
-  });
+  NsbMacd.onToggle(() => { for (const pane of Object.values(panes)) pane.showLines(); mixTag(); });
   // one crosshair over the chart and both panes: the one under the mouse moves the others
   let under = null;
   const all = [{ chart, series: candles, value: t => { const i = index.get(t); return i === undefined ? null : mainBars[i].close; } },
@@ -539,8 +529,7 @@ function syncMix() {  // the MACD panes show the same candles as the chart
   const r = chart.timeScale().getVisibleLogicalRange();
   if (r) for (const pane of Object.values(panes)) pane.sync(r);
 }
-function setMix() {  // both panes (and the EMA stack) from the latest bars; lined up with the chart again after a full redraw
-  stack.update();
+function setMix() {  // both panes from the latest bars; lined up with the chart again after a full redraw
   let full = false;
   for (const pane of Object.values(panes)) if (pane.update()) full = true;
   if (full) syncMix();
@@ -593,7 +582,8 @@ function tag(t) {  // the label in the chart's corner: the candle, and both sign
     + `<div class="t2"><span>${NLAB} ${SYM[p.sn] || '·'}</span><span>index ${SYM[p.sx] || '·'}</span>`
     + `<span class="t-kind ${p.kind || ''}">${p.kind ? PATTERN[p.kind].name : 'in sync'}</span></div>`
     + (() => { const e = t === undefined ? emaPts[emaPts.length - 1] : emaAt(t);
-        return (e ? NsbMacd.ruleChip(e.e8 - e.e21, 1, '') : '') + stack.label(t); })();
+        return e ? `<div class="t3"><span><i class="lk e8"></i>EMA 8 <b>${num(e.e8, 1)}</b></span>`
+                 + `<span><i class="lk e21"></i>EMA 21 <b>${num(e.e21, 1)}</b></span></div>` : ''; })();
 }
 
 // ---- the status row: the situation right now ----------------------------------------------------------
