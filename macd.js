@@ -1,6 +1,6 @@
 /* Nasdaq Signal Board: the MACD panes under a price chart, and the day separators, shared by both pages.
 
-   Two panes: Trend (5m, 7m, 9m, 11m and 15m MACD; 5m, 7m and 15m are the signal's rules) and Entry (1m, 2m and 3m,
+   Two panes: Trend (1m, 5m, 7m, 9m, 11m and 15m MACD; 5m, 7m and 15m are the signal's rules) and Entry (2m and 3m,
    for timing). Every line is drawn on the price chart's own candles, at its value as of each candle's close (never
    ahead of it; the forming candle live), so a pane lines up bar for bar with the chart above it and scrolls with it.
    Any line can be switched off from its pane's label; the choice is kept in this browser and shared by both pages.
@@ -16,8 +16,8 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const PANES = {
-  trend: { title: 'Trend', lines: [5, 7, 9, 11, 15] },
-  entry: { title: 'Entry', lines: [1, 2, 3] },
+  trend: { title: 'Trend', lines: [1, 5, 7, 9, 11, 15] },
+  entry: { title: 'Entry', lines: [2, 3] },
 };
 const LINES = [1, 2, 3, 5, 7, 9, 11, 15];  // every MACD drawn: the candle sizes the engine must provide
 const COLOR = { 1: '#facc15', 2: '#fb7185', 3: '#22d3ee', 5: '#38bdf8', 7: '#c084fc', 9: '#2dd4bf', 11: '#a3e635', 15: '#f472b6',

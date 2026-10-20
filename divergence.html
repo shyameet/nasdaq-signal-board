@@ -25,10 +25,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
-<script src="macd.js?v=0df240244d"></script>
+<script src="macd.js?v=a9ec031515"></script>
 <style>
   /* The Divergence page: where the 10-stock signal (NDX10) and the index signal (NAS100) disagree. A status row,
-     then one XYZ100 chart marked only at those moments (both signals as strips along its bottom), and XYZ100's MACD pane. */
+     then one XYZ100 chart marked only at those moments, and XYZ100's Trend and Entry MACD panes. */
   :root {
     color-scheme: dark;
     --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
@@ -113,14 +113,13 @@
   /* ---- chart and scoreboard ---- */
   .body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); padding: 6px 8px 8px; }
   .chart-card { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-  .legend { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 5px 10px; border-bottom: 1px solid var(--line);
-            color: var(--muted); font-size: 11.5px; }
+  .legend { order: 9; margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--muted); font-size: 11.5px; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .legend b { color: var(--text); font-weight: 600; }
   .legend .hint { margin-left: auto; color: var(--faint); }
   .pane { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
   .pane.macd { border-top: 1px solid var(--line); }
-  .pane.trend { flex: 0 0 23%; } .pane.entry { flex: 0 0 18%; }
+  .pane.trend { flex: 0 0 25%; } .pane.entry { flex: 0 0 15%; }
   .tag { position: absolute; top: 5px; left: 6px; z-index: 5; display: block; max-width: calc(100% - 100px); padding: 3px 9px; border-radius: 7px; background: rgba(10, 13, 18, .8); pointer-events: none;
          font: 11.5px var(--font-num); color: var(--muted); }
   .tag b { color: var(--text); font-family: var(--font-ui); font-weight: 600; }
@@ -201,7 +200,7 @@
   }
   @media (max-width: 760px) {
     .sig { padding-left: 0; border-left: 0 !important; }
-    .legend .hint { display: none; }
+    .legend { margin-left: 0; }
   }
   @media (max-width: 560px) {
     .topbar { gap: 8px 12px; }
@@ -240,17 +239,16 @@
       <div class="now-text"><p id="note">Waiting for data…</p><small id="since"></small></div>
     </div>
     <div class="card sig" id="sig-ndx10"><div class="eyebrow" id="sigEyebrow">10 stocks · NDX10</div><div class="sig-state"><i></i><span>—</span></div><small></small></div>
+    <div class="legend" aria-label="What the chart marks">
+          <span title="The index turned bullish, the stocks didn't: often fades"><i class="sw alone"></i><b>Index alone</b></span>
+          <span title="The stocks turned bullish, the index not yet: the index often follows"><i class="sw first"></i><b id="firstName">10 stocks first</b></span>
+          <span title="They disagree in another way: no clear pattern"><i class="sw other"></i><b>Other</b></span>
+          <span title="XYZ100's 3m EMA 8 and EMA 21"><i class="lk e8"></i><b>EMA 8</b><i class="lk e21"></i><b>EMA 21</b></span>
+    </div>
     <div class="card sig" id="sig-nas100"><div class="eyebrow">Index · NAS100</div><div class="sig-state"><i></i><span>—</span></div><small></small></div>
   </section>
   <section class="body">
     <div class="card chart-card">
-      <div class="legend">
-        <span title="The index turned bullish, the stocks didn't: often fades"><i class="sw alone"></i><b>Index alone</b></span>
-        <span title="The stocks turned bullish, the index not yet: the index often follows"><i class="sw first"></i><b id="firstName">10 stocks first</b></span>
-        <span title="They disagree in another way: no clear pattern"><i class="sw other"></i><b>Other</b></span>
-        <span title="XYZ100's 3m EMA 8 and EMA 21"><i class="lk e8"></i><b>EMA 8</b><i class="lk e21"></i><b>EMA 21</b></span>
-        <span class="hint">MACD panes: shaded where stocks and index agree · click a line's name to hide it</span>
-      </div>
       <div class="pane" id="pmain"><div class="tag" id="tag"></div></div>
       <div class="pane macd trend" id="ptrend"><div class="tag mix" id="ttrend"></div></div>
       <div class="pane macd entry" id="pentry"><div class="tag mix" id="tentry"></div></div>
@@ -266,7 +264,7 @@
       <h3>The two patterns</h3>
       <p><b class="alone">Index alone</b>: the index turned bullish while the 10 stocks didn't. In a 3-day study, XYZ100 was lower 15 minutes later about 7 times out of 10, on every day. <b class="up">10 stocks first</b>: the 10 stocks turned bullish while the index hadn't yet. XYZ100 was higher 30 minutes later about 7 times out of 10, but less consistently. Other differences showed no clear pattern.</p>
       <h3>The MACD pane</h3>
-      <p>Under the chart are XYZ100's two MACD panes (12/26/9). <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>, the index signal's three MACD rules (the 15m signal line dashed), plus <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>. <b>Entry</b>: <b style="color:#facc15">1m</b>, <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Each pane is shaded where the stocks' MACDs and the index's MACDs agree on every line switched on in it: green when all are above zero for both, red when all are below zero for both. Dashed vertical lines mark where a new day begins in your timezone.</p>
+      <p>Under the chart are XYZ100's two MACD panes (12/26/9). <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>, the signal's three MACD rules (the 15m signal line dashed), plus <b style="color:#facc15">1m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>. <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the signal. Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Each pane is shaded where the stocks' MACDs and the index's MACDs agree on every line switched on in it: green when all are above zero for both, red when all are below zero for both. Dashed vertical lines mark where a new day begins in your timezone.</p>
       <p>For information only, not investment advice.</p>
     </div>
   </details>
@@ -292,8 +290,6 @@ const PATTERN = {
 };
 const STATE_COLOR = { BULLISH: C.up, BEARISH: C.down, NEUTRAL: '#3a4554' };
 const SYM = { BULLISH: '▲', BEARISH: '▼', NEUTRAL: '–' };
-const STRIP = { row: 11, gap: 4, pad: 7 };  // the two signal strips along the bottom of the price pane
-const STRIP_H = STRIP.pad * 2 + STRIP.row * 2 + STRIP.gap;
 // the two signals at one moment -> null when they agree, else which kind of disagreement
 const classify = (sn, sx) => !sn || !sx || sn === sx ? null : sx === 'BULLISH' ? 'alone' : sn === 'BULLISH' ? 'first' : 'other';
 
@@ -365,62 +361,38 @@ let chart, candles, layer, e8, e21;
 // The Trend and Entry MACD panes, their switches and shading, and the day separators: macd.js, shared with Signals
 const { MacdPane, DayLines } = NsbMacd, MACD_KINDS = ['trend', 'entry'];
 let macd = {}, macdStocks = {}, panes = {};  // XYZ100's and the 10 stocks' MACD bars by candle size; the two panes
-// ---- the chart: candles, a band wherever the two signals disagree, the two signals as strips at the bottom ----------
+// ---- the chart: candles, and a band wherever the two signals disagree ----------------------------------------------
 class DivLayer {  // a Lightweight Charts series primitive
   constructor() {
-    this.bands = []; this.cells = [];
+    this.bands = [];
     this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: t => this.render(t) }) }];
-    this.axis = [{ renderer: () => ({ draw: t => this.labels(t) }) }];
   }
   attached({ requestUpdate }) { this.requestUpdate = requestUpdate; }
   detached() { this.requestUpdate = null; }
   paneViews() { return this.views; }
-  priceAxisPaneViews() { return this.axis; }
-  updateAllViews() {  // runs of equal values become one band or cell, edge to edge
-    const ts = chart.timeScale(), n = pairs.length, bands = [], cells = [];
+  updateAllViews() {  // runs of the same disagreement become one band, edge to edge
+    const ts = chart.timeScale(), n = pairs.length, bands = [];
     const x0 = n ? ts.logicalToCoordinate(0) : null, x1 = n ? ts.logicalToCoordinate(1) : null;
     if (x0 !== null && x1 !== null) {
       const step = x1 - x0, x = i => x0 + i * step;
-      const runs = (key, out) => {
-        for (let i = 0, j; i < n; i = j + 1) {
-          for (j = i; j + 1 < n && pairs[j + 1][key] === pairs[i][key];) j++;
-          if (pairs[i][key]) out(i, j, pairs[i][key]);
-        }
-      };
-      runs('kind', (i, j, k) => bands.push([x(i) - step / 2, x(j) + step / 2, PATTERN[k].band]));
-      runs('sn', (i, j, s) => cells.push([0, x(i) - step / 2, x(j) + step / 2, STATE_COLOR[s]]));
-      runs('sx', (i, j, s) => cells.push([1, x(i) - step / 2, x(j) + step / 2, STATE_COLOR[s]]));
+      for (let i = 0, j; i < n; i = j + 1) {
+        for (j = i; j + 1 < n && pairs[j + 1].kind === pairs[i].kind;) j++;
+        if (pairs[i].kind) bands.push([x(i) - step / 2, x(j) + step / 2, PATTERN[pairs[i].kind].band]);
+      }
     }
-    this.bands = bands; this.cells = cells;
+    this.bands = bands;
   }
-  rowTop(row, height) { return height - STRIP_H + STRIP.pad + row * (STRIP.row + STRIP.gap); }  // media px
   render(target) {
-    target.useBitmapCoordinateSpace(({ context: c, bitmapSize: size, horizontalPixelRatio: hr, verticalPixelRatio: vr }) => {
-      const H = size.height / vr, stripTop = Math.round((H - STRIP_H) * vr);
-      const span = (l, r) => [Math.max(0, Math.round(l * hr)), Math.min(size.width, Math.round(r * hr))];
-      for (const [l, r, color] of this.bands) { const [a, b] = span(l, r); if (b > a) { c.fillStyle = color; c.fillRect(a, 0, b - a, stripTop); } }
-      c.fillStyle = C.strip; c.fillRect(0, stripTop, size.width, size.height - stripTop);  // the strip area, set apart from the candles
-      c.fillStyle = C.line; c.fillRect(0, stripTop, size.width, Math.max(1, Math.round(vr)));
-      for (const [row, l, r, color] of this.cells) {
-        const [a, b] = span(l, r);
-        if (b > a) { c.fillStyle = color; c.fillRect(a, Math.round(this.rowTop(row, H) * vr), b - a, Math.round(STRIP.row * vr)); }
+    target.useBitmapCoordinateSpace(({ context: c, bitmapSize: size, horizontalPixelRatio: hr }) => {
+      for (const [l, r, color] of this.bands) {
+        const a = Math.max(0, Math.round(l * hr)), b = Math.min(size.width, Math.round(r * hr));
+        if (b > a) { c.fillStyle = color; c.fillRect(a, 0, b - a, size.height); }
       }
     });
   }
-  labels(target) {  // the strips' names, in the price-axis column beside them
-    target.useMediaCoordinateSpace(({ context: c, mediaSize: m }) => {
-      const top = m.height - STRIP_H;
-      c.fillStyle = C.strip; c.fillRect(0, top, m.width, STRIP_H);
-      c.font = '500 10.5px "IBM Plex Sans", "Segoe UI", sans-serif';
-      c.textBaseline = 'middle'; c.fillStyle = '#aeb8c6';
-      c.fillText(NLAB, 8, this.rowTop(0, m.height) + STRIP.row / 2 + 0.5);
-      c.fillText('Index', 8, this.rowTop(1, m.height) + STRIP.row / 2 + 0.5);
-    });
-  }
 }
-function fitMargins() {  // keep the candles clear of the strips whatever the chart's height
-  const h = $('pmain').clientHeight - chart.timeScale().height();
-  if (h > 0) candles.priceScale().applyOptions({ scaleMargins: { top: 0.09, bottom: Math.min(0.45, (STRIP_H + 16) / h) } });
+function fitMargins() {  // a little room above and below the candles
+  candles.priceScale().applyOptions({ scaleMargins: { top: 0.09, bottom: 0.06 } });
 }
 function makeChart() {
   chart = LightweightCharts.createChart($('pmain'), options());
