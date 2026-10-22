@@ -222,7 +222,7 @@
     <button class="pick-btn" id="pickBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Choose which stocks make up the composite"><span id="pickLabel">Stocks</span><small id="pickSub"></small><span class="caret">▼</span></button>
     <div class="pick-pop" id="pickPop" role="dialog" aria-label="Choose your stocks" hidden>
       <h3>Choose your stocks</h3>
-      <p>Pick any of the 10 (even just one). The composite and every mark are rebuilt from the same candles.</p>
+      <p>Pick any of them (even just one); weights are each stock's Nasdaq-100 weight, rescaled to 100%. The composite and every mark are rebuilt from the same candles.</p>
       <div class="presets" id="presets"></div>
       <ul class="stocks" id="stocks"></ul>
       <div class="pick-actions"><span class="msg" id="pickMsg"></span><button type="button" id="pickCancel">Cancel</button><button type="button" class="go" id="pickGo">Apply</button></div>
@@ -650,7 +650,8 @@ setInterval(() => {
 // ---- the stock picker: which of the 10 make up the composite --------------------------------------------------
 const SEL_KEY = 'nsb.div.stocks';  // this page only: the Signals page always shows all 10
 const tk = coin => coin.replace(/^xyz:/, '');
-const custom = () => ACTIVE.length !== ALL.length;
+const DEFAULT = () => (BASKET && BASKET.default ? ALL.filter(c => BASKET.default.includes(c)) : ALL);  // the basket's default pick
+const custom = () => ACTIVE.join() !== DEFAULT().join();
 function savedSelection() {
   try { const a = JSON.parse(localStorage.getItem(SEL_KEY)); return Array.isArray(a) ? a : null; } catch (e) { return null; }
 }
@@ -662,7 +663,7 @@ function setActive(list) {  // the composite's stocks changed (or were just load
   $('nowEyebrow').textContent = `Right now · ${NLAB} vs the index`;
   $('sigEyebrow').textContent = `${NLAB} · ${name}`;
   $('firstName').textContent = PATTERN.first.name;
-  $('pickLabel').textContent = custom() ? `${ACTIVE.length} of ${ALL.length} stocks` : `All ${ALL.length} stocks`;
+  $('pickLabel').textContent = custom() ? `${ACTIVE.length} of ${ALL.length} stocks` : `Default ${ACTIVE.length} stocks`;
   $('pickSub').textContent = ACTIVE.length <= 4 ? ACTIVE.map(tk).join(' ') : '';
   $('pickBtn').classList.toggle('custom', custom());
   $('pickBtn').title = `In the composite: ${ACTIVE.map(tk).join(', ')}`;
@@ -711,8 +712,8 @@ async function applyPick() {
   }
 }
 function buildPicker() {
-  const top = n => ALL.slice(0, n);
-  const presets = [['Top 5', top(5)], ['Top 6', top(6)], ['Top 8', top(8)], ['All 10', ALL], ['None', []]];
+  const top = n => DEFAULT().slice(0, n);
+  const presets = [['Top 5', top(5)], ['Top 6', top(6)], ['Top 8', top(8)], [`Default ${DEFAULT().length}`, DEFAULT()], [`All ${ALL.length}`, ALL], ['None', []]];
   $('presets').innerHTML = presets.map(([name], i) => `<button type="button" data-i="${i}">${name}</button>`).join('');
   for (const b of $('presets').children) b.onclick = () => { draft = new Set(presets[b.dataset.i][1]); renderPick(); };
   $('pickBtn').onclick = () => openPick($('pickPop').hidden);
@@ -735,7 +736,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tagEl = document.createElement('script');
-    tagEl.src = 'engine.js?v=11cfe1385e'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
+    tagEl.src = 'engine.js?v=17098e8ff4'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tagEl);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();

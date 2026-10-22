@@ -306,11 +306,12 @@ class Engine {
     this.lastCandleAt = 0; this.lastUnstick = 0; this.nextRecheck = 0; this.rechecking = false;
   }
 
-  // The stocks the composite is made of: a subset of the basket (all of it when `selection` is missing or empty).
+  // The stocks the composite is made of: a subset of the basket (its default list when `selection` is missing or empty).
   // Their official weights are rescaled to 100%, so the composite is still 1000 at the reference close.
   setActive(selection) {
     const pick = Array.isArray(selection) ? this.members.filter(c => selection.includes(c)) : [];
-    this.active = pick.length ? pick : [...this.members];
+    const fallback = (this.basket.default || this.members).filter(c => this.members.includes(c));
+    this.active = pick.length ? pick : fallback;
     const total = this.active.reduce((a, c) => a + this.basket.members[c].weight, 0);
     this.coef = Object.fromEntries(this.active.map(c =>
       [c, this.basket.base * (this.basket.members[c].weight / total) / this.basket.members[c].ref_price]));
