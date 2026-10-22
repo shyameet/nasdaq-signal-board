@@ -49,9 +49,16 @@
   .spacer { flex: 1; }
 
   /* ---- the replay controls ---- */
-  .controls { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 6px 12px;
-              background: var(--surface); border-bottom: 1px solid var(--line); }
-  .grp { display: inline-flex; align-items: center; gap: 6px; }
+  .controls { flex: none; display: flex; flex-direction: column; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .crow { display: flex; align-items: center; padding: 5px 12px; min-height: 38px; }
+  .cgrps { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; row-gap: 6px; }
+  .crow + .crow { border-top: 1px solid var(--line); }
+  .crow > .rname { width: 74px; flex: none; color: var(--muted); font-size: 11px; font-weight: 600; }
+  .grp { display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; }
+  .cgrps > .grp:first-child { padding-left: 0; }
+  .grp + .grp { border-left: 1px solid var(--line); }
+  #dataNote { margin-left: auto; }
+  #sigInfo { min-width: 70px; text-align: center; }
   .grp > .lbl { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
   .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
   .seg button { padding: 3px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
@@ -170,35 +177,45 @@
   </div>
 </header>
 <section class="controls" aria-label="Replay controls">
-  <div class="grp"><span class="lbl">Day</span>
-    <button class="btn" id="dayPrev" type="button" title="Previous day">◀</button>
-    <select class="btn day" id="daySel" aria-label="Day (UTC)"></select>
-    <button class="btn" id="dayNext" type="button" title="Next day">▶</button>
+  <div class="crow">
+    <span class="rname">Replay</span>
+    <div class="cgrps">
+      <div class="grp"><span class="lbl">Day</span>
+        <button class="btn" id="dayPrev" type="button" title="Previous day">◀</button>
+        <select class="btn day" id="daySel" aria-label="Day (UTC)"></select>
+        <button class="btn" id="dayNext" type="button" title="Next day">▶</button>
+      </div>
+      <div class="grp"><span class="lbl">Candles</span><div class="seg" id="tfs" role="group" aria-label="Candle size"></div></div>
+      <div class="grp"><span class="lbl">Play</span>
+        <button class="btn" id="whole" type="button" aria-pressed="true" title="Show the whole day; off: only up to the replay time">Whole day</button>
+        <button class="btn" id="stepBack" type="button" title="One candle back">⏮</button>
+        <button class="btn" id="play" type="button" title="Play / pause">▶ Play</button>
+        <button class="btn" id="stepFwd" type="button" title="One candle forward">⏭</button>
+        <select class="btn" id="speed" aria-label="Playback speed" title="Candles per second"></select>
+        <span class="clock" id="clock">—</span>
+      </div>
+      <div class="grp"><span class="lbl">Go to signal</span>
+        <button class="btn" id="sigPrev" type="button" title="Previous signal">◀</button>
+        <span class="note" id="sigInfo">—</span>
+        <button class="btn" id="sigNext" type="button" title="Next signal">▶</button>
+      </div>
+      <span class="note" id="dataNote"></span>
+    </div>
   </div>
-  <div class="grp"><span class="lbl">Candles</span><div class="seg" id="tfs" role="group" aria-label="Candle size"></div></div>
-  <div class="grp"><span class="lbl">Scalper</span>
-    <button class="btn" id="sc2" type="button" aria-pressed="true" title="Show the 2m scalper's signals">2m</button>
-    <button class="btn" id="sc3" type="button" aria-pressed="true" title="Show the 3m scalper's signals">3m</button>
+  <div class="crow">
+    <span class="rname">Signal rules</span>
+    <div class="cgrps">
+      <div class="grp"><span class="lbl">Scalper</span>
+        <button class="btn" id="sc2" type="button" aria-pressed="true" title="Show the 2m scalper's signals">2m</button>
+        <button class="btn" id="sc3" type="button" aria-pressed="true" title="Show the 3m scalper's signals">3m</button>
+      </div>
+      <div class="grp"><span class="lbl">Per trend</span><div class="seg" id="perTrend" role="group" aria-label="Signals per trend"></div></div>
+      <div class="grp"><span class="lbl">Gap</span>
+        <select class="btn" id="gapSel" aria-label="How long a NO TRADE gap may last inside one trend" title="How long the gate may sit at NO TRADE inside one trend before the trend counts as over"></select>
+      </div>
+      <div class="grp"><button class="btn" id="oneTrend" type="button" aria-pressed="false" title="Only the first gate trend's direction of the day counts">One trend per day</button></div>
+    </div>
   </div>
-  <div class="grp"><span class="lbl">Per trend</span><div class="seg" id="perTrend" role="group" aria-label="Signals per trend"></div></div>
-  <div class="grp"><span class="lbl">Gap</span>
-    <select class="btn" id="gapSel" aria-label="How long a NO TRADE gap may last inside one trend" title="How long the gate may sit at NO TRADE inside one trend before the trend counts as over"></select>
-  </div>
-  <div class="grp"><button class="btn" id="oneTrend" type="button" aria-pressed="false" title="Only the first gate trend's direction of the day counts">One trend per day</button></div>
-  <div class="grp"><span class="lbl">Signal</span>
-    <button class="btn" id="sigPrev" type="button" title="Previous signal">◀</button>
-    <span class="note" id="sigInfo">—</span>
-    <button class="btn" id="sigNext" type="button" title="Next signal">▶</button>
-  </div>
-  <div class="grp"><span class="lbl">Play</span>
-    <button class="btn" id="whole" type="button" aria-pressed="true" title="Show the whole day; off: only up to the replay time">Whole day</button>
-    <button class="btn" id="stepBack" type="button" title="One candle back">⏮</button>
-    <button class="btn" id="play" type="button" title="Play / pause">▶ Play</button>
-    <button class="btn" id="stepFwd" type="button" title="One candle forward">⏭</button>
-    <select class="btn" id="speed" aria-label="Playback speed" title="Candles per second"></select>
-    <span class="clock" id="clock">—</span>
-  </div>
-  <span class="note" id="dataNote"></span>
 </section>
 <main class="board" id="board"></main>
 <footer class="foot">
