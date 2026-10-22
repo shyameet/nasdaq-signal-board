@@ -562,14 +562,32 @@ function aggregate(bars, m) {
   return out;
 }
 let syncing = false;
-function syncOther(src) {  // both charts show the same stretch of time
+function timeAt(bars, x) {  // candle position (fractional, may lie past either end) -> time
+  const n = bars.length, tf = opt.tf * MIN;
+  if (x <= 0) return bars[0].time + x * tf;
+  if (x >= n - 1) return bars[n - 1].time + (x - n + 1) * tf;
+  const i = Math.floor(x);
+  return bars[i].time + (x - i) * (bars[i + 1].time - bars[i].time);
+}
+function indexAt(bars, t) {  // the reverse
+  const n = bars.length, tf = opt.tf * MIN;
+  if (t <= bars[0].time) return (t - bars[0].time) / tf;
+  if (t >= bars[n - 1].time) return n - 1 + (t - bars[n - 1].time) / tf;
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) lo = mid; else hi = mid; }
+  return lo + (t - bars[lo].time) / (bars[hi].time - bars[lo].time);
+}
+function syncOther(src) {  // both charts show the same stretch of time, empty space past the day's ends included
   if (syncing) return;
   const other = panels[src.key === 'left' ? 'right' : 'left'];
-  if (!other) return;
-  const r = src.main.timeScale().getVisibleRange();
+  if (!other || !src.mainBars.length || !other.mainBars.length) return;
+  const r = src.main.timeScale().getVisibleLogicalRange();
   if (!r) return;
+  const to = { from: indexAt(other.mainBars, timeAt(src.mainBars, r.from)), to: indexAt(other.mainBars, timeAt(src.mainBars, r.to)) };
+  const now = other.main.timeScale().getVisibleLogicalRange();
+  if (now && Math.abs(now.from - to.from) < 0.01 && Math.abs(now.to - to.to) < 0.01) return;  // already there: no echo back
   syncing = true;
-  try { other.main.timeScale().setVisibleRange(r); } catch (e) {}
+  try { other.main.timeScale().setVisibleLogicalRange(to); } catch (e) {}
   syncing = false;
 }
 let hovering = false;
