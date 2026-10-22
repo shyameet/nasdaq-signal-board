@@ -300,7 +300,7 @@ async function loadDay(key) {  // -> { coin: [bars (toBar objects)] } for the 10
   let source = 'hl';
   if (archiveDays.has(key)) {
     try {
-      const r = await fetch(`data/1m/${key}.json`, { cache: 'force-cache' });
+      const r = await fetch(`data/1m/${key}.json`, { cache: 'no-cache' });  // re-checked each time: a day can be rebuilt with more markets
       if (r.ok) {
         const j = await r.json();
         for (const c of coins) if (j.coins && j.coins[c]) out[c] = j.coins[c].map(([t, o, h, l, cl, v, n]) => toBar({ t, o, h, l, c: cl, v, n }));
