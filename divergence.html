@@ -214,7 +214,7 @@
 <body>
 <header class="topbar">
   <div class="brand"><img class="mark" src="brand/logo.svg" alt="" width="30" height="30"><div><b>Nasdaq Signal Board</b><small>Live from Hyperliquid</small></div></div>
-  <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html" aria-current="page">Divergence</a></nav>
+  <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html" aria-current="page">Divergence</a><a href="replay.html">Replay</a></nav>
   <div class="quote"><span class="sym">XYZ100</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
   <div class="spacer"></div>
   <div class="seg" id="tfs" role="group" aria-label="Candle size"></div>
@@ -735,7 +735,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tagEl = document.createElement('script');
-    tagEl.src = 'engine.js?v=82677b5778'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
+    tagEl.src = 'engine.js?v=11cfe1385e'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tagEl);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();

@@ -589,5 +589,6 @@ class Engine {
 }
 
 window.NdxEngine = Engine;
-window.NdxEngine.internals = { bucket, Ema, Macd, Timeframe, TrendSignal, Tracker, referenceCloseMs, combine };  // for checking against Python
+window.NdxEngine.internals = { bucket, Ema, Macd, Timeframe, TrendSignal, Tracker, referenceCloseMs, combine,
+                              SHOWN, contiguous, toBar, flat, candleRows, BENCH };  // for checking against Python
 })();

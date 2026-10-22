@@ -32,6 +32,7 @@ Hyperliquid or TradingView.
 |---|---|
 | `index.html` | the Signals page |
 | `divergence.html` | the Divergence page: where the two signals disagree, and a scoreboard of what followed |
+| `replay.html` | the Replay page: one UTC day at a time, your stocks' composite beside XYZ100, the gate, the 2m/3m entry signals with per-trend / gap / one-trend-per-day boxes, whole-day view or candle-by-candle playback; reads `data/1m/` (the VPS's daily archive) and Hyperliquid's last ~3.5 days |
 | `engine.js` | the signal calculation |
 | `macd.js` | the Trend and Entry MACD panes, their on/off switches and shading, and the day separators (both pages) |
 | `basket.json` | the NDX10 basket: stocks, weights and reference prices |
