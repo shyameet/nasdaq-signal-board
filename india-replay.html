@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>India Replay · Nasdaq Signal Board</title>
+<meta name="description" content="Replay past Indian market days: the Nifty setup (NIFTY + GIFT NIFTY, then RELIANCE) and the Bank Nifty setup (BANK NIFTY, then HDFC BANK), with the gate, the sync and the 2m/3m entries.">
+<meta name="theme-color" content="#0a0d12">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="manifest" href="brand/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="lightweight-charts.js"></script>
+<script src="macd.js?v=c78f80a66c"></script>
+<script src="engine.js?v=6cb90571d0"></script>
+<style>
+  /* India Replay: one Indian trading day at a time, from the VPS's saved Dhan 1-minute candles (data/india/1m/).
+     Nifty setup: NIFTY 50 and GIFT NIFTY must show the same gate (step 1); RELIANCE, which must not already be on that
+     side when step 1 starts, then turns to it (step 2); the entry is RELIANCE's 2m or 3m MACD crossing 0 that way on a
+     closed candle (step 3). Bank Nifty setup: the same with NIFTY BANK alone, then HDFC BANK. */
+  :root {
+    color-scheme: dark;
+    --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
+    --text: #e8eef6; --muted: #8d99ab; --faint: #5c6879; --up: #2bb68a; --down: #f0555f; --accent: #5b8cff; --warn: #f2b33d;
+    --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text);
+         font: 13px/1.4 var(--font-ui); -webkit-font-smoothing: antialiased; }
+  button, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+  .up { color: var(--up); } .down { color: var(--down); }
+
+  /* ---- top bar ---- */
+  .topbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 6px 12px;
+            background: var(--surface); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .mark { width: 26px; height: 26px; flex: none; display: block; }
+  .brand b { display: block; font-size: 14px; font-weight: 700; letter-spacing: .01em; }
+  .tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .tabs a { padding: 5px 12px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 500; }
+  .tabs a:hover { color: var(--text); }
+  .tabs a[aria-current="page"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+
+  /* ---- the replay controls ---- */
+  .controls { flex: none; display: flex; flex-direction: column; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .crow { display: flex; align-items: center; padding: 5px 12px; min-height: 38px; }
+  .cgrps { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; row-gap: 6px; }
+  .crow + .crow { border-top: 1px solid var(--line); }
+  .crow > .rname { width: 74px; flex: none; color: var(--muted); font-size: 11px; font-weight: 600; }
+  .grp { display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; }
+  .cgrps > .grp:first-child { padding-left: 0; }
+  .grp + .grp { border-left: 1px solid var(--line); }
+  #dataNote { margin-left: auto; }
+  #sigInfo { min-width: 70px; text-align: center; }
+  .grp > .lbl { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .seg button { padding: 3px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
+                font-family: var(--font-num); font-size: 12px; }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .seg.words button { font-family: var(--font-ui); }
+  .btn { padding: 3px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text); cursor: pointer;
+         font-size: 12px; white-space: nowrap; }
+  .btn:hover:not(:disabled) { border-color: var(--line-strong); background: var(--tile); }
+  .btn:disabled { opacity: .35; cursor: default; }
+  .btn[aria-pressed="true"] { border-color: var(--accent); background: rgba(91, 140, 255, .14); }
+  select.btn { padding-right: 4px; }
+  .day { font-family: var(--font-num); }
+  .note { color: var(--muted); font-size: 11.5px; }
+  .note.warn { color: var(--warn); }
+  .clock { font-family: var(--font-num); font-size: 12px; color: var(--text); min-width: 46px; }
+
+  /* ---- the setup strip ---- */
+  .strip { flex: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
+  .strip > div { background: var(--surface); padding: 6px 12px; min-width: 0; }
+  .strip .k { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
+  .strip .v { font-weight: 600; margin-top: 1px; }
+  .strip .v.bull { color: var(--up); } .strip .v.bear { color: var(--down); } .strip .v.wait { color: var(--muted); }
+  .strip .d { color: var(--muted); font: 11.5px var(--font-num); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---- the charts ---- */
+  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: 38fr 62fr; }
+  .board.one-top { grid-template-rows: 36fr 64fr; }
+  .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-bottom: 1px solid var(--line-strong); }
+  .panel.wide { grid-column: 1 / -1; }
+  .panel.right { border-left: 1px solid var(--line-strong); }
+  .phead { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 5px 10px; border-bottom: 1px solid var(--line); }
+  .pname { font-size: 13.5px; font-weight: 700; }
+  .pval { font: 600 14px var(--font-num); }
+  .gw { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 6px; background: var(--tile);
+        color: var(--muted); font-weight: 700; font-size: 11.5px; letter-spacing: .08em; }
+  .gw.bull { background: var(--up); color: #04150f; } .gw.bear { background: var(--down); color: #1e0507; }
+  .gk { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .conds { display: inline-flex; gap: 8px; font: 11.5px var(--font-num); color: var(--muted); }
+  .warm { color: var(--warn); font-size: 11px; }
+  .pextra { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; }
+  .pextra .gw { padding: 1px 7px; font-size: 10.5px; }
+  .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 1fr; }
+  .stack.panes { grid-template-rows: 56fr 17fr 27fr; }
+  .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }
+  .tag { position: absolute; top: 4px; left: 6px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 90px);
+         padding: 3px 8px; border-radius: 6px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 11.5px; color: var(--muted);
+         white-space: nowrap; overflow: hidden; }
+  .tag b { color: var(--text); font-weight: 600; }
+  .tag.main { flex-wrap: wrap; row-gap: 2px; white-space: normal; font-family: var(--font-num); }
+  .tag.main b { font-family: var(--font-ui); }
+  .tag .sw { width: 11px; height: 3px; border-radius: 2px; display: inline-block; vertical-align: middle; }
+  .tag .t-ema { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-ui); }
+
+  #loading { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center;
+             gap: 18px; background: var(--bg); color: var(--muted); }
+  #loading[hidden] { display: none; }
+  #loading img { width: 64px; height: 64px; }
+  #loading div { display: flex; align-items: center; gap: 10px; }
+  #loading div::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-strong);
+                         border-top-color: var(--accent); animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .foot { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 4px 12px; background: var(--surface);
+          border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; }
+  .how { position: relative; }
+  .how summary { cursor: pointer; list-style: none; padding: 3px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); }
+  .how summary::-webkit-details-marker { display: none; }
+  .how-body { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 30; width: min(560px, calc(100vw - 32px)); max-height: 70vh; overflow: auto;
+              padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text);
+              font-size: 12.5px; line-height: 1.5; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
+  .how-body h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+  .how-body p { margin: 0 0 8px; }
+  .credit { margin-left: auto; } .credit a { color: var(--muted); }
+  @media (max-width: 1100px) {
+    html, body { height: auto; }
+    .board, .board.one-top { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+    .panel { height: 60vh; min-height: 380px; } .panel.big { height: 92vh; min-height: 600px; }
+    .panel.right { border-left: 0; }
+    .strip { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><img class="mark" src="brand/logo.svg" alt="" width="26" height="26"><div><b>Nasdaq Signal Board</b></div></div>
+  <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html">Replay</a><a href="india-replay.html" aria-current="page">India Replay</a></nav>
+</header>
+<section class="controls" aria-label="Replay controls">
+  <div class="crow">
+    <span class="rname">Replay</span>
+    <div class="cgrps">
+      <div class="grp"><span class="lbl">Setup</span><div class="seg words" id="setupSel" role="group" aria-label="Setup"></div></div>
+      <div class="grp"><span class="lbl">Day</span>
+        <button class="btn" id="dayPrev" type="button" title="Previous day">◀</button>
+        <select class="btn day" id="daySel" aria-label="Day"></select>
+        <button class="btn" id="dayNext" type="button" title="Next day">▶</button>
+      </div>
+      <div class="grp"><span class="lbl">Candles</span><div class="seg" id="tfs" role="group" aria-label="Candle size"></div></div>
+      <div class="grp"><span class="lbl">Play</span>
+        <button class="btn" id="whole" type="button" aria-pressed="true" title="Show the whole day; off: only up to the replay time">Whole day</button>
+        <button class="btn" id="stepBack" type="button" title="One candle back">⏮</button>
+        <button class="btn" id="play" type="button" title="Play / pause">▶ Play</button>
+        <button class="btn" id="stepFwd" type="button" title="One candle forward">⏭</button>
+        <select class="btn" id="speed" aria-label="Playback speed" title="Candles per second"></select>
+        <span class="clock" id="clock">—</span>
+      </div>
+      <div class="grp"><span class="lbl">Go to signal</span>
+        <button class="btn" id="sigPrev" type="button" title="Previous entry">◀</button>
+        <span class="note" id="sigInfo">—</span>
+        <button class="btn" id="sigNext" type="button" title="Next entry">▶</button>
+      </div>
+      <span class="note" id="dataNote"></span>
+    </div>
+  </div>
+  <div class="crow">
+    <span class="rname">Signal rules</span>
+    <div class="cgrps">
+      <div class="grp"><span class="lbl">Scalper</span>
+        <button class="btn" id="sc2" type="button" aria-pressed="true" title="Show the 2m scalper's entries">2m</button>
+        <button class="btn" id="sc3" type="button" aria-pressed="true" title="Show the 3m scalper's entries">3m</button>
+      </div>
+      <div class="grp"><span class="lbl">Per trend</span><div class="seg" id="perTrend" role="group" aria-label="Entries per trend"></div></div>
+      <div class="grp"><span class="lbl">Gap</span>
+        <select class="btn" id="gapSel" aria-label="How long a NO TRADE gap may last inside one trend" title="How long the index trend may sit at NO TRADE before the trend counts as over"></select>
+      </div>
+      <div class="grp"><button class="btn" id="oneTrend" type="button" aria-pressed="false" title="Only the direction of the day's first index trend counts">One trend per day</button></div>
+    </div>
+  </div>
+</section>
+<section class="strip" aria-label="Where the setup stands">
+  <div><div class="k">Step 1 · Trend</div><div class="v" id="s1v">—</div><div class="d" id="s1d"></div></div>
+  <div><div class="k">Step 2 · Sync</div><div class="v" id="s2v">—</div><div class="d" id="s2d"></div></div>
+  <div><div class="k">Step 3 · Entry</div><div class="v" id="s3v">—</div><div class="d" id="s3d"></div></div>
+</section>
+<main class="board" id="board"></main>
+<footer class="foot">
+  <details class="how">
+    <summary>How it works</summary>
+    <div class="how-body">
+      <h3>The setups</h3>
+      <p><b>Nifty</b>: step 1, NIFTY 50 and GIFT NIFTY show the same gate (both LONG or both SHORT). Step 2, RELIANCE's gate turns to that side after step 1 has started; if RELIANCE is already on that side when step 1 starts, it doesn't count until it leaves that side and comes back (it has to be the odd man out). If it drops out again while the trend holds, it can sync again. Step 3, the entry: RELIANCE's 2m or 3m MACD crosses 0 that way on a closed candle while steps 1 and 2 hold (times shown are the candle's close).</p>
+      <p><b>Bank Nifty</b>: the same, with NIFTY BANK alone in step 1 and HDFC BANK in steps 2 and 3.</p>
+      <h3>The gate</h3>
+      <p>For each market on its own candles: LONG when the 5m, 9m and 11m MACD are all above 0 and the 3m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. Exactly the Nasdaq pages' gate. Each indicator is warmed up on the saved days before, so it reads what it would have read live.</p>
+      <h3>Rules boxes</h3>
+      <p>A trend is one run of step 1 in one direction. <b>Per trend</b> keeps only its first 1 or 2 entries (or all). <b>Gap</b> lets step 1 sit at NO TRADE for that many minutes without ending the trend (Off: any NO TRADE ends it; no entries while it is NO TRADE). <b>One trend per day</b> keeps only entries in the direction of the day's first trend.</p>
+      <h3>Charts</h3>
+      <p>The top charts are the index side, shaded by step 1; GIFT NIFTY is shaded by its own gate and shows its whole session (06:30 to 02:45 the next morning). The bottom chart is the stock, shaded where step 2 holds, with its sync points (dots) and entries (arrows), and its Entry (2m/3m) and Trend MACD panes. Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <h3>Data</h3>
+      <p>Dhan's 1-minute candles, saved by our VPS after each close, from 15 Oct 2026. Nothing is filled in: a minute with no trade has no candle. NSE stocks stop at 15:14 (the closing auction follows); the indices stay flat from 15:15 to 15:27, then move to the closing price at 15:28, as Dhan reports them. For information only, not investment advice.</p>
+    </div>
+  </details>
+  <div class="credit">Not investment advice · Data: Dhan, via our VPS · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></div>
+</footer>
+<div id="loading"><img src="brand/logo.svg" alt=""><div id="loading-text">Loading…</div></div>
+<script>
+'use strict';
+const DAY = 86400000, MIN = 60000, IST = 19800000;  // IST = UTC + 5:30
+const { TrendSignal, SHOWN } = NdxEngine.internals;
+const { MacdPane, Bands } = NsbMacd;
+const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: '#3a4554', label: '#283240',
+            bg: '#0a0d12', ema21: '#f2b33d', ema47: '#5b8cff' };
+const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
+const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
+const RULES = [['3m EMA21 vs EMA47', '3m EMA'], ['5m MACD vs 0', '5m'], ['9m MACD vs 0', '9m'], ['11m MACD vs 0', '11m']];
+const TFS = [1, 2, 3, 5], GAPS = [0, 1, 3, 5, 10, 15, 30], SPEEDS = [1, 2, 5, 10, 30], PER_TREND = [['1', 1], ['2', 2], ['∞', Infinity]];
+// Each market's bars start at its session open, as on TradingView (ms after 00:00 UTC): NSE 09:15 IST, GIFT NIFTY 06:30 IST
+const NSE_OPEN = 3 * 3600000 + 45 * MIN, GIFT_OPEN = 1 * 3600000;
+const MARKETS = {
+  NIFTY: { name: 'NIFTY 50', origin: NSE_OPEN, digits: 2, macdDigits: 2 },
+  BANKNIFTY: { name: 'NIFTY BANK', origin: NSE_OPEN, digits: 2, macdDigits: 2 },
+  GIFTNIFTY: { name: 'GIFT NIFTY', origin: GIFT_OPEN, digits: 1, macdDigits: 2 },
+  RELIANCE: { name: 'RELIANCE', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  HDFCBANK: { name: 'HDFC BANK', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+};
+const SETUPS = {
+  nifty: { label: 'Nifty', index: 'NIFTY', gift: 'GIFTNIFTY', stock: 'RELIANCE' },
+  bank: { label: 'Bank Nifty', index: 'BANKNIFTY', gift: null, stock: 'HDFCBANK' },
+};
+const WARM_DAYS = 3;  // saved days before the one shown, for the indicators to settle
+const $ = id => document.getElementById(id);
+const two = n => String(n).padStart(2, '0');
+const sec = ms => Math.floor(ms / 1000);
+const ok = v => v !== null && v !== undefined && isFinite(v);
+const num = (v, d = 2) => ok(v) ? v.toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
+const hhmm = ms => { const d = new Date(ms + IST); return `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`; };
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WKD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const when = ms => { const d = new Date(ms + IST); return `${WKD[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${hhmm(ms)}`; };
+const kind = st => st === 'BULLISH' ? 'bull' : st === 'BEARISH' ? 'bear' : '';
+const dayOf = (t, origin) => t - ((t - origin) % DAY + DAY) % DAY;
+const bucketStart = (t, m, origin) => { const d0 = dayOf(t, origin), s = m * MIN; return d0 + Math.floor((t - d0) / s) * s; };
+const bucketEnd = (t, m, origin) => Math.min(bucketStart(t, m, origin) + m * MIN, dayOf(t, origin) + DAY);
+const istMidnight = key => Date.parse(key + 'T00:00:00Z') - IST;  // 00:00 IST of a day key (YYYY-MM-DD)
+const pref = (k, fallback) => { try { const v = localStorage.getItem('nsb.ireplay.' + k); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } };
+const save = (k, v) => { try { localStorage.setItem('nsb.ireplay.' + k, JSON.stringify(v)); } catch (e) {} };
+
+// ---- settings (remembered in this browser) ----------------------------------------------------------------
+const opt = {
+  setup: SETUPS[pref('setup', 'nifty')] ? pref('setup', 'nifty') : 'nifty',
+  tf: TFS.includes(pref('tf', 1)) ? pref('tf', 1) : 1,
+  sc2: pref('sc2', true), sc3: pref('sc3', true),
+  perTrend: pref('perTrend', 'inf'),
+  gap: GAPS.includes(pref('gap', 0)) ? pref('gap', 0) : 0,
+  oneTrend: pref('oneTrend', false),
+  speed: SPEEDS.includes(pref('speed', 5)) ? pref('speed', 5) : 5,
+};
+const perTrendLimit = () => opt.perTrend === '1' ? 1 : opt.perTrend === '2' ? 2 : Infinity;
+
+// ---- data: the VPS's saved days (data/india/1m/YYYY-MM-DD.json) -------------------------------------------
+let DAYS = [];  // saved day keys, oldest first
+const fileCache = new Map();
+async function loadFile(key) {  // -> { market: [{ t (ms), o, h, l, c, v }] }
+  if (fileCache.has(key)) return fileCache.get(key);
+  const r = await fetch(`data/india/1m/${key}.json`, { cache: 'no-cache' });  // re-checked: today's file grows after the close
+  if (!r.ok) throw new Error(`${key}: ${r.status}`);
+  const j = await r.json(), out = {};
+  for (const [m, rows] of Object.entries(j)) out[m] = rows.map(([t, o, h, l, c, v]) => ({ t: t * 1000, o, h, l, c, v }));
+  fileCache.set(key, out);
+  return out;
+}
+
+// ---- one market's gate, minute by minute, exactly as the live engine runs it ----------------------------------
+function runMarket(market, rows) {  // rows: its 1-minute candles over the warm-up days and the day, oldest first
+  const sig = new TrendSignal({ [market]: 1 }, SHOWN, MARKETS[market].origin), checksAt = new Map();
+  let captured = null;
+  const evaluate = sig.evaluate.bind(sig), finish = sig.finishMinute.bind(sig);
+  sig.evaluate = (v, now) => { const ev = evaluate(v, now); captured = ev; return ev; };
+  sig.finishMinute = (start, close, vol) => { captured = null; finish(start, close, vol); if (captured) checksAt.set(start, captured.checks); };
+  for (const b of rows) sig.onMemberBar(market, b.t, b.c, b.v);
+  return { stateAt: new Map(sig.history), checksAt, bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) };
+}
+
+// ---- the setup ----------------------------------------------------------------------------------------------
+// Each index minute: step 1 (the index trend: NIFTY and GIFT NIFTY's gates agree, or BANK NIFTY's gate), its trend
+// number (trendsOf), and step 2 (the stock synced: on the trend's side, after having been off it since the trend began).
+function trendsOf(stateAt, gap) {  // as on the Nasdaq Replay: a NO TRADE stretch longer than `gap` or a turn ends a trend
+  const id = new Map(), keys = [...stateAt.keys()].sort((a, b) => a - b);
+  let cur = null, n = 0;
+  for (const t of keys) {
+    const s = stateAt.get(t);
+    if (s !== 'BULLISH' && s !== 'BEARISH') continue;
+    if (!cur || cur.dir !== s || t - cur.last - MIN > gap * MIN) cur = { dir: s, id: ++n };
+    cur.last = t;
+    id.set(t, cur.id);
+  }
+  return id;
+}
+function latestState(run, t, within = 15) {  // a market's gate at minute t, or its last one shortly before (GIFT can skip quiet minutes)
+  for (let k = t; k >= t - within * MIN; k -= MIN) { const s = run.stateAt.get(k); if (s) return s; }
+  return null;
+}
+function setupOf(S, runs, indexMinutes) {
+  const idx = runs[S.index], gift = S.gift ? runs[S.gift] : null, stk = runs[S.stock];
+  const trend = new Map();  // minute -> step 1 state
+  for (const t of indexMinutes) {
+    const a = idx.stateAt.get(t);
+    if (!a) continue;
+    if (!gift) { trend.set(t, a); continue; }
+    const b = latestState(gift, t);
+    if (b) trend.set(t, a === b ? a : 'NEUTRAL');
+  }
+  const ids = trendsOf(trend, opt.gap), at = new Map(), syncs = [], starts = [];
+  let cur = null;  // the trend being followed: { id, dir, start, last, armed, synced, since, told }
+  for (const t of indexMinutes) {
+    const id = ids.get(t), s = stk.stateAt.get(t) || 'NEUTRAL';  // no stock candle (after 15:14): off the trend's side
+    if (cur && id === undefined && t - cur.last - MIN > opt.gap * MIN) cur = null;  // past the gap: that trend is over
+    if (id !== undefined && (!cur || cur.id !== id)) {  // a new trend: the stock must be the odd man out first
+      cur = { id, dir: trend.get(t), start: t, last: t, armed: s !== trend.get(t), synced: false, since: null, told: false };
+      starts.push({ t, dir: cur.dir });
+    }
+    if (cur) {  // inside a gap the stock is still followed: if the trend resumes, what it did meanwhile counts
+      if (s !== cur.dir) { cur.armed = true; cur.synced = false; cur.told = false; }
+      else if (cur.armed && !cur.synced) { cur.synced = true; cur.since = t; }
+      if (id !== undefined) cur.last = t;
+    }
+    const on = id !== undefined;
+    if (on && cur.synced && !cur.told) { cur.told = true; syncs.push({ t, dir: cur.dir }); }  // a sync counts while step 1 is on
+    at.set(t, { trend: trend.get(t) || null, step1: on ? cur.dir : null, id: on ? id : null, synced: on && cur.synced,
+                since: on && cur.synced ? cur.since : null, start: on ? cur.start : null });
+  }
+  return { trend, at, syncs, starts };
+}
+
+// The entries: the stock's 2m or 3m MACD crossing 0 on a closed candle, the trend's way, while steps 1 and 2 hold.
+function crosses(run, m) {
+  const out = [], bars = run.bars[m] || [], origin = MARKETS[day.setup.stock].origin;
+  for (let i = 1; i < bars.length; i++) {
+    const a = bars[i - 1].macd, b = bars[i].macd;
+    if (!ok(a) || !ok(b)) continue;
+    const dir = a <= 0 && b > 0 ? 'BULLISH' : a >= 0 && b < 0 ? 'BEARISH' : null;
+    if (!dir) continue;
+    // the candle's last minute (a bar can close early at the end of the session: its last minute then is earlier)
+    const close = bucketEnd(bars[i].time, m, origin), last = lastMinuteIn(run, bars[i].time, close);
+    out.push({ t: last + MIN, m, dir, macd: b, k: last });
+  }
+  return out;
+}
+function lastMinuteIn(run, from, to) {  // the stock's last candle minute in [from, to)
+  const ones = day.rows[day.setup.stock];
+  let lo = 0, hi = ones.length - 1, hit = from;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (ones[mid].t < to) { hit = ones[mid].t; lo = mid + 1; } else hi = mid - 1; }
+  return Math.max(hit, from);
+}
+function entriesOf() {
+  const want = [opt.sc2 && 2, opt.sc3 && 3].filter(Boolean), stk = day.runs[day.setup.stock], st = day.setupRun;
+  const all = want.flatMap(m => crosses(stk, m)).sort((a, b) => a.t - b.t || a.m - b.m);
+  let dayDir = null;
+  for (const t of day.indexMinutes) if (t >= day.d0 && t < day.d1) { const s = st.at.get(t); if (s && s.step1 && s.trend === s.step1) { dayDir = s.step1; break; } }
+  const used = new Map(), out = [];
+  for (const e of all) {
+    const s = st.at.get(e.k);
+    if (!s || !s.synced || s.step1 !== e.dir || s.trend !== e.dir) continue;  // steps 1 and 2 at that candle's close
+    if (opt.oneTrend && e.k >= day.d0 && e.k < day.d1 && e.dir !== dayDir) continue;
+    const n = used.get(s.id) || 0;
+    if (n >= perTrendLimit()) continue;
+    used.set(s.id, n + 1);
+    if (e.k >= day.d0 && e.k < day.d1) out.push(e);
+  }
+  return out;
+}
+
+// ---- building a day -----------------------------------------------------------------------------------------
+let day = null;
+async function buildDay(key) {
+  const i = DAYS.indexOf(key), keys = DAYS.slice(Math.max(0, i - WARM_DAYS), i + 1);
+  loading(`Loading ${key}…`);
+  const files = await Promise.all(keys.map(loadFile));
+  const S = SETUPS[opt.setup], markets = [S.index, S.gift, S.stock].filter(Boolean);
+  const rows = {};
+  for (const m of markets) {
+    const byT = new Map();
+    for (const f of files) for (const b of f[m] || []) byT.set(b.t, b);
+    rows[m] = [...byT.values()].sort((a, b) => a.t - b.t);
+  }
+  const runs = Object.fromEntries(markets.map(m => [m, runMarket(m, rows[m])]));
+  // the day: 06:30 IST (GIFT NIFTY's open) to 06:30 the next morning
+  const d0 = istMidnight(key) + 6 * 3600000 + 30 * MIN, d1 = d0 + DAY;
+  const indexMinutes = rows[S.index].map(b => b.t);
+  day = { key, d0, d1, setup: S, rows, runs, indexMinutes, warm: keys.length - 1 };
+  day.setupRun = setupOf(S, runs, indexMinutes);
+  day.entries = entriesOf();
+  const inDay = b => b.t >= d0 && b.t < d1;
+  day.price = Object.fromEntries(markets.map(m => [m, rows[m].filter(inDay).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }))]));
+  day.nse = day.price[S.index].length > 0;
+  const lastNse = day.nse ? day.price[S.index][day.price[S.index].length - 1].time : d0;
+  day.start = day.nse ? day.price[S.index][0].time : d0;
+  day.end = Math.max(...markets.map(m => day.price[m].length ? day.price[m][day.price[m].length - 1].time + MIN : d0));
+  day.nseEnd = lastNse + MIN;
+  cursor = Math.min(Math.max(cursor && cursor >= d0 && cursor < d1 ? cursor : day.start + 60 * MIN, d0), day.end);
+  sigIdx = -1;
+  showNote();
+  loading(null);
+}
+
+// ---- the charts ---------------------------------------------------------------------------------------------
+let panels = {};
+function options(showTime, isMain) {
+  return {
+    watermark: isMain ? { visible: true, text: '', color: 'rgba(232, 238, 246, 0.04)', fontSize: 36, fontStyle: '700' } : { visible: false },
+    autoSize: true, handleScroll: isMain, handleScale: isMain,
+    layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },
+    grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
+    rightPriceScale: { borderColor: C.line, minimumWidth: 70 },
+    timeScale: { visible: showTime, borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.05,
+      tickMarkFormatter: (t, type) => { const d = new Date(t * 1000 + IST); return type < 3 ? `${d.getUTCDate()} ${MON[d.getUTCMonth()]}` : hhmm(t * 1000); } },
+    localization: { timeFormatter: t => when(t * 1000) },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label },
+      horzLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label } },
+  };
+}
+class Panel {
+  // role: 'index', 'gift' or 'stock' (the stock has the MACD panes); cls: layout classes
+  constructor(key, market, role, cls) {
+    this.key = key; this.market = market; this.role = role; this.origin = MARKETS[market].origin;
+    this.mainBars = []; this.mainStates = []; this.src = {}; this.store = new Map(); this.emaPts = [];
+    const panes = role === 'stock';
+    $('board').insertAdjacentHTML('beforeend', `
+      <section class="panel ${cls}" id="${key}">
+        <div class="phead">
+          <span class="pname">${MARKETS[market].name}</span><span class="pval" id="${key}-val">—</span>
+          <span class="gk">Gate</span><span class="gw" id="${key}-gate">—</span>
+          <span class="conds" id="${key}-conds"></span>
+          <span class="warm" id="${key}-warm"></span>
+          <span class="pextra" id="${key}-extra"></span>
+        </div>
+        <div class="stack${panes ? ' panes' : ''}">
+          <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
+          ${panes ? `<div class="pane" id="${key}-pentry"><div class="tag mix" id="${key}-tentry"></div></div>
+                     <div class="pane" id="${key}-ptrend"><div class="tag mix" id="${key}-ttrend"></div></div>` : ''}
+        </div>
+      </section>`);
+    this.main = LightweightCharts.createChart($(`${key}-pmain`), options(true, true));
+    this.vol = this.main.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
+    this.main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.88, bottom: 0 }, visible: false });
+    this.candles = this.main.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
+    this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.14, bottom: 0.14 } });
+    const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+    this.e21 = emaLine(C.ema21); this.e47 = emaLine(C.ema47);
+    this.zones = new Bands(() => this.main, () => this.mainStates.length, i => ZONE[this.mainStates[i]] || null);
+    this.candles.attachPrimitive(this.zones);
+    this.macd = {};
+    if (panes) for (const k of ['entry', 'trend']) this.macd[k] = new MacdPane({
+      el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 3, options: options(false, false), origin: this.origin,
+      bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.mainStates[i],
+    });
+    this.main.timeScale().subscribeVisibleLogicalRangeChange(r => { for (const p of Object.values(this.macd)) p.sync(r); syncGroup(this); });
+    const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
+                 ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
+    this.charts = all;
+    for (const self of all) self.chart.subscribeCrosshairMove(p => {
+      if (!p.sourceEvent) return;
+      const t = p.time;
+      for (const o of all) if (o !== self) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
+      hoverAll(this, t);
+    });
+    for (const el of $(key).querySelectorAll('.pane')) el.addEventListener('mouseleave', () => hoverAll(this, undefined));
+  }
+  remove() { this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
+  shadeAt(t) {  // the state a candle is shaded by, at minute t
+    if (this.role === 'gift') return day.runs[this.market].stateAt.get(t) || null;
+    const s = day.setupRun.at.get(t);
+    if (!s) return null;
+    if (this.role === 'index') return s.trend;
+    return s.synced ? s.step1 : null;  // the stock: where step 2 holds
+  }
+  draw() {
+    const upto = whole ? Infinity : cursor, tf = opt.tf, o = this.origin;
+    const ones = day.price[this.market].filter(b => b.time < upto);
+    this.mainBars = aggregate(ones, tf, o);
+    this.mainStates = this.mainBars.map((b, i) => {
+      for (let t = Math.min(bucketEnd(b.time, tf, o), upto) - MIN; t >= b.time; t -= MIN) { const s = this.shadeAt(t); if (s) return s; }
+      return null;
+    });
+    const run = day.runs[this.market];
+    this.src = Object.fromEntries(Object.entries(run.bars).map(([m, bars]) => [m, bars.filter(b => b.time < day.d1 && bucketEnd(b.time, +m, o) <= upto)]));
+    this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
+    this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
+    this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
+    this.setEmas();
+    for (const p of Object.values(this.macd)) { p.digits = MARKETS[this.market].macdDigits; p.update(); p.showLines(); }
+    this.setMarkers(upto);
+    this.main.applyOptions({ watermark: { text: `${MARKETS[this.market].name} · ${tf}m` } });
+    if (this.zones.requestUpdate) this.zones.requestUpdate();
+    for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
+  }
+  fit() {
+    const n = this.mainBars.length;
+    if (n) this.main.timeScale().setVisibleLogicalRange({ from: -1, to: n + 2 });
+  }
+  setEmas() {  // the 3m EMA 21 and 47 as of each candle's close
+    const src = (this.src[3] || []).filter(b => ok(b.ema47)), out = [];
+    let k = -1;
+    for (let i = 0; i < this.mainBars.length; i++) {
+      const end = bucketEnd(this.mainBars[i].time, opt.tf, this.origin);
+      while (k + 1 < src.length && bucketEnd(src[k + 1].time, 3, this.origin) <= end) k++;
+      if (k >= 0) out.push({ time: sec(this.mainBars[i].time), e21: src[k].ema21, e47: src[k].ema47 });
+    }
+    this.emaPts = out;
+    this.e21.setData(out.map(p => ({ time: p.time, value: p.e21 })));
+    this.e47.setData(out.map(p => ({ time: p.time, value: p.e47 })));
+  }
+  setMarkers(upto) {  // the stock: sync points and entries
+    if (this.role !== 'stock') { this.candles.setMarkers([]); return; }
+    const m = [], at = t => sec(bucketStart(t, opt.tf, this.origin));
+    for (const s of day.setupRun.syncs) {
+      if (s.t < day.d0 || s.t >= day.d1 || s.t >= upto) continue;
+      m.push({ time: at(s.t), position: s.dir === 'BULLISH' ? 'belowBar' : 'aboveBar', color: '#e8eef6', shape: 'circle', text: 'sync' });
+    }
+    for (const e of day.entries) {
+      if (e.t > upto) continue;
+      const color = e.m === 2 ? '#fb7185' : '#22d3ee';
+      m.push(e.dir === 'BULLISH' ? { time: at(e.k), position: 'belowBar', color, shape: 'arrowUp', text: `${e.m}m` }
+                                 : { time: at(e.k), position: 'aboveBar', color, shape: 'arrowDown', text: `${e.m}m` });
+    }
+    m.sort((a, b) => a.time - b.time);
+    this.candles.setMarkers(m);
+  }
+  head(t) {  // the header at minute t, or at the replay time
+    const run = day.runs[this.market], own = day.price[this.market], ownEnd = own.length ? own[own.length - 1].time + MIN : day.end;
+    const at = t !== undefined ? t : (whole ? ownEnd : Math.min(cursor, ownEnd)) - MIN;  // its own last candle once its session is over
+    let st = null, k = null;
+    for (let x = at; x >= at - 15 * MIN; x -= MIN) { const s = run.stateAt.get(x); if (s) { st = s; k = x; break; } }
+    const bar = [...day.price[this.market]].reverse().find(b => b.time <= at);
+    $(`${this.key}-val`).textContent = bar ? num(bar.close, MARKETS[this.market].digits) : '—';
+    $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
+    const ch = k !== null ? run.checksAt.get(k) : null;
+    $(`${this.key}-conds`).innerHTML = ch ? RULES.map(([key, name]) => `<span class="${ch[key] > 0 ? 'up' : 'down'}">${name} ${ch[key] > 0 ? '▲' : '▼'}</span>`).join('') : '';
+    const first = Math.min(...[...run.stateAt.keys()].filter(x => x >= day.d0 && x < day.d1), Infinity);
+    const firstBar = day.price[this.market].length ? day.price[this.market][0].time : Infinity;
+    $(`${this.key}-warm`).textContent = first === Infinity && firstBar < Infinity ? 'not enough earlier days for the indicators'
+      : first > firstBar ? `warming up until ${hhmm(first)}` : '';
+    if (this.role === 'index') {
+      const s = day.setupRun.at.get(at) || day.setupRun.at.get(nearestIndexMinute(at));
+      $(`${this.key}-extra`).innerHTML = day.setup.gift ? `Step 1 <span class="gw ${kind(s && s.trend)}">${s && s.trend ? WORD[s.trend] : '—'}</span>` : '';
+    } else $(`${this.key}-extra`).innerHTML = '';
+  }
+  tags(t) {
+    const b = t !== undefined ? this.store.get(t) : this.mainBars.length ? { ...this.mainBars[this.mainBars.length - 1], state: this.mainStates[this.mainStates.length - 1] } : null;
+    const d = MARKETS[this.market].digits;
+    if (b) {
+      let e = null;
+      for (const p of this.emaPts) if (p.time <= sec(b.time)) e = p; else break;
+      $(`${this.key}-tmain`).innerHTML = `<b>${MARKETS[this.market].name}</b><span>${opt.tf}m</span>${t !== undefined ? `<span>${when(b.time)}</span>` : ''}`
+        + `<span>O <b>${num(b.open, d)}</b> H <b>${num(b.high, d)}</b> L <b>${num(b.low, d)}</b> C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close, d)}</b></span>`
+        + (e ? `<span class="t-ema"><span class="sw" style="background:${C.ema21}"></span>EMA 21 <b>${num(e.e21, d)}</b><span class="sw" style="background:${C.ema47}"></span>EMA 47 <b>${num(e.e47, d)}</b></span>` : '');
+    } else $(`${this.key}-tmain`).innerHTML = `<b>${MARKETS[this.market].name}</b><span>no candles this day</span>`;
+    for (const p of Object.values(this.macd)) { p.name = MARKETS[this.market].name; p.tag(t); }
+  }
+}
+function nearestIndexMinute(t) {  // the last index minute at or before t (after the close: the close)
+  const a = day.indexMinutes;
+  let lo = 0, hi = a.length - 1, hit = null;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (a[mid] <= t) { hit = a[mid]; lo = mid + 1; } else hi = mid - 1; }
+  return hit;
+}
+function aggregate(bars, m, origin) {
+  const out = [];
+  for (const b of bars) {
+    const s = bucketStart(b.time, m, origin), last = out[out.length - 1];
+    if (!last || last.time !== s) out.push({ time: s, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 });
+    else { last.high = Math.max(last.high, b.high); last.low = Math.min(last.low, b.low); last.close = b.close; last.volume += b.volume || 0; }
+  }
+  return out;
+}
+// The index and the stock scroll and zoom together (the same NSE minutes); GIFT NIFTY, with its longer session, on its own.
+let syncing = false;
+function timeAt(bars, x) {
+  const n = bars.length, tf = opt.tf * MIN;
+  if (x <= 0) return bars[0].time + x * tf;
+  if (x >= n - 1) return bars[n - 1].time + (x - n + 1) * tf;
+  const i = Math.floor(x);
+  return bars[i].time + (x - i) * (bars[i + 1].time - bars[i].time);
+}
+function indexAt(bars, t) {
+  const n = bars.length, tf = opt.tf * MIN;
+  if (t <= bars[0].time) return (t - bars[0].time) / tf;
+  if (t >= bars[n - 1].time) return n - 1 + (t - bars[n - 1].time) / tf;
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) lo = mid; else hi = mid; }
+  return lo + (t - bars[lo].time) / (bars[hi].time - bars[lo].time);
+}
+function syncGroup(src) {
+  if (syncing || src.role === 'gift') return;
+  const r = src.main.timeScale().getVisibleLogicalRange();
+  if (!r || !src.mainBars.length) return;
+  for (const other of Object.values(panels)) {
+    if (other === src || other.role === 'gift' || !other.mainBars.length) continue;
+    const to = { from: indexAt(other.mainBars, timeAt(src.mainBars, r.from)), to: indexAt(other.mainBars, timeAt(src.mainBars, r.to)) };
+    const now = other.main.timeScale().getVisibleLogicalRange();
+    if (now && Math.abs(now.from - to.from) < 0.01 && Math.abs(now.to - to.to) < 0.01) continue;
+    syncing = true;
+    try { other.main.timeScale().setVisibleLogicalRange(to); } catch (e) {}
+    syncing = false;
+  }
+}
+function hoverAll(src, t) {
+  for (const p of Object.values(panels)) {
+    if (p !== src) for (const o of p.charts) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
+    p.tags(t); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
+  }
+  showStrip(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
+}
+function buildPanels() {
+  for (const p of Object.values(panels)) p.remove();
+  panels = {};
+  const S = SETUPS[opt.setup];
+  $('board').className = 'board' + (S.gift ? '' : ' one-top');
+  panels.index = new Panel('pIndex', S.index, 'index', S.gift ? '' : 'wide');
+  if (S.gift) panels.gift = new Panel('pGift', S.gift, 'gift', 'right');
+  panels.stock = new Panel('pStock', S.stock, 'stock', 'wide big');
+}
+
+// ---- the strip: where the setup stands -----------------------------------------------------------------------
+function showStrip(t) {
+  const S = day.setup, st = day.setupRun, names = S.gift ? 'NIFTY + GIFT' : 'BANK NIFTY', stock = MARKETS[S.stock].name;
+  const set = (k, cls, v, d) => { $(`${k}v`).className = 'v ' + cls; $(`${k}v`).textContent = v; $(`${k}d`).textContent = d; };
+  if (!day.nse) { set('s1', 'wait', 'NSE closed', 'no NSE candles this day'); set('s2', 'wait', '—', ''); set('s3', 'wait', '—', ''); return; }
+  if (t === undefined && whole) {  // the day as a whole
+    const inDay = x => x.t >= day.d0 && x.t < day.d1;
+    const trends = st.starts.filter(inDay), syncs = st.syncs.filter(inDay);
+    set('s1', 'wait', `${trends.length} trend${trends.length === 1 ? '' : 's'}`, trends.map(x => `${WORD[x.dir]} ${hhmm(x.t)}`).join(' · ') || `${names}: no trend`);
+    set('s2', 'wait', `${syncs.length} sync${syncs.length === 1 ? '' : 's'}`, syncs.map(x => `${WORD[x.dir]} ${hhmm(x.t)}`).join(' · ') || `${stock} never synced`);
+    set('s3', 'wait', `${day.entries.length} entr${day.entries.length === 1 ? 'y' : 'ies'}`, day.entries.map(e => `${e.m}m ${WORD[e.dir]} ${hhmm(e.t)}`).join(' · ') || 'none');
+    return;
+  }
+  const at = t !== undefined ? t : cursor - MIN, k = nearestIndexMinute(at), s = k !== null ? st.at.get(k) : null;
+  if (!s || !s.step1) {
+    set('s1', 'wait', s && s.trend ? WORD[s.trend] : 'No trend', s && S.gift ? `NIFTY ${WORD[day.runs.NIFTY.stateAt.get(k)] || '—'} · GIFT ${WORD[latestState(day.runs.GIFTNIFTY, k)] || '—'}` : '');
+    set('s2', 'wait', 'Needs step 1', ''); set('s3', 'wait', 'Not yet', '');
+  } else {
+    set('s1', kind(s.step1), WORD[s.step1], `${names} since ${hhmm(s.start)}${s.trend !== s.step1 ? ' · now NO TRADE (gap)' : ''}`);
+    const ss = day.runs[S.stock].stateAt.get(k);
+    if (s.synced) set('s2', kind(s.step1), `${stock} synced`, `at ${hhmm(s.since)}`);
+    else set('s2', 'wait', `Waiting for ${stock}`, `${stock}: ${ss ? WORD[ss] : 'no candle'}${ss === s.step1 ? ' (was already on this side: must leave first)' : ''}`);
+    const last = day.entries.filter(e => e.k <= at && e.k >= s.start).pop();
+    set('s3', last ? kind(last.dir) : 'wait', last ? `${last.m}m ${WORD[last.dir]} at ${hhmm(last.t)}` : s.synced ? 'Waiting for 2m / 3m' : 'Not yet', s.synced ? '' : 'needs step 2');
+  }
+}
+
+// ---- playback ----------------------------------------------------------------------------------------------
+let cursor = 0, whole = pref('whole', true), timer = null, sigIdx = -1;
+function render(full) {
+  syncing = true;
+  try {
+    for (const p of Object.values(panels)) p.draw();
+    if (full) for (const p of Object.values(panels)) p.fit();
+  } finally { syncing = false; }
+  if (full && panels.index) syncGroup(panels.index);
+  refreshText();
+}
+function refreshText() {
+  for (const p of Object.values(panels)) { p.tags(); p.head(); }
+  showStrip();
+  $('clock').textContent = whole ? 'whole day' : hhmm(cursor);
+  const sigs = day.entries, shown = sigs.filter(s => whole || s.t <= cursor);
+  $('sigInfo').textContent = sigIdx >= 0 && sigs[sigIdx] ? `${sigIdx + 1}/${sigs.length} · ${sigs[sigIdx].m}m ${WORD[sigs[sigIdx].dir]} ${hhmm(sigs[sigIdx].t)}`
+                                                       : `${shown.length} entr${shown.length === 1 ? 'y' : 'ies'}`;
+}
+function step(n) {
+  if (whole) setWhole(false);
+  const tfMs = opt.tf * MIN, o = NSE_OPEN;
+  cursor = Math.max(day.start + tfMs, Math.min(day.end, bucketStart(cursor - 1, opt.tf, o) + tfMs + n * tfMs));
+  render(false);
+  keepCursorInView();
+  if (cursor >= day.end) pause();
+}
+function keepCursorInView() {
+  for (const p of Object.values(panels)) {
+    const n = p.mainBars.length, r = p.main.timeScale().getVisibleLogicalRange();
+    if (r && n && (n - 1 > r.to - 2 || n - 1 < r.from)) { const w = r.to - r.from; p.main.timeScale().setVisibleLogicalRange({ from: n - w + 3, to: n + 3 }); }
+  }
+}
+function play() {
+  if (timer) { pause(); return; }
+  if (whole) { setWhole(false); cursor = day.start + opt.tf * MIN; render(true); }
+  if (cursor >= day.end) cursor = day.start + opt.tf * MIN;
+  $('play').textContent = '⏸ Pause';
+  timer = setInterval(() => step(1), 1000 / opt.speed);
+}
+function pause() { clearInterval(timer); timer = null; $('play').textContent = '▶ Play'; }
+function setWhole(v) { whole = v; save('whole', v); $('whole').setAttribute('aria-pressed', String(v)); if (v) pause(); }
+function jumpSignal(dir) {
+  const sigs = day.entries;
+  if (!sigs.length) return;
+  sigIdx = sigIdx < 0 ? (dir > 0 ? 0 : sigs.length - 1) : (sigIdx + dir + sigs.length) % sigs.length;
+  const s = sigs[sigIdx];
+  if (!whole) { cursor = Math.min(day.end, s.t); render(false); }
+  const p = panels.stock, i = p.mainBars.findIndex(b => b.time === bucketStart(s.k, opt.tf, p.origin));
+  if (i >= 0) { const r = p.main.timeScale().getVisibleLogicalRange(), w = r ? r.to - r.from : 120; p.main.timeScale().setVisibleLogicalRange({ from: i - w / 2, to: i + w / 2 }); }
+  refreshText();
+}
+
+// ---- controls ----------------------------------------------------------------------------------------------
+function seg(el, items, current, onPick) {
+  el.innerHTML = items.map(([label, val]) => `<button type="button" data-v="${val}" aria-pressed="${String(val) === String(current)}">${label}</button>`).join('');
+  for (const b of el.children) b.onclick = () => { onPick(b.dataset.v); for (const x of el.children) x.setAttribute('aria-pressed', String(x === b)); };
+}
+function buildControls() {
+  seg($('setupSel'), Object.entries(SETUPS).map(([k, s]) => [s.label, k]), opt.setup, async v => { opt.setup = v; save('setup', v); buildPanels(); await openDay(day.key); });
+  seg($('tfs'), TFS.map(m => [`${m}m`, m]), opt.tf, v => { opt.tf = +v; save('tf', opt.tf); render(true); });
+  seg($('perTrend'), PER_TREND.map(([l, v]) => [l, v === Infinity ? 'inf' : String(v)]), opt.perTrend, v => { opt.perTrend = v; save('perTrend', v); recompute(); });
+  $('gapSel').innerHTML = GAPS.map(g => `<option value="${g}"${g === opt.gap ? ' selected' : ''}>${g ? g + ' min' : 'Off'}</option>`).join('');
+  $('gapSel').onchange = () => { opt.gap = +$('gapSel').value; save('gap', opt.gap); recompute(true); };
+  $('speed').innerHTML = SPEEDS.map(s => `<option value="${s}"${s === opt.speed ? ' selected' : ''}>${s}/s</option>`).join('');
+  $('speed').onchange = () => { opt.speed = +$('speed').value; save('speed', opt.speed); if (timer) { pause(); play(); } };
+  const toggle = (id, key) => { $(id).setAttribute('aria-pressed', String(opt[key])); $(id).onclick = () => { opt[key] = !opt[key]; save(key, opt[key]); $(id).setAttribute('aria-pressed', String(opt[key])); recompute(); }; };
+  toggle('sc2', 'sc2'); toggle('sc3', 'sc3'); toggle('oneTrend', 'oneTrend');
+  $('whole').setAttribute('aria-pressed', String(whole));
+  $('whole').onclick = () => { setWhole(!whole); if (!whole && cursor >= day.end) cursor = day.start + opt.tf * MIN; render(false); };
+  $('stepFwd').onclick = () => step(1);
+  $('stepBack').onclick = () => step(-1);
+  $('play').onclick = play;
+  $('sigPrev').onclick = () => jumpSignal(-1);
+  $('sigNext').onclick = () => jumpSignal(1);
+  $('daySel').onchange = () => openDay($('daySel').value);
+  $('dayPrev').onclick = () => { const i = $('daySel').selectedIndex; if (i + 1 < $('daySel').options.length) openDay($('daySel').options[i + 1].value); };
+  $('dayNext').onclick = () => { const i = $('daySel').selectedIndex; if (i > 0) openDay($('daySel').options[i - 1].value); };
+  document.addEventListener('keydown', e => {
+    if (e.target.closest('select, input')) return;
+    if (e.key === 'ArrowRight') { step(1); e.preventDefault(); }
+    if (e.key === 'ArrowLeft') { step(-1); e.preventDefault(); }
+    if (e.key === ' ') { play(); e.preventDefault(); }
+  });
+}
+function recompute(setupToo) {
+  if (!day) return;
+  if (setupToo) day.setupRun = setupOf(day.setup, day.runs, day.indexMinutes);
+  day.entries = entriesOf(); sigIdx = -1; render(false);
+}
+async function openDay(key) {
+  pause();
+  await buildDay(key);
+  $('daySel').value = key;
+  $('dayPrev').disabled = $('daySel').selectedIndex >= $('daySel').options.length - 1;
+  $('dayNext').disabled = $('daySel').selectedIndex <= 0;
+  render(true);
+}
+function showNote() {
+  const msg = [`${day.key} · IST`, 'Dhan 1m, saved by the VPS',
+               !day.nse ? 'NSE closed this day: GIFT NIFTY only' : '',
+               day.warm === 0 ? 'no earlier saved day to warm up on' : ''].filter(Boolean).join(' · ');
+  $('dataNote').textContent = msg;
+  $('dataNote').className = 'note' + (!day.nse || day.warm === 0 ? ' warn' : '');
+}
+const loading = text => { if (text === null) { $('loading').hidden = true; return; } $('loading').hidden = false; $('loading-text').textContent = text; };
+
+// ---- start ---------------------------------------------------------------------------------------------------
+NsbMacd.onToggle(() => { for (const p of Object.values(panels)) for (const pane of Object.values(p.macd)) pane.showLines(); refreshText(); });
+(async () => {
+  try {
+    loading('Loading the list of days…');
+    const j = await (await fetch('data/india/1m/index.json', { cache: 'no-cache' })).json();
+    DAYS = (Array.isArray(j) ? j : j.dates || []).map(String).sort();
+    if (!DAYS.length) throw new Error('no saved days yet');
+    $('daySel').innerHTML = [...DAYS].reverse().map(k => { const d = new Date(k + 'T00:00:00Z'); return `<option value="${k}">${WKD[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}</option>`; }).join('');
+    buildControls();
+    buildPanels();
+    await openDay(DAYS[DAYS.length - 1]);
+  } catch (e) {
+    loading(`Couldn't load the India data (${e.message}). Reload the page to try again.`);
+  }
+})();
+</script>
+</body>
+</html>

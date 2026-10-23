@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
-<script src="macd.js?v=8f182c5461"></script>
+<script src="macd.js?v=c78f80a66c"></script>
 <style>
   /* The Divergence page: where the 10-stock signal (NDX10) and the index signal (NAS100) disagree. A status row,
      then one XYZ100 chart marked only at those moments, and XYZ100's Trend and Entry MACD panes. */
@@ -214,7 +214,7 @@
 <body>
 <header class="topbar">
   <div class="brand"><img class="mark" src="brand/logo.svg" alt="" width="30" height="30"><div><b>Nasdaq Signal Board</b><small>Live from Hyperliquid</small></div></div>
-  <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html" aria-current="page">Divergence</a><a href="replay.html">Replay</a></nav>
+  <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html" aria-current="page">Divergence</a><a href="replay.html">Replay</a><a href="india-replay.html">India Replay</a></nav>
   <div class="quote"><span class="sym">XYZ100</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
   <div class="spacer"></div>
   <div class="seg" id="tfs" role="group" aria-label="Candle size"></div>
@@ -736,7 +736,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tagEl = document.createElement('script');
-    tagEl.src = 'engine.js?v=e150e6667e'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
+    tagEl.src = 'engine.js?v=6cb90571d0'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tagEl);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();

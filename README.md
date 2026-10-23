@@ -30,6 +30,7 @@ Hyperliquid or TradingView.
 | `index.html` | the Signals page |
 | `divergence.html` | the Divergence page: where the two signals disagree, and a scoreboard of what followed |
 | `replay.html` | the Replay page: one UTC day at a time, your stocks' composite beside XYZ100, the gate, the 2m/3m entry signals with per-trend / gap / one-trend-per-day boxes, whole-day view or candle-by-candle playback; reads `data/1m/` (the VPS's daily archive) and Hyperliquid's last ~3.5 days |
+| `india-replay.html` | the India Replay page: one Indian trading day at a time from `data/india/1m/` (Dhan 1-minute candles saved by the VPS from 15 Oct 2026); the Nifty setup (NIFTY 50 + GIFT NIFTY trend, then RELIANCE syncs as the odd man out, then its 2m/3m entry) and the Bank Nifty setup (NIFTY BANK, then HDFC BANK), candles aligned to each session's open as on TradingView |
 | `engine.js` | the signal calculation |
 | `macd.js` | the Trend and Entry MACD panes, their on/off switches and shading, and the day separators (both pages) |
 | `basket.json` | the stocks on offer (the default 10 and the extra 3) and their reference prices |

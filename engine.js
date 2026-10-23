@@ -45,8 +45,10 @@ const SHOWN = { ...TIMEFRAMES, 1: 'macd', 2: 'macd', 3: 'both', 7: 'macd', 15: '
 const CACHE = 'nsb.candles.v2.';  // v1 caches can hold flat bars from a stuck stream: they are not read
 
 // ---- the signal: a line-for-line port of ndx10.py ----------------------------------------------
-const bucket = (t, minutes) => {  // [start, end] of the bar containing t; bars restart at 00:00 UTC each day
-  const day0 = t - t % DAY, size = minutes * MIN, start = day0 + Math.floor((t - day0) / size) * size;
+// [start, end] of the bar containing t; bars restart at 00:00 UTC each day, or `origin` ms after it (a market's session
+// open, e.g. 03:45 UTC for NSE's 09:15 IST, so bars line up with the exchange's as on TradingView)
+const bucket = (t, minutes, origin = 0) => {
+  const day0 = t - ((t - origin) % DAY + DAY) % DAY, size = minutes * MIN, start = day0 + Math.floor((t - day0) / size) * size;
   return [start, Math.min(start + size, day0 + DAY)];
 };
 
@@ -69,8 +71,8 @@ class Macd {
 }
 
 class Timeframe {  // bars of one size: closed bars with their indicators, plus the forming bar
-  constructor(minutes, kind) {  // kind: 'macd', 'ema' (EMA 8 and 21) or 'both'
-    this.minutes = minutes; this.kind = kind;
+  constructor(minutes, kind, origin = 0) {  // kind: 'macd', 'ema' (EMA 8 and 21) or 'both'
+    this.minutes = minutes; this.kind = kind; this.origin = origin;
     this.macd = kind !== 'ema' ? new Macd() : null;
     this.ema8 = kind !== 'macd' ? new Ema(8) : null;
     this.ema21 = kind !== 'macd' ? new Ema(21) : null;
@@ -79,7 +81,7 @@ class Timeframe {  // bars of one size: closed bars with their indicators, plus 
     this.partial = null;  // the bar being filled by finished minutes
   }
   addMinute(start, open, high, low, close, volume = 0) {
-    const [bStart, bEnd] = bucket(start, this.minutes);
+    const [bStart, bEnd] = bucket(start, this.minutes, this.origin);
     if (this.partial && this.partial.time !== bStart) this.close();  // its last minute never arrived
     if (!this.partial) this.partial = { time: bStart, open, high, low, close, volume };
     else { const p = this.partial; p.high = Math.max(p.high, high); p.low = Math.min(p.low, low); p.close = close; p.volume += volume; }
@@ -109,8 +111,8 @@ class Timeframe {  // bars of one size: closed bars with their indicators, plus 
   // time is up, so it closes provisionally at estimate(its last minute) and the new bar forms after it.
   forming(price, now, estimate) {
     const last = this.bars[this.bars.length - 1];
-    const start = this.partial ? this.partial.time : last ? bucket(last.time, this.minutes)[1] : 0;
-    const end = start ? bucket(start, this.minutes)[1] : 0;
+    const start = this.partial ? this.partial.time : last ? bucket(last.time, this.minutes, this.origin)[1] : 0;
+    const end = start ? bucket(start, this.minutes, this.origin)[1] : 0;
     if (now != null && start && now >= end) {
       let first = estimate ? estimate(end - MIN) : undefined;
       if (first == null) first = this.partial ? this.partial.close : last.close;
@@ -126,13 +128,13 @@ class Timeframe {  // bars of one size: closed bars with their indicators, plus 
 }
 
 class TrendSignal {  // members' 1-minute closes combined (sum of coef * close), the timeframes, and the signal
-  constructor(coef, timeframes = TIMEFRAMES) {
+  constructor(coef, timeframes = TIMEFRAMES, origin = 0) {
     this.coef = coef; this.coins = Object.keys(coef);
     // two or more members: each one's own gate, from its own closes; the series' gate is where they all agree
-    this.parts = this.coins.length > 1 ? Object.fromEntries(this.coins.map(c => [c, new TrendSignal({ [c]: 1 })])) : null;
+    this.parts = this.coins.length > 1 ? Object.fromEntries(this.coins.map(c => [c, new TrendSignal({ [c]: 1 }, TIMEFRAMES, origin)])) : null;
     this.prices = null;
     this.tfs = {};
-    for (const m of Object.keys(timeframes).map(Number).sort((a, b) => a - b)) this.tfs[m] = new Timeframe(m, timeframes[m]);
+    for (const m of Object.keys(timeframes).map(Number).sort((a, b) => a - b)) this.tfs[m] = new Timeframe(m, timeframes[m], origin);
     this.pending = new Map(); this.lastMinute = null; this.lastClose = null;
     this.extremes = new Map();   // live highs/lows sampled within each minute
     this.seenAtEnd = new Map();  // the last live value sampled in each recent minute

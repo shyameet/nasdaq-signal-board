@@ -29,7 +29,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
-<script src="macd.js?v=8f182c5461"></script>
+<script src="macd.js?v=c78f80a66c"></script>
 <style>
   /* Layout: one chart of your stocks' composite: a header (the gate and its four conditions), its candles with the gate's zones and 3m EMAs, then the Entry and Trend MACD panes. One crosshair. */
   :root {
@@ -266,7 +266,7 @@
 <body>
 <header class="topbar">
   <div class="brand"><img class="mark" src="brand/logo.svg" alt="" width="30" height="30"><div><b>Nasdaq Signal Board</b><small>Live from Hyperliquid</small></div></div>
-  <nav class="tabs" aria-label="Pages"><a href="./" aria-current="page">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html">Replay</a></nav>
+  <nav class="tabs" aria-label="Pages"><a href="./" aria-current="page">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html">Replay</a><a href="india-replay.html">India Replay</a></nav>
   <div class="quote"><span class="sym" id="sym">NDX10</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
   <div class="session" id="session" title="US stock market session (New York time; holidays not shown)"></div>
   <div class="spacer"></div>
@@ -1380,7 +1380,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tag = document.createElement('script');
-    tag.src = 'engine.js?v=e150e6667e'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
+    tag.src = 'engine.js?v=6cb90571d0'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tag);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();

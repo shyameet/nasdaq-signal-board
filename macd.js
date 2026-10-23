@@ -10,7 +10,8 @@
 (() => {
 'use strict';
 const DAY = 86400000;
-const bucketEnd = (t, m) => { const d0 = t - (t % DAY), s = m * 60000; return Math.min(d0 + Math.floor((t - d0) / s) * s + s, d0 + DAY); };
+// origin: where each day's bars start, in ms after 00:00 UTC (a market's session open; 0 for the 24/7 perps)
+const bucketEnd = (t, m, origin = 0) => { const d0 = t - ((t - origin) % DAY + DAY) % DAY, s = m * 60000; return Math.min(d0 + Math.floor((t - d0) / s) * s + s, d0 + DAY); };
 const ok = v => v !== null && v !== undefined && isFinite(v);
 const sgn = (v, d) => ok(v) ? (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(d) : '—';
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -56,13 +57,13 @@ function toggle(k) {
 
 // ---- each MACD at every candle's close ------------------------------------------------------------------
 // bars: the price chart's candles (ms times), tf their size, src: { minutes: MACD bars } -> one point per candle
-function points(bars, tf, src, lines) {
+function points(bars, tf, src, lines, origin = 0) {
   const out = [], k = Object.fromEntries(lines.map(m => [m, -1]));
   for (let i = 0; i < bars.length; i++) {
-    const end = bucketEnd(bars[i].time, tf), v = {}, sg = {};
+    const end = bucketEnd(bars[i].time, tf, origin), v = {}, sg = {};
     for (const m of lines) {
       const a = src[m] || [];
-      while (k[m] + 1 < a.length && bucketEnd(a[k[m] + 1].time, m) <= end) k[m]++;
+      while (k[m] + 1 < a.length && bucketEnd(a[k[m] + 1].time, m, origin) <= end) k[m]++;
       const j = i === bars.length - 1 ? a.length - 1 : k[m];
       if (j >= 0 && ok(a[j].macd)) { v[m] = a[j].macd; sg[m] = a[j].signal; }
     }
@@ -209,8 +210,8 @@ class MacdPane {
   // Redraw from the latest bars, or only move the newest points when that's all that changed. True when it redrew
   // everything (the caller then lines the pane up with the price chart again).
   update() {
-    if (this.stocks) this.stockPts = points(this.bars(), this.tf(), this.stocks(), this.lines);
-    const pts = points(this.bars(), this.tf(), this.src(), this.lines), old = this.pts, n = pts.length, k = old.length;
+    if (this.stocks) this.stockPts = points(this.bars(), this.tf(), this.stocks(), this.lines, this.origin || 0);
+    const pts = points(this.bars(), this.tf(), this.src(), this.lines, this.origin || 0), old = this.pts, n = pts.length, k = old.length;
     const same = (a, b) => a.time === b.time && this.lines.every(m => a.v[m] === b.v[m] && a.sg[m] === b.sg[m]);
     let i = 0;
     while (i < n && i < k && same(pts[i], old[i])) i++;
