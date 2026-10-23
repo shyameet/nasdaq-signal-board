@@ -94,6 +94,7 @@
   .panel.wide { grid-column: 1 / -1; }
   .panel.right { border-left: 1px solid var(--line-strong); }
   .phead { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 5px 10px; border-bottom: 1px solid var(--line); }
+  .phead > .gk, .phead > .gw, .phead > .conds { display: none; }   /* owner 23/10/2026: no "Gate SHORT 3m EMA 5m 9m" in the chart heads (the shading shows the gate) */
   .pname { font-size: 13.5px; font-weight: 700; }
   .pval { font: 600 14px var(--font-num); }
   .gw { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 6px; background: var(--tile);
@@ -436,11 +437,11 @@ function options(showTime, isMain) {
   };
 }
 class Panel {
-  // role: 'index', 'gift' or 'stock' (the stock has the MACD panes); cls: layout classes
+  // role: 'index', 'gift' or 'stock' (every chart has the MACD panes since 23/10, owner); cls: layout classes
   constructor(key, market, role, cls) {
     this.key = key; this.market = market; this.role = role; this.origin = MARKETS[market].origin;
     this.mainBars = []; this.mainStates = []; this.src = {}; this.store = new Map(); this.emaPts = [];
-    const panes = role === 'stock';
+    const panes = true;   // owner 23/10/2026: the Entry and Trend MACD panes under the indices too (were the stock's only)
     $('board').insertAdjacentHTML('beforeend', `
       <section class="panel ${cls}" id="${key}">
         <div class="phead">
@@ -633,8 +634,8 @@ function buildPanels() {
   const S = SETUPS[opt.setup];
   // owner 23/10/2026: equal columns, left to right - Bank Nifty | HDFC Bank; Nifty | GIFT Nifty | Reliance
   $('board').className = 'board' + (S.gift ? ' cols-3' : '');
-  panels.index = new Panel('pIndex', S.index, 'index', '');
-  if (S.gift) panels.gift = new Panel('pGift', S.gift, 'gift', 'right');
+  panels.index = new Panel('pIndex', S.index, 'index', 'big');
+  if (S.gift) panels.gift = new Panel('pGift', S.gift, 'gift', 'right big');
   panels.stock = new Panel('pStock', S.stock, 'stock', 'right big');
 }
 
