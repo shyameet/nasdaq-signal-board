@@ -5,12 +5,15 @@
      LONG (state BULLISH)      5m, 9m and 11m MACD all above 0, and the 3m EMA 21 above the EMA 47
      SHORT (state BEARISH)     all three below 0, and the EMA 21 below the EMA 47
      NO TRADE (state NEUTRAL)  anything else
-   checked every second on the bars still forming. The page's gate (option `gate`): 'stocks', the stocks' own gate
+   checked every second on the bars still forming. With two or more stocks picked, the stocks' gate is LONG only when
+   every picked stock's own gate is LONG (each on its own candles), SHORT only when every one is SHORT, NO TRADE
+   otherwise; the composite's own conditions are still worked out and shown, but don't decide it. The page's gate (option `gate`): 'stocks', the stocks' own gate
    (the Signals page), or 'both' (the default, Divergence): LONG only when both series are LONG and SHORT only when both
    are SHORT. Its changes are the alerts. (The local Python server, ndx10_live.py, still runs the old four-rule signal.)
 
-   The stocks' composite is a series of its own, with candles at every size: each minute's close is the sum of
-   weight-scaled member closes, its open the previous minute's close, its high and low the larger and smaller of the
+   The stocks' composite is a series of its own, with candles at every size: each stock counts equally, so each
+   minute's close is 1000 times the average of the stocks' closes over their reference closes (the sum of scaled
+   member closes), its open the previous minute's close, its high and low the larger and smaller of the
    two (live minutes also know the values sampled in between), and its volume the members' dollar volume.
 
    History: two days of 1-minute candles per market (about 750 of the 1200 request weight Hyperliquid allows
@@ -125,6 +128,9 @@ class Timeframe {  // bars of one size: closed bars with their indicators, plus 
 class TrendSignal {  // members' 1-minute closes combined (sum of coef * close), the timeframes, and the signal
   constructor(coef, timeframes = TIMEFRAMES) {
     this.coef = coef; this.coins = Object.keys(coef);
+    // two or more members: each one's own gate, from its own closes; the series' gate is where they all agree
+    this.parts = this.coins.length > 1 ? Object.fromEntries(this.coins.map(c => [c, new TrendSignal({ [c]: 1 })])) : null;
+    this.prices = null;
     this.tfs = {};
     for (const m of Object.keys(timeframes).map(Number).sort((a, b) => a - b)) this.tfs[m] = new Timeframe(m, timeframes[m]);
     this.pending = new Map(); this.lastMinute = null; this.lastClose = null;
@@ -133,6 +139,7 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     this.history = [];           // [minute, signal state at that minute's close]
   }
   onMemberBar(coin, start, close, volume = 0) {  // volume: the member's 1-minute volume, in its own units
+    if (this.parts) this.parts[coin].onMemberBar(coin, start, close, volume);  // first: the composite closes the minute last
     if (this.lastMinute !== null && start <= this.lastMinute) return;
     let slot = this.pending.get(start);
     if (!slot) this.pending.set(start, slot = new Map());
@@ -156,13 +163,24 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     }
     for (const m of [...this.extremes.keys()]) if (m < start) this.extremes.delete(m);
     if (this.ready) {  // evaluated before the minute is added: exactly what the live check showed at that moment
-      this.history.push([start, this.evaluate(close).state]);
+      const own = this.evaluate(close).state;
+      this.history.push([start, this.parts ? this.partsState(start) : own]);
       if (this.history.length > KEEP_MINUTES + 500) this.history.splice(0, 500);
     }
     this.lastMinute = start; this.lastClose = close;
     for (const tf of Object.values(this.tfs)) tf.addMinute(start, open, high, low, close, volume);
   }
+  partsState(start) {  // the members' gates at the close of minute `start` (each has already closed it): all agree, or NO TRADE
+    let state = null;
+    for (const p of Object.values(this.parts)) {
+      let s = 'NEUTRAL';  // live, a member can already be a minute or two further on
+      for (let i = p.history.length - 1; i >= 0 && p.history[i][0] >= start; i--) if (p.history[i][0] === start) { s = p.history[i][1]; break; }
+      state = state === null ? s : combine(state, s);
+    }
+    return state;
+  }
   value(prices) {
+    this.prices = prices;  // the members' live prices, for their own gates
     let v = 0;
     for (const c of this.coins) { if (!(prices[c] > 0)) return null; v += this.coef[c] * prices[c]; }
     return v;
@@ -172,9 +190,11 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     this.extremes.set(minute, [Math.max(hi, value), Math.min(lo, value)]);
     this.seenAtEnd.set(minute, value);
     for (const m of [...this.seenAtEnd.keys()]) if (m < minute - 600000) this.seenAtEnd.delete(m);
+    if (this.parts && this.prices) for (const [c, p] of Object.entries(this.parts)) p.sample(now, this.prices[c]);
   }
   get ready() {  // enough closed bars everywhere for the MACD (26 + 9) and the EMA 47 to have settled
-    return Object.values(this.tfs).every(tf => tf.bars.length >= Math.max(tf.macd ? 35 : 0, tf.ema47 ? 47 : 0));
+    return Object.values(this.tfs).every(tf => tf.bars.length >= Math.max(tf.macd ? 35 : 0, tf.ema47 ? 47 : 0))
+      && (!this.parts || Object.values(this.parts).every(p => p.ready));
   }
   started(state, fallback) {  // when the current run of `state` began
     let start = fallback;
@@ -199,7 +219,14 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
       '11m MACD vs 0': f[11].macd,
     };
     const v = Object.values(checks);
-    const state = v.every(x => x > 0) ? 'BULLISH' : v.every(x => x < 0) ? 'BEARISH' : 'NEUTRAL';
+    let state = v.every(x => x > 0) ? 'BULLISH' : v.every(x => x < 0) ? 'BEARISH' : 'NEUTRAL';
+    if (this.parts && now != null && this.prices) {  // live: every member's own gate on its own price
+      state = null;
+      for (const [c, p] of Object.entries(this.parts)) {
+        const s = this.prices[c] > 0 ? p.evaluate(this.prices[c], now).state : 'NEUTRAL';
+        state = state === null ? s : combine(state, s);
+      }
+    }
     return { value, state, checks, forming: f };
   }
 }
@@ -307,14 +334,13 @@ class Engine {
   }
 
   // The stocks the composite is made of: a subset of the basket (its default list when `selection` is missing or empty).
-  // Their official weights are rescaled to 100%, so the composite is still 1000 at the reference close.
+  // Each counts equally (1/N), so the composite is 1000 at the reference close.
   setActive(selection) {
     const pick = Array.isArray(selection) ? this.members.filter(c => selection.includes(c)) : [];
     const fallback = (this.basket.default || this.members).filter(c => this.members.includes(c));
     this.active = pick.length ? pick : fallback;
-    const total = this.active.reduce((a, c) => a + this.basket.members[c].weight, 0);
     this.coef = Object.fromEntries(this.active.map(c =>
-      [c, this.basket.base * (this.basket.members[c].weight / total) / this.basket.members[c].ref_price]));
+      [c, this.basket.base / this.active.length / this.basket.members[c].ref_price]));
   }
   // Switch the composite to another subset, with no new requests: every stock's candles are already loaded. The signal
   // is rebuilt from them at once (a new generation, so the page reloads its snapshot) and its alert tracker starts over,

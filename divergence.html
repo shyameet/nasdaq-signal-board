@@ -222,7 +222,7 @@
     <button class="pick-btn" id="pickBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Choose which stocks make up the composite"><span id="pickLabel">Stocks</span><small id="pickSub"></small><span class="caret">▼</span></button>
     <div class="pick-pop" id="pickPop" role="dialog" aria-label="Choose your stocks" hidden>
       <h3>Choose your stocks</h3>
-      <p>Pick any of them (even just one); weights are each stock's Nasdaq-100 weight, rescaled to 100%. The composite and every mark are rebuilt from the same candles.</p>
+      <p>Pick any of them (even just one). Each counts equally, and the gate is LONG (or SHORT) only when every one you pick is. The composite and every mark are rebuilt from the same candles.</p>
       <div class="presets" id="presets"></div>
       <ul class="stocks" id="stocks"></ul>
       <div class="pick-actions"><span class="msg" id="pickMsg"></span><button type="button" id="pickCancel">Cancel</button><button type="button" class="go" id="pickGo">Apply</button></div>
@@ -260,7 +260,7 @@
     <summary>How it works</summary>
     <div class="how-body">
       <h3>What this page shows</h3>
-      <p>Each series has a gate: <b class="up">LONG</b> when its 5m, 9m and 11m MACD are all above 0 and its 3m EMA 21 is above the EMA 47, <b class="down">SHORT</b> when all of that is the other way, NO TRADE otherwise. This page compares the gate of the stocks (the 10 biggest Nasdaq-100 stocks combined, or your own pick of them: their official weights are rescaled to 100%, rebuilt with no new download) with the gate of the Nasdaq-100 itself (XYZ100), and marks only where they differ; when they agree, the chart stays clean.</p>
+      <p>Each series has a gate: <b class="up">LONG</b> when its 5m, 9m and 11m MACD are all above 0 and its 3m EMA 21 is above the EMA 47, <b class="down">SHORT</b> when all of that is the other way, NO TRADE otherwise. This page compares the gate of the stocks (the 10 biggest Nasdaq-100 stocks combined, or your own pick of them, each counting equally, rebuilt with no new download; their gate is LONG or SHORT only when every picked stock's own gate is) with the gate of the Nasdaq-100 itself (XYZ100), and marks only where they differ; when they agree, the chart stays clean.</p>
       <h3>The marks</h3>
       <p><b class="alone">Index alone</b>: the index's gate is LONG while the stocks' isn't. <b class="up">Stocks first</b>: the stocks' gate is LONG while the index's isn't yet. <b>Other</b>: they differ in another way. These have not been studied for the gate yet, so the page makes no claim about what follows them.</p>
       <h3>The MACD pane</h3>
@@ -671,10 +671,10 @@ function setActive(list) {  // the composite's stocks changed (or were just load
 }
 let draft = new Set(), picking = false;
 function renderPick() {
-  const members = BASKET.members, total = ALL.reduce((a, c) => a + (draft.has(c) ? members[c].weight : 0), 0);
+  const members = BASKET.members, total = draft.size;  // each picked stock counts equally
   $('stocks').innerHTML = ALL.map(c => `<li class="${draft.has(c) ? 'on' : ''}"><label><input type="checkbox" data-c="${c}"${draft.has(c) ? ' checked' : ''}>`
     + `<span class="tk">${tk(c)}</span><span class="co">${members[c].company}</span>`
-    + `<span class="wt">${draft.has(c) ? (members[c].weight / total * 100).toFixed(1) + '%' : '—'}</span></label></li>`).join('');
+    + `<span class="wt">${draft.has(c) ? (100 / total).toFixed(1) + '%' : '—'}</span></label></li>`).join('');
   for (const box of $('stocks').querySelectorAll('input')) box.onchange = () => {
     if (box.checked) draft.add(box.dataset.c); else draft.delete(box.dataset.c);
     renderPick();
@@ -736,7 +736,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tagEl = document.createElement('script');
-    tagEl.src = 'engine.js?v=17098e8ff4'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
+    tagEl.src = 'engine.js?v=e150e6667e'; tagEl.onload = resolve; tagEl.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tagEl);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();

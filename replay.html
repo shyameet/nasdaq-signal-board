@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="macd.js?v=8f182c5461"></script>
-<script src="engine.js?v=17098e8ff4"></script>
+<script src="engine.js?v=e150e6667e"></script>
 <style>
   /* The Replay page: one UTC day at a time. Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
      has the same indicators as the Signals page (gate zones, 3m EMA 21/47, Entry and Trend MACD panes) plus its 2m and
@@ -169,7 +169,7 @@
     <button class="pick-btn" id="pickBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Choose which stocks make up the left chart"><span id="pickLabel">Stocks</span><small id="pickSub"></small><span class="caret">▼</span></button>
     <div class="pick-pop" id="pickPop" role="dialog" aria-label="Choose your stocks" hidden>
       <h3>Choose your stocks</h3>
-      <p>Pick any of them (even just one); weights are each stock's Nasdaq-100 weight, rescaled to 100%. The left chart and its signals are rebuilt for every day you replay.</p>
+      <p>Pick any of them (even just one). Each counts equally, and the gate is LONG (or SHORT) only when every one you pick is. The left chart and its signals are rebuilt for every day you replay.</p>
       <div class="presets" id="presets"></div>
       <ul class="stocks" id="stocks"></ul>
       <div class="pick-actions"><span class="msg" id="pickMsg"></span><button type="button" id="pickCancel">Cancel</button><button type="button" class="go" id="pickGo">Apply</button></div>
@@ -320,7 +320,7 @@ async function loadDay(key) {  // -> { coin: [bars (toBar objects)] } for the 10
 }
 
 // ---- one series, minute by minute, exactly as the live engine runs it ----------------------------------------
-// coef: { coin: weight-scaled coefficient } (the composite), or { XYZ100: 1 }. Returns its 1-minute candles, its bars
+// coef: { coin: scaled coefficient } (the composite), or { XYZ100: 1 }. Returns its 1-minute candles, its bars
 // at every size with their indicators, the gate at each minute's close and the four conditions behind it.
 function runSeries(coef, minutes) {  // minutes: { coin: contiguous bars over the warm-up day and the day }
   const sig = new TrendSignal(coef, SHOWN), coins = Object.keys(coef), checksAt = new Map();
@@ -394,9 +394,8 @@ function minutesOf(days, coins) {  // each market's bars over the loaded days, o
   for (const c of coins) out[c] = contiguous(days.flatMap(d => d.coins[c] || []).sort((a, b) => a.t - b.t));
   return out;
 }
-function composite() {  // the left chart's coefficients: official weights rescaled to 100% over your pick
-  const total = ACTIVE.reduce((a, c) => a + BASKET.members[c].weight, 0);
-  return Object.fromEntries(ACTIVE.map(c => [c, BASKET.base * (BASKET.members[c].weight / total) / BASKET.members[c].ref_price]));
+function composite() {  // the left chart's coefficients: every picked stock counts equally
+  return Object.fromEntries(ACTIVE.map(c => [c, BASKET.base / ACTIVE.length / BASKET.members[c].ref_price]));
 }
 const tk = coin => coin.replace(/^xyz:/, '');
 const DEFAULT = () => (BASKET && BASKET.default ? ALL.filter(c => BASKET.default.includes(c)) : ALL);  // the basket's default pick
@@ -748,10 +747,10 @@ function setActive(list) {
 }
 let draft = new Set(), picking = false;
 function renderPick() {
-  const members = BASKET.members, total = ALL.reduce((a, c) => a + (draft.has(c) ? members[c].weight : 0), 0);
+  const members = BASKET.members, total = draft.size;  // each picked stock counts equally
   $('stocks').innerHTML = ALL.map(c => `<li class="${draft.has(c) ? 'on' : ''}"><label><input type="checkbox" data-c="${c}"${draft.has(c) ? ' checked' : ''}>`
     + `<span class="tk">${tk(c)}</span><span class="co">${members[c].company}</span>`
-    + `<span class="wt">${draft.has(c) ? (members[c].weight / total * 100).toFixed(1) + '%' : '—'}</span></label></li>`).join('');
+    + `<span class="wt">${draft.has(c) ? (100 / total).toFixed(1) + '%' : '—'}</span></label></li>`).join('');
   for (const box of $('stocks').querySelectorAll('input')) box.onchange = () => { if (box.checked) draft.add(box.dataset.c); else draft.delete(box.dataset.c); renderPick(); };
   const list = ALL.filter(c => draft.has(c)), changed = list.join() !== ACTIVE.join();
   $('pickMsg').textContent = !list.length ? 'Pick at least one stock' : `${list.length} selected`;

@@ -275,7 +275,7 @@
     <button class="pick-btn" id="pickBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Choose which stocks make up the composite"><span id="pickLabel">Stocks</span><small id="pickSub"></small><span class="caret">▼</span></button>
     <div class="pick-pop" id="pickPop" role="dialog" aria-label="Choose your stocks" hidden>
       <h3>Choose your stocks</h3>
-      <p>Pick any of them (even just one); weights are each stock's Nasdaq-100 weight, rescaled to 100%. The composite and every mark are rebuilt from the same candles.</p>
+      <p>Pick any of them (even just one). Each counts equally, and the gate is LONG (or SHORT) only when every one you pick is. The composite and every mark are rebuilt from the same candles.</p>
       <div class="presets" id="presets"></div>
       <ul class="stocks" id="stocks"></ul>
       <div class="pick-actions"><span class="msg" id="pickMsg"></span><button type="button" id="pickCancel">Cancel</button><button type="button" class="go" id="pickGo">Apply</button></div>
@@ -328,7 +328,7 @@
       </table>
       <p>It shades the chart and the MACD panes, and sets the alerts. The header shows the gate and its four conditions. MACD is 12/26/9.</p>
       <h3>Your stocks</h3>
-      <p>The chart is your own composite of the stocks you pick (<b>Stocks</b> button, top right; the 10 largest Nasdaq-100 weights that trade on Hyperliquid, any 1 to 10 of them). Their official index weights are rescaled to 100% over your pick, so the composite is 1000 at the basket's reference close. Each minute's close is the weighted sum of the stocks' closes; its open is the previous minute's close and its high and low the larger and smaller of the two (live candles also catch the highs and lows in between), so older candles have shorter wicks than live ones. Volume is the stocks' combined dollar volume. The pick is shared with the Divergence page and kept in this browser.</p>
+      <p>The chart is your own composite of the stocks you pick (<b>Stocks</b> button, top right; the 10 largest Nasdaq-100 stocks that trade on Hyperliquid by default, plus AVGO, TSM and INTC; any 1 to 13 of them). Each stock you pick counts equally, so the composite is 1000 at the basket's reference close and each minute's close is 1000 times the average of the stocks' moves since then. The gate is LONG only when every stock you pick is LONG on its own candles, SHORT only when every one is SHORT, and NO TRADE otherwise; the rule tiles show the composite's own values. Each minute's open is the previous minute's close and its high and low the larger and smaller of the two (live candles also catch the highs and lows in between), so older candles have shorter wicks than live ones. Volume is the stocks' combined dollar volume. The pick is shared with the Divergence page and kept in this browser.</p>
       <p>Under the price chart are two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the gate. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>, the gate's three MACD rules, plus <b style="color:#facc15">1m</b>, <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each wave has two colors of its own, one while its MACD is above 0 and another while below, so its color changes where it crosses zero; the chips in a pane's label show each wave's pair (left: above 0, right: below). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Both panes are shaded by the gate: green while LONG, red while SHORT. Dashed vertical lines mark where a new day begins in your timezone.</p>
       <h3>The charts</h3>
       <p>Zones: green while the gate is LONG (labeled ▲ LONG), red while it is SHORT, no color for NO TRADE. The zone is the gate, not the candle: a red candle can sit in a green zone. The forming candle shows the gate live. The amber and blue lines are your stocks' 3m EMA 21 and EMA 47 that the gate tests, as of each candle's close. Times are in your timezone.</p>
@@ -1245,9 +1245,8 @@ function showGlobal(k) {
     $('pxchg').textContent = ch === null ? '' : `${pct(ch)} 24h`;
     $('pxchg').className = 'chg num ' + (ch >= 0 ? 'up' : 'down');
   }
-  const total = ACTIVE.reduce((a, c) => a + basket.members[c].weight, 0);
   $('basket').innerHTML = `<span class="flabel">${NAME}</span>` + ACTIVE.map(coin => {
-    const m = basket.members[coin], p = k.members[coin], ch = ok(p) ? p / m.ref_price - 1 : null, w = m.weight / total;
+    const m = basket.members[coin], p = k.members[coin], ch = ok(p) ? p / m.ref_price - 1 : null, w = 1 / ACTIVE.length;
     return `<span class="m" title="${m.company}: ${(w * 100).toFixed(1)}% of your stocks; change since the reference close">`
          + `<b>${tk(coin)}</b><span class="w">${(w * 100).toFixed(1)}%</span>`
          + `<span class="c ${ch >= 0 ? 'up' : 'down'}">${pct(ch)}</span></span>`;
@@ -1313,10 +1312,10 @@ function setActive(list) {  // the composite's stocks changed (or were just load
 }
 let draft = new Set(), picking = false;
 function renderPick() {
-  const members = BASKET.members, total = ALL.reduce((a, c) => a + (draft.has(c) ? members[c].weight : 0), 0);
+  const members = BASKET.members, total = draft.size;  // each picked stock counts equally
   $('stocks').innerHTML = ALL.map(c => `<li class="${draft.has(c) ? 'on' : ''}"><label><input type="checkbox" data-c="${c}"${draft.has(c) ? ' checked' : ''}>`
     + `<span class="tk">${tk(c)}</span><span class="co">${members[c].company}</span>`
-    + `<span class="wt">${draft.has(c) ? (members[c].weight / total * 100).toFixed(1) + '%' : '—'}</span></label></li>`).join('');
+    + `<span class="wt">${draft.has(c) ? (100 / total).toFixed(1) + '%' : '—'}</span></label></li>`).join('');
   for (const box of $('stocks').querySelectorAll('input')) box.onchange = () => {
     if (box.checked) draft.add(box.dataset.c); else draft.delete(box.dataset.c);
     renderPick();
@@ -1381,7 +1380,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tag = document.createElement('script');
-    tag.src = 'engine.js?v=17098e8ff4'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
+    tag.src = 'engine.js?v=e150e6667e'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tag);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();

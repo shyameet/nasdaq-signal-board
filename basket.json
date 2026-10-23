@@ -13,23 +13,21 @@
     "xyz:SPCX",
     "xyz:TSLA"
   ],
-  "weights_note": "weight: official Nasdaq-100 weight, rescaled so the default 10 sum to 1. AVGO and INTC: their 08/03/2026 Nasdaq weights moved to the 10/05/2026 close by their price change (the same method reproduces 8 of the 10 within 1%). TSM is not in the Nasdaq-100: the weight Nasdaq gives a company its size (market cap 25.93B shares / 5 per ADR x the 10/05 close, at the 1.63% per $1T that NVDA and AVGO get). ref_price: the official 10/05/2026 close.",
+  "note": "Every picked stock counts equally (since 23/10/2026; before that, Nasdaq-100 weights). ref_price: the official 10/05/2026 close, where the composite is 1000.",
   "members": {
     "xyz:NVDA": {
       "company": "NVIDIA Corporation",
       "tickers": [
         "NVDA"
       ],
-      "ref_price": 238.9,
-      "weight": 0.1716634619147733
+      "ref_price": 238.9
     },
     "xyz:AAPL": {
       "company": "Apple Inc.",
       "tickers": [
         "AAPL"
       ],
-      "ref_price": 332.89,
-      "weight": 0.14485002372186911
+      "ref_price": 332.89
     },
     "xyz:GOOGL": {
       "company": "Alphabet Inc.",
@@ -37,88 +35,77 @@
         "GOOGL",
         "GOOG"
       ],
-      "ref_price": 346.47,
-      "weight": 0.11715586124803257
+      "ref_price": 346.47
     },
     "xyz:MSFT": {
       "company": "Microsoft Corporation",
       "tickers": [
         "MSFT"
       ],
-      "ref_price": 525.18,
-      "weight": 0.11626131208339215
+      "ref_price": 525.18
     },
     "xyz:MU": {
       "company": "Micron Technology, Inc.",
       "tickers": [
         "MU"
       ],
-      "ref_price": 1063.96,
-      "weight": 0.09890574428844993
+      "ref_price": 1063.96
     },
     "xyz:AMD": {
       "company": "Advanced Micro Devices, Inc.",
       "tickers": [
         "AMD"
       ],
-      "ref_price": 631.75,
-      "weight": 0.08488045355668469
+      "ref_price": 631.75
     },
     "xyz:AMZN": {
       "company": "Amazon.com, Inc.",
       "tickers": [
         "AMZN"
       ],
-      "ref_price": 251.4,
-      "weight": 0.08083413948300212
+      "ref_price": 251.4
     },
     "xyz:META": {
       "company": "Meta Platforms, Inc.",
       "tickers": [
         "META"
       ],
-      "ref_price": 741.9,
-      "weight": 0.06574777809089746
+      "ref_price": 741.9
     },
     "xyz:SPCX": {
       "company": "Space Exploration Technologies Corp.",
       "tickers": [
         "SPCX"
       ],
-      "ref_price": 171.09,
-      "weight": 0.06039080393308826
+      "ref_price": 171.09
     },
     "xyz:TSLA": {
       "company": "Tesla, Inc.",
       "tickers": [
         "TSLA"
       ],
-      "ref_price": 378.73,
-      "weight": 0.05931042167981037
+      "ref_price": 378.73
     },
     "xyz:AVGO": {
       "company": "Broadcom Inc.",
       "tickers": [
         "AVGO"
       ],
-      "ref_price": 362.51,
-      "weight": 0.051390622392880836
+      "ref_price": 362.51
     },
     "xyz:TSM": {
       "company": "Taiwan Semiconductor Manufacturing Co. (ADR)",
       "tickers": [
         "TSM"
       ],
-      "ref_price": 485.8,
-      "weight": 0.07526842345257184
+      "ref_price": 485.8
     },
     "xyz:INTC": {
       "company": "Intel Corporation",
       "tickers": [
         "INTC"
       ],
-      "ref_price": 116.19,
-      "weight": 0.048267705577182296
+      "ref_price": 116.19
     }
   }
 }
