@@ -126,7 +126,7 @@ class Bands {  // colored bands behind a chart's series, one per run of candles:
   }
 }
 
-class DayLines {  // a dashed line where a new day begins in the viewer's timezone, with its date in a chip along the top
+class DayLines {  // a dashed line where a new day begins in the viewer's timezone, with its date along the top
   constructor(chart, bars, labelTop) {  // labelTop: where the date goes (px from the top); null for no date
     this.chart = chart; this.bars = bars; this.top = labelTop; this.lines = [];
     this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: t => this.render(t) }) }];
@@ -167,8 +167,10 @@ class DayLines {  // a dashed line where a new day begins in the viewer's timezo
         for (const [x, text] of this.lines) {
           const px = Math.round(x * hr), w = c.measureText(text).width, pad = Math.round(5 * hr), y = Math.round(this.top * vr);
           if (px < 0 || px + 3 * hr + w + 2 * pad > size.width) continue;
-          c.fillStyle = 'rgba(214, 224, 238, 0.92)'; c.fillRect(px + Math.round(3 * hr), y, w + 2 * pad, Math.round(18 * vr));  // a light date chip
-          c.fillStyle = '#0a0d12'; c.fillText(text, px + Math.round(3 * hr) + pad, y + Math.round(3 * vr));
+          // the date as plain bright text beside the line, no box (owner 24/10/2026); a dark halo keeps it readable over candles
+          c.lineWidth = Math.max(3, Math.round(3 * hr)); c.strokeStyle = 'rgba(10, 13, 18, 0.9)'; c.setLineDash([]);
+          c.strokeText(text, px + Math.round(3 * hr) + pad, y + Math.round(3 * vr));
+          c.fillStyle = '#e8eef6'; c.fillText(text, px + Math.round(3 * hr) + pad, y + Math.round(3 * vr));
         }
       }
       c.restore();
