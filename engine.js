@@ -402,9 +402,16 @@ class Engine {
     const busy = (status, wait) => this.progress(status === 429 ? `Hyperliquid is busy. Retrying in ${Math.round(wait / 1000)} s…`
                                                                : `Can't reach Hyperliquid. Retrying in ${Math.round(wait / 1000)} s…`);
     if (!recovering) this.progress(`Loading two days of Hyperliquid history (0 of ${this.coins.length} markets)…`);
+    const cached = recovering ? null : Object.fromEntries(this.coins.map(c => [c, loadCache(c).filter(b => b.t >= oldest)]));
+    const seed = recovering ? {} : await this.archiveSeed(cached, oldest, now);
     await Promise.all(this.coins.map(async coin => {
       const mk = this.markets[coin];
-      const have = recovering ? mk.closed.slice() : loadCache(coin).filter(b => b.t >= oldest);  // a rebuild keeps older days added from the archive
+      let have = recovering ? mk.closed.slice() : cached[coin];  // a rebuild keeps older days added from the archive
+      if (seed[coin]) {  // the archive's minutes win over the cache's (a cached minute can come from the live stream)
+        const byT = new Map(have.map(b => [b.t, b]));
+        for (const b of seed[coin]) if (b.t >= oldest) byT.set(b.t, b);
+        have = [...byT.values()].sort((a, b) => a.t - b.t);
+      }
       // fetched again: the last 3 hours (bars closed from the live stream are replaced by the official candles), and
       // any long run of minutes without trades, which may be a stream that got stuck rather than a quiet market
       let from = oldest;
@@ -430,6 +437,26 @@ class Engine {
     this.lastCandleAt = Date.now();
     this.nextRecheck = Date.now() + RECHECK;
     this.building = false;
+  }
+  // The whole UTC days before today from the site's own archive (data/1m: one file per day for every market, saved by
+  // the VPS and served by GitHub's CDN), so a first visit asks Hyperliquid only for today's minutes (owner 24/10/2026:
+  // faster loading). Skipped when this browser's cache already holds the two days.
+  async archiveSeed(cached, oldest, now) {
+    const out = {};
+    const need = this.coins.some(c => { const h = cached[c]; return !h.length || h[0].t > oldest + 60 * MIN || h[h.length - 1].t < now - (REFETCH + 60) * MIN; });
+    if (!need) return out;
+    try {
+      const j = await (await fetch('data/1m/index.json', { cache: 'no-cache' })).json();
+      const saved = new Set((Array.isArray(j) ? j : j.dates || []).map(String)), keys = [];
+      for (let d = Math.floor(oldest / DAY) * DAY; d < Math.floor(now / DAY) * DAY; d += DAY) {
+        const key = new Date(d).toISOString().slice(0, 10);
+        if (saved.has(key)) keys.push(key);
+      }
+      const days = await Promise.all(keys.map(key => fetch(`data/1m/${key}.json`).then(r => r.ok ? r.json() : null).catch(() => null)));
+      for (const day of days) if (day && day.coins) for (const c of this.coins) if (day.coins[c])
+        (out[c] = out[c] || []).push(...day.coins[c].map(([t, o, h, l, cl, v, n]) => ({ t, o, h, l, c: cl, v, n })));
+    } catch (e) { /* Hyperliquid alone, as before */ }
+    return out;
   }
   async loadBenchRef(busy) {  // XYZ100 at the basket's reference close: its 1-minute bar, else the hour ending then
     const bar = this.markets[BENCH].closed.find(b => b.t === this.refCloseMs - MIN);

@@ -1059,12 +1059,13 @@ async function pickSource() {
       if (r.ok && (r.headers.get('content-type') || '').includes('json')) return;
     } catch (e) {}
   }
+  const basketLoad = fetch('basket.json', { cache: 'no-cache' }).then(r => r.json());  // at the same time as the engine
   await new Promise((resolve, reject) => {
     const tag = document.createElement('script');
-    tag.src = 'engine.js?v=071c0c2a3d'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
+    tag.src = 'engine.js?v=8'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tag);
   });
-  const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();
+  const basketFile = await basketLoad;
   BASKET = basketFile; ALL = Object.keys(basketFile.members);
   engine = new NdxEngine(basketFile, { progress: loadingText, selection: savedSelection(), gate: 'stocks' });
   engine.start().catch(e => loadingText(`Couldn't load Hyperliquid's data (${e.message}). Reload the page to try again.`));

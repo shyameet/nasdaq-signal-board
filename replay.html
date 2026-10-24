@@ -16,7 +16,7 @@
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
 <script src="macd.js?v=7"></script>
-<script src="engine.js?v=071c0c2a3d"></script>
+<script src="engine.js?v=8"></script>
 <script src="daypick.js?v=2"></script>
 <script src="draw.js?v=3"></script>
 <style>
@@ -279,9 +279,8 @@ async function archiveIndex() {
     return new Set(list.map(String));
   } catch (e) { return new Set(); }
 }
-async function hlEarliest() {  // the first minute Hyperliquid still serves at 1m (XYZ100's)
-  const rows = await candleRows(BENCH, '1m', Date.now() - 6 * DAY, Date.now());
-  return rows.length ? rows[0].t : Infinity;
+async function hlEarliest() {  // a minute Hyperliquid surely still serves at 1m: it keeps the last 5000 candles of each
+  return Date.now() - 4990 * MIN;  // market (asking cost a 700 KB download before anything could show; owner 24/10: faster)
 }
 async function loadDay(key) {  // -> { coin: [bars (toBar objects)] } for the 10 stocks and XYZ100
   if (dayCache.has(key)) return dayCache.get(key);
