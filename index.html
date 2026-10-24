@@ -28,11 +28,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="daypick.js?v=2"></script>
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
 <script src="macd.js?v=c14084b975"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
+  .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
+           background: var(--surface); color: var(--muted); font-size: 12px; }
+  .older[hidden] { display: none; }
   /* the candle size: one dropdown (owner 24/10/2026) */
   .tf-sel { padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text);
             font: 500 12px var(--font-num); cursor: pointer; }
@@ -281,6 +285,7 @@
   <div class="quote"><span class="sym" id="sym">NDX10</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
   <div class="session" id="session" title="US stock market session (New York time; holidays not shown)"></div>
   <div class="spacer"></div>
+  <div id="dayPick"></div>
   <select class="tf-sel" id="tfs" aria-label="Candle size of both price charts" title="Candle size"></select>
   <div class="pick" id="pick" hidden>
     <button class="pick-btn" id="pickBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Choose which stocks make up the composite"><span id="pickLabel">Stocks</span><small id="pickSub"></small><span class="caret">▼</span></button>
@@ -354,6 +359,7 @@
 <div id="flash"></div>
 <div id="banner" hidden></div>
 <div id="toast" role="status" hidden><span id="toast-text"></span><button type="button" id="toast-undo">Undo</button></div>
+<div id="older" class="older" hidden>Loading older days…</div>
 <div id="loading"><img src="brand/iq_emblem.svg" alt=""><b>Indra Quant Signal Board</b><div id="loading-text">Loading Hyperliquid history…</div></div>
 <script>
 const DAY = 86400000, TFS = [1, 3, 5, 7, 15];
@@ -945,7 +951,7 @@ class Panel {
       this.store[kind] = pane.store;
       allCharts.push({ panel: this, key: kind, chart: pane.chart, anchor: pane.zero, minutes: () => tf, value: q => pane.value(q) });
     }
-    this.main.timeScale().subscribeVisibleLogicalRangeChange(() => { this.syncPanes(); syncMains(this); });
+    this.main.timeScale().subscribeVisibleLogicalRangeChange(r => { this.syncPanes(); syncMains(this); if (r && r.from < 8 && !pending) loadOlder(); });  // left edge: older days
   }
 
   // ---- MACD panes ----
@@ -1377,6 +1383,58 @@ function buildPicker() {
   $('pick').hidden = false;
 }
 
+
+// ---- older days (owner 24/10/2026): 3 days when the page opens, older ones from our archive (data/1m, written by the
+// VPS) when you scroll to the left edge, and a calendar that jumps to a day; the right end stays live ----------------
+const DAY_MS = 86400000, dayKeyOf = t => new Date(t).toISOString().slice(0, 10), dayStartOf = k => Date.parse(k + 'T00:00:00Z');
+let archive = new Set(), olderBusy = false, dayPick = null;
+async function readArchiveIndex() {
+  try { const j = await (await fetch('data/1m/index.json', { cache: 'no-cache' })).json(); archive = new Set((Array.isArray(j) ? j : j.dates || []).map(String)); } catch (e) {}
+}
+async function addOlderDay() {  // one more UTC day in front of what is loaded; true when something was added
+  const first = engine && engine.firstMinute();
+  if (first == null) return false;
+  const key = dayKeyOf(first - 1);  // the day before the first candle (or the start of the first candle's own day)
+  if (!archive.has(key)) return false;
+  const r = await fetch(`data/1m/${key}.json`, { cache: 'no-cache' });
+  if (!r.ok) return false;
+  const { toBar } = NdxEngine.internals, j = await r.json();
+  const rows = Object.fromEntries(Object.entries(j.coins || {}).map(([c, a]) => [c, a.map(([t, o, h, l, cl, v, n]) => toBar({ t, o, h, l, c: cl, v, n }))]));
+  return engine.extendBack(rows);
+}
+async function loadOlder(untilMs = null) {  // older days until `untilMs` is loaded (or just one more); the view stays put
+  if (olderBusy || !engine) return;
+  olderBusy = true; $('older').hidden = false;
+  try {
+    let added = false;
+    do { if (!(await addOlderDay())) break; added = true; } while (untilMs !== null && engine.firstMinute() > untilMs);
+    if (added) { await resync(); if (engine.gen !== gen) await resync(); showDays(); }  // a reload begun before the new days: once more
+  } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
+}
+function showDays(value) {  // the calendar: the archive's days and the days loaded, up to today
+  if (!dayPick || !engine) return;
+  const days = new Set(archive), first = engine.firstMinute(), today = dayKeyOf(Date.now());
+  if (first != null) for (let t = dayStartOf(dayKeyOf(first)); t <= Date.now(); t += DAY_MS) days.add(dayKeyOf(t));
+  dayPick.set([...days], value || dayPick.value || today, today);
+}
+async function jumpToDay(key) {  // load back to that day if needed, then show it
+  await loadOlder(dayStartOf(key));
+  showDays(key);
+  viewDay(dayStartOf(key), dayStartOf(key) + DAY_MS);
+}
+async function threeDays() {  // on open: today and the two days before
+  await readArchiveIndex();
+  await loadOlder(dayStartOf(dayKeyOf(Date.now())) - 2 * DAY_MS);
+  showDays();
+}
+function viewDay(a, b) {  // show the candles of [a, b) on the price charts
+  const p = Object.values(panels)[0], bars = p.mainBars;
+  let i = bars.findIndex(x => x.time >= a), j = bars.length - 1;
+  if (i < 0) return;
+  while (j > i && bars[j].time >= b) j--;
+  p.main.timeScale().setVisibleLogicalRange({ from: i - 1, to: j + 2 });
+}
+
 // ---- data -----------------------------------------------------------------------------------
 // Two sources give the same snapshot and ticks: the local Python server (ndx10_live.py: /snapshot and /events),
 // or, when the page is hosted as plain files, engine.js, which computes everything in this browser.
@@ -1391,7 +1449,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tag = document.createElement('script');
-    tag.src = 'engine.js?v=6e41c8dcde'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
+    tag.src = 'engine.js?v=071c0c2a3d'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tag);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();
@@ -1426,8 +1484,10 @@ function apply(s) {
   for (const p of Object.values(panels)) { p.setEmas(); p.setMacd(); }
   showGlobal(s.tick);
 }
-async function resync() {  // reload the snapshot, keep the view; ticks arriving meanwhile wait in `pending`
-  if (pending) return;
+let resyncing = null;  // the reload in progress: a second caller waits for it instead of returning at once
+function resync() {
+  if (pending) return resyncing;
+  return (resyncing = (async () => {  // reload the snapshot, keep the view; ticks arriving meanwhile wait in `pending`
   pending = [];
   const p0 = Object.values(panels)[0], r = p0.main.timeScale().getVisibleLogicalRange();
   const view = r && p0.mainBars.length ? [timeAt(p0.mainBars, tf, r.from), timeAt(p0.mainBars, tf, r.to)] : null;
@@ -1440,6 +1500,7 @@ async function resync() {  // reload the snapshot, keep the view; ticks arriving
     pending = null;
     for (const k of queued) if (k.gen === gen && k.seq > lastSeq) onTick(k);
   }
+  })());
 }
 function onTick(k) {
   if (pending) { pending.push(k); return; }
@@ -1489,6 +1550,7 @@ function connect() {
   $('loading').remove();
   showRecent();
   connect();
+  if (engine) { dayPick = DayPick($('dayPick'), { onPick: jumpToDay, title: 'Jump to a day (UTC)' }); threeDays(); }
 })();
 </script>
 </body>

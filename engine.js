@@ -39,6 +39,7 @@ const STALL = 120000;    // connected, but no market has updated for this long: 
 const RECHECK = 3 * 60000, RECHECK_SPAN = 20;  // every 3 minutes, the last 20 closed minutes against the official candles
 const REFETCH = 180;     // minutes always fetched again on a reload or a reconnect
 const KEEP_BARS = 5000, KEEP_MINUTES = 7200;
+const KEEP = { bars: KEEP_BARS, minutes: KEEP_MINUTES };  // raised when older days are added from our archive (extendBack)
 const TIMEFRAMES = { 3: 'ema', 5: 'macd', 9: 'macd', 11: 'macd' };  // the gate: minutes -> what runs on it
 // what the page draws, beyond the gate: MACD on 1m, 2m, 7m and 15m, and on 3m beside the EMAs (none of them in the gate)
 const SHOWN = { ...TIMEFRAMES, 1: 'macd', 2: 'macd', 3: 'both', 7: 'macd', 15: 'macd' };
@@ -92,7 +93,7 @@ class Timeframe {  // bars of one size: closed bars with their indicators, plus 
     this.partial = null;
     Object.assign(bar, this.indicators(bar.close, true));
     this.bars.push(bar);
-    if (this.bars.length > KEEP_BARS + 500) this.bars.splice(0, 500);
+    if (this.bars.length > KEEP.bars + 500) this.bars.splice(0, 500);
   }
   indicators(close, commit) {
     const out = {};
@@ -167,7 +168,7 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     if (this.ready) {  // evaluated before the minute is added: exactly what the live check showed at that moment
       const own = this.evaluate(close).state;
       this.history.push([start, this.parts ? this.partsState(start) : own]);
-      if (this.history.length > KEEP_MINUTES + 500) this.history.splice(0, 500);
+      if (this.history.length > KEEP.minutes + 500) this.history.splice(0, 500);
     }
     this.lastMinute = start; this.lastClose = close;
     for (const tf of Object.values(this.tfs)) tf.addMinute(start, open, high, low, close, volume);
@@ -403,7 +404,7 @@ class Engine {
     if (!recovering) this.progress(`Loading two days of Hyperliquid history (0 of ${this.coins.length} markets)…`);
     await Promise.all(this.coins.map(async coin => {
       const mk = this.markets[coin];
-      const have = (recovering ? mk.closed : loadCache(coin)).filter(b => b.t >= oldest);
+      const have = recovering ? mk.closed.slice() : loadCache(coin).filter(b => b.t >= oldest);  // a rebuild keeps older days added from the archive
       // fetched again: the last 3 hours (bars closed from the live stream are replaced by the official candles), and
       // any long run of minutes without trades, which may be a stream that got stuck rather than a quiet market
       let from = oldest;
@@ -461,10 +462,32 @@ class Engine {
   emit(coin, b) {  // a closed 1-minute bar reaches the signals
     if (coin === BENCH) {
       this.priceBars.push(priceBar(b));
-      if (this.priceBars.length > KEEP_MINUTES + 500) this.priceBars.splice(0, 500);
+      if (this.priceBars.length > KEEP.minutes + 500) this.priceBars.splice(0, 500);
       this.sections[1].signal.onMemberBar(coin, b.t, b.c, b.v);
     } else if (this.coef[coin] !== undefined) this.sections[0].signal.onMemberBar(coin, b.t, b.c, b.v);  // unticked stocks only keep loading
   }
+
+  // Older days from our own archive (data/1m, written by the VPS): rows = { coin: [toBar objects] }. They go in front of
+  // the candles already loaded, everything is rebuilt from them (a new generation: the page reloads its snapshot), and
+  // the limits that trim old bars are raised so they stay. Hyperliquid itself keeps only ~3.5 days of 1-minute candles.
+  extendBack(rows) {
+    if (this.building) return false;
+    let added = 0;
+    for (const c of this.coins) {
+      const mk = this.markets[c], first = mk.closed.length ? mk.closed[0].t : Infinity;
+      const older = (rows[c] || []).filter(b => b.t < first);
+      if (!older.length) continue;
+      added += older.length;
+      mk.closed = contiguous([...older, ...mk.closed].sort((a, b) => a.t - b.t));
+    }
+    if (!added) return false;
+    const span = Math.max(...this.coins.map(c => this.markets[c].closed.length));
+    KEEP.minutes = Math.max(KEEP.minutes, span + 1440); KEEP.bars = Math.max(KEEP.bars, span + 1440);
+    this.rebuild();
+    this.lastTick = null; this.nextTick = 0;  // a snapshot waits for a tick of the rebuilt signals
+    return true;
+  }
+  firstMinute() { const a = this.markets[BENCH].closed; return a.length ? a[0].t : null; }  // the oldest candle loaded
 
   connect() {
     const ws = this.ws = new WebSocket(WS_URL);
@@ -501,7 +524,7 @@ class Engine {
     while (mk.cur && mk.cur.t < t) {
       const done = mk.cur;
       mk.closed.push(done);
-      if (mk.closed.length > HISTORY_MINUTES + 600) mk.closed.splice(0, 600);
+      if (mk.closed.length > Math.max(HISTORY_MINUTES, KEEP.minutes) + 600) mk.closed.splice(0, 600);
       if (live) this.emit(coin, done);
       mk.cur = flat(done.t + MIN, done.c);  // the next minute starts flat until it trades
     }
