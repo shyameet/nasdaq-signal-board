@@ -190,6 +190,7 @@ class MacdPane {
     this.pts = []; this.stockPts = []; this.store = new Map();
     const fine = { type: 'price', precision: this.digits, minMove: 10 ** -this.digits };
     const chart = this.chart = LightweightCharts.createChart(this.el, this.options);
+    chart.applyOptions({ crosshair: { vertLine: { visible: false, labelVisible: false } } });  // the hover's vertical line only on the price chart (owner 24/10)
     const line = (color, extra) => chart.addLineSeries({ color, lineWidth: 2, priceFormat: fine, priceLineVisible: false,
                                                          crosshairMarkerVisible: false, ...extra });
     // the zero line as a series of its own (0 at every candle): always shown whichever lines are off, and it carries
