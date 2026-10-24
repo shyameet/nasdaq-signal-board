@@ -1,6 +1,6 @@
-[![Nasdaq Signal Board](brand/banner.png)](https://shyameet.github.io/nasdaq-signal-board/)
+[![Indra Quant Signal Board](brand/banner.png)](https://shyameet.github.io/nasdaq-signal-board/)
 
-# Nasdaq Signal Board
+# Indra Quant Signal Board
 
 Live Nasdaq-100 trend signals from Hyperliquid's 24/7 stock perps.
 
@@ -35,7 +35,7 @@ Hyperliquid or TradingView.
 | `macd.js` | the Trend and Entry MACD panes, their on/off switches and shading, and the day separators (both pages) |
 | `basket.json` | the stocks on offer (the default 10 and the extra 3) and their reference prices |
 | `lightweight-charts.js` | TradingView Lightweight Charts™ 4.2.3 |
-| `brand/` | logo, icons, app manifest and the link-preview banner (made by `make_brand.py`) |
+| `brand/` | the official Indra Quant lockup, emblem and icons (copied as is from the brand kit, `rdx-quant-lab/branding/`), the app manifest and the link-preview pictures |
 | `404.html` | the page for addresses that don't exist |
 
 Charts: [TradingView Lightweight Charts™](https://www.tradingview.com/lightweight-charts/),

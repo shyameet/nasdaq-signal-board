@@ -1,4 +1,4 @@
-/* Nasdaq Signal Board: the in-browser engine.
+/* Indra Quant Signal Board: the in-browser engine.
 
    The gate, computed in the viewer's browser from Hyperliquid's public API, so the page needs no server of its own
    and can be hosted as plain files. For each series (the 10 stocks combined, and the index itself):

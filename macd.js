@@ -1,4 +1,4 @@
-/* Nasdaq Signal Board: the MACD panes under a price chart, and the day separators, shared by both pages.
+/* Indra Quant Signal Board: the MACD panes under a price chart, and the day separators, shared by both pages.
 
    Two panes: Entry (2m and 3m MACD, for timing) above Trend (5m, 7m, 9m, 11m and 15m; 5m, 9m and 11m are the
    gate's MACD rules), each Trend line with its own signal line, dashed in its color. Every line is drawn on the price

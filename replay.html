@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Replay · Nasdaq Signal Board</title>
+<title>Replay · Indra Quant Signal Board</title>
 <meta name="description" content="Replay past days: your stocks' composite beside the Nasdaq-100 perp, with the gate, the 2m/3m entry signals and the MACD panes.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
@@ -15,9 +15,11 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="focus.js?v=1" defer></script>
-<script src="macd.js?v=2971a2afbd"></script>
-<script src="engine.js?v=6cb90571d0"></script>
+<script src="macd.js?v=c14084b975"></script>
+<script src="engine.js?v=6e41c8dcde"></script>
 <style>
+  .iq-lock { height: 26px; width: auto; display: block; flex: none; }   /* the official Indra Quant lockup (logo + wordmark), as is */
+  .brand .board-name { font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
   /* The Replay page: one UTC day at a time. Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
      has the same indicators as the Signals page (gate zones, 3m EMA 21/47, Entry and Trend MACD panes) plus its 2m and
      3m entry signals: the scalper's MACD crossing 0 on a closed candle the way its own gate points. */
@@ -161,7 +163,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><img class="mark" src="brand/logo.svg" alt="" width="26" height="26"><div><b>Nasdaq Signal Board</b></div></div>
+  <div class="brand"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"><div><b class="board-name">Signal Board</b></div></div>
   <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html" aria-current="page">Replay</a><a href="india-replay.html">India Replay</a></nav>
   <div class="spacer"></div>
   <div class="pick" id="pick" hidden>
@@ -221,7 +223,7 @@
   </details>
   <div class="credit">Not investment advice · Data: Hyperliquid · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></div>
 </footer>
-<div id="loading"><img src="brand/logo.svg" alt=""><div id="loading-text">Loading…</div></div>
+<div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
 <script>
 'use strict';
 const DAY = 86400000, MIN = 60000;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>India Replay · Nasdaq Signal Board</title>
+<title>India Replay · Indra Quant Signal Board</title>
 <meta name="description" content="Replay past Indian market days: the Nifty setup (NIFTY + GIFT NIFTY, then RELIANCE) and the Bank Nifty setup (BANK NIFTY, then HDFC BANK), with the gate, the sync and the 2m/3m entries.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
@@ -15,9 +15,11 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="focus.js?v=1" defer></script>
-<script src="macd.js?v=2971a2afbd"></script>
-<script src="engine.js?v=6cb90571d0"></script>
+<script src="macd.js?v=c14084b975"></script>
+<script src="engine.js?v=6e41c8dcde"></script>
 <style>
+  .iq-lock { height: 26px; width: auto; display: block; flex: none; }   /* the official Indra Quant lockup (logo + wordmark), as is */
+  .brand .board-name { font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
   /* India Replay: one Indian trading day at a time, from the VPS's saved Dhan 1-minute candles (data/india/1m/).
      Nifty setup: NIFTY 50 and GIFT NIFTY must show the same gate (step 1); RELIANCE, which must not already be on that
      side when step 1 starts, then turns to it (step 2); the entry is RELIANCE's 2m or 3m MACD crossing 0 that way on a
@@ -154,7 +156,7 @@
 </head>
 <body>
 <header class="topbar">
-  <a class="brand" href="./" title="Nasdaq Signal Board"><img class="mark" src="brand/logo.svg" alt="Nasdaq Signal Board" width="24" height="24"></a>
+  <a class="brand" href="./" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
   <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html">Replay</a><a href="india-replay.html" aria-current="page">India Replay</a></nav>
   <div class="grp" title="Setup"><div class="seg words" id="setupSel" role="group" aria-label="Setup"></div></div>
   <div class="grp" title="Day">
@@ -192,7 +194,7 @@
   <span class="chip" id="s3"><span class="k">3</span><span class="v" id="s3v">—</span><span class="d" id="s3d"></span></span>
 </div></div>
 <main class="board" id="board"></main>
-<div id="loading"><img src="brand/logo.svg" alt=""><div id="loading-text">Loading…</div></div>
+<div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
 <script>
 'use strict';
 const DAY = 86400000, MIN = 60000, IST = 19800000;  // IST = UTC + 5:30

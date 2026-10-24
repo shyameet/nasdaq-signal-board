@@ -1,7 +1,7 @@
 {
-  "name": "Nasdaq Signal Board",
+  "name": "Indra Quant Signal Board",
   "short_name": "Signal Board",
-  "description": "Live Nasdaq-100 trend signals, 24/7, from Hyperliquid's stock perps.",
+  "description": "Nasdaq-100 and Indian market trend signals by Indra Quant.",
   "start_url": "../",
   "scope": "../",
   "display": "standalone",

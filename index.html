@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nasdaq Signal Board</title>
+<title>Indra Quant Signal Board</title>
 <meta name="description" content="Live Nasdaq-100 trend signals from Hyperliquid's 24/7 stock perps: a 10-stock composite and the index itself, each on multi-timeframe MACD and EMA rules.">
 <meta name="theme-color" content="#0a0d12">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Nasdaq Signal Board">
+<meta property="og:title" content="Indra Quant Signal Board">
 <meta property="og:description" content="Live Nasdaq-100 trend signals, 24/7, from Hyperliquid's stock perps: a 10-stock composite and the index itself, on MACD and EMA rules.">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -15,14 +15,14 @@
 <link rel="manifest" href="brand/site.webmanifest">
 <link rel="canonical" href="https://shyameet.github.io/nasdaq-signal-board/">
 <meta name="apple-mobile-web-app-title" content="Signal Board">
-<meta property="og:site_name" content="Nasdaq Signal Board">
+<meta property="og:site_name" content="Indra Quant Signal Board">
 <meta property="og:url" content="https://shyameet.github.io/nasdaq-signal-board/">
 <meta property="og:image" content="https://shyameet.github.io/nasdaq-signal-board/brand/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Nasdaq Signal Board: live Nasdaq-100 trend signals with MACD and EMA rules">
+<meta property="og:image:alt" content="Indra Quant Signal Board: live Nasdaq-100 trend signals with MACD and EMA rules">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Nasdaq Signal Board">
+<meta name="twitter:title" content="Indra Quant Signal Board">
 <meta name="twitter:description" content="Live Nasdaq-100 trend signals, 24/7, from Hyperliquid's stock perps.">
 <meta name="twitter:image" content="https://shyameet.github.io/nasdaq-signal-board/brand/og-image.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -30,8 +30,10 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="focus.js?v=1" defer></script>
-<script src="macd.js?v=2971a2afbd"></script>
+<script src="macd.js?v=c14084b975"></script>
 <style>
+  .iq-lock { height: 26px; width: auto; display: block; flex: none; }   /* the official Indra Quant lockup (logo + wordmark), as is */
+  .brand .board-name { font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
   /* Layout: one chart of your stocks' composite: a header (the gate and its four conditions), its candles with the gate's zones and 3m EMAs, then the Entry and Trend MACD panes. One crosshair. */
   :root {
     color-scheme: dark;
@@ -266,7 +268,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><img class="mark" src="brand/logo.svg" alt="" width="30" height="30"><div><b>Nasdaq Signal Board</b><small>Live from Hyperliquid</small></div></div>
+  <div class="brand"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"><div><b class="board-name">Signal Board</b><small>Live from Hyperliquid</small></div></div>
   <nav class="tabs" aria-label="Pages"><a href="./" aria-current="page">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html">Replay</a><a href="india-replay.html">India Replay</a></nav>
   <div class="quote"><span class="sym" id="sym">NDX10</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
   <div class="session" id="session" title="US stock market session (New York time; holidays not shown)"></div>
@@ -344,7 +346,7 @@
 <div id="flash"></div>
 <div id="banner" hidden></div>
 <div id="toast" role="status" hidden><span id="toast-text"></span><button type="button" id="toast-undo">Undo</button></div>
-<div id="loading"><img src="brand/logo.svg" alt=""><b>Nasdaq Signal Board</b><div id="loading-text">Loading Hyperliquid history…</div></div>
+<div id="loading"><img src="brand/iq_emblem.svg" alt=""><b>Indra Quant Signal Board</b><div id="loading-text">Loading Hyperliquid history…</div></div>
 <script>
 const DAY = 86400000, TFS = [1, 3, 5, 7, 15];
 const C = { up: '#2bb68a', down: '#f0555f', ema8: '#f2b33d', ema21: '#5b8cff', macd: '#5b8cff', sig: '#ff9f43',
@@ -1382,7 +1384,7 @@ async function pickSource() {
   }
   await new Promise((resolve, reject) => {
     const tag = document.createElement('script');
-    tag.src = 'engine.js?v=6cb90571d0'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
+    tag.src = 'engine.js?v=6e41c8dcde'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tag);
   });
   const basketFile = await (await fetch('basket.json', { cache: 'no-cache' })).json();
