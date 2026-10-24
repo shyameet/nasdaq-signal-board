@@ -38,58 +38,54 @@
   .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
   .up { color: var(--up); } .down { color: var(--down); }
 
-  /* ---- top bar ---- */
-  .topbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 6px 12px;
+  /* ---- one slim bar (owner 24/10/2026): tabs, setup, day, candles, play and the rules in one row ---- */
+  .topbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; padding: 5px 10px;
             background: var(--surface); border-bottom: 1px solid var(--line); }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .brand .mark { width: 26px; height: 26px; flex: none; display: block; }
-  .brand b { display: block; font-size: 14px; font-weight: 700; letter-spacing: .01em; }
+  .brand { display: flex; align-items: center; }
+  .brand .mark { width: 24px; height: 24px; flex: none; display: block; }
   .tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
-  .tabs a { padding: 5px 12px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 500; }
+  .tabs a { padding: 4px 10px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 500; }
   .tabs a:hover { color: var(--text); }
   .tabs a[aria-current="page"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
-
-  /* ---- the replay controls ---- */
-  .controls { flex: none; display: flex; flex-direction: column; background: var(--surface); border-bottom: 1px solid var(--line); }
-  .crow { display: flex; align-items: center; padding: 5px 12px; min-height: 38px; }
-  .cgrps { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; row-gap: 6px; }
-  .crow + .crow { border-top: 1px solid var(--line); }
-  .grp { display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; }
-  .cgrps > .grp:first-child { padding-left: 0; }
-  .grp + .grp { border-left: 1px solid var(--line); }
-  .grp > .lbl { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .grp { display: inline-flex; align-items: center; gap: 4px; padding-left: 10px; border-left: 1px solid var(--line); }
   .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
-  .seg button { padding: 3px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
-                font-family: var(--font-num); font-size: 12px; }
+  .seg button { padding: 3px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
+                font-family: var(--font-num); font-size: 12px; white-space: nowrap; }
   .seg button:hover { color: var(--text); }
   .seg button[aria-pressed="true"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
   .seg.words button { font-family: var(--font-ui); }
-  .btn { padding: 3px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text); cursor: pointer;
+  .btn { padding: 3px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text); cursor: pointer;
          font-size: 12px; white-space: nowrap; }
   .btn:hover:not(:disabled) { border-color: var(--line-strong); background: var(--tile); }
   .btn:disabled { opacity: .35; cursor: default; }
   .btn[aria-pressed="true"] { border-color: var(--accent); background: rgba(91, 140, 255, .14); }
   select.btn { padding-right: 4px; }
   .day { font-family: var(--font-num); }
-  .note { color: var(--muted); font-size: 11.5px; }
-  .note.warn { color: var(--warn); }
-  .clock { font-family: var(--font-num); font-size: 12px; color: var(--text); min-width: 46px; }
+  .clock { font-family: var(--font-num); font-size: 12px; color: var(--text); min-width: 42px; }
 
-  /* ---- the setup strip ---- */
-  .strip { flex: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
-  .strip > div { background: var(--surface); padding: 6px 12px; min-width: 0; }
-  .strip .k { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
-  .strip .v { font-weight: 600; margin-top: 1px; }
-  .strip .v.bull { color: var(--up); } .strip .v.bear { color: var(--down); } .strip .v.wait { color: var(--muted); }
-  .strip .d { color: var(--muted); font: 11.5px var(--font-num); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* ---- steps 1 / 2 / 3: chips in the big chart's header (point at one for the details) ---- */
+  .steps { margin-left: auto; display: inline-flex; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 3px; border: 1px solid var(--line); border-radius: 999px;
+          background: var(--bg); font-size: 12px; white-space: nowrap; cursor: default; }
+  .chip .k { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--tile);
+             color: var(--muted); font: 700 10.5px var(--font-num); }
+  .chip .v { font-weight: 600; color: var(--muted); }
+  .chip .v.bull { color: var(--up); } .chip .v.bear { color: var(--down); }
+  .chip .d { display: none; }
 
   /* ---- the charts ---- */
-  /* the charts side by side in equal columns (owner 23/10/2026): two = left | right, three = three equal parts */
-  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
-  .board.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-bottom: 1px solid var(--line-strong); }
-  .panel.wide { grid-column: 1 / -1; }
-  .panel.right { border-left: 1px solid var(--line-strong); }
+  /* one big chart, the others as small tiles on the right (owner 24/10/2026); click a tile (or 1 / 2 / 3) to swap */
+  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(240px, 22vw, 340px); grid-template-rows: minmax(0, 1fr); }
+  .panel { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .panel.big { grid-column: 1; grid-row: 1 / -1; }
+  .panel.tile { grid-column: 2; border-left: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); cursor: pointer; }
+  .panel.tile::after { content: ""; position: absolute; inset: 0; z-index: 8; }   /* the whole tile is one button */
+  .panel.tile:hover { box-shadow: inset 0 0 0 1px var(--accent); }
+  .panel.tile .stack.panes { grid-template-rows: minmax(0, 1fr); }
+  .panel.tile .pane:not(:first-child), .panel.tile .tag, .panel.tile .warm, .panel.tile .pextra { display: none; }
+  .panel.tile .phead > .gw { display: inline-flex; }
+  .panel.tile .phead::after { content: "click to enlarge"; margin-left: auto; color: var(--faint); font-size: 10.5px; }
+  .panel.big .pname { display: none; }   /* the switch in its header shows the name */
   .phead { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 5px 10px; border-bottom: 1px solid var(--line); }
   .phead > .gk, .phead > .gw, .phead > .conds { display: none; }   /* owner 23/10/2026: no "Gate SHORT 3m EMA 5m 9m" in the chart heads (the shading shows the gate) */
   .pname { font-size: 13.5px; font-weight: 700; }
@@ -103,7 +99,7 @@
   .pextra { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; }
   .pextra .gw { padding: 1px 7px; font-size: 10.5px; }
   .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 1fr; }
-  .stack.panes { grid-template-rows: 56fr 17fr 27fr; }
+  .stack.panes { grid-template-rows: 62fr 15fr 23fr; }
   .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }
   .tag { position: absolute; top: 4px; left: 6px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 90px);
          padding: 3px 8px; border-radius: 6px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 11.5px; color: var(--muted);
@@ -122,66 +118,51 @@
   #loading div::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-strong);
                          border-top-color: var(--accent); animation: spin .9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .foot { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 4px 12px; background: var(--surface);
-          border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; }
   .how { position: relative; }
-  .how summary { cursor: pointer; list-style: none; padding: 3px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); }
+  .how summary { cursor: pointer; list-style: none; display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--line);
+                 border-radius: 50%; color: var(--muted); font-weight: 700; }
   .how summary::-webkit-details-marker { display: none; }
-  .how-body { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 30; width: min(560px, calc(100vw - 32px)); max-height: 70vh; overflow: auto;
+  .how-body { position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: min(560px, calc(100vw - 32px)); max-height: 75vh; overflow: auto;
               padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text);
               font-size: 12.5px; line-height: 1.5; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
   .how-body h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
   .how-body p { margin: 0 0 8px; }
-  .credit { margin-left: auto; } .credit a { color: var(--muted); }
+  .how-body .credit { color: var(--muted); font-size: 11.5px; } .how-body .credit a { color: var(--muted); }
   @media (max-width: 1100px) {
     html, body { height: auto; }
-    .board, .board.cols-3 { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
-    .panel { height: 60vh; min-height: 380px; } .panel.big { height: 92vh; min-height: 600px; }
-    .panel.right { border-left: 0; }
-    .strip { grid-template-columns: minmax(0, 1fr); }
+    .board { grid-template-columns: minmax(0, 1fr); grid-template-rows: none !important; }
+    .panel.big { grid-row: auto; height: 88vh; min-height: 560px; }
+    .panel.tile { grid-column: 1; height: 34vh; min-height: 220px; border-left: 0; }
+    .steps { margin-left: 0; flex-wrap: wrap; }
   }
 </style>
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><img class="mark" src="brand/logo.svg" alt="" width="26" height="26"><div><b>Nasdaq Signal Board</b></div></div>
+  <a class="brand" href="./" title="Nasdaq Signal Board"><img class="mark" src="brand/logo.svg" alt="Nasdaq Signal Board" width="24" height="24"></a>
   <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html">Replay</a><a href="india-replay.html" aria-current="page">India Replay</a></nav>
-</header>
-<section class="controls" aria-label="Replay controls">
-  <div class="crow">
-    <div class="cgrps">
-      <div class="grp"><span class="lbl">Setup</span><div class="seg words" id="setupSel" role="group" aria-label="Setup"></div></div>
-      <div class="grp"><span class="lbl">Day</span>
-        <button class="btn" id="dayPrev" type="button" title="Previous day">◀</button>
-        <select class="btn day" id="daySel" aria-label="Day"></select>
-        <button class="btn" id="dayNext" type="button" title="Next day">▶</button>
-      </div>
-      <div class="grp"><span class="lbl">Candles</span><div class="seg" id="tfs" role="group" aria-label="Candle size"></div></div>
-      <div class="grp"><span class="lbl">Play</span>
-        <button class="btn" id="whole" type="button" aria-pressed="true" title="Show the whole day; off: only up to the replay time">Whole day</button>
-        <button class="btn" id="stepBack" type="button" title="One candle back">⏮</button>
-        <button class="btn" id="play" type="button" title="Play / pause">▶ Play</button>
-        <button class="btn" id="stepFwd" type="button" title="One candle forward">⏭</button>
-        <select class="btn" id="speed" aria-label="Playback speed" title="Candles per second"></select>
-        <span class="clock" id="clock">—</span>
-      </div>
-      <div class="grp"><span class="lbl">Scalper</span>
-        <button class="btn" id="sc2" type="button" aria-pressed="true" title="Show the 2m scalper's entries">2m</button>
-        <button class="btn" id="sc3" type="button" aria-pressed="true" title="Show the 3m scalper's entries">3m</button>
-      </div>
-      <div class="grp"><button class="btn" id="oneTrend" type="button" aria-pressed="false" title="Only the direction of the day's first index trend counts">One trend per day</button></div>
-    </div>
+  <div class="grp" title="Setup"><div class="seg words" id="setupSel" role="group" aria-label="Setup"></div></div>
+  <div class="grp" title="Day">
+    <button class="btn" id="dayPrev" type="button" title="Previous day">◀</button>
+    <select class="btn day" id="daySel" aria-label="Day"></select>
+    <button class="btn" id="dayNext" type="button" title="Next day">▶</button>
   </div>
-</section>
-<section class="strip" aria-label="Where the setup stands">
-  <div><div class="k">Step 1 · Trend</div><div class="v" id="s1v">—</div><div class="d" id="s1d"></div></div>
-  <div><div class="k">Step 2 · Sync</div><div class="v" id="s2v">—</div><div class="d" id="s2d"></div></div>
-  <div><div class="k">Step 3 · Entry</div><div class="v" id="s3v">—</div><div class="d" id="s3d"></div></div>
-</section>
-<main class="board" id="board"></main>
-<footer class="foot">
+  <div class="grp" title="Candle size"><div class="seg" id="tfs" role="group" aria-label="Candle size"></div></div>
+  <div class="grp">
+    <button class="btn" id="whole" type="button" aria-pressed="true" title="Show the whole day; off: only up to the replay time">Whole day</button>
+    <button class="btn" id="stepBack" type="button" title="One candle back (←)">⏮</button>
+    <button class="btn" id="play" type="button" title="Play / pause (space)">▶ Play</button>
+    <button class="btn" id="stepFwd" type="button" title="One candle forward (→)">⏭</button>
+    <select class="btn" id="speed" aria-label="Playback speed" title="Candles per second"></select>
+    <span class="clock" id="clock">—</span>
+  </div>
+  <div class="grp">
+    <button class="btn" id="sc2" type="button" aria-pressed="true" title="Show the 2m scalper's entries">2m</button>
+    <button class="btn" id="sc3" type="button" aria-pressed="true" title="Show the 3m scalper's entries">3m</button>
+    <button class="btn" id="oneTrend" type="button" aria-pressed="false" title="Only the direction of the day's first index trend counts">1 trend/day</button>
+  </div>
   <details class="how">
-    <summary>How it works</summary>
+    <summary title="How it works">?</summary>
     <div class="how-body">
       <h3>The setups</h3>
       <p><b>Nifty</b>: step 1, NIFTY 50 and GIFT NIFTY show the same gate (both LONG or both SHORT). Step 2, RELIANCE's gate turns to that side after step 1 has started; if RELIANCE is already on that side when step 1 starts, it doesn't count until it leaves that side and comes back (it has to be the odd man out). If it drops out again while the trend holds, it can sync again. Step 3, the entry: RELIANCE's 2m or 3m MACD crosses 0 that way on a closed candle while steps 1 and 2 hold (times shown are the candle's close).</p>
@@ -189,15 +170,22 @@
       <h3>The gate</h3>
       <p>For each market on its own candles: LONG when the 5m, 9m and 11m MACD are all above 0 and the 3m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. Exactly the Nasdaq pages' gate. Each indicator is warmed up on the saved days before, so it reads what it would have read live.</p>
       <h3>Trends</h3>
-      <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown. <b>One trend per day</b> keeps only entries in the direction of the day's first trend.</p>
+      <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown. <b>1 trend/day</b> keeps only entries in the direction of the day's first trend.</p>
       <h3>Charts</h3>
-      <p>The top charts are the index side, shaded by step 1; GIFT NIFTY is shaded by its own gate and shows its whole session (06:30 to 02:45 the next morning). The bottom chart is the stock, shaded where step 2 holds, with its sync points (dots) and entries (arrows), and its Entry (2m/3m) and Trend MACD panes. Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <p>One chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right, showing the whole day with their gate. Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. The index is shaded by step 1; GIFT NIFTY by its own gate (its whole session, 06:30 to 02:45 the next morning); the stock where step 2 holds, with its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
       <h3>Data</h3>
-      <p>Dhan's 1-minute candles, saved by our VPS after each close, from 15 Oct 2026. Nothing is filled in: a minute with no trade has no candle. NSE stocks stop at 15:14 (the closing auction follows); the indices stay flat from 15:15 to 15:27, then move to the closing price at 15:28, as Dhan reports them. For information only, not investment advice.</p>
+      <p>Dhan's 1-minute candles, saved by our VPS after each close, from 15 Oct 2026. Nothing is filled in: a minute with no trade has no candle. NSE stocks stop at 15:14 (the closing auction follows); the indices stay flat from 15:15 to 15:27, then move to the closing price at 15:28, as Dhan reports them. </p>
+      <p class="credit">Not investment advice · Data: Dhan, via our VPS · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
     </div>
   </details>
-  <div class="credit">Not investment advice · Data: Dhan, via our VPS · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></div>
-</footer>
+</header>
+<div id="parked" hidden><div class="seg words" id="viewSel" role="group" aria-label="Big chart"></div>
+<div class="steps" id="steps" aria-label="Where the setup stands">
+  <span class="chip" id="s1"><span class="k">1</span><span class="v" id="s1v">—</span><span class="d" id="s1d"></span></span>
+  <span class="chip" id="s2"><span class="k">2</span><span class="v" id="s2v">—</span><span class="d" id="s2d"></span></span>
+  <span class="chip" id="s3"><span class="k">3</span><span class="v" id="s3v">—</span><span class="d" id="s3d"></span></span>
+</div></div>
+<main class="board" id="board"></main>
 <div id="loading"><img src="brand/logo.svg" alt=""><div id="loading-text">Loading…</div></div>
 <script>
 'use strict';
@@ -444,7 +432,7 @@ class Panel {
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 3, options: options(false, false), origin: this.origin,
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.mainStates[i],
     });
-    this.main.timeScale().subscribeVisibleLogicalRangeChange(r => { for (const p of Object.values(this.macd)) p.sync(r); syncGroup(this); });
+    this.main.timeScale().subscribeVisibleLogicalRangeChange(r => { for (const p of Object.values(this.macd)) p.sync(r); });
     const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
                  ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
     this.charts = all;
@@ -455,6 +443,11 @@ class Panel {
       hoverAll(this, t);
     });
     for (const el of $(key).querySelectorAll('.pane')) el.addEventListener('mouseleave', () => hoverAll(this, undefined));
+    $(key).addEventListener('click', e => { if (bigKey !== this.key && !e.target.closest('#viewSel')) select(this.key); });
+  }
+  setBig(big) {  // big: scroll, zoom, time axis and MACD panes; a tile: the whole day at a glance, one click to enlarge
+    $(this.key).classList.toggle('big', big); $(this.key).classList.toggle('tile', !big);
+    this.main.applyOptions({ handleScroll: big, handleScale: big, timeScale: { visible: big }, rightPriceScale: { minimumWidth: big ? 70 : 56 } });
   }
   remove() { this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
   shadeAt(t) {  // the state a candle is shaded by, at minute t
@@ -563,8 +556,7 @@ function aggregate(bars, m, origin) {
   }
   return out;
 }
-// The index and the stock scroll and zoom together (the same NSE minutes); GIFT NIFTY, with its longer session, on its own.
-let syncing = false;
+// Candle position <-> time, to keep the same stretch of time when another chart becomes the big one.
 function timeAt(bars, x) {
   const n = bars.length, tf = opt.tf * MIN;
   if (x <= 0) return bars[0].time + x * tf;
@@ -580,20 +572,6 @@ function indexAt(bars, t) {
   while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) lo = mid; else hi = mid; }
   return lo + (t - bars[lo].time) / (bars[hi].time - bars[lo].time);
 }
-function syncGroup(src) {
-  if (syncing || src.role === 'gift') return;
-  const r = src.main.timeScale().getVisibleLogicalRange();
-  if (!r || !src.mainBars.length) return;
-  for (const other of Object.values(panels)) {
-    if (other === src || other.role === 'gift' || !other.mainBars.length) continue;
-    const to = { from: indexAt(other.mainBars, timeAt(src.mainBars, r.from)), to: indexAt(other.mainBars, timeAt(src.mainBars, r.to)) };
-    const now = other.main.timeScale().getVisibleLogicalRange();
-    if (now && Math.abs(now.from - to.from) < 0.01 && Math.abs(now.to - to.to) < 0.01) continue;
-    syncing = true;
-    try { other.main.timeScale().setVisibleLogicalRange(to); } catch (e) {}
-    syncing = false;
-  }
-}
 function hoverAll(src, t) {
   for (const p of Object.values(panels)) {
     if (p !== src) for (const o of p.charts) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
@@ -601,21 +579,49 @@ function hoverAll(src, t) {
   }
   showStrip(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
 }
+let bigKey = null;
+const ORDER = () => Object.values(panels);  // the setup's markets in their order: index, (GIFT), stock
 function buildPanels() {
+  $('parked').append($('viewSel'), $('steps'));  // out of the old big chart's header before it goes
   for (const p of Object.values(panels)) p.remove();
   panels = {};
   const S = SETUPS[opt.setup];
-  // owner 23/10/2026: equal columns, left to right - Bank Nifty | HDFC Bank; Nifty | GIFT Nifty | Reliance
-  $('board').className = 'board' + (S.gift ? ' cols-3' : '');
-  panels.index = new Panel('pIndex', S.index, 'index', 'big');
-  if (S.gift) panels.gift = new Panel('pGift', S.gift, 'gift', 'right big');
-  panels.stock = new Panel('pStock', S.stock, 'stock', 'right big');
+  panels.index = new Panel('pIndex', S.index, 'index', '');
+  if (S.gift) panels.gift = new Panel('pGift', S.gift, 'gift', '');
+  panels.stock = new Panel('pStock', S.stock, 'stock', '');
+  $('board').style.gridTemplateRows = `repeat(${ORDER().length - 1}, minmax(0, 1fr))`;
+  seg($('viewSel'), ORDER().map((p, i) => [`${MARKETS[p.market].name}`, p.key]), null, v => select(v));
+  for (const [i, b] of [...$('viewSel').children].entries()) b.title = `Make ${b.textContent} the big chart (${i + 1})`;
+  const saved = pref('big.' + opt.setup, 'pIndex');
+  bigKey = null;
+  for (const p of ORDER()) p.setBig(false);
+  placeBig(ORDER().some(p => p.key === saved) ? saved : 'pIndex');
+}
+function placeBig(key) {  // the chosen chart big, the others as tiles in the setup's order
+  bigKey = key;
+  for (const p of ORDER()) p.setBig(p.key === key);
+  const head = $(key).querySelector('.phead');
+  head.prepend($('viewSel')); head.append($('steps'));
+  for (const b of $('viewSel').children) b.setAttribute('aria-pressed', String(b.dataset.v === key));
+  save('big.' + opt.setup, key);
+}
+function select(key) {
+  if (!day || key === bigKey || !$(key)) return;
+  const old = Object.values(panels).find(p => p.key === bigKey), r = old && old.mainBars.length ? old.main.timeScale().getVisibleLogicalRange() : null;
+  const span = r ? [timeAt(old.mainBars, r.from), timeAt(old.mainBars, r.to)] : null;
+  placeBig(key);
+  render(true);
+  const p = Object.values(panels).find(q => q.key === key);
+  if (span && p.mainBars.length && !whole) {  // replaying: keep the same stretch of time
+    p.main.timeScale().setVisibleLogicalRange({ from: indexAt(p.mainBars, span[0]), to: indexAt(p.mainBars, span[1]) });
+  }
 }
 
 // ---- the strip: where the setup stands -----------------------------------------------------------------------
 function showStrip(t) {
   const S = day.setup, st = day.setupRun, names = S.gift ? 'NIFTY + GIFT' : 'BANK NIFTY', stock = MARKETS[S.stock].name;
-  const set = (k, cls, v, d) => { $(`${k}v`).className = 'v ' + cls; $(`${k}v`).textContent = v; $(`${k}d`).textContent = d; };
+  const set = (k, cls, v, d) => { $(`${k}v`).className = 'v ' + cls; $(`${k}v`).textContent = v; $(`${k}d`).textContent = d;
+                                  $(k).title = `Step ${k[1]} · ${['Trend', 'Sync', 'Entry'][k[1] - 1]}: ${v}${d ? ' · ' + d : ''}`; };
   if (!day.nse) { set('s1', 'wait', 'NSE closed', 'no NSE candles this day'); set('s2', 'wait', '—', ''); set('s3', 'wait', '—', ''); return; }
   if (t === undefined && whole) {  // the day as a whole
     const inDay = x => x.t >= day.d0 && x.t < day.d1;
@@ -640,14 +646,13 @@ function showStrip(t) {
 }
 
 // ---- playback ----------------------------------------------------------------------------------------------
-let cursor = 0, whole = pref('whole', true), timer = null;
+let cursor = 0, whole = pref('whole', true), timer = null, syncing = false;
 function render(full) {
   syncing = true;
   try {
     for (const p of Object.values(panels)) p.draw();
-    if (full) for (const p of Object.values(panels)) p.fit();
+    for (const p of Object.values(panels)) if (full || p.key !== bigKey) p.fit();
   } finally { syncing = false; }
-  if (full && panels.index) syncGroup(panels.index);
   refreshText();
 }
 function refreshText() {
@@ -665,6 +670,7 @@ function step(n) {
 }
 function keepCursorInView() {
   for (const p of Object.values(panels)) {
+    if (p.key !== bigKey) continue;
     const n = p.mainBars.length, r = p.main.timeScale().getVisibleLogicalRange();
     if (r && n && (n - 1 > r.to - 2 || n - 1 < r.from)) { const w = r.to - r.from; p.main.timeScale().setVisibleLogicalRange({ from: n - w + 3, to: n + 3 }); }
   }
@@ -700,10 +706,12 @@ function buildControls() {
   $('dayPrev').onclick = () => { const i = $('daySel').selectedIndex; if (i + 1 < $('daySel').options.length) openDay($('daySel').options[i + 1].value); };
   $('dayNext').onclick = () => { const i = $('daySel').selectedIndex; if (i > 0) openDay($('daySel').options[i - 1].value); };
   document.addEventListener('keydown', e => {
-    if (e.target.closest('select, input')) return;
+    if (e.target.closest && e.target.closest('select, input, summary')) return;
     if (e.key === 'ArrowRight') { step(1); e.preventDefault(); }
     if (e.key === 'ArrowLeft') { step(-1); e.preventDefault(); }
     if (e.key === ' ') { play(); e.preventDefault(); }
+    const n = Number(e.key);
+    if (n >= 1 && n <= ORDER().length && !e.ctrlKey && !e.metaKey && !e.altKey) select(ORDER()[n - 1].key);
   });
 }
 function recompute() { if (!day) return; day.entries = entriesOf(); render(false); }
@@ -725,7 +733,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) for (const pane 
     const j = await (await fetch('data/india/1m/index.json', { cache: 'no-cache' })).json();
     DAYS = (Array.isArray(j) ? j : j.dates || []).map(String).sort();
     if (!DAYS.length) throw new Error('no saved days yet');
-    $('daySel').innerHTML = [...DAYS].reverse().map(k => { const d = new Date(k + 'T00:00:00Z'); return `<option value="${k}">${WKD[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}</option>`; }).join('');
+    $('daySel').innerHTML = [...DAYS].reverse().map(k => { const d = new Date(k + 'T00:00:00Z'); return `<option value="${k}" title="${k}">${WKD[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}</option>`; }).join('');
     buildControls();
     buildPanels();
     await openDay(DAYS[DAYS.length - 1]);
