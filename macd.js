@@ -266,7 +266,7 @@ class MacdPane {
         + `<span class="t-dot ${ok(v[m]) ? (pass ? 'pass' : 'fail') : ''}"></span>`
         + `<span class="t-v">${this.sigs[m] ? `${sgn(v[m], d)} / ${sgn(q.sg[m], d)}` : sgn(v[m], d)}</span></span>`;
     };
-    this.tagEl.innerHTML = `<span class="t-name">${this.name} <b>${PANES[this.kind].title}</b></span>` + this.lines.map(item).join('')
+    this.tagEl.innerHTML = `<span class="t-name"><b>${PANES[this.kind].title}</b></span>` + this.lines.map(item).join('')  // no market name (owner 24/10/2026)
       + (Object.keys(this.sigs).length ? `<span class="t-mm${show.sig ? '' : ' off'}" data-k="sig" title="Every line's signal line (dashed, in its color). Click to ${show.sig ? 'hide' : 'show'} them">`
                   + `<span class="sw dash"></span><span class="t-of">signals</span></span>` : '');
   }

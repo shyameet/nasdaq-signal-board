@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Commodities · Indra Quant Signal Board</title>
-<meta name="description" content="Crude oil and natural gas: the US future (MCL, NG) sets the trend, the MCX mini (CRUDEOILM, NATGASMINI) joins it, then the 2m/3m entry on the MCX mini.">
+<meta name="description" content="Crude oil and natural gas: the CME future (MCL, NG) sets the trend, the MCX mini (CRUDEOILM, NATGASMINI) joins it, then the 2m/3m entry on the MCX mini.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
-<script src="macd.js?v=3b5fc6568a"></script>
+<script src="macd.js?v=8eb224daf5"></script>
 <script src="engine.js?v=071c0c2a3d"></script>
 <script src="daypick.js?v=2"></script>
 <style>
@@ -112,8 +112,8 @@
   .phead { flex: none; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 10px; padding: 5px 10px; border-bottom: 1px solid var(--line); min-width: 0; overflow: hidden; white-space: nowrap; }
   .panel.big .pextra { display: none; }   /* the step chips already say it (owner 24/10/2026: one tidy line) */
   .phead > .gk, .phead > .gw, .phead > .conds { display: none; }   /* owner 23/10/2026: no "Gate SHORT 3m EMA 5m 9m" in the chart heads (the shading shows the gate) */
-  .pname { font-size: 13.5px; font-weight: 700; }
-  .pval { font: 600 14px var(--font-num); }
+  .pname { font-size: 14px; font-weight: 700; line-height: 20px; letter-spacing: .01em; }
+  .pval { font: 600 14px/20px var(--font-num); margin-left: -2px; }   /* name and price on one line, one size (owner 24/10/2026) */
   .gw { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 6px; background: var(--tile);
         color: var(--muted); font-weight: 700; font-size: 11.5px; letter-spacing: .08em; }
   .gw.bull { background: var(--up); color: #04150f; } .gw.bear { background: var(--down); color: #1e0507; }
@@ -189,7 +189,7 @@
       <h3>Trends</h3>
       <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown.</p>
       <h3>Charts</h3>
-      <p>MCX on the left, the US future on the right, side by side and scrolling together. (On India Replay, Nifty: one chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right, showing the whole day with their gate. Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. Bank Nifty: the two charts side by side.) Drag the thin lines between the charts, between the tiles, or between a price chart and its MACD panes to size them as you like (remembered; double-click a line for the default). The index is shaded by step 1; GIFT NIFTY by its own gate (its whole session, 06:30 to 02:45 the next morning); the stock where step 2 holds, with its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <p>The CME future on the left, the MCX mini on the right, side by side and scrolling together. (On India Replay, Nifty: one chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right, showing the whole day with their gate. Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. Bank Nifty: the two charts side by side.) Drag the thin lines between the charts, between the tiles, or between a price chart and its MACD panes to size them as you like (remembered; double-click a line for the default). The index is shaded by step 1; GIFT NIFTY by its own gate (its whole session, 06:30 to 02:45 the next morning); the stock where step 2 holds, with its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
       <h3>Days</h3>
       <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
       <h3>Data</h3>
@@ -223,10 +223,10 @@ const TFS = [1, 2, 3, 5];
 // (22:00 UTC in summer time; 23:00 UTC from 1 Nov, when Chicago moves its clocks)
 const MCX_OPEN = 3 * 3600000 + 30 * MIN, CME_OPEN = 22 * 3600000;
 const MARKETS = {
-  MCL: { name: 'MCL · WTI crude (CME micro)', origin: CME_OPEN, digits: 2, macdDigits: 3 },
-  NG: { name: 'NG · natural gas (CME)', origin: CME_OPEN, digits: 3, macdDigits: 4 },
-  CRUDEOILM: { name: 'CRUDEOILM · MCX', origin: MCX_OPEN, digits: 0, macdDigits: 2 },
-  NATGASMINI: { name: 'NATGASMINI · MCX', origin: MCX_OPEN, digits: 1, macdDigits: 3 },
+  MCL: { name: 'MCL', origin: CME_OPEN, digits: 2, macdDigits: 3 },   // CME micro WTI crude
+  NG: { name: 'NG', origin: CME_OPEN, digits: 3, macdDigits: 4 },     // CME Henry Hub natural gas
+  CRUDEOILM: { name: 'CRUDEOILM', origin: MCX_OPEN, digits: 0, macdDigits: 2 },   // MCX crude oil mini
+  NATGASMINI: { name: 'NATGASMINI', origin: MCX_OPEN, digits: 1, macdDigits: 3 },  // MCX natural gas mini
 };
 const SETUPS = {
   crude: { label: 'Crude', index: 'MCL', gift: null, stock: 'CRUDEOILM' },
@@ -626,8 +626,8 @@ function buildPanels() {
   for (const p of Object.values(panels)) p.remove();
   panels = {};
   const S = SETUPS[opt.setup];
-  panels.stock = new Panel('pStock', S.stock, 'stock', '');  // MCX left, US right (owner 24/10/2026)
-  panels.index = new Panel('pIndex', S.index, 'index', '');
+  panels.index = new Panel('pIndex', S.index, 'index', '');  // CME left, MCX right (owner 24/10/2026)
+  panels.stock = new Panel('pStock', S.stock, 'stock', '');
   halves = ORDER().length === 2;
   $('board').style.gridTemplateRows = halves ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)';
   bigKey = null;
@@ -637,7 +637,7 @@ function buildPanels() {
     for (const p of ORDER()) p.setMode('half');
     panels.index.main.timeScale().subscribeVisibleLogicalRangeChange(() => syncHalves(panels.index));
     panels.stock.main.timeScale().subscribeVisibleLogicalRangeChange(() => syncHalves(panels.stock));
-    $('pStock').querySelector('.phead').append($('steps'));
+    $('pIndex').querySelector('.phead').append($('steps'));
     return;
   }
   seg($('viewSel'), ORDER().map((p, i) => [`${MARKETS[p.market].name}`, p.key]), null, v => select(v));
@@ -733,7 +733,7 @@ function select(key) {
 // ---- the strip: where the setup stands -----------------------------------------------------------------------
 const stamp = t => day.shown > 1 ? `${WKD[new Date(t + IST).getUTCDay()]} ${hhmm(t)}` : hhmm(t);  // a time, with its day on a strip of days
 function showStrip(t) {
-  const S = day.setup, st = day.setupRun, names = MARKETS[S.index].name.split(' ·')[0], stock = MARKETS[S.stock].name;
+  const S = day.setup, st = day.setupRun, names = MARKETS[S.index].name, stock = MARKETS[S.stock].name;
   const set = (k, cls, v, d) => { $(`${k}v`).className = 'v ' + cls; $(`${k}v`).textContent = v; $(`${k}d`).textContent = d;
                                   $(k).title = `Step ${k[1]} · ${['Trend', 'Sync', 'Entry'][k[1] - 1]}: ${v}${d ? ' · ' + d : ''}`; };
   if (!day.nse) { set('s1', 'wait', 'Closed', 'no candles this day'); set('s2', 'wait', '—', ''); set('s3', 'wait', '—', ''); return; }
