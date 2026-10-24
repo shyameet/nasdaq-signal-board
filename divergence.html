@@ -25,6 +25,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="daypick.js?v=2"></script>
+<script src="draw.js?v=1"></script>
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
 <script src="macd.js?v=4a392c0065"></script>
@@ -293,7 +294,7 @@
 <script>
 const DAY = 86400000, MIN = 60000, TFS = [1, 3, 5, 7, 15];
 const C = { up: '#2bb68a', down: '#f0555f', alone: '#ff8a3d', other: '#8d99ab', grid: '#121821', text: '#7d899b', line: '#1c2430',
-            cross: '#3a4554', label: '#283240', bg: '#0a0d12', strip: '#0e131a' };
+            cross: 'rgba(232, 238, 246, 0.85)', label: '#283240', bg: '#0a0d12', strip: '#0e131a' };
 // What a disagreement between the stocks' gate and the index's gate is called. (The old "often fades / often follows"
 // notes were measured on the old four-rule signal, so they are gone: the gate has not been studied yet.)
 const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
@@ -423,6 +424,8 @@ function makeChart() {
   layer = new DivLayer();
   candles.attachPrimitive(layer);
   candles.attachPrimitive(new DayLines(() => chart, () => mainBars, 52));
+  NsbDraw.setup({ key: 'nsb.draw.divergence', when });
+  NsbDraw.add({ id: 'xyz100', chart, series: candles, el: $('pmain'), bars: () => mainBars, tf: () => tf, fmt: v => num(v) });
   new ResizeObserver(fitMargins).observe($('pmain'));
   // XYZ100's Trend and Entry MACD panes, on the chart's own candles (so the same bar indexes; they follow its scrolling
   // and zoom), each shaded where the stocks' and the index's MACDs agree on the lines switched on in it

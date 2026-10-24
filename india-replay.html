@@ -18,6 +18,7 @@
 <script src="macd.js?v=4a392c0065"></script>
 <script src="engine.js?v=071c0c2a3d"></script>
 <script src="daypick.js?v=2"></script>
+<script src="draw.js?v=1"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
   /* the candle size: one dropdown (owner 24/10/2026) */
@@ -208,7 +209,7 @@
 const DAY = 86400000, MIN = 60000, IST = 19800000;  // IST = UTC + 5:30
 const { TrendSignal, SHOWN } = NdxEngine.internals;
 const { MacdPane, Bands, DayLines } = NsbMacd;
-const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: '#3a4554', label: '#283240',
+const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: 'rgba(232, 238, 246, 0.85)', label: '#283240',
             bg: '#0a0d12', ema21: '#f2b33d', ema47: '#5b8cff' };
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
 const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
@@ -447,6 +448,8 @@ class Panel {
     this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
     this.candles.attachPrimitive(this.zones);
     this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30));  // where each day begins, with its date
+    this.drawing = NsbDraw.add({ id: market, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
+                                 tf: () => opt.tf, fmt: v => num(v, MARKETS[market].digits), active: () => this.mode !== 'tile' });
     this.macd = {};
     if (panes) for (const k of ['entry', 'trend']) this.macd[k] = new MacdPane({
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 3, options: options(false, false), origin: this.origin,
@@ -480,7 +483,7 @@ class Panel {
     this.main.applyOptions({ handleScroll: full, handleScale: full, timeScale: { visible: full }, rightPriceScale: { minimumWidth: full ? 70 : 56 } });
   }
   waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }  // the colour at candle i
-  remove() { this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
+  remove() { this.drawing.remove(); this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
   shadeAt(t) {  // the state a candle is shaded by, at minute t
     if (this.role === 'gift') return day.runs[this.market].stateAt.get(t) || null;
     const s = day.setupRun.at.get(t);
@@ -616,6 +619,7 @@ function hoverAll(src, t) {
 let bigKey = null;
 const ORDER = () => Object.values(panels);  // the setup's markets in their order: index, (GIFT), stock
 function buildPanels() {
+  NsbDraw.use('nsb.draw.india.' + opt.setup);  // each setup keeps its own drawings
   $('parked').append($('viewSel'), $('steps'));  // out of the old big chart's header before it goes
   for (const p of Object.values(panels)) p.remove();
   panels = {};
@@ -829,6 +833,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
     DAYS = (Array.isArray(j) ? j : j.dates || []).map(String).sort();
     if (!DAYS.length) throw new Error('no saved days yet');
     buildControls();
+    NsbDraw.setup({ key: 'nsb.draw.india.' + opt.setup, when });
     buildPanels();
     await openDay(DAYS[DAYS.length - 1]);
   } catch (e) {

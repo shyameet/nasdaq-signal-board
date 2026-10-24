@@ -29,6 +29,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="daypick.js?v=2"></script>
+<script src="draw.js?v=1"></script>
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
 <script src="macd.js?v=4a392c0065"></script>
@@ -113,22 +114,10 @@
   .dot.stale { background: var(--ema8); }
 
   /* ---- the two panels ---- */
-  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); }
+  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
   .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .panel + .panel { border-left: 1px solid var(--line-strong); }
 
-  /* ---- drawing tools: a rail left of the panels ---- */
-  .rail { background: var(--surface); border-right: 1px solid var(--line-strong); }
-  .rail-in { position: sticky; top: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 5px; }
-  .tool { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 7px;
-          background: transparent; color: var(--muted); cursor: pointer; }
-  .tool:hover { color: var(--text); background: var(--tile); }
-  .tool[aria-pressed="true"] { color: var(--accent); background: rgba(91, 140, 255, .14); box-shadow: inset 0 0 0 1px rgba(91, 140, 255, .45); }
-  .tool:disabled { opacity: .3; cursor: default; background: transparent; color: var(--muted); }
-  .tool svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-  .tool svg .fill { fill: currentColor; stroke: none; }
-  .rail .sep { width: 20px; height: 1px; margin: 6px 0; background: var(--line-strong); }
-  .pane.drawing { touch-action: none; }  /* with a tool picked, a finger draws instead of scrolling the page */
   .phead { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 7px 12px; border-bottom: 1px solid var(--line); }
   .phead-top { display: contents; }
   .ptitle { min-width: 0; }
@@ -240,11 +229,6 @@
   #flash { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .8s; }
   #banner { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 40; max-width: calc(100vw - 32px); padding: 8px 14px;
             border: 1px solid rgba(242, 179, 61, .45); border-radius: 8px; background: #241c0b; color: #f6d68a; font-size: 12.5px; }
-  #toast { position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 12px;
-           padding: 7px 8px 7px 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface);
-           box-shadow: 0 8px 30px rgba(0, 0, 0, .45); font-size: 12.5px; }
-  #toast[hidden] { display: none; }
-  #toast button { padding: 4px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--tile); cursor: pointer; }
   #loading { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center;
              gap: 18px; background: var(--bg); color: var(--muted); }
   #loading img { width: 64px; height: 64px; }
@@ -257,8 +241,6 @@
 
   @media (max-width: 1100px) {  /* too narrow for side by side: stack the two panels */
     html, body { height: auto; }
-    .board { grid-template-columns: auto minmax(0, 1fr); }
-    .rail { grid-row: 1 / span 2; }
     .panel { height: 92vh; min-height: 600px; }
     .panel + .panel { border-left: 0; border-top: 1px solid var(--line-strong); }
   }
@@ -268,11 +250,6 @@
     .state-since { display: none; }
     .state { order: 1; }                 /* the state beside the name; the rule chips on the row under them */
     .rules { order: 2; flex-basis: 100%; }
-    .board { grid-template-columns: minmax(0, 1fr); }  /* the drawing tools become a row above the charts */
-    .rail { grid-row: auto; position: sticky; top: 0; z-index: 20; border-right: 0; border-bottom: 1px solid var(--line-strong); }
-    .rail-in { position: static; flex-direction: row; gap: 1px; overflow-x: auto; scrollbar-width: none; padding: 5px 4px; }
-    .rail .sep { width: 1px; height: 20px; margin: 0 6px; flex: none; }
-    .tool { flex: none; width: 30px; height: 30px; }
     .tag.main .ohlc { display: none; }  /* small charts: prices only while touching the chart */
     .hovering .tag.main .ohlc { display: inline; }
   }
@@ -301,33 +278,6 @@
   <div class="live"><span class="dot" id="dot"></span><span id="live">connecting</span></div>
 </header>
 <main class="board" id="board">
-  <nav class="rail" id="rail" aria-label="Drawing tools">
-    <div class="rail-in">
-      <button type="button" class="tool" data-tool="cursor" title="Cursor: drag to scroll, click a drawing to select it (Esc)" aria-label="Cursor">
-        <svg viewBox="0 0 20 20"><path d="M6 3.5v12l3-2.9 2.1 4.4 1.9-.9-2.1-4.3h4.3z"/></svg></button>
-      <button type="button" class="tool" data-tool="trend" title="Trend line: drag, or click two points" aria-label="Trend line">
-        <svg viewBox="0 0 20 20"><path d="M4.5 15.5l11-11"/><circle class="fill" cx="4.5" cy="15.5" r="1.9"/><circle class="fill" cx="15.5" cy="4.5" r="1.9"/></svg></button>
-      <button type="button" class="tool" data-tool="hline" title="Horizontal line: click a price" aria-label="Horizontal line">
-        <svg viewBox="0 0 20 20"><path d="M2.5 10h15"/><circle class="fill" cx="10" cy="10" r="1.9"/></svg></button>
-      <button type="button" class="tool" data-tool="vline" title="Vertical line: click a time" aria-label="Vertical line">
-        <svg viewBox="0 0 20 20"><path d="M10 2.5v15"/><circle class="fill" cx="10" cy="10" r="1.9"/></svg></button>
-      <button type="button" class="tool" data-tool="rect" title="Rectangle: drag, or click two corners" aria-label="Rectangle">
-        <svg viewBox="0 0 20 20"><rect x="3.5" y="5" width="13" height="10" rx="1"/></svg></button>
-      <button type="button" class="tool" data-tool="fib" title="Fib retracement: from the start of a swing to its end" aria-label="Fib retracement">
-        <svg viewBox="0 0 20 20"><path d="M3 4.5h14M3 8.2h14M3 11.8h14M3 15.5h14"/><path d="M5 15.5l10-11" stroke-dasharray="1.6 2"/></svg></button>
-      <button type="button" class="tool" data-tool="measure" title="Measure price, % and time: drag, or click two points (Shift+drag measures anytime)" aria-label="Measure">
-        <svg viewBox="0 0 20 20"><path d="M2.9 13.1l10.2-10.2 4 4-10.2 10.2z"/><path d="M5.6 10.4l1.5 1.5M7.8 8.2l1 1M10 6l1.5 1.5"/></svg></button>
-      <span class="sep" aria-hidden="true"></span>
-      <button type="button" class="tool" id="d-magnet" title="Magnet: snap points to a nearby open, high, low or close" aria-label="Magnet" aria-pressed="false">
-        <svg viewBox="0 0 20 20"><path d="M4.5 3.5h3.5v6.5a2 2 0 0 0 4 0V3.5h3.5v6.5a5.5 5.5 0 0 1-11 0z"/><path d="M4.5 7h3.5M12 7h3.5"/></svg></button>
-      <button type="button" class="tool" id="d-undo" title="Undo (Ctrl+Z)" aria-label="Undo">
-        <svg viewBox="0 0 20 20"><path d="M7.5 4.5L4 8l3.5 3.5"/><path d="M4.5 8h7.5a4.5 4.5 0 0 1 0 9H9"/></svg></button>
-      <button type="button" class="tool" id="d-delete" title="Delete the selected drawing (Del)" aria-label="Delete the selected drawing">
-        <svg viewBox="0 0 20 20"><path d="M4 6h12M8.5 6V4h3v2M5.8 6l.8 10.5h6.8l.8-10.5"/></svg></button>
-      <button type="button" class="tool" id="d-clear" title="Remove all drawings" aria-label="Remove all drawings">
-        <svg viewBox="0 0 20 20"><path d="M11.4 3.7l4.9 4.9-7.6 7.6H5.4l-2-2a1.2 1.2 0 0 1 0-1.7z"/><path d="M7.6 7.5l4.9 4.9M9 16.2h7.5"/></svg></button>
-    </div>
-  </nav>
 </main>
 <footer class="foot">
   <div class="basket" id="basket"></div>
@@ -349,7 +299,7 @@
       <h3>The charts</h3>
       <p>Zones: green while the gate is LONG (labeled ▲ LONG), red while it is SHORT, no color for NO TRADE. The zone is the gate, not the candle: a red candle can sit in a green zone. The forming candle shows the gate live. The amber and blue lines are your stocks' 3m EMA 21 and EMA 47 that the gate tests, as of each candle's close. Times are in your timezone.</p>
       <h3>Drawing tools</h3>
-      <p>The toolbar on the left draws on the price chart: trend line, horizontal and vertical line, rectangle, Fib retracement and measure. Drag from one point to the other, or click one and then the other. Click a drawing to select it, drag it or its handles to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. Drawings are saved in this browser.</p>
+      <p>The sidebar on the left draws on the price chart: vertical line, horizontal line and measure (drag from one point to the other, or click one and then the other). Click a line to select it, drag it to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. The arrow at the bottom of the sidebar hides it. Drawings are saved in this browser.</p>
       <h3>Data</h3>
       <p>Prices stream live from Hyperliquid's public API, around the clock, and the signals are recalculated every second. The page keeps nothing about you; your drawings and settings stay in this browser. For information only, not investment advice. An independent project, not affiliated with Nasdaq, Inc., Hyperliquid or TradingView.</p>
     </div>
@@ -358,13 +308,12 @@
 </footer>
 <div id="flash"></div>
 <div id="banner" hidden></div>
-<div id="toast" role="status" hidden><span id="toast-text"></span><button type="button" id="toast-undo">Undo</button></div>
 <div id="older" class="older" hidden>Loading older days…</div>
 <div id="loading"><img src="brand/iq_emblem.svg" alt=""><b>Indra Quant Signal Board</b><div id="loading-text">Loading Hyperliquid history…</div></div>
 <script>
 const DAY = 86400000, TFS = [1, 3, 5, 7, 15];
 const C = { up: '#2bb68a', down: '#f0555f', ema8: '#f2b33d', ema21: '#5b8cff', macd: '#5b8cff', sig: '#ff9f43',
-            grid: '#121821', text: '#7d899b', line: '#1c2430', cross: '#3a4554', label: '#283240', bg: '#0a0d12', zero: '#6b778a' };
+            grid: '#121821', text: '#7d899b', line: '#1c2430', cross: 'rgba(232, 238, 246, 0.85)', label: '#283240', bg: '#0a0d12', zero: '#6b778a' };
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };  // signal zones behind the candles
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // One series: the composite of the stocks you pick (the engine's 'ndx10' section). Its own candles, built from the
@@ -464,34 +413,6 @@ function options(showTime, isMain) {
   };
 }
 
-// ---- drawing tools ------------------------------------------------------------------------------
-// Trend lines, horizontal and vertical lines, rectangles, Fib retracements and a measure tool on the two price
-// charts. A point is stored as (time, price), so a drawing stays put at every candle size, and both price charts
-// show your stocks' composite. Saved in this browser only.
-const INK = '#a78bfa', INK_FILL = 'rgba(167, 139, 250, 0.10)', INK_TAG = '#7457d6';  // violet: unlike any line on the charts
-const FIB = [[0, '#8d99ab'], [0.236, '#f0555f'], [0.382, '#ff9f43'], [0.5, '#2bb68a'], [0.618, '#21b8c7'], [0.786, '#a78bfa'], [1, '#8d99ab']];
-const TWO_POINTS = ['trend', 'rect', 'fib', 'measure'];
-const draw = { tool: 'cursor', magnet: false, items: [], sel: null, hover: null, temp: null, tempPanel: null, measure: null,
-               gesture: null, press: false, undo: [] };
-try {
-  const pt = q => q && ok(q.t) && ok(q.p), saved = JSON.parse(localStorage.getItem('nsb.drawings.basket') || '[]');
-  if (Array.isArray(saved)) draw.items = saved.filter(d => d && ['trend', 'hline', 'vline', 'rect', 'fib'].includes(d.type)
-                                                         && pt(d.a) && (!TWO_POINTS.includes(d.type) || pt(d.b)));
-  draw.magnet = localStorage.getItem('ndx10.magnet') === '1';
-} catch (e) {}
-const uid = () => Math.random().toString(36).slice(2, 10);
-const copy = v => JSON.parse(JSON.stringify(v));
-const lasting = ms => { const all = Math.round(ms / 60000), d = Math.floor(all / 1440), h = Math.floor(all % 1440 / 60), m = all % 60;
-  return d ? `${d}d ${h}h` : h ? `${h}h ${two(m)}m` : `${m}m`; };
-const axisTag = (at, text, bg) => ({ coordinate: () => at, text: () => text, textColor: () => '#ffffff', backColor: () => bg,
-                                     visible: () => true, tickVisible: () => true });
-const fibPrice = (d, level) => d.b.p + (d.a.p - d.b.p) * level;  // level 0 at the second point, 1 at the first
-function segDist(x, y, x1, y1, x2, y2) {  // distance from (x, y) to the segment (x1, y1)-(x2, y2)
-  const dx = x2 - x1, dy = y2 - y1, len = dx * dx + dy * dy;
-  const k = len ? Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / len)) : 0;
-  return Math.hypot(x - x1 - k * dx, y - y1 - k * dy);
-}
-
 // Each zone also gets a solid ribbon along the bottom of the chart and, where it's wide enough, its name, so the
 // colors explain themselves: a zone is the panel's signal (all 4 rules agreeing), not the color of the candles.
 const ZONE_EDGE = { BULLISH: '#2bb68a', BEARISH: '#f0555f' };
@@ -546,321 +467,17 @@ class ZoneLayer {  // green and red bands behind the candles: the panel's signal
   }
 }
 
-class DrawLayer {  // every drawing on one price chart, as a Lightweight Charts series primitive
-  constructor(panel) {
-    this.panel = panel; this.m = null; this.shapes = []; this.prices = []; this.times = [];
-    this.views = [{ zOrder: () => 'top', renderer: () => ({ draw: target => this.render(target) }) }];
-  }
-  attached({ requestUpdate }) { this.requestUpdate = requestUpdate; }
-  detached() { this.requestUpdate = null; }
-  paneViews() { return this.views; }
-  priceAxisViews() { return this.prices; }
-  timeAxisViews() { return this.times; }
-  map() {  // this chart's mapping between the screen and (time, price); null while it has no bars
-    const p = this.panel, bars = p.mainBars, ts = p.main.timeScale();
-    const x0 = bars.length ? ts.logicalToCoordinate(0) : null, x1 = bars.length ? ts.logicalToCoordinate(1) : null;
-    if (x0 === null || x1 === null || x1 === x0) return null;
-    const step = x1 - x0;
-    return { w: ts.width(), h: p.mainEl.clientHeight - ts.height(),
-             x: t => x0 + indexAt(bars, tf, t) * step, y: v => p.candles.priceToCoordinate(v),
-             index: x => (x - x0) / step, price: y => p.candles.coordinateToPrice(y) };
-  }
-  at(x, y) {  // the point under (x, y): its time snapped to the nearest bar; with the magnet on, its price to that
-    const m = this.map(), p = m && m.price(y);  // bar's open, high, low or close when one is within 30 px
-    if (!ok(p)) return null;
-    const i = Math.round(m.index(x)), b = draw.magnet ? this.panel.mainBars[i] : null;
-    let price = p, best = 30;
-    if (b) for (const v of [b.open, b.high, b.low, b.close]) { const gap = Math.abs(m.y(v) - y); if (gap < best) { best = gap; price = v; } }
-    return { t: timeAt(this.panel.mainBars, tf, i), p: price };
-  }
-  shape(d, m) {  // drawing d on the screen
-    if (d.type === 'vline') return { x: m.x(d.a.t) };
-    const y1 = m.y(d.a.p);
-    if (y1 === null) return null;
-    if (d.type === 'hline') return { y: y1 };
-    const y2 = m.y(d.b.p);
-    return y2 === null ? null : { x1: m.x(d.a.t), y1, x2: m.x(d.b.t), y2 };
-  }
-  hit(x, y) {  // the drawing under (x, y), and the part grabbed: a handle ('a', 'b', 'ab', 'ba') or the 'body'
-    const m = this.map();
-    if (!m) return null;
-    const sel = draw.items.find(d => d.id === draw.sel), near = (px, py) => Math.hypot(px - x, py - y) <= 8;
-    for (const d of [sel, ...draw.items.slice().reverse()]) {  // the selected drawing's handles first, then the newest on top
-      const s = d && this.shape(d, m);
-      if (!s) continue;
-      if (d.type === 'hline') { if (Math.abs(s.y - y) <= 5) return { item: d, part: 'body' }; continue; }
-      if (d.type === 'vline') { if (Math.abs(s.x - x) <= 5) return { item: d, part: 'body' }; continue; }
-      if (d === sel) {
-        if (near(s.x1, s.y1)) return { item: d, part: 'a' };
-        if (near(s.x2, s.y2)) return { item: d, part: 'b' };
-        if (d.type === 'rect' && near(s.x1, s.y2)) return { item: d, part: 'ab' };
-        if (d.type === 'rect' && near(s.x2, s.y1)) return { item: d, part: 'ba' };
-      }
-      const left = Math.min(s.x1, s.x2), right = Math.max(s.x1, s.x2);
-      if (d.type === 'rect' ? x >= left - 4 && x <= right + 4 && y >= Math.min(s.y1, s.y2) - 4 && y <= Math.max(s.y1, s.y2) + 4
-                            : segDist(x, y, s.x1, s.y1, s.x2, s.y2) <= 5) return { item: d, part: 'body' };
-      if (d.type === 'fib' && x >= left - 4 && x <= right + 4
-          && FIB.some(([level]) => { const ly = m.y(fibPrice(d, level)); return ly !== null && Math.abs(ly - y) <= 5; })) return { item: d, part: 'body' };
-    }
-    return null;
-  }
-  hitTest(x, y) {  // the chart asks on every mouse move; the answer sets the mouse cursor
-    let cursor = null;
-    if (draw.gesture) cursor = draw.gesture.kind === 'drag' ? 'grabbing' : 'crosshair';
-    else if (draw.tool !== 'cursor' || draw.temp) cursor = 'crosshair';
-    else {
-      const h = this.hit(x, y), id = h ? h.item.id : null;
-      if (id !== draw.hover) { draw.hover = id; queueMicrotask(redrawDrawings); }
-      if (h) cursor = h.part !== 'body' ? 'move' : h.item.type === 'hline' ? 'ns-resize' : h.item.type === 'vline' ? 'ew-resize' : 'grab';
-    }
-    return cursor && { cursorStyle: cursor, externalId: 'drawing', zOrder: 'top' };
-  }
-  updateAllViews() {
-    const m = this.map(), shapes = [], prices = [], times = [];
-    this.m = m; this.shapes = shapes; this.prices = prices; this.times = times;  // new arrays, so the chart re-reads the labels
-    if (!m) return;
-    const priceTag = (v, bg) => { const y = m.y(v); if (y !== null) prices.push(axisTag(y, num(v), bg)); };
-    const timeTag = (t, bg) => times.push(axisTag(m.x(t), when(t), bg));
-    const all = draw.items.map(d => ({ d, sel: d.id === draw.sel, hover: d.id === draw.hover }));
-    if (draw.temp) all.push({ d: draw.temp, sel: true });
-    if (draw.measure) all.push({ d: { type: 'measure', ...draw.measure }, sel: false });
-    for (const it of all) {
-      const s = this.shape(it.d, m), d = it.d;
-      if (!s) continue;
-      shapes.push({ ...it, s });
-      if (d.type === 'hline') priceTag(d.a.p, INK_TAG);
-      else if (d.type === 'vline') timeTag(d.a.t, INK_TAG);
-      else if (it.sel || d.type === 'measure') { priceTag(d.a.p, INK_TAG); priceTag(d.b.p, INK_TAG); timeTag(d.a.t, INK_TAG); timeTag(d.b.t, INK_TAG); }
-    }
-  }
-  render(target) {
-    const m = this.m;
-    if (!m || !this.shapes.length) return;
-    target.useBitmapCoordinateSpace(({ context: c, bitmapSize, horizontalPixelRatio: hr, verticalPixelRatio: vr }) => {
-      const W = bitmapSize.width, H = bitmapSize.height, X = x => x * hr, Y = y => y * vr;
-      const px = w => Math.max(1, Math.round(w * hr));  // a line width in device pixels
-      const crisp = (v, r, w) => Math.round(v * r) + (w % 2 ? 0.5 : 0);  // straight thin lines on whole pixels stay sharp
-      const seg = (x1, y1, x2, y2) => { c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); };
-      const handle = (x, y) => { c.beginPath(); c.arc(X(x), Y(y), 4.5 * hr, 0, 2 * Math.PI); c.fillStyle = C.bg; c.fill();
-                                 c.lineWidth = px(1.5); c.strokeStyle = INK; c.stroke(); };
-      const arrow = (x1, y1, x2, y2) => {  // screen points; the head at (x2, y2)
-        seg(X(x1), Y(y1), X(x2), Y(y2));
-        const len = Math.hypot(x2 - x1, y2 - y1);
-        if (len < 12) return;
-        const ux = (x2 - x1) / len, uy = (y2 - y1) / len;
-        c.beginPath(); c.moveTo(X(x2 - 7 * ux + 4 * uy), Y(y2 - 7 * uy - 4 * ux)); c.lineTo(X(x2), Y(y2));
-        c.lineTo(X(x2 - 7 * ux - 4 * uy), Y(y2 - 7 * uy + 4 * ux)); c.stroke();
-      };
-      const box = (x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
-                                       c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
-      const font = (size, weight) => `${weight} ${Math.round(size * vr)}px "IBM Plex Mono", ui-monospace, Consolas, monospace`;
-      c.save();
-      c.lineCap = 'round';
-      for (const { d, s, sel, hover } of this.shapes) {
-        const bold = sel || hover;
-        c.setLineDash([]); c.strokeStyle = INK;
-        if (d.type === 'hline') {
-          const w = px(bold ? 2 : 1), y = crisp(s.y, vr, w);
-          c.lineWidth = w; seg(0, y, W, y);
-          if (sel) handle(W / hr / 2, s.y);
-        } else if (d.type === 'vline') {
-          const w = px(bold ? 2 : 1), x = crisp(s.x, hr, w);
-          c.lineWidth = w; seg(x, 0, x, H);
-          if (sel) handle(s.x, H / vr / 2);
-        } else if (d.type === 'trend') {
-          c.lineWidth = px(bold ? 2.5 : 2); seg(X(s.x1), Y(s.y1), X(s.x2), Y(s.y2));
-        } else if (d.type === 'rect') {
-          const w = px(bold ? 2 : 1), l = crisp(Math.min(s.x1, s.x2), hr, w), r = crisp(Math.max(s.x1, s.x2), hr, w);
-          const t = crisp(Math.min(s.y1, s.y2), vr, w), b = crisp(Math.max(s.y1, s.y2), vr, w);
-          c.fillStyle = INK_FILL; c.fillRect(l, t, r - l, b - t); c.lineWidth = w; c.strokeRect(l, t, r - l, b - t);
-        } else if (d.type === 'fib') {
-          const l = Math.min(s.x1, s.x2), r = Math.max(s.x1, s.x2);
-          c.lineWidth = px(1); c.strokeStyle = 'rgba(141, 153, 171, 0.55)'; c.setLineDash([4 * hr, 4 * hr]);
-          seg(X(s.x1), Y(s.y1), X(s.x2), Y(s.y2)); c.setLineDash([]);
-          c.font = font(10, 500); c.textBaseline = 'middle';
-          for (const [level, color] of FIB) {
-            const v = fibPrice(d, level), y = m.y(v);
-            if (y === null) continue;
-            const w = px(bold ? 1.5 : 1), text = `${level} (${num(v)})`, left = X(l) - 6 * hr - c.measureText(text).width >= 0;
-            c.strokeStyle = color; c.lineWidth = w; seg(X(l), crisp(y, vr, w), X(r), crisp(y, vr, w));
-            c.fillStyle = color; c.textAlign = left ? 'right' : 'left';  // the label left of the levels when it fits
-            c.fillText(text, left ? X(l) - 6 * hr : X(r) + 6 * hr, Y(y));
-          }
-        } else if (d.type === 'measure') {
-          const up = d.b.p >= d.a.p, col = up ? INK : C.down;
-          const l = Math.min(s.x1, s.x2), r = Math.max(s.x1, s.x2), t = Math.min(s.y1, s.y2), b = Math.max(s.y1, s.y2);
-          c.fillStyle = up ? 'rgba(167, 139, 250, 0.16)' : 'rgba(240, 85, 95, 0.16)'; c.fillRect(X(l), Y(t), X(r - l), Y(b - t));
-          c.strokeStyle = col; c.lineWidth = px(1.5);
-          arrow((s.x1 + s.x2) / 2, s.y1, (s.x1 + s.x2) / 2, s.y2); arrow(s.x1, (s.y1 + s.y2) / 2, s.x2, (s.y1 + s.y2) / 2);
-          const bars = this.panel.mainBars, dp = d.b.p - d.a.p;
-          const n = Math.round(Math.abs(indexAt(bars, tf, d.b.t) - indexAt(bars, tf, d.a.t)));
-          const lines = [`${sgn(dp, 2)}  (${pct(dp / d.a.p)})`, `${n} bar${n === 1 ? '' : 's'}, ${lasting(Math.abs(d.b.t - d.a.t))}`];
-          c.font = font(11, 600);
-          const bw = Math.max(...lines.map(text => c.measureText(text).width)) + 18 * hr, bh = 38 * vr;
-          const bx = Math.max(2 * hr, Math.min(W - bw - 2 * hr, X((l + r) / 2) - bw / 2));
-          const by = Math.max(2 * vr, Math.min(H - bh - 2 * vr, up ? Y(t) - bh - 8 * vr : Y(b) + 8 * vr));
-          box(bx, by, bw, bh, 5 * hr); c.fillStyle = col; c.fill();
-          c.fillStyle = '#ffffff'; c.textAlign = 'center'; c.textBaseline = 'middle';
-          c.fillText(lines[0], bx + bw / 2, by + bh * 0.3); c.fillText(lines[1], bx + bw / 2, by + bh * 0.72);
-        }
-        if (sel && d.type !== 'measure' && TWO_POINTS.includes(d.type)) {
-          handle(s.x1, s.y1); handle(s.x2, s.y2);
-          if (d.type === 'rect') { handle(s.x1, s.y2); handle(s.x2, s.y1); }
-        }
-      }
-      c.restore();
-    });
-  }
-}
 
-function redrawDrawings() { for (const p of Object.values(panels)) if (p.layer && p.layer.requestUpdate) p.layer.requestUpdate(); }
-function saveDrawings() { try { localStorage.setItem('nsb.drawings.basket', JSON.stringify(draw.items)); } catch (e) {} showRail(); }
-function remember(state = JSON.stringify(draw.items)) { draw.undo.push(state); if (draw.undo.length > 100) draw.undo.shift(); }
-function showRail() {
-  for (const b of document.querySelectorAll('#rail [data-tool]')) b.setAttribute('aria-pressed', String(b.dataset.tool === draw.tool));
-  $('d-magnet').setAttribute('aria-pressed', String(draw.magnet));
-  $('d-undo').disabled = !draw.undo.length;
-  $('d-delete').disabled = !draw.sel;
-  $('d-clear').disabled = !draw.items.length;
-}
-function setTool(tool) {
-  draw.tool = tool; draw.temp = null; draw.tempPanel = null;
-  for (const p of Object.values(panels)) p.mainEl.classList.toggle('drawing', tool !== 'cursor');
-  showRail(); redrawDrawings();
-}
-const pointer = (p, e) => { const r = p.mainEl.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-function onDrawDown(e, panel) {
-  if (e.button !== 0 || draw.gesture) return;
-  const layer = panel.layer, m = layer.map(), [x, y] = pointer(panel, e);
-  if (!m || x < 0 || y < 0 || x > m.w || y > m.h) return;  // the price and time axes keep their drag-to-scale
-  if (draw.temp) { finishTemp(layer.at(x, y)); draw.press = true; return; }  // the second click of click, move, click
-  if (draw.measure) { draw.measure = null; redrawDrawings(); }
-  const tool = draw.tool === 'cursor' && e.shiftKey ? 'measure' : draw.tool;  // Shift+drag: a quick measure
-  const start = { panel, x0: e.clientX, y0: e.clientY, moved: false };
-  if (tool === 'cursor') {
-    const h = layer.hit(x, y);
-    if (!h) { if (draw.sel) { draw.sel = null; showRail(); redrawDrawings(); } return; }  // empty space: the chart scrolls as usual
-    draw.sel = h.item.id;
-    draw.gesture = { ...start, kind: 'drag', item: h.item, part: h.part, orig: copy(h.item), before: JSON.stringify(draw.items),
-                     from: { i: m.index(x), p: m.price(y) } };
-  } else {
-    const pt = layer.at(x, y);
-    if (!pt) return;
-    if (tool === 'hline' || tool === 'vline') {  // placed at once; dragging before letting go moves it
-      const before = JSON.stringify(draw.items), item = { id: uid(), type: tool, a: pt };
-      draw.items.push(item); draw.sel = item.id;
-      setTool('cursor');
-      draw.gesture = { ...start, kind: 'drag', item, part: 'a', orig: copy(item), before, created: true };
-    } else {  // two points: drag from one to the other, or click one, move, click the other
-      draw.temp = { type: tool, a: pt, b: { ...pt } }; draw.tempPanel = panel;
-      draw.gesture = { ...start, kind: 'create' };
-    }
+// drawings: the shared sidebar (draw.js); the horizontal and vertical lines drawn with the old toolbar come along
+try {
+  if (localStorage.getItem('nsb.draw.signals') === null) {
+    const old = JSON.parse(localStorage.getItem('nsb.drawings.basket') || '[]');
+    const keep = (Array.isArray(old) ? old : []).filter(d => d && (d.type === 'hline' || d.type === 'vline') && d.a && ok(d.a.t) && ok(d.a.p))
+      .map(d => ({ id: d.id, type: d.type, src: 'basket', a: { t: d.a.t, p: d.a.p, r: d.a.p } }));
+    localStorage.setItem('nsb.draw.signals', JSON.stringify(keep));
   }
-  draw.press = true;
-  showRail(); redrawDrawings();
-}
-function dragTo(g, x, y) {
-  const m = g.panel.layer.map(), d = g.item, o = g.orig, bars = g.panel.mainBars;
-  if (!m) return;
-  if (g.part === 'body') {  // the whole drawing moves by whole bars in time and by the price difference
-    const di = Math.round(m.index(x) - g.from.i), dp = m.price(y) - g.from.p;
-    if (!ok(dp)) return;
-    const move = q => ({ t: timeAt(bars, tf, indexAt(bars, tf, q.t) + di), p: q.p + dp });
-    if (d.type === 'hline') d.a = { t: o.a.t, p: o.a.p + dp };
-    else if (d.type === 'vline') d.a = { t: move(o.a).t, p: o.a.p };
-    else { d.a = move(o.a); d.b = move(o.b); }
-    return;
-  }
-  const pt = g.panel.layer.at(x, y);
-  if (!pt) return;
-  if (g.part === 'a') d.a = pt;
-  else if (g.part === 'b') d.b = pt;
-  else if (g.part === 'ab') { d.a = { t: pt.t, p: d.a.p }; d.b = { t: d.b.t, p: pt.p }; }  // the corner at a's time and b's price
-  else { d.b = { t: pt.t, p: d.b.p }; d.a = { t: d.a.t, p: pt.p }; }                       // the corner at b's time and a's price
-}
-function onDrawMove(e) {
-  const g = draw.gesture;
-  if (g) {
-    if (!g.moved && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) > 3) g.moved = true;
-    const [x, y] = pointer(g.panel, e);
-    if (g.kind === 'create') { const pt = g.panel.layer.at(x, y); if (pt) draw.temp.b = pt; }
-    else if (g.moved) dragTo(g, x, y);
-    redrawDrawings();
-  } else if (draw.temp) {  // between the two clicks, the free end follows the pointer
-    const [x, y] = pointer(draw.tempPanel, e), pt = draw.tempPanel.layer.at(x, y);
-    if (pt) { draw.temp.b = pt; redrawDrawings(); }
-  }
-}
-function onDrawUp() {
-  draw.press = false;
-  const g = draw.gesture;
-  if (!g) return;
-  draw.gesture = null;
-  if (g.kind === 'create') { if (g.moved) finishTemp(null); }  // after a plain click it waits for the second click
-  else if (g.moved || g.created) { remember(g.before); saveDrawings(); }
-  redrawDrawings();
-}
-function finishTemp(pt) {
-  const t = draw.temp;
-  draw.temp = null; draw.tempPanel = null;
-  if (!t) return;
-  if (pt) t.b = pt;
-  if (t.type === 'measure') draw.measure = { a: t.a, b: t.b };  // shown until the next click or Esc
-  else if (t.a.t !== t.b.t || t.a.p !== t.b.p) {
-    remember();
-    const item = { id: uid(), type: t.type, a: t.a, b: t.b };
-    draw.items.push(item); draw.sel = item.id;
-    saveDrawings();
-  }
-  setTool('cursor');
-}
-function deleteDrawing() {
-  if (!draw.sel) return;
-  remember(); draw.items = draw.items.filter(d => d.id !== draw.sel); draw.sel = null;
-  saveDrawings(); redrawDrawings();
-}
-function undoDrawing() {
-  const prev = draw.undo.pop();
-  if (prev === undefined) return;
-  draw.items = JSON.parse(prev); draw.sel = null;
-  saveDrawings(); redrawDrawings();
-}
-let toastTimer = 0;
-function clearDrawings() {
-  const n = draw.items.length;
-  if (!n) return;
-  remember(); draw.items = []; draw.sel = null;
-  saveDrawings(); redrawDrawings();
-  $('toast-text').textContent = `Removed ${n} drawing${n === 1 ? '' : 's'}`; $('toast').hidden = false;
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 6000);
-}
-window.addEventListener('pointermove', onDrawMove);
-window.addEventListener('pointerup', onDrawUp);
-window.addEventListener('pointercancel', onDrawUp);
-window.addEventListener('keydown', e => {
-  if (e.target.closest && e.target.closest('input, textarea, select')) return;
-  if (e.key === 'Escape') {
-    const g = draw.gesture;
-    if (g && g.kind === 'drag') draw.items = JSON.parse(g.before);  // put a half-dragged drawing back
-    draw.gesture = null; draw.press = false; draw.measure = null; draw.sel = null;
-    setTool('cursor');
-  } else if ((e.key === 'Delete' || e.key === 'Backspace') && draw.sel && !draw.gesture) {
-    e.preventDefault(); deleteDrawing();
-  } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !draw.gesture) {
-    e.preventDefault(); undoDrawing();
-  }
-});
-for (const b of document.querySelectorAll('#rail [data-tool]')) b.onclick = () => setTool(b.dataset.tool === draw.tool ? 'cursor' : b.dataset.tool);
-$('d-magnet').onclick = () => {
-  draw.magnet = !draw.magnet;
-  try { localStorage.setItem('ndx10.magnet', draw.magnet ? '1' : '0'); } catch (e) {}
-  showRail();
-};
-$('d-undo').onclick = undoDrawing;
-$('d-delete').onclick = deleteDrawing;
-$('d-clear').onclick = clearDrawings;
-$('toast-undo').onclick = () => { undoDrawing(); $('toast').hidden = true; };
-showRail();
+} catch (e) {}
+NsbDraw.setup({ key: 'nsb.draw.signals', when });
 
 // ---- shared state ------------------------------------------------------------------------------
 let tf = 3;
@@ -915,15 +532,8 @@ class Panel {
     this.zones = new ZoneLayer(this, () => this.main, false);  // the Trend waves switched on (no gate words on them)
     this.candles.attachPrimitive(this.zones);
     this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 48));  // over the zones' tint
-    // drawings: the layer paints them; a press that starts a drawing or grabs one never reaches the chart,
-    // so the chart doesn't scroll at the same time (its crosshair still follows the mouse)
     this.mainEl = $(`${key}-pmain`);
-    this.layer = new DrawLayer(this);
-    this.candles.attachPrimitive(this.layer);
-    this.mainEl.addEventListener('pointerdown', e => onDrawDown(e, this), true);
-    this.mainEl.addEventListener('mousedown', e => { if (draw.press) { e.stopPropagation(); e.preventDefault(); } }, true);
-    this.mainEl.addEventListener('touchstart', e => { if (draw.press) e.stopPropagation(); }, { capture: true, passive: true });
-    this.mainEl.addEventListener('mouseleave', () => { if (draw.hover) { draw.hover = null; redrawDrawings(); } });
+    NsbDraw.add({ id: 'basket', chart: this.main, series: this.candles, el: this.mainEl, bars: () => this.mainBars, tf: () => tf, fmt: v => num(v) });
     allCharts.push({ panel: this, key: 'main', chart: this.main, anchor: this.candles, minutes: () => tf, value: b => b.close });
     // MACD panes. Their scale always takes in 0, so the zero line (what the 5m and 7m rules test) stays in view
     const withZero = base => { const r = base();
