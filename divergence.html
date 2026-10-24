@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="focus.js?v=1" defer></script>
-<script src="macd.js?v=9a50802031"></script>
+<script src="macd.js?v=2971a2afbd"></script>
 <style>
   /* The Divergence page: where the 10-stock signal (NDX10) and the index signal (NAS100) disagree. A status row,
      then one XYZ100 chart marked only at those moments, and XYZ100's Trend and Entry MACD panes. */
@@ -265,7 +265,7 @@
       <h3>The marks</h3>
       <p><b class="alone">Index alone</b>: the index's gate is LONG while the stocks' isn't. <b class="up">Stocks first</b>: the stocks' gate is LONG while the index's isn't yet. <b>Other</b>: they differ in another way. These have not been studied for the gate yet, so the page makes no claim about what follows them.</p>
       <h3>The MACD pane</h3>
-      <p>Under the chart are XYZ100's two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the gate. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>, the gate's three MACD rules, plus <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each wave has two colors of its own, one while its MACD is above 0 and another while below, so its color changes where it crosses zero; the chips in a pane's label show each wave's pair (left: above 0, right: below). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Both panes are shaded by the combined gate: green where both gates are LONG, red where both are SHORT. Dashed vertical lines mark where a new day begins in your timezone.</p>
+      <p>Under the chart are XYZ100's two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the gate. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>, the gate's three MACD rules, plus <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each wave has two colors of its own, one while its MACD is above 0 and another while below, so its color changes where it crosses zero; the chips in a pane's label show each wave's pair (left: above 0, right: below). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Both panes are coloured by XYZ100's Trend waves you switch on: green where every one of them is above 0, red where every one is below (no colour with all of them off). Dashed vertical lines mark where a new day begins in your timezone.</p>
       <p>For information only, not investment advice.</p>
     </div>
   </details>
@@ -415,7 +415,7 @@ function makeChart() {
     el: $(`p${kind}`), tagEl: $(`t${kind}`), kind, name: 'XYZ100', digits: 2,
     options: { ...base, watermark: { visible: false }, handleScroll: false, handleScale: false, timeScale: { ...base.timeScale, visible: false } },
     bars: () => mainBars, tf: () => tf, src: () => macd, stocks: () => macdStocks,
-    shade: i => pairs[i] ? combine(pairs[i].sn, pairs[i].sx) : null,  // the combined gate
+    shade: i => NsbMacd.trendState(panes.trend && panes.trend.pts[i]),  // XYZ100's Trend waves switched on
   });
   chart.timeScale().subscribeVisibleLogicalRangeChange(syncMix);
   NsbMacd.onToggle(() => { for (const pane of Object.values(panes)) pane.showLines(); mixTag(); });

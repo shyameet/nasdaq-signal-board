@@ -83,6 +83,17 @@ function matchAt(a, b, lines) {  // the stocks' and the index's points at one ca
   return up === on.length ? 'BULLISH' : down === on.length ? 'BEARISH' : null;
 }
 
+// The colour at one candle (owner 24/10/2026): from the Trend waves switched on (5m, 7m, 9m, 11m, 15m), green where
+// every one of them is above 0, red where every one is below, none otherwise or with all of them off. The price chart
+// and both panes use it, on every page; the gate itself is shown in words.
+function trendState(pt) {
+  const on = PANES.trend.lines.filter(m => show[m]);
+  if (!pt || !on.length) return null;
+  let up = 0, down = 0;
+  for (const m of on) { const v = pt.v[m]; if (!ok(v)) return null; if (v > 0) up += 1; else if (v < 0) down += 1; }
+  return up === on.length ? 'BULLISH' : down === on.length ? 'BEARISH' : null;
+}
+
 // ---- series primitives ----------------------------------------------------------------------------------
 class Bands {  // colored bands behind a chart's series, one per run of candles: state(i) -> color or null
   constructor(chart, count, state) {
@@ -189,7 +200,7 @@ class MacdPane {
       this.sigs[m] = line(faded(PAIRS[m][0], 0.55), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
     this.zero.priceScale().applyOptions({ scaleMargins: { top: 0.2, bottom: 0.06 } });
     this.shading = new Bands(() => chart, () => this.pts.length, i => {
-      if (this.shade) return MATCH[this.shade(i)] || null;  // the page's state at candle i: the gate
+      if (this.shade) return MATCH[this.shade(i)] || null;  // the page's state at candle i (the Trend waves switched on)
       const [a, b] = this.pair();
       return MATCH[matchAt(a[i], b[i], this.lines)] || null;
     });
@@ -285,5 +296,5 @@ css.textContent = `
 `;
 document.head.appendChild(css);
 
-window.NsbMacd = { PANES, LINES, COLOR, MacdPane, DayLines, Bands, show, toggle, onToggle: fn => listeners.push(fn), points, matchAt };
+window.NsbMacd = { PANES, LINES, COLOR, MacdPane, DayLines, Bands, show, toggle, onToggle: fn => listeners.push(fn), points, matchAt, trendState };
 })();

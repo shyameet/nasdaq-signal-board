@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="focus.js?v=1" defer></script>
-<script src="macd.js?v=9a50802031"></script>
+<script src="macd.js?v=2971a2afbd"></script>
 <script src="engine.js?v=6cb90571d0"></script>
 <style>
   /* The Replay page: one UTC day at a time. Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
@@ -452,12 +452,12 @@ class Panel {
     this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.14 } });
     const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e21 = emaLine(C.ema21); this.e47 = emaLine(C.ema47);
-    this.zones = new Bands(() => this.main, () => this.mainStates.length, i => ZONE[this.mainStates[i]] || null);
+    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
     this.candles.attachPrimitive(this.zones);
     this.macd = {};
     for (const k of ['entry', 'trend']) this.macd[k] = new MacdPane({
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 2, options: options(false, false, ''),
-      bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.mainStates[i],
+      bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.waveAt(i),
     });
     this.main.timeScale().subscribeVisibleLogicalRangeChange(r => { for (const p of Object.values(this.macd)) p.sync(r); syncOther(this); });
     // one crosshair over this chart and its panes (and the other chart at the same time)
@@ -472,6 +472,7 @@ class Panel {
     });
     for (const k of ['pmain', 'pentry', 'ptrend']) $(`${key}-${k}`).addEventListener('mouseleave', () => hoverAll(this, undefined));
   }
+  waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }  // the colour at candle i
   get side() { return day[this.key]; }
   draw(full) {  // the whole day
     const side = this.side, upto = Infinity;
@@ -704,7 +705,7 @@ function buildPicker() {
 }
 
 // ---- start ---------------------------------------------------------------------------------------------------
-NsbMacd.onToggle(() => { for (const p of Object.values(panels)) for (const pane of Object.values(p.macd)) pane.showLines(); refreshText(); });
+NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } refreshText(); });
 (async () => {
   try {
     loading('Loading the list of days…');

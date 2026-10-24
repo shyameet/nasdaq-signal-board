@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="focus.js?v=1" defer></script>
-<script src="macd.js?v=9a50802031"></script>
+<script src="macd.js?v=2971a2afbd"></script>
 <script src="engine.js?v=6cb90571d0"></script>
 <style>
   /* India Replay: one Indian trading day at a time, from the VPS's saved Dhan 1-minute candles (data/india/1m/).
@@ -426,12 +426,12 @@ class Panel {
     this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.14, bottom: 0.14 } });
     const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e21 = emaLine(C.ema21); this.e47 = emaLine(C.ema47);
-    this.zones = new Bands(() => this.main, () => this.mainStates.length, i => ZONE[this.mainStates[i]] || null);
+    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
     this.candles.attachPrimitive(this.zones);
     this.macd = {};
     if (panes) for (const k of ['entry', 'trend']) this.macd[k] = new MacdPane({
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 3, options: options(false, false), origin: this.origin,
-      bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.mainStates[i],
+      bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.waveAt(i),
     });
     this.main.timeScale().subscribeVisibleLogicalRangeChange(r => { for (const p of Object.values(this.macd)) p.sync(r); });
     const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
@@ -457,6 +457,7 @@ class Panel {
     const full = mode !== 'tile';
     this.main.applyOptions({ handleScroll: full, handleScale: full, timeScale: { visible: full }, rightPriceScale: { minimumWidth: full ? 70 : 56 } });
   }
+  waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }  // the colour at candle i
   remove() { this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
   shadeAt(t) {  // the state a candle is shaded by, at minute t
     if (this.role === 'gift') return day.runs[this.market].stateAt.get(t) || null;
@@ -779,7 +780,7 @@ async function openDay(key) {
 const loading = text => { if (text === null) { $('loading').hidden = true; return; } $('loading').hidden = false; $('loading-text').textContent = text; };
 
 // ---- start ---------------------------------------------------------------------------------------------------
-NsbMacd.onToggle(() => { for (const p of Object.values(panels)) for (const pane of Object.values(p.macd)) pane.showLines(); refreshText(); });
+NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } refreshText(); });
 (async () => {
   try {
     loading('Loading the list of days…');

@@ -30,7 +30,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="focus.js?v=1" defer></script>
-<script src="macd.js?v=9a50802031"></script>
+<script src="macd.js?v=2971a2afbd"></script>
 <style>
   /* Layout: one chart of your stocks' composite: a header (the gate and its four conditions), its candles with the gate's zones and 3m EMAs, then the Entry and Trend MACD panes. One crosshair. */
   :root {
@@ -330,7 +330,7 @@
       <p>It shades the chart and the MACD panes, and sets the alerts. The header shows the gate and its four conditions. MACD is 12/26/9.</p>
       <h3>Your stocks</h3>
       <p>The chart is your own composite of the stocks you pick (<b>Stocks</b> button, top right; the 10 largest Nasdaq-100 stocks that trade on Hyperliquid by default, plus AVGO, TSM and INTC; any 1 to 13 of them). Each stock you pick counts equally, so the composite is 1000 at the basket's reference close and each minute's close is 1000 times the average of the stocks' moves since then. The gate is LONG only when every stock you pick is LONG on its own candles, SHORT only when every one is SHORT, and NO TRADE otherwise; the rule tiles show the composite's own values. Each minute's open is the previous minute's close and its high and low the larger and smaller of the two (live candles also catch the highs and lows in between), so older candles have shorter wicks than live ones. Volume is the stocks' combined dollar volume. The pick is shared with the Divergence page and kept in this browser.</p>
-      <p>Under the price chart are two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the gate. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>, the gate's three MACD rules, plus <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each wave has two colors of its own, one while its MACD is above 0 and another while below, so its color changes where it crosses zero; the chips in a pane's label show each wave's pair (left: above 0, right: below). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. Both panes are shaded by the gate: green while LONG, red while SHORT. Dashed vertical lines mark where a new day begins in your timezone.</p>
+      <p>Under the price chart are two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the gate. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>, the gate's three MACD rules, plus <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each wave has two colors of its own, one while its MACD is above 0 and another while below, so its color changes where it crosses zero; the chips in a pane's label show each wave's pair (left: above 0, right: below). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. The price chart and both panes are coloured by the Trend waves you switch on: green where every one of them is above 0, red where every one is below (no colour with all of them off); the gate itself is the word in the header. Dashed vertical lines mark where a new day begins in your timezone.</p>
       <h3>The charts</h3>
       <p>Zones: green while the gate is LONG (labeled ▲ LONG), red while it is SHORT, no color for NO TRADE. The zone is the gate, not the candle: a red candle can sit in a green zone. The forming candle shows the gate live. The amber and blue lines are your stocks' 3m EMA 21 and EMA 47 that the gate tests, as of each candle's close. Times are in your timezone.</p>
       <h3>Drawing tools</h3>
@@ -492,7 +492,7 @@ class ZoneLayer {  // green and red bands behind the candles: the panel's signal
   detached() { this.requestUpdate = null; }
   paneViews() { return this.views; }
   updateAllViews() {  // one band per run of candles in the same bullish or bearish state, edge to edge, so no gaps
-    const st = this.panel.mainStates, ts = this.chart().timeScale(), bands = [];
+    const st = this.panel.mainBars.map((b, i) => this.panel.waveAt(i)), ts = this.chart().timeScale(), bands = [];
     const x0 = st.length ? ts.logicalToCoordinate(0) : null, x1 = st.length ? ts.logicalToCoordinate(1) : null;
     if (x0 !== null && x1 !== null) {
       const step = x1 - x0;
@@ -896,7 +896,7 @@ class Panel {
     const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e8 = emaLine(C.ema8); this.e21 = emaLine(C.ema21);
     // the signal zones behind the candles: green while bullish, red while bearish
-    this.zones = new ZoneLayer(this);
+    this.zones = new ZoneLayer(this, () => this.main, false);  // the Trend waves switched on (no gate words on them)
     this.candles.attachPrimitive(this.zones);
     this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 48));  // over the zones' tint
     // drawings: the layer paints them; a press that starts a drawing or grabs one never reaches the chart,
@@ -930,7 +930,7 @@ class Panel {
     for (const kind of MACD_KINDS) {
       const pane = this.macd[kind] = new MacdPane({
         el: $(`${key}-p${kind}`), tagEl: $(`${key}-t${kind}`), kind, name: NAME, digits: cfg.macdDigits, options: options(false, false),
-        bars: () => this.mainBars, tf: () => tf, src: () => this.paneBars, shade: i => this.mainStates[i],
+        bars: () => this.mainBars, tf: () => tf, src: () => this.paneBars, shade: i => this.waveAt(i),
       });
       this.store[kind] = pane.store;
       allCharts.push({ panel: this, key: kind, chart: pane.chart, anchor: pane.zero, minutes: () => tf, value: q => pane.value(q) });
@@ -967,7 +967,8 @@ class Panel {
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const pane of Object.values(this.macd)) pane.shading.update();
   }
-  // ---- price chart: your stocks' candles, with the gate as zones ----
+  waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }  // the colour at candle i
+  // ---- price chart: your stocks' candles, coloured by the Trend waves switched on ----
   closedState(b) {  // the gate at the bar's last finished minute
     for (let t = bucketEnd(b.time, tf) - 60000; t >= b.time; t -= 60000) { const s = gateAt(t); if (s) return s; }
     return null;
@@ -1187,7 +1188,7 @@ const allTags = () => allCharts.forEach(c => c.panel.tag(c.key));
 // one crosshair across every chart of both panels
 let hoverChart = null;  // the chart under the mouse
 NsbMacd.onToggle(() => {
-  for (const p of Object.values(panels)) for (const pane of Object.values(p.macd)) pane.showLines();
+  for (const p of Object.values(panels)) { for (const pane of Object.values(p.macd)) pane.showLines(); if (p.zones.requestUpdate) p.zones.requestUpdate(); }
   allTags();
 });
 function setupCrosshair() {
