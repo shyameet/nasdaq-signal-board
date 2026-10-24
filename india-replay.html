@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="focus.js?v=1" defer></script>
-<script src="macd.js?v=c78f80a66c"></script>
+<script src="macd.js?v=9a50802031"></script>
 <script src="engine.js?v=6cb90571d0"></script>
 <style>
   /* India Replay: one Indian trading day at a time, from the VPS's saved Dhan 1-minute candles (data/india/1m/).
@@ -38,7 +38,7 @@
   .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
   .up { color: var(--up); } .down { color: var(--down); }
 
-  /* ---- one slim bar (owner 24/10/2026): tabs, setup, day, candles, play and the rules in one row ---- */
+  /* ---- one slim bar (owner 24/10/2026): tabs, setup, day, candles and 2m / 3m in one row; always the whole day ---- */
   .topbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; padding: 5px 10px;
             background: var(--surface); border-bottom: 1px solid var(--line); }
   .brand { display: flex; align-items: center; }
@@ -61,7 +61,6 @@
   .btn[aria-pressed="true"] { border-color: var(--accent); background: rgba(91, 140, 255, .14); }
   select.btn { padding-right: 4px; }
   .day { font-family: var(--font-num); }
-  .clock { font-family: var(--font-num); font-size: 12px; color: var(--text); min-width: 42px; }
 
   /* ---- steps 1 / 2 / 3: chips in the big chart's header (point at one for the details) ---- */
   .steps { margin-left: auto; display: inline-flex; gap: 6px; }
@@ -75,9 +74,11 @@
 
   /* ---- the charts ---- */
   /* one big chart, the others as small tiles on the right (owner 24/10/2026); click a tile (or 1 / 2 / 3) to swap */
-  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(240px, 22vw, 340px); grid-template-rows: minmax(0, 1fr); }
+  .board { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 78fr) minmax(0, 22fr); grid-template-rows: minmax(0, 1fr); }
   .panel { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .panel.big { grid-column: 1; grid-row: 1 / -1; }
+  .panel.half { grid-row: 1; }   /* two charts (Bank Nifty): side by side, equal by default (owner 24/10/2026) */
+  .panel.half + .panel.half { border-left: 1px solid var(--line-strong); }
   .panel.tile { grid-column: 2; border-left: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); cursor: pointer; }
   .panel.tile::after { content: ""; position: absolute; inset: 0; z-index: 8; }   /* the whole tile is one button */
   .panel.tile:hover { box-shadow: inset 0 0 0 1px var(--accent); }
@@ -86,6 +87,17 @@
   .panel.tile .phead > .gw { display: inline-flex; }
   .panel.tile .phead::after { content: "click to enlarge"; margin-left: auto; color: var(--faint); font-size: 10.5px; }
   .panel.big .pname { display: none; }   /* the switch in its header shows the name */
+  /* drag handles: between the charts, between the tiles, and between a price chart and its MACD panes (double-click: back to the default) */
+  .split { position: absolute; z-index: 20; touch-action: none; }
+  .split::after { content: ""; position: absolute; background: transparent; transition: background .12s; }
+  .split:hover::after, .split.on::after { background: var(--accent); }
+  .split.col { top: 0; bottom: 0; width: 9px; margin-left: -5px; cursor: col-resize; }
+  .split.col::after { left: 4px; top: 0; bottom: 0; width: 2px; }
+  .split.row { height: 9px; margin-top: -5px; cursor: row-resize; }
+  .split.row::after { top: 4px; left: 0; right: 0; height: 2px; }
+  .panel.tile .split { display: none; }
+  body.dragging, body.dragging * { cursor: inherit; user-select: none !important; }
+  body.dragging.col-drag { cursor: col-resize; } body.dragging.row-drag { cursor: row-resize; }
   .phead { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 5px 10px; border-bottom: 1px solid var(--line); }
   .phead > .gk, .phead > .gw, .phead > .conds { display: none; }   /* owner 23/10/2026: no "Gate SHORT 3m EMA 5m 9m" in the chart heads (the shading shows the gate) */
   .pname { font-size: 13.5px; font-weight: 700; }
@@ -98,8 +110,8 @@
   .warm { color: var(--warn); font-size: 11px; }
   .pextra { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; }
   .pextra .gw { padding: 1px 7px; font-size: 10.5px; }
-  .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 1fr; }
-  .stack.panes { grid-template-rows: 62fr 15fr 23fr; }
+  .stack { position: relative; flex: 1; min-height: 0; display: grid; grid-template-rows: 1fr; }
+  .stack.panes { grid-template-rows: 62fr 15fr 23fr; }   /* a drag on the handle changes the price chart's share */
   .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }
   .tag { position: absolute; top: 4px; left: 6px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 90px);
          padding: 3px 8px; border-radius: 6px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 11.5px; color: var(--muted);
@@ -130,7 +142,10 @@
   .how-body .credit { color: var(--muted); font-size: 11.5px; } .how-body .credit a { color: var(--muted); }
   @media (max-width: 1100px) {
     html, body { height: auto; }
-    .board { grid-template-columns: minmax(0, 1fr); grid-template-rows: none !important; }
+    .board { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: none !important; }
+    .board > .split { display: none; }
+    .panel.half { grid-row: auto; height: 88vh; min-height: 560px; }
+    .panel.half + .panel.half { border-left: 0; }
     .panel.big { grid-row: auto; height: 88vh; min-height: 560px; }
     .panel.tile { grid-column: 1; height: 34vh; min-height: 220px; border-left: 0; }
     .steps { margin-left: 0; flex-wrap: wrap; }
@@ -149,17 +164,8 @@
   </div>
   <div class="grp" title="Candle size"><div class="seg" id="tfs" role="group" aria-label="Candle size"></div></div>
   <div class="grp">
-    <button class="btn" id="whole" type="button" aria-pressed="true" title="Show the whole day; off: only up to the replay time">Whole day</button>
-    <button class="btn" id="stepBack" type="button" title="One candle back (←)">⏮</button>
-    <button class="btn" id="play" type="button" title="Play / pause (space)">▶ Play</button>
-    <button class="btn" id="stepFwd" type="button" title="One candle forward (→)">⏭</button>
-    <select class="btn" id="speed" aria-label="Playback speed" title="Candles per second"></select>
-    <span class="clock" id="clock">—</span>
-  </div>
-  <div class="grp">
     <button class="btn" id="sc2" type="button" aria-pressed="true" title="Show the 2m scalper's entries">2m</button>
     <button class="btn" id="sc3" type="button" aria-pressed="true" title="Show the 3m scalper's entries">3m</button>
-    <button class="btn" id="oneTrend" type="button" aria-pressed="false" title="Only the direction of the day's first index trend counts">1 trend/day</button>
   </div>
   <details class="how">
     <summary title="How it works">?</summary>
@@ -170,9 +176,9 @@
       <h3>The gate</h3>
       <p>For each market on its own candles: LONG when the 5m, 9m and 11m MACD are all above 0 and the 3m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. Exactly the Nasdaq pages' gate. Each indicator is warmed up on the saved days before, so it reads what it would have read live.</p>
       <h3>Trends</h3>
-      <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown. <b>1 trend/day</b> keeps only entries in the direction of the day's first trend.</p>
+      <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown.</p>
       <h3>Charts</h3>
-      <p>One chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right, showing the whole day with their gate. Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. The index is shaded by step 1; GIFT NIFTY by its own gate (its whole session, 06:30 to 02:45 the next morning); the stock where step 2 holds, with its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <p>Nifty: one chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right, showing the whole day with their gate. Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. Bank Nifty: the two charts side by side, scrolling together. Drag the thin lines between the charts, between the tiles, or between a price chart and its MACD panes to size them as you like (remembered; double-click a line for the default). The index is shaded by step 1; GIFT NIFTY by its own gate (its whole session, 06:30 to 02:45 the next morning); the stock where step 2 holds, with its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
       <h3>Data</h3>
       <p>Dhan's 1-minute candles, saved by our VPS after each close, from 15 Oct 2026. Nothing is filled in: a minute with no trade has no candle. NSE stocks stop at 15:14 (the closing auction follows); the indices stay flat from 15:15 to 15:27, then move to the closing price at 15:28, as Dhan reports them. </p>
       <p class="credit">Not investment advice · Data: Dhan, via our VPS · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
@@ -197,7 +203,7 @@ const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', li
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
 const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
 const RULES = [['3m EMA21 vs EMA47', '3m EMA'], ['5m MACD vs 0', '5m'], ['9m MACD vs 0', '9m'], ['11m MACD vs 0', '11m']];
-const TFS = [1, 2, 3, 5], SPEEDS = [1, 2, 5, 10, 30];
+const TFS = [1, 2, 3, 5];
 // Each market's bars start at its session open, as on TradingView (ms after 00:00 UTC): NSE 09:15 IST, GIFT NIFTY 06:30 IST
 const NSE_OPEN = 3 * 3600000 + 45 * MIN, GIFT_OPEN = 1 * 3600000;
 const MARKETS = {
@@ -231,11 +237,10 @@ const save = (k, v) => { try { localStorage.setItem('nsb.ireplay.' + k, JSON.str
 
 // ---- settings (remembered in this browser) ----------------------------------------------------------------
 const opt = {
-  setup: SETUPS[pref('setup', 'nifty')] ? pref('setup', 'nifty') : 'nifty',
+  setup: SETUPS[location.hash.slice(1)] ? location.hash.slice(1)   // a link to a setup: india-replay.html#bank or #nifty
+       : SETUPS[pref('setup', 'nifty')] ? pref('setup', 'nifty') : 'nifty',
   tf: TFS.includes(pref('tf', 1)) ? pref('tf', 1) : 1,
   sc2: pref('sc2', true), sc3: pref('sc3', true),
-  oneTrend: pref('oneTrend', false),
-  speed: SPEEDS.includes(pref('speed', 5)) ? pref('speed', 5) : 5,
 };
 
 // ---- data: the VPS's saved days (data/india/1m/YYYY-MM-DD.json) -------------------------------------------
@@ -336,13 +341,10 @@ function lastMinuteIn(run, from, to) {  // the stock's last candle minute in [fr
 function entriesOf() {
   const want = [opt.sc2 && 2, opt.sc3 && 3].filter(Boolean), stk = day.runs[day.setup.stock], st = day.setupRun;
   const all = want.flatMap(m => crosses(stk, m)).sort((a, b) => a.t - b.t || a.m - b.m);
-  let dayDir = null;
-  for (const t of day.indexMinutes) if (t >= day.d0 && t < day.d1) { const s = st.at.get(t); if (s && s.step1 && s.trend === s.step1) { dayDir = s.step1; break; } }
   const out = [];
   for (const e of all) {  // every entry of a trend counts
     const s = st.at.get(e.k);
     if (!s || !s.synced || s.step1 !== e.dir || s.trend !== e.dir) continue;  // steps 1 and 2 at that candle's close
-    if (opt.oneTrend && e.dir !== dayDir) continue;
     if (e.k >= day.d0 && e.k < day.d1) out.push(e);
   }
   return out;
@@ -375,7 +377,6 @@ async function buildDay(key) {
   day.start = day.nse ? day.price[S.index][0].time : d0;
   day.end = Math.max(...markets.map(m => day.price[m].length ? day.price[m][day.price[m].length - 1].time + MIN : d0));
   day.nseEnd = lastNse + MIN;
-  cursor = Math.min(Math.max(cursor && cursor >= d0 && cursor < d1 ? cursor : day.start + 60 * MIN, d0), day.end);
   loading(null);
 }
 
@@ -443,11 +444,18 @@ class Panel {
       hoverAll(this, t);
     });
     for (const el of $(key).querySelectorAll('.pane')) el.addEventListener('mouseleave', () => hoverAll(this, undefined));
-    $(key).addEventListener('click', e => { if (bigKey !== this.key && !e.target.closest('#viewSel')) select(this.key); });
+    $(key).addEventListener('click', e => { if (this.mode === 'tile' && !e.target.closest('#viewSel')) select(this.key); });
+    const ps = document.createElement('div');  // the handle between the price chart and the MACD panes
+    ps.className = 'split row'; ps.title = 'Drag to size the price chart and its MACD panes (double-click: default)';
+    $(key).querySelector('.stack').append(ps); this.paneSplit = ps;
+    dragger(ps, 'row', e => { const r = $(key).querySelector('.stack').getBoundingClientRect(); setPriceShare((e.clientY - r.top) / r.height); },
+            () => setPriceShare(DEFAULT_PRICE));
   }
-  setBig(big) {  // big: scroll, zoom, time axis and MACD panes; a tile: the whole day at a glance, one click to enlarge
-    $(this.key).classList.toggle('big', big); $(this.key).classList.toggle('tile', !big);
-    this.main.applyOptions({ handleScroll: big, handleScale: big, timeScale: { visible: big }, rightPriceScale: { minimumWidth: big ? 70 : 56 } });
+  setMode(mode) {  // 'big' or 'half': scroll, zoom, time axis and MACD panes; 'tile': the whole day at a glance, one click to enlarge
+    this.mode = mode;
+    for (const m of ['big', 'half', 'tile']) $(this.key).classList.toggle(m, m === mode);
+    const full = mode !== 'tile';
+    this.main.applyOptions({ handleScroll: full, handleScale: full, timeScale: { visible: full }, rightPriceScale: { minimumWidth: full ? 70 : 56 } });
   }
   remove() { this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
   shadeAt(t) {  // the state a candle is shaded by, at minute t
@@ -458,7 +466,7 @@ class Panel {
     return s.synced ? s.step1 : null;  // the stock: where step 2 holds
   }
   draw() {
-    const upto = whole ? Infinity : cursor, tf = opt.tf, o = this.origin;
+    const upto = Infinity, tf = opt.tf, o = this.origin;
     const ones = day.price[this.market].filter(b => b.time < upto);
     this.mainBars = aggregate(ones, tf, o);
     this.mainStates = this.mainBars.map((b, i) => {
@@ -509,9 +517,9 @@ class Panel {
     m.sort((a, b) => a.time - b.time);
     this.candles.setMarkers(m);
   }
-  head(t) {  // the header at minute t, or at the replay time
+  head(t) {  // the header at minute t (hovering), or at the market's last candle
     const run = day.runs[this.market], own = day.price[this.market], ownEnd = own.length ? own[own.length - 1].time + MIN : day.end;
-    const at = t !== undefined ? t : (whole ? ownEnd : Math.min(cursor, ownEnd)) - MIN;  // its own last candle once its session is over
+    const at = t !== undefined ? t : ownEnd - MIN;  // its own last candle
     let st = null, k = null;
     for (let x = at; x >= at - 15 * MIN; x -= MIN) { const s = run.stateAt.get(x); if (s) { st = s; k = x; break; } }
     const bar = [...day.price[this.market]].reverse().find(b => b.time <= at);
@@ -589,32 +597,106 @@ function buildPanels() {
   panels.index = new Panel('pIndex', S.index, 'index', '');
   if (S.gift) panels.gift = new Panel('pGift', S.gift, 'gift', '');
   panels.stock = new Panel('pStock', S.stock, 'stock', '');
-  $('board').style.gridTemplateRows = `repeat(${ORDER().length - 1}, minmax(0, 1fr))`;
+  halves = ORDER().length === 2;
+  $('board').style.gridTemplateRows = halves ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)';
+  bigKey = null;
+  buildSplits();
+  setPriceShare(pref('split.price', DEFAULT_PRICE), false);
+  if (halves) {  // two charts: side by side, both full, scrolling together
+    for (const p of ORDER()) p.setMode('half');
+    panels.index.main.timeScale().subscribeVisibleLogicalRangeChange(() => syncHalves(panels.index));
+    panels.stock.main.timeScale().subscribeVisibleLogicalRangeChange(() => syncHalves(panels.stock));
+    $('pIndex').querySelector('.phead').append($('steps'));
+    return;
+  }
   seg($('viewSel'), ORDER().map((p, i) => [`${MARKETS[p.market].name}`, p.key]), null, v => select(v));
   for (const [i, b] of [...$('viewSel').children].entries()) b.title = `Make ${b.textContent} the big chart (${i + 1})`;
   const saved = pref('big.' + opt.setup, 'pIndex');
-  bigKey = null;
-  for (const p of ORDER()) p.setBig(false);
   placeBig(ORDER().some(p => p.key === saved) ? saved : 'pIndex');
+}
+let halves = false;
+function syncHalves(src) {  // the two half charts show the same stretch of time
+  if (src.echo) { src.echo = false; return; }  // the other chart's own move coming back: not a new one
+  if (syncing || !halves) return;
+  const other = src === panels.index ? panels.stock : panels.index, r = src.main.timeScale().getVisibleLogicalRange();
+  if (!r || !src.mainBars.length || !other.mainBars.length) return;
+  const to = { from: indexAt(other.mainBars, timeAt(src.mainBars, r.from)), to: indexAt(other.mainBars, timeAt(src.mainBars, r.to)) };
+  const now = other.main.timeScale().getVisibleLogicalRange();
+  if (now && Math.abs(now.from - to.from) < 0.01 && Math.abs(now.to - to.to) < 0.01) return;
+  other.echo = true;
+  try { other.main.timeScale().setVisibleLogicalRange(to); } catch (e) { other.echo = false; }
+}
+
+// ---- sizes: drag the handles; each layout remembers its own (double-click a handle: back to the default) ----
+const DEFAULT_PRICE = 0.62, clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const colKey = () => 'split.col.' + (halves ? 'halves' : opt.setup);
+function dragger(el, axis, onMove, onReset) {
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation();
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    el.classList.add('on');
+    document.body.classList.add('dragging', axis + '-drag');
+    const move = ev => onMove(ev);
+    const up = () => { el.removeEventListener('pointermove', move); el.classList.remove('on'); document.body.classList.remove('dragging', axis + '-drag'); };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up, { once: true });
+    el.addEventListener('pointercancel', up, { once: true });
+  });
+  el.addEventListener('dblclick', e => { e.stopPropagation(); onReset(); });
+  el.addEventListener('click', e => e.stopPropagation());
+}
+function buildSplits() {
+  for (const el of $('board').querySelectorAll(':scope > .split')) el.remove();
+  const col = document.createElement('div');
+  col.className = 'split col'; col.title = 'Drag to size the charts (double-click: default)';
+  $('board').append(col);
+  dragger(col, 'col', e => { const r = $('board').getBoundingClientRect(); setCol((e.clientX - r.left) / r.width); }, () => setCol(halves ? 0.5 : 0.78));
+  if (!halves) {
+    const row = document.createElement('div');
+    row.className = 'split row'; row.title = 'Drag to size the two small charts (double-click: default)';
+    $('board').append(row);
+    dragger(row, 'row', e => { const r = $('board').getBoundingClientRect(); setRow((e.clientY - r.top) / r.height); }, () => setRow(0.5));
+  }
+  setCol(pref(colKey(), halves ? 0.5 : 0.78), false);
+  if (!halves) setRow(pref('split.row', 0.5), false);
+}
+function setCol(f, keep = true) {
+  f = clamp(f, 0.15, 0.85);
+  $('board').style.gridTemplateColumns = `minmax(0, ${f * 100}fr) minmax(0, ${(1 - f) * 100}fr)`;
+  $('board').querySelector(':scope > .split.col').style.left = `${f * 100}%`;
+  const row = $('board').querySelector(':scope > .split.row');
+  if (row) { row.style.left = `${f * 100}%`; row.style.right = '0'; }
+  if (keep) save(colKey(), f);
+}
+function setRow(g, keep = true) {
+  g = clamp(g, 0.15, 0.85);
+  $('board').style.gridTemplateRows = `minmax(0, ${g * 100}fr) minmax(0, ${(1 - g) * 100}fr)`;
+  $('board').querySelector(':scope > .split.row').style.top = `${g * 100}%`;
+  if (keep) save('split.row', g);
+}
+function setPriceShare(p, keep = true) {  // the price chart's share of a full chart's height (the rest: Entry 15 : Trend 23)
+  p = clamp(p, 0.25, 0.92);
+  const rest = 1 - p, rows = `minmax(0, ${p * 100}fr) minmax(0, ${rest * 15 / 38 * 100}fr) minmax(0, ${rest * 23 / 38 * 100}fr)`;
+  for (const q of ORDER()) {
+    const st = $(q.key).querySelector('.stack');
+    st.style.gridTemplateRows = q.mode === 'tile' ? '' : rows;
+    q.paneSplit.style.top = `${p * 100}%`; q.paneSplit.style.left = '0'; q.paneSplit.style.right = '70px';
+  }
+  if (keep) save('split.price', p);
 }
 function placeBig(key) {  // the chosen chart big, the others as tiles in the setup's order
   bigKey = key;
-  for (const p of ORDER()) p.setBig(p.key === key);
+  for (const p of ORDER()) p.setMode(p.key === key ? 'big' : 'tile');
+  setPriceShare(pref('split.price', DEFAULT_PRICE), false);  // a tile has no MACD panes: its price chart fills it
   const head = $(key).querySelector('.phead');
   head.prepend($('viewSel')); head.append($('steps'));
   for (const b of $('viewSel').children) b.setAttribute('aria-pressed', String(b.dataset.v === key));
   save('big.' + opt.setup, key);
 }
 function select(key) {
-  if (!day || key === bigKey || !$(key)) return;
-  const old = Object.values(panels).find(p => p.key === bigKey), r = old && old.mainBars.length ? old.main.timeScale().getVisibleLogicalRange() : null;
-  const span = r ? [timeAt(old.mainBars, r.from), timeAt(old.mainBars, r.to)] : null;
+  if (!day || halves || key === bigKey || !$(key)) return;
   placeBig(key);
   render(true);
-  const p = Object.values(panels).find(q => q.key === key);
-  if (span && p.mainBars.length && !whole) {  // replaying: keep the same stretch of time
-    p.main.timeScale().setVisibleLogicalRange({ from: indexAt(p.mainBars, span[0]), to: indexAt(p.mainBars, span[1]) });
-  }
 }
 
 // ---- the strip: where the setup stands -----------------------------------------------------------------------
@@ -623,7 +705,7 @@ function showStrip(t) {
   const set = (k, cls, v, d) => { $(`${k}v`).className = 'v ' + cls; $(`${k}v`).textContent = v; $(`${k}d`).textContent = d;
                                   $(k).title = `Step ${k[1]} · ${['Trend', 'Sync', 'Entry'][k[1] - 1]}: ${v}${d ? ' · ' + d : ''}`; };
   if (!day.nse) { set('s1', 'wait', 'NSE closed', 'no NSE candles this day'); set('s2', 'wait', '—', ''); set('s3', 'wait', '—', ''); return; }
-  if (t === undefined && whole) {  // the day as a whole
+  if (t === undefined) {  // the day as a whole
     const inDay = x => x.t >= day.d0 && x.t < day.d1;
     const trends = st.starts.filter(inDay), syncs = st.syncs.filter(inDay);
     set('s1', 'wait', `${trends.length} trend${trends.length === 1 ? '' : 's'}`, trends.map(x => `${WORD[x.dir]} ${hhmm(x.t)}`).join(' · ') || `${names}: no trend`);
@@ -631,7 +713,7 @@ function showStrip(t) {
     set('s3', 'wait', `${day.entries.length} entr${day.entries.length === 1 ? 'y' : 'ies'}`, day.entries.map(e => `${e.m}m ${WORD[e.dir]} ${hhmm(e.t)}`).join(' · ') || 'none');
     return;
   }
-  const at = t !== undefined ? t : cursor - MIN, k = nearestIndexMinute(at), s = k !== null ? st.at.get(k) : null;
+  const at = t, k = nearestIndexMinute(at), s = k !== null ? st.at.get(k) : null;
   if (!s || !s.step1) {
     set('s1', 'wait', s && s.trend ? WORD[s.trend] : 'No trend', s && S.gift ? `NIFTY ${WORD[day.runs.NIFTY.stateAt.get(k)] || '—'} · GIFT ${WORD[latestState(day.runs.GIFTNIFTY, k)] || '—'}` : '');
     set('s2', 'wait', 'Needs step 1', ''); set('s3', 'wait', 'Not yet', '');
@@ -645,46 +727,28 @@ function showStrip(t) {
   }
 }
 
-// ---- playback ----------------------------------------------------------------------------------------------
-let cursor = 0, whole = pref('whole', true), timer = null, syncing = false;
+// ---- drawing --------------------------------------------------------------------------------------------------
+let syncing = false;
 function render(full) {
   syncing = true;
   try {
     for (const p of Object.values(panels)) p.draw();
-    for (const p of Object.values(panels)) if (full || p.key !== bigKey) p.fit();
+    for (const p of Object.values(panels)) if (p.mode === 'tile' || (full && !(halves && p === panels.stock))) p.fit();
   } finally { syncing = false; }
+  if (full) refit();
   refreshText();
+}
+function refit() {  // the whole day again once the charts have their final size (a chart sized later keeps its bar spacing)
+  const go = () => {
+    for (const p of Object.values(panels)) if (!(halves && p === panels.stock)) p.fit();
+    if (halves) syncHalves(panels.index);  // the stock follows the index's whole day
+  };
+  go(); requestAnimationFrame(() => requestAnimationFrame(go)); setTimeout(go, 150);
 }
 function refreshText() {
   for (const p of Object.values(panels)) { p.tags(); p.head(); }
   showStrip();
-  $('clock').textContent = whole ? 'whole day' : hhmm(cursor);
 }
-function step(n) {
-  if (whole) setWhole(false);
-  const tfMs = opt.tf * MIN, o = NSE_OPEN;
-  cursor = Math.max(day.start + tfMs, Math.min(day.end, bucketStart(cursor - 1, opt.tf, o) + tfMs + n * tfMs));
-  render(false);
-  keepCursorInView();
-  if (cursor >= day.end) pause();
-}
-function keepCursorInView() {
-  for (const p of Object.values(panels)) {
-    if (p.key !== bigKey) continue;
-    const n = p.mainBars.length, r = p.main.timeScale().getVisibleLogicalRange();
-    if (r && n && (n - 1 > r.to - 2 || n - 1 < r.from)) { const w = r.to - r.from; p.main.timeScale().setVisibleLogicalRange({ from: n - w + 3, to: n + 3 }); }
-  }
-}
-function play() {
-  if (timer) { pause(); return; }
-  if (whole) { setWhole(false); cursor = day.start + opt.tf * MIN; render(true); }
-  if (cursor >= day.end) cursor = day.start + opt.tf * MIN;
-  $('play').textContent = '⏸ Pause';
-  timer = setInterval(() => step(1), 1000 / opt.speed);
-}
-function pause() { clearInterval(timer); timer = null; $('play').textContent = '▶ Play'; }
-function setWhole(v) { whole = v; save('whole', v); $('whole').setAttribute('aria-pressed', String(v)); if (v) pause(); }
-
 // ---- controls ----------------------------------------------------------------------------------------------
 function seg(el, items, current, onPick) {
   el.innerHTML = items.map(([label, val]) => `<button type="button" data-v="${val}" aria-pressed="${String(val) === String(current)}">${label}</button>`).join('');
@@ -693,30 +757,19 @@ function seg(el, items, current, onPick) {
 function buildControls() {
   seg($('setupSel'), Object.entries(SETUPS).map(([k, s]) => [s.label, k]), opt.setup, async v => { opt.setup = v; save('setup', v); buildPanels(); await openDay(day.key); });
   seg($('tfs'), TFS.map(m => [`${m}m`, m]), opt.tf, v => { opt.tf = +v; save('tf', opt.tf); render(true); });
-  $('speed').innerHTML = SPEEDS.map(s => `<option value="${s}"${s === opt.speed ? ' selected' : ''}>${s}/s</option>`).join('');
-  $('speed').onchange = () => { opt.speed = +$('speed').value; save('speed', opt.speed); if (timer) { pause(); play(); } };
   const toggle = (id, key) => { $(id).setAttribute('aria-pressed', String(opt[key])); $(id).onclick = () => { opt[key] = !opt[key]; save(key, opt[key]); $(id).setAttribute('aria-pressed', String(opt[key])); recompute(); }; };
-  toggle('sc2', 'sc2'); toggle('sc3', 'sc3'); toggle('oneTrend', 'oneTrend');
-  $('whole').setAttribute('aria-pressed', String(whole));
-  $('whole').onclick = () => { setWhole(!whole); if (!whole && cursor >= day.end) cursor = day.start + opt.tf * MIN; render(false); };
-  $('stepFwd').onclick = () => step(1);
-  $('stepBack').onclick = () => step(-1);
-  $('play').onclick = play;
+  toggle('sc2', 'sc2'); toggle('sc3', 'sc3');
   $('daySel').onchange = () => openDay($('daySel').value);
   $('dayPrev').onclick = () => { const i = $('daySel').selectedIndex; if (i + 1 < $('daySel').options.length) openDay($('daySel').options[i + 1].value); };
   $('dayNext').onclick = () => { const i = $('daySel').selectedIndex; if (i > 0) openDay($('daySel').options[i - 1].value); };
   document.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('select, input, summary')) return;
-    if (e.key === 'ArrowRight') { step(1); e.preventDefault(); }
-    if (e.key === 'ArrowLeft') { step(-1); e.preventDefault(); }
-    if (e.key === ' ') { play(); e.preventDefault(); }
     const n = Number(e.key);
-    if (n >= 1 && n <= ORDER().length && !e.ctrlKey && !e.metaKey && !e.altKey) select(ORDER()[n - 1].key);
+    if (!halves && n >= 1 && n <= ORDER().length && !e.ctrlKey && !e.metaKey && !e.altKey) select(ORDER()[n - 1].key);
   });
 }
 function recompute() { if (!day) return; day.entries = entriesOf(); render(false); }
 async function openDay(key) {
-  pause();
   await buildDay(key);
   $('daySel').value = key;
   $('dayPrev').disabled = $('daySel').selectedIndex >= $('daySel').options.length - 1;

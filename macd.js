@@ -1,6 +1,6 @@
 /* Nasdaq Signal Board: the MACD panes under a price chart, and the day separators, shared by both pages.
 
-   Two panes: Entry (2m and 3m MACD, for timing) above Trend (1m, 5m, 7m, 9m, 11m and 15m; 5m, 9m and 11m are the
+   Two panes: Entry (2m and 3m MACD, for timing) above Trend (5m, 7m, 9m, 11m and 15m; 5m, 9m and 11m are the
    gate's MACD rules), each Trend line with its own signal line, dashed in its color. Every line is drawn on the price
    chart's own candles, at its value as of each candle's close (never ahead of it; the forming candle live), so a pane
    lines up bar for bar with the chart above it and scrolls with it. Any line can be switched off from its pane's label;
@@ -19,9 +19,9 @@ const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const PANES = {
   entry: { title: 'Entry', lines: [2, 3] },
-  trend: { title: 'Trend', lines: [1, 5, 7, 9, 11, 15], signals: true },
+  trend: { title: 'Trend', lines: [5, 7, 9, 11, 15], signals: true },   // no 1m (owner 24/10/2026)
 };
-const LINES = [1, 2, 3, 5, 7, 9, 11, 15];  // every MACD drawn: the candle sizes the engine must provide
+const LINES = [2, 3, 5, 7, 9, 11, 15];  // every MACD drawn: the candle sizes the engine must provide
 const COLOR = { 1: '#facc15', 2: '#fb7185', 3: '#22d3ee', 5: '#38bdf8', 7: '#c084fc', 9: '#2dd4bf', 11: '#a3e635', 15: '#f472b6' };
 // Each wave has two colors of its own: one while its MACD is above 0, another while below, so its color changes where it
 // crosses zero. No color repeats within a pane; the dashed signal lines are the wave's above-zero color, faded.
