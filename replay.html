@@ -59,7 +59,6 @@
   .cgrps > .grp:first-child { padding-left: 0; }
   .grp + .grp { border-left: 1px solid var(--line); }
   #dataNote { margin-left: auto; }
-  #sigInfo { min-width: 70px; text-align: center; }
   .grp > .lbl { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
   .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
   .seg button { padding: 3px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
@@ -75,7 +74,6 @@
   .day { font-family: var(--font-num); }
   .note { color: var(--muted); font-size: 11.5px; }
   .note.warn { color: var(--warn); }
-  .clock { font-family: var(--font-num); font-size: 12px; color: var(--text); min-width: 46px; }
 
   /* ---- the two charts ---- */
   .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -187,19 +185,6 @@
         <button class="btn" id="dayNext" type="button" title="Next day">▶</button>
       </div>
       <div class="grp"><span class="lbl">Candles</span><div class="seg" id="tfs" role="group" aria-label="Candle size"></div></div>
-      <div class="grp"><span class="lbl">Play</span>
-        <button class="btn" id="whole" type="button" aria-pressed="true" title="Show the whole day; off: only up to the replay time">Whole day</button>
-        <button class="btn" id="stepBack" type="button" title="One candle back">⏮</button>
-        <button class="btn" id="play" type="button" title="Play / pause">▶ Play</button>
-        <button class="btn" id="stepFwd" type="button" title="One candle forward">⏭</button>
-        <select class="btn" id="speed" aria-label="Playback speed" title="Candles per second"></select>
-        <span class="clock" id="clock">—</span>
-      </div>
-      <div class="grp"><span class="lbl">Go to signal</span>
-        <button class="btn" id="sigPrev" type="button" title="Previous signal">◀</button>
-        <span class="note" id="sigInfo">—</span>
-        <button class="btn" id="sigNext" type="button" title="Next signal">▶</button>
-      </div>
       <span class="note" id="dataNote"></span>
     </div>
   </div>
@@ -229,8 +214,6 @@
       <p>LONG when the 5m, 9m and 11m MACD are all above 0 and the 3m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
       <h3>Signals</h3>
       <p>A 2m (or 3m) signal is that scalper's MACD line crossing 0 on a closed candle the same way the chart's gate points at that candle's close: crossing up while the gate is LONG, down while it is SHORT. Crosses against the gate are ignored. <b>Per trend</b> keeps only the first 1 or 2 signals of each gate trend (or all). A trend is one run of the gate in one direction; <b>Gap</b> lets the gate sit at NO TRADE for that many minutes without ending the trend (Off: any NO TRADE ends it). <b>One trend per day</b> keeps only signals in the direction of the day's first gate trend. Only signals are shown: no exits or results.</p>
-      <h3>Playback</h3>
-      <p><b>Whole day</b> shows the full day. Switch it off to replay: ⏭ and ⏮ step one candle, Play runs at the chosen speed, and only what was known at the replay time is drawn (closed MACD bars, the gate up to that minute, signals so far). The signal buttons jump between signals.</p>
       <h3>Data</h3>
       <p>Days come from our own daily archive of Hyperliquid's 1-minute candles (from 18 Oct 2026; that day only from its evening) and, for the last few days, straight from Hyperliquid, which keeps about 3.5 days of 1-minute candles. Nothing is filled in or made up: a minute with no trade is a flat bar at the last price, as on the exchange.</p>
       <p>For information only, not investment advice.</p>
@@ -249,7 +232,7 @@ const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', li
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
 const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
 const RULES = [['3m EMA21 vs EMA47', '3m EMA'], ['5m MACD vs 0', '5m'], ['9m MACD vs 0', '9m'], ['11m MACD vs 0', '11m']];
-const TFS = [1, 2, 3, 5], GAPS = [0, 1, 3, 5, 10, 15, 30], SPEEDS = [1, 2, 5, 10, 30], PER_TREND = [['1', 1], ['2', 2], ['∞', Infinity]];
+const TFS = [1, 2, 3, 5], GAPS = [0, 1, 3, 5, 10, 15, 30], PER_TREND = [['1', 1], ['2', 2], ['∞', Infinity]];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const $ = id => document.getElementById(id);
 const two = n => String(n).padStart(2, '0');
@@ -274,7 +257,6 @@ const opt = {
   perTrend: pref('perTrend', 'inf'),          // '1', '2' or 'inf'
   gap: GAPS.includes(pref('gap', 0)) ? pref('gap', 0) : 0,
   oneTrend: pref('oneTrend', false),
-  speed: SPEEDS.includes(pref('speed', 5)) ? pref('speed', 5) : 5,
 };
 const perTrendLimit = () => opt.perTrend === '1' ? 1 : opt.perTrend === '2' ? 2 : Infinity;
 
@@ -421,8 +403,6 @@ async function buildDay(key) {
   computeSignals();
   const lastT = Math.max(priceL.length ? priceL[priceL.length - 1].time : 0, priceR.length ? priceR[priceR.length - 1].time : 0);
   day.end = lastT + MIN;
-  cursor = Math.min(cursor && dayKey(cursor) === key ? cursor : d0 + 60 * MIN, day.end);
-  sigIdx = -1;
   showNote();
   loading(null);
 }
@@ -493,8 +473,8 @@ class Panel {
     for (const k of ['pmain', 'pentry', 'ptrend']) $(`${key}-${k}`).addEventListener('mouseleave', () => hoverAll(this, undefined));
   }
   get side() { return day[this.key]; }
-  draw(full) {  // the day up to the replay time (or the whole day)
-    const side = this.side, upto = whole ? Infinity : cursor;
+  draw(full) {  // the whole day
+    const side = this.side, upto = Infinity;
     const tf = opt.tf, ones = side.price.filter(b => b.time < upto);
     this.mainBars = aggregate(ones, tf);
     const st = side.run.stateAt;
@@ -541,9 +521,9 @@ class Panel {
     m.sort((a, b) => a.time - b.time);
     this.candles.setMarkers(m);
   }
-  head(t) {  // the header at time t (ms, a minute) or at the replay time
+  head(t) {  // the header at time t (ms, a minute) or at the day's end
     const side = this.side, other = day[this.key === 'left' ? 'right' : 'left'];
-    const at = t !== undefined ? t : (whole ? day.end : cursor) - MIN;
+    const at = t !== undefined ? t : day.end - MIN;
     const gateAt = run => { for (let k = at; k >= at - 5 * MIN; k -= MIN) { const s = run.stateAt.get(k); if (s) return [s, k]; } return [null, null]; };
     const [st, k] = gateAt(side.run), [ost] = gateAt(other.run);
     $(`${this.key}-name`).textContent = side.name;
@@ -619,8 +599,7 @@ function hoverAll(src, t) {
   }
 }
 
-// ---- playback ----------------------------------------------------------------------------------------------
-let cursor = 0, whole = pref('whole', true), timer = null, sigIdx = -1;
+// ---- drawing ------------------------------------------------------------------------------------------------
 function render(full) {
   syncing = true;  // both charts are redrawn: no syncing back and forth meanwhile
   try {
@@ -631,55 +610,7 @@ function render(full) {
 }
 function refreshText() {
   for (const p of Object.values(panels)) { p.tags(); p.head(); }
-  $('clock').textContent = whole ? 'whole day' : hhmm(cursor);
-  const sigs = allSignals();
-  const shown = sigs.filter(s => whole || s.t <= cursor);
-  $('sigInfo').textContent = sigIdx >= 0 && sigs[sigIdx] ? `${sigIdx + 1}/${sigs.length} · ${sigs[sigIdx].side} ${WORD[sigs[sigIdx].dir]} ${sigs[sigIdx].m}m ${hhmm(sigs[sigIdx].t)}`
-                                                       : `${shown.length} signal${shown.length === 1 ? '' : 's'}`;
 }
-function allSignals() {  // both charts' signals in time order
-  return [...day.left.signals.map(s => ({ ...s, side: day.left.name })), ...day.right.signals.map(s => ({ ...s, side: 'XYZ100' }))].sort((a, b) => a.t - b.t);
-}
-function step(n) {
-  if (whole) setWhole(false);
-  const tfMs = opt.tf * MIN;
-  cursor = Math.max(day.d0 + tfMs, Math.min(day.end, bucketStart(cursor - 1, opt.tf) + tfMs + n * tfMs));
-  render(false);
-  keepCursorInView();
-  if (cursor >= day.end) pause();
-}
-function keepCursorInView() {  // in replay, the newest candle stays on screen
-  for (const p of Object.values(panels)) {
-    const n = p.mainBars.length, r = p.main.timeScale().getVisibleLogicalRange();
-    if (r && n && (n - 1 > r.to - 2 || n - 1 < r.from)) { const w = r.to - r.from; p.main.timeScale().setVisibleLogicalRange({ from: n - w + 3, to: n + 3 }); }
-  }
-}
-function play() {
-  if (timer) { pause(); return; }
-  if (whole) { setWhole(false); cursor = day.d0 + opt.tf * MIN; render(true); }
-  if (cursor >= day.end) cursor = day.d0 + opt.tf * MIN;
-  $('play').textContent = '⏸ Pause';
-  timer = setInterval(() => step(1), 1000 / opt.speed);
-}
-function pause() { clearInterval(timer); timer = null; $('play').textContent = '▶ Play'; }
-function setWhole(v) {
-  whole = v; save('whole', v);
-  $('whole').setAttribute('aria-pressed', String(v));
-  if (v) pause();
-}
-function jumpSignal(dir) {
-  const sigs = allSignals();
-  if (!sigs.length) return;
-  sigIdx = sigIdx < 0 ? (dir > 0 ? 0 : sigs.length - 1) : (sigIdx + dir + sigs.length) % sigs.length;
-  const s = sigs[sigIdx];
-  if (!whole) { cursor = Math.min(day.end, bucketEnd(s.t - MIN, opt.tf)); render(false); }
-  for (const p of Object.values(panels)) {  // centre the signal's candle
-    const i = p.mainBars.findIndex(b => b.time === bucketStart(s.t - MIN, opt.tf));
-    if (i >= 0) { const r = p.main.timeScale().getVisibleLogicalRange(), w = r ? r.to - r.from : 120; p.main.timeScale().setVisibleLogicalRange({ from: i - w / 2, to: i + w / 2 }); }
-  }
-  refreshText();
-}
-
 // ---- controls ----------------------------------------------------------------------------------------------
 function seg(el, items, current, onPick) {
   el.innerHTML = items.map(([label, val]) => `<button type="button" data-v="${val}" aria-pressed="${String(val) === String(current)}">${label}</button>`).join('');
@@ -690,35 +621,19 @@ function buildControls() {
   seg($('perTrend'), PER_TREND.map(([l, v]) => [l, v === Infinity ? 'inf' : String(v)]), opt.perTrend, v => { opt.perTrend = v; save('perTrend', v); recompute(); });
   $('gapSel').innerHTML = GAPS.map(g => `<option value="${g}"${g === opt.gap ? ' selected' : ''}>${g ? g + ' min' : 'Off'}</option>`).join('');
   $('gapSel').onchange = () => { opt.gap = +$('gapSel').value; save('gap', opt.gap); recompute(); };
-  $('speed').innerHTML = SPEEDS.map(s => `<option value="${s}"${s === opt.speed ? ' selected' : ''}>${s}/s</option>`).join('');
-  $('speed').onchange = () => { opt.speed = +$('speed').value; save('speed', opt.speed); if (timer) { pause(); play(); } };
   const toggle = (id, key) => { $(id).setAttribute('aria-pressed', String(opt[key])); $(id).onclick = () => { opt[key] = !opt[key]; save(key, opt[key]); $(id).setAttribute('aria-pressed', String(opt[key])); recompute(); }; };
   toggle('sc2', 'sc2'); toggle('sc3', 'sc3'); toggle('oneTrend', 'oneTrend');
-  $('whole').setAttribute('aria-pressed', String(whole));
-  $('whole').onclick = () => { setWhole(!whole); if (!whole && cursor >= day.end) cursor = day.d0 + opt.tf * MIN; render(false); };
-  $('stepFwd').onclick = () => step(1);
-  $('stepBack').onclick = () => step(-1);
-  $('play').onclick = play;
-  $('sigPrev').onclick = () => jumpSignal(-1);
-  $('sigNext').onclick = () => jumpSignal(1);
   $('daySel').onchange = () => openDay($('daySel').value);
   $('dayPrev').onclick = () => { const i = $('daySel').selectedIndex; if (i + 1 < $('daySel').options.length) openDay($('daySel').options[i + 1].value); };
   $('dayNext').onclick = () => { const i = $('daySel').selectedIndex; if (i > 0) openDay($('daySel').options[i - 1].value); };
-  document.addEventListener('keydown', e => {
-    if (e.target.closest('select, input, .pick-pop')) return;
-    if (e.key === 'ArrowRight') { step(1); e.preventDefault(); }
-    if (e.key === 'ArrowLeft') { step(-1); e.preventDefault(); }
-    if (e.key === ' ') { play(); e.preventDefault(); }
-  });
 }
-function recompute() { if (!day) return; computeSignals(); sigIdx = -1; render(false); }
+function recompute() { if (!day) return; computeSignals(); render(false); }
 function listDays() {  // newest first: archived days and the days Hyperliquid still has
   const keys = new Set(archiveDays);
   for (let t = Date.now(); t + DAY > hlFrom; t -= DAY) keys.add(dayKey(t));
   return [...keys].filter(k => dayStart(k) <= Date.now()).sort().reverse();
 }
 async function openDay(key) {
-  pause();
   await buildDay(key);
   $('daySel').value = key;
   $('dayPrev').disabled = $('daySel').selectedIndex >= $('daySel').options.length - 1;
