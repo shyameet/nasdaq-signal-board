@@ -1,6 +1,6 @@
 /* Indra Quant Signal Board: the CME trading day, shared by every page.
 
-   Owner 25/10/2026: a US market's new day starts at the CME open, 17:00 Chicago - 03:30 IST while Chicago is on
+   Owner 24/10/2026: a US market's new day starts at the CME open, 17:00 Chicago - 03:30 IST while Chicago is on
    summer time, 04:30 IST in its winter time (from the first Sunday of November) - not at midnight. Trading day
    "YYYY-MM-DD" runs from 17:00 Chicago the evening before that date to 17:00 Chicago on it, so every candle of one
    Globex session (17:00 to 16:00 the next afternoon, then the one-hour break) falls in one trading day; the stock

@@ -670,6 +670,9 @@ class Engine {
 }
 
 window.NdxEngine = Engine;
-window.NdxEngine.internals = { bucket, Ema, Macd, Timeframe, TrendSignal, Tracker, referenceCloseMs, combine,
+// keep(n): bars and gate minutes each series keeps, at least n (Infinity: all). The replay pages run every loaded day
+// through one TrendSignal, so they keep everything; the live board raises it as older days are added (extendBack).
+const keep = n => { KEEP.minutes = Math.max(KEEP.minutes, n); KEEP.bars = Math.max(KEEP.bars, n); };
+window.NdxEngine.internals = { keep, bucket, Ema, Macd, Timeframe, TrendSignal, Tracker, referenceCloseMs, combine,
                               SHOWN, contiguous, toBar, flat, candleRows, BENCH };  // for checking against Python
 })();

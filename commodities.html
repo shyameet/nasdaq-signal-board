@@ -195,7 +195,7 @@
       <h3>Days</h3>
       <p>A day starts at the CME open, 17:00 Chicago: 03:30 IST (04:30 IST from 2 Nov, when Chicago leaves summer time). So Monday's day begins at 03:30 IST on Monday with the Globex session that opened on Sunday evening in Chicago, and holds that whole CME session and MCX's day. The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
       <h3>Data</h3>
-      <p>Saved 1-minute candles from our VPS, from 15 Oct 2026, one file per UTC day: MCL and NG from NinjaTrader (the front month as it stitches it), CRUDEOILM and NATGASMINI from Dhan (the near month through its expiry day, then the next month). Nothing is filled in: a minute with no trade has no candle. Live candles for today come with the VPS's live stream.</p>
+      <p>Saved 1-minute candles from our VPS, from 15 Oct 2026, one file per UTC day: MCL and NG from NinjaTrader (the front month as it stitches it), CRUDEOILM and NATGASMINI from Dhan (the near month, moving to the next month on its expiry day, so a roll shows as a jump between two days). Nothing is filled in: a minute with no trade has no candle. Live candles for today come with the VPS's live stream.</p>
       <p class="credit">Not investment advice · Data: NinjaTrader and Dhan, via our VPS · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
     </div>
   </details>
@@ -279,7 +279,7 @@ async function loadFile(key) {  // -> { market: [{ t (ms), o, h, l, c, v }] }
   if (!r.ok) throw new Error(`${key}: ${r.status}`);
   const j = await r.json(), out = {};
   for (const [m, rows] of Object.entries(j)) if (m !== 'contracts') out[m] = rows.map(([t, o, h, l, c, v]) => ({ t: t * 1000, o, h, l, c, v }));
-  out.contracts = j.contracts || {};  // which MCX contract each stretch is (near month through expiry day)
+  out.contracts = j.contracts || {};  // which MCX contract each stretch is (the near month, the next one from its expiry day)
   fileCache.set(key, out);
   return out;
 }
