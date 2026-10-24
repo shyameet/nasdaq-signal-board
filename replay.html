@@ -73,6 +73,9 @@
   .topbar .seg button { padding: 3px 7px; }
   .topbar .lbl { font-size: 10px; }
   #dataNote { cursor: help; white-space: nowrap; }
+  .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
+           background: var(--surface); color: var(--muted); font-size: 12px; }
+  .older[hidden] { display: none; }
   .topbar .how summary { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 50%; font-weight: 700; }
   .topbar .how-body { top: calc(100% + 8px); bottom: auto; left: auto; right: 0; max-height: 75vh; overflow: auto; }
   .how-body .credit { color: var(--muted); font-size: 11.5px; } .how-body .credit a { color: var(--muted); }
@@ -212,6 +215,8 @@
       <p>LONG when the 5m, 9m and 11m MACD are all above 0 and the 3m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
       <h3>Signals</h3>
       <p>A 2m (or 3m) signal is that scalper's MACD line crossing 0 on a closed candle the same way the chart's gate points at that candle's close: crossing up while the gate is LONG, down while it is SHORT. Crosses against the gate are ignored. <b>Per trend</b> keeps only the first 1 or 2 signals of each gate trend (or all). A trend is one run of the gate in one direction; <b>Gap</b> lets the gate sit at NO TRADE for that many minutes without ending the trend (Off: any NO TRADE ends it). <b>1 trend/day</b> keeps only signals in the direction of the day's first gate trend. Only signals are shown: no exits or results.</p>
+      <h3>Days</h3>
+      <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The signals cover everything loaded.</p>
       <h3>Data</h3>
       <p>The page opens on today (UTC), which takes in Hyperliquid's new candles every minute while the page is open; if you are looking at the newest candles they stay in view. Days come from our own daily archive of Hyperliquid's 1-minute candles (from 18 Oct 2026; that day only from its evening) and, for the last few days, straight from Hyperliquid, which keeps about 3.5 days of 1-minute candles. Nothing is filled in or made up: a minute with no trade is a flat bar at the last price, as on the exchange.</p>
       <p class="credit">Not investment advice · Data: Hyperliquid · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
@@ -219,12 +224,13 @@
   </details>
 </header>
 <main class="board" id="board"></main>
+<div id="older" class="older" hidden>Loading older days…</div>
 <div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
 <script>
 'use strict';
 const DAY = 86400000, MIN = 60000;
 const { TrendSignal, SHOWN, contiguous, toBar, flat, candleRows, BENCH } = NdxEngine.internals;
-const { MacdPane, Bands } = NsbMacd;
+const { MacdPane, Bands, DayLines } = NsbMacd;
 const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: '#3a4554', label: '#283240',
             bg: '#0a0d12', ema21: '#f2b33d', ema47: '#5b8cff' };
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
@@ -347,23 +353,23 @@ function crosses(run, m) {
   }
   return out;
 }
-function signalsOf(run, d0) {  // the day's signals after the boxes: scalpers shown, per trend, one trend per day
+function signalsOf(run, d0, d1) {  // the strip's signals after the boxes: scalpers shown, per trend, one trend per day
   const want = [opt.sc2 && 2, opt.sc3 && 3].filter(Boolean);
   const all = want.flatMap(m => crosses(run, m)).sort((a, b) => a.t - b.t || a.m - b.m);
   const trend = trendsOf(run.stateAt, opt.gap), used = new Map(), limit = perTrendLimit();
-  let dayDir = null;  // the day's first gate trend: the first minute of the day the gate is LONG or SHORT
+  const dayDir = new Map();  // each UTC day's first gate trend: the first minute of the day the gate is LONG or SHORT
   for (const t of [...run.stateAt.keys()].sort((a, b) => a - b)) {
-    if (t < d0 || t >= d0 + DAY) continue;
-    const s = run.stateAt.get(t);
-    if (s === 'BULLISH' || s === 'BEARISH') { dayDir = s; break; }
+    const s = run.stateAt.get(t), k = t - t % DAY;
+    if ((s === 'BULLISH' || s === 'BEARISH') && !dayDir.has(k)) dayDir.set(k, s);
   }
   const out = [];
   for (const s of all) {  // counted over the warm-up day too, so a trend running past midnight keeps its count
-    if (opt.oneTrend && s.t > d0 && s.t <= d0 + DAY && s.dir !== dayDir) continue;
-    const id = trend.get(s.t - MIN), k = used.get(id) || 0;
-    if (k >= limit) continue;
-    used.set(id, k + 1);
-    if (s.t > d0 && s.t <= d0 + DAY) out.push(s);
+    const k = (s.t - MIN) - (s.t - MIN) % DAY;
+    if (opt.oneTrend && s.t > d0 && s.t <= d1 && s.dir !== dayDir.get(k)) continue;
+    const id = trend.get(s.t - MIN), n = used.get(id) || 0;
+    if (n >= limit) continue;
+    used.set(id, n + 1);
+    if (s.t > d0 && s.t <= d1) out.push(s);
   }
   return out;
 }
@@ -382,20 +388,25 @@ const tk = coin => coin.replace(/^xyz:/, '');
 const DEFAULT = () => (BASKET && BASKET.default ? ALL.filter(c => BASKET.default.includes(c)) : ALL);  // the basket's default pick
 const custom = () => ACTIVE.join() !== DEFAULT().join();
 const leftName = () => custom() ? (ACTIVE.length <= 3 ? ACTIVE.map(tk).join('+') : `Basket ${ACTIVE.length}`) : 'NDX10';
-async function buildDay(key, quiet = false) {  // quiet: the minute refresh of today, without the loading screen
-  const d0 = dayStart(key), prevKey = dayKey(d0 - DAY);
+// One long strip of days (owner 24/10/2026): the picked day is the newest; `shown` days up to it are drawn (plus one
+// more behind them to warm the indicators up), and older ones join when you scroll to the left edge.
+// quiet: no loading screen (the minute refresh of today, or adding older days).
+async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
+  const list = dayList.length ? dayList : listDays(), i = Math.max(0, list.indexOf(key));
+  const shownKeys = list.slice(i, i + shown), warmKey = list[i + shown];
+  const d0 = dayStart(shownKeys[shownKeys.length - 1]), lastD0 = dayStart(key), d1 = lastD0 + DAY;
   if (!quiet) loading(`Loading ${key}…`);
-  const days = (await Promise.all([dayKey(d0 - DAY) && hasDay(prevKey) ? loadDay(prevKey) : null, loadDay(key)])).filter(Boolean);
+  const days = (await Promise.all([...shownKeys, warmKey].filter(Boolean).reverse().map(loadDay))).filter(Boolean);
   const m = minutesOf(days, [...ALL, BENCH]);
   const runL = runSeries(composite(), m), runR = runSeries({ [BENCH]: 1 }, m);
-  const inDay = b => b.t >= d0 && b.t < d0 + DAY;
+  const inDay = b => b.t >= d0 && b.t < d1;  // the strip
   // the right chart's candles are XYZ100's own 1-minute candles; the left's are the composite's
   const priceR = m[BENCH].filter(inDay).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }));
-  const priceL = (runL.bars[1] || []).filter(b => b.time >= d0 && b.time < d0 + DAY)
+  const priceL = (runL.bars[1] || []).filter(b => b.time >= d0 && b.time < d1)
     .map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 }));
   const src = days.map(d => d.source).join(' + ');
   const lacking = ACTIVE.filter(c => !m[c].some(inDay));  // picked stocks with no candles on this day (not archived yet)
-  day = { key, d0, prevLoaded: days.length > 1, source: src, lacking,
+  day = { key, d0, d1, lastD0, shown: shownKeys.length, more: !!warmKey, prevLoaded: !!warmKey || list.length > i + shownKeys.length, source: src, lacking,
           left: { name: leftName(), run: runL, price: priceL, digits: 2, macdDigits: 3 },
           right: { name: 'XYZ100', run: runR, price: priceR, digits: 1, macdDigits: 2 } };
   computeSignals();
@@ -404,7 +415,7 @@ async function buildDay(key, quiet = false) {  // quiet: the minute refresh of t
   showNote();
   loading(null);
 }
-function computeSignals() { for (const side of [day.left, day.right]) side.signals = signalsOf(side.run, day.d0); }
+function computeSignals() { for (const side of [day.left, day.right]) side.signals = signalsOf(side.run, day.d0, day.d1); }
 const hasDay = key => archiveDays.has(key) || dayStart(key) + DAY > hlFrom;
 
 // ---- the charts --------------------------------------------------------------------------------------------
@@ -452,12 +463,17 @@ class Panel {
     this.e21 = emaLine(C.ema21); this.e47 = emaLine(C.ema47);
     this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
     this.candles.attachPrimitive(this.zones);
+    this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30));  // where each day begins, with its date
     this.macd = {};
     for (const k of ['entry', 'trend']) this.macd[k] = new MacdPane({
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 2, options: options(false, false, ''),
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.waveAt(i),
     });
-    this.main.timeScale().subscribeVisibleLogicalRangeChange(r => { for (const p of Object.values(this.macd)) p.sync(r); syncOther(this); });
+    this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
+      for (const p of Object.values(this.macd)) p.sync(r);
+      syncOther(this);
+      if (r && r.from < 8 && !syncing && day && day.more) loadOlder();  // at the left edge: older days
+    });
     // one crosshair over this chart and its panes (and the other chart at the same time)
     const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
                  ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
@@ -493,9 +509,12 @@ class Panel {
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
   }
-  fit() {  // the whole of what is drawn
+  fit() {  // the newest day of the strip (the older ones are to the left)
     const n = this.mainBars.length;
-    if (n) this.main.timeScale().setVisibleLogicalRange({ from: -1, to: n + 2 });
+    if (!n) return;
+    let i = this.mainBars.findIndex(b => b.time >= day.lastD0);
+    if (i < 0) i = 0;
+    this.main.timeScale().setVisibleLogicalRange({ from: i - 1, to: n + 2 });
   }
   setEmas() {  // the 3m EMA 21 and 47 as of each candle's close (never ahead of it)
     const src = (this.src[3] || []).filter(b => ok(b.ema47)), out = [];
@@ -605,6 +624,10 @@ function render(full) {
     for (const p of Object.values(panels)) p.draw(full);
     if (full) for (const p of Object.values(panels)) p.fit();
   } finally { syncing = false; }
+  if (full) {  // again once the charts have their final size (a chart sized later keeps its bar spacing)
+    const go = () => { syncing = true; try { for (const p of Object.values(panels)) p.fit(); } finally { syncing = false; } };
+    requestAnimationFrame(() => requestAnimationFrame(go)); setTimeout(go, 150);
+  }
   refreshText();
 }
 function refreshText() {
@@ -632,7 +655,24 @@ function listDays() {  // newest first: archived days and the days Hyperliquid s
   return [...keys].filter(k => dayStart(k) <= Date.now()).sort().reverse();
 }
 // ---- today: new candles from Hyperliquid every minute (owner 24/10/2026), keeping your zoom ----------------------
-let refreshing = false, dayPick = null, dayList = [];
+let refreshing = false, dayPick = null, dayList = [], olderBusy = false;
+const SHOW_DAYS = 3, MORE_DAYS = 2;  // days shown when a day is picked (it is the newest); days added at the left edge
+async function loadOlder() {  // add older days to the strip, keeping what you are looking at in place
+  if (olderBusy || refreshing) return;
+  olderBusy = true;
+  $('older').hidden = false;
+  try {
+    const keep = Object.values(panels).filter(q => q.mainBars.length).map(q => {
+      const r = q.main.timeScale().getVisibleLogicalRange();
+      return [q, r ? [timeAt(q.mainBars, r.from), timeAt(q.mainBars, r.to)] : null];
+    });
+    await buildDay(day.key, day.shown + MORE_DAYS, true);
+    render(false);
+    syncing = true;
+    try { for (const [q, span] of keep) if (span && q.mainBars.length) q.main.timeScale().setVisibleLogicalRange({ from: indexAt(q.mainBars, span[0]), to: indexAt(q.mainBars, span[1]) }); }
+    finally { syncing = false; }
+  } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
+}
 async function refreshToday() {
   if (refreshing || !day || document.visibilityState !== 'visible') return;
   const today = dayKey(Date.now());
@@ -656,7 +696,7 @@ async function refreshToday() {
       const r = q.main.timeScale().getVisibleLogicalRange(), n = q.mainBars.length;
       return [k, { r, n, atEnd: !r || r.to >= n - 2 }];
     }));
-    await buildDay(today, true);
+    await buildDay(today, day.shown, true);
     render(false);
     for (const [k, q] of Object.entries(panels)) {  // looking at the newest candles: keep them in view as new ones come
       const b = before[k], added = q.mainBars.length - b.n;
@@ -673,7 +713,7 @@ async function openDay(key) {
 }
 function showNote() {
   const today = day.key === dayKey(Date.now());
-  const msg = [`${day.key} UTC`, today ? 'today, updating every minute' : '', day.source.includes('archive') ? (day.source.includes('hl') ? 'archive + Hyperliquid' : 'archive') : 'Hyperliquid',
+  const msg = [`${day.key} UTC${day.shown > 1 ? ` and the ${day.shown - 1} days before (scroll left for older)` : ''}`, today ? 'today, updating every minute' : '', day.source.includes('archive') ? (day.source.includes('hl') ? 'archive + Hyperliquid' : 'archive') : 'Hyperliquid',
                !day.prevLoaded ? 'no earlier day to warm up on' : '',
                day.lacking.length ? `no ${day.lacking.map(tk).join(', ')} data for this day yet, so the left chart is empty` : ''].filter(Boolean).join(' · ');
   const warn = !day.prevLoaded || day.lacking.length;

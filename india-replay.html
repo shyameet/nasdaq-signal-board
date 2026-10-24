@@ -137,6 +137,9 @@
   #loading div::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-strong);
                          border-top-color: var(--accent); animation: spin .9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
+           background: var(--surface); color: var(--muted); font-size: 12px; }
+  .older[hidden] { display: none; }
   .how { position: relative; }
   .how summary { cursor: pointer; list-style: none; display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--line);
                  border-radius: 50%; color: var(--muted); font-weight: 700; }
@@ -182,6 +185,8 @@
       <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown.</p>
       <h3>Charts</h3>
       <p>Nifty: one chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right, showing the whole day with their gate. Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. Bank Nifty: the two charts side by side, scrolling together. Drag the thin lines between the charts, between the tiles, or between a price chart and its MACD panes to size them as you like (remembered; double-click a line for the default). The index is shaded by step 1; GIFT NIFTY by its own gate (its whole session, 06:30 to 02:45 the next morning); the stock where step 2 holds, with its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <h3>Days</h3>
+      <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
       <h3>Data</h3>
       <p>Dhan's 1-minute candles, saved by our VPS after each close, from 15 Oct 2026. Nothing is filled in: a minute with no trade has no candle. NSE stocks stop at 15:14 (the closing auction follows); the indices stay flat from 15:15 to 15:27, then move to the closing price at 15:28, as Dhan reports them. </p>
       <p class="credit">Not investment advice · Data: Dhan, via our VPS · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
@@ -195,12 +200,13 @@
   <span class="chip" id="s3"><span class="k">3</span><span class="v" id="s3v">—</span><span class="d" id="s3d"></span></span>
 </div></div>
 <main class="board" id="board"></main>
+<div id="older" class="older" hidden>Loading older days…</div>
 <div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
 <script>
 'use strict';
 const DAY = 86400000, MIN = 60000, IST = 19800000;  // IST = UTC + 5:30
 const { TrendSignal, SHOWN } = NdxEngine.internals;
-const { MacdPane, Bands } = NsbMacd;
+const { MacdPane, Bands, DayLines } = NsbMacd;
 const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: '#3a4554', label: '#283240',
             bg: '#0a0d12', ema21: '#f2b33d', ema47: '#5b8cff' };
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
@@ -220,7 +226,8 @@ const SETUPS = {
   nifty: { label: 'Nifty', index: 'NIFTY', gift: 'GIFTNIFTY', stock: 'RELIANCE' },
   bank: { label: 'Bank Nifty', index: 'BANKNIFTY', gift: null, stock: 'HDFCBANK' },
 };
-const WARM_DAYS = 3;  // saved days before the one shown, for the indicators to settle
+const WARM_DAYS = 3;  // saved days before the oldest one shown, for the indicators to settle
+const SHOW_DAYS = 3, MORE_DAYS = 3;  // days shown when a day is picked (it is the newest); days added each time you scroll to the left edge
 const $ = id => document.getElementById(id);
 const two = n => String(n).padStart(2, '0');
 const sec = ms => Math.floor(ms / 1000);
@@ -355,9 +362,11 @@ function entriesOf() {
 
 // ---- building a day -----------------------------------------------------------------------------------------
 let day = null;
-async function buildDay(key) {
-  const i = DAYS.indexOf(key), keys = DAYS.slice(Math.max(0, i - WARM_DAYS), i + 1);
-  loading(`Loading ${key}…`);
+// One long strip of days (owner 24/10/2026): the picked day is the newest; `shown` days up to it are drawn, and older
+// ones join when you scroll to the left edge. quiet: no loading screen (adding older days).
+async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
+  const i = DAYS.indexOf(key), first = Math.max(0, i - shown + 1), keys = DAYS.slice(Math.max(0, first - WARM_DAYS), i + 1);
+  if (!quiet) loading(`Loading ${key}…`);
   const files = await Promise.all(keys.map(loadFile));
   const S = SETUPS[opt.setup], markets = [S.index, S.gift, S.stock].filter(Boolean);
   const rows = {};
@@ -367,10 +376,11 @@ async function buildDay(key) {
     rows[m] = [...byT.values()].sort((a, b) => a.t - b.t);
   }
   const runs = Object.fromEntries(markets.map(m => [m, runMarket(m, rows[m])]));
-  // the day: 06:30 IST (GIFT NIFTY's open) to 06:30 the next morning
-  const d0 = istMidnight(key) + 6 * 3600000 + 30 * MIN, d1 = d0 + DAY;
+  // the strip: 06:30 IST (GIFT NIFTY's open) of its oldest day to 06:30 the morning after the picked day
+  const open = k => istMidnight(k) + 6 * 3600000 + 30 * MIN;
+  const d0 = open(DAYS[first]), lastD0 = open(key), d1 = lastD0 + DAY;
   const indexMinutes = rows[S.index].map(b => b.t);
-  day = { key, d0, d1, setup: S, rows, runs, indexMinutes, warm: keys.length - 1 };
+  day = { key, d0, d1, lastD0, shown: i - first + 1, more: first > 0, setup: S, rows, runs, indexMinutes, warm: keys.length - 1 - (i - first) };
   day.setupRun = setupOf(S, runs, indexMinutes);
   day.entries = entriesOf();
   const inDay = b => b.t >= d0 && b.t < d1;
@@ -431,12 +441,16 @@ class Panel {
     this.e21 = emaLine(C.ema21); this.e47 = emaLine(C.ema47);
     this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
     this.candles.attachPrimitive(this.zones);
+    this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30));  // where each day begins, with its date
     this.macd = {};
     if (panes) for (const k of ['entry', 'trend']) this.macd[k] = new MacdPane({
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 3, options: options(false, false), origin: this.origin,
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.waveAt(i),
     });
-    this.main.timeScale().subscribeVisibleLogicalRangeChange(r => { for (const p of Object.values(this.macd)) p.sync(r); });
+    this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
+      for (const p of Object.values(this.macd)) p.sync(r);
+      if (r && r.from < 8 && !syncing && this.mode !== 'tile' && day && day.more) loadOlder(this);  // at the left edge: older days
+    });
     const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
                  ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
     this.charts = all;
@@ -489,9 +503,12 @@ class Panel {
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
   }
-  fit() {
+  fit() {  // the newest day of the strip (the older ones are to the left)
     const n = this.mainBars.length;
-    if (n) this.main.timeScale().setVisibleLogicalRange({ from: -1, to: n + 2 });
+    if (!n) return;
+    let i = this.mainBars.findIndex(b => b.time >= day.lastD0);
+    if (i < 0) i = 0;
+    this.main.timeScale().setVisibleLogicalRange({ from: i - 1, to: n + 2 });
   }
   setEmas() {  // the 3m EMA 21 and 47 as of each candle's close
     const src = (this.src[3] || []).filter(b => ok(b.ema47)), out = [];
@@ -704,6 +721,7 @@ function select(key) {
 }
 
 // ---- the strip: where the setup stands -----------------------------------------------------------------------
+const stamp = t => day.shown > 1 ? `${WKD[new Date(t + IST).getUTCDay()]} ${hhmm(t)}` : hhmm(t);  // a time, with its day on a strip of days
 function showStrip(t) {
   const S = day.setup, st = day.setupRun, names = S.gift ? 'NIFTY + GIFT' : 'BANK NIFTY', stock = MARKETS[S.stock].name;
   const set = (k, cls, v, d) => { $(`${k}v`).className = 'v ' + cls; $(`${k}v`).textContent = v; $(`${k}d`).textContent = d;
@@ -712,9 +730,9 @@ function showStrip(t) {
   if (t === undefined) {  // the day as a whole
     const inDay = x => x.t >= day.d0 && x.t < day.d1;
     const trends = st.starts.filter(inDay), syncs = st.syncs.filter(inDay);
-    set('s1', 'wait', `${trends.length} trend${trends.length === 1 ? '' : 's'}`, trends.map(x => `${WORD[x.dir]} ${hhmm(x.t)}`).join(' · ') || `${names}: no trend`);
-    set('s2', 'wait', `${syncs.length} sync${syncs.length === 1 ? '' : 's'}`, syncs.map(x => `${WORD[x.dir]} ${hhmm(x.t)}`).join(' · ') || `${stock} never synced`);
-    set('s3', 'wait', `${day.entries.length} entr${day.entries.length === 1 ? 'y' : 'ies'}`, day.entries.map(e => `${e.m}m ${WORD[e.dir]} ${hhmm(e.t)}`).join(' · ') || 'none');
+    set('s1', 'wait', `${trends.length} trend${trends.length === 1 ? '' : 's'}`, trends.map(x => `${WORD[x.dir]} ${stamp(x.t)}`).join(' · ') || `${names}: no trend`);
+    set('s2', 'wait', `${syncs.length} sync${syncs.length === 1 ? '' : 's'}`, syncs.map(x => `${WORD[x.dir]} ${stamp(x.t)}`).join(' · ') || `${stock} never synced`);
+    set('s3', 'wait', `${day.entries.length} entr${day.entries.length === 1 ? 'y' : 'ies'}`, day.entries.map(e => `${e.m}m ${WORD[e.dir]} ${stamp(e.t)}`).join(' · ') || 'none');
     return;
   }
   const at = t, k = nearestIndexMinute(at), s = k !== null ? st.at.get(k) : null;
@@ -772,6 +790,24 @@ function buildControls() {
   });
 }
 function recompute() { if (!day) return; day.entries = entriesOf(); render(false); }
+let olderBusy = false;
+async function loadOlder(src) {  // add older days to the strip, keeping what you are looking at in place
+  if (olderBusy) return;
+  olderBusy = true;
+  $('older').hidden = false;
+  try {
+    const keep = Object.values(panels).filter(q => q.mode !== 'tile' && q.mainBars.length).map(q => {
+      const r = q.main.timeScale().getVisibleLogicalRange();
+      return [q, r ? [timeAt(q.mainBars, r.from), timeAt(q.mainBars, r.to)] : null];
+    });
+    await buildDay(day.key, day.shown + MORE_DAYS, true);
+    syncing = true;
+    try {
+      render(false);
+      for (const [q, span] of keep) if (span && q.mainBars.length) q.main.timeScale().setVisibleLogicalRange({ from: indexAt(q.mainBars, span[0]), to: indexAt(q.mainBars, span[1]) });
+    } finally { syncing = false; }
+  } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
+}
 async function openDay(key) {
   await buildDay(key);
   dayPick.set(DAYS, key, new Date(Date.now() + IST).toISOString().slice(0, 10));
