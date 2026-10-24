@@ -126,7 +126,7 @@ class Bands {  // colored bands behind a chart's series, one per run of candles:
   }
 }
 
-class DayLines {  // a dashed line where a new day begins in the viewer's timezone, with its date along the top
+class DayLines {  // a solid line where a new day begins in the viewer's timezone, with its date in a chip along the top
   constructor(chart, bars, labelTop) {  // labelTop: where the date goes (px from the top); null for no date
     this.chart = chart; this.bars = bars; this.top = labelTop; this.lines = [];
     this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: t => this.render(t) }) }];
@@ -153,8 +153,8 @@ class DayLines {  // a dashed line where a new day begins in the viewer's timezo
   render(target) {
     target.useBitmapCoordinateSpace(({ context: c, bitmapSize: size, horizontalPixelRatio: hr, verticalPixelRatio: vr }) => {
       c.save();
-      c.strokeStyle = 'rgba(160, 172, 190, 0.38)'; c.lineWidth = Math.max(1, Math.round(hr));
-      c.setLineDash([Math.round(4 * vr), Math.round(4 * vr)]);
+      // a solid, brighter line (owner 24/10/2026: the small dashed one was hard to see)
+      c.strokeStyle = 'rgba(214, 224, 238, 0.55)'; c.lineWidth = Math.max(2, Math.round(2 * hr));
       for (const [x] of this.lines) {
         const px = Math.round(x * hr) + 0.5;
         if (px < 0 || px > size.width) continue;
@@ -162,12 +162,12 @@ class DayLines {  // a dashed line where a new day begins in the viewer's timezo
       }
       c.setLineDash([]);
       if (this.top !== null) {
-        c.font = `600 ${Math.round(10.5 * vr)}px "IBM Plex Sans", "Segoe UI", sans-serif`; c.textBaseline = 'top';
+        c.font = `700 ${Math.round(11.5 * vr)}px "IBM Plex Sans", "Segoe UI", sans-serif`; c.textBaseline = 'top';
         for (const [x, text] of this.lines) {
           const px = Math.round(x * hr), w = c.measureText(text).width, pad = Math.round(5 * hr), y = Math.round(this.top * vr);
           if (px < 0 || px + 3 * hr + w + 2 * pad > size.width) continue;
-          c.fillStyle = 'rgba(10, 13, 18, 0.85)'; c.fillRect(px + Math.round(3 * hr), y, w + 2 * pad, Math.round(16 * vr));
-          c.fillStyle = '#c3ccd8'; c.fillText(text, px + Math.round(3 * hr) + pad, y + Math.round(3 * vr));
+          c.fillStyle = 'rgba(214, 224, 238, 0.92)'; c.fillRect(px + Math.round(3 * hr), y, w + 2 * pad, Math.round(18 * vr));  // a light date chip
+          c.fillStyle = '#0a0d12'; c.fillText(text, px + Math.round(3 * hr) + pad, y + Math.round(3 * vr));
         }
       }
       c.restore();
