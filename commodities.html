@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Commodities · Indra Quant Signal Board</title>
+<meta name="description" content="Crude oil and natural gas: the US future (MCL, NG) sets the trend, the MCX mini (CRUDEOILM, NATGASMINI) joins it, then the 2m/3m entry on the MCX mini.">
+<meta name="theme-color" content="#0a0d12">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="manifest" href="brand/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="lightweight-charts.js"></script>
+<script src="labels.js?v=2" defer></script>
+<script src="macd.js?v=6c40434fbc"></script>
+<script src="engine.js?v=071c0c2a3d"></script>
+<script src="daypick.js?v=2"></script>
+<style>
+  .iq-lock { height: 26px; width: auto; display: block; flex: none; }
+  /* the candle size: one dropdown (owner 24/10/2026) */
+  .tf-sel { padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text);
+            font: 500 12px var(--font-num); cursor: pointer; }
+  .tf-sel:hover { border-color: var(--line-strong); }   /* the official Indra Quant lockup (logo + wordmark), as is */
+  .brand .board-name { font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
+  /* Commodities (owner 24/10/2026): India Replay's page and logic on crude oil and natural gas. Step 1: the US future's
+     gate (MCL / NG); step 2: the MCX mini (CRUDEOILM / NATGASMINI) joins it after being off that side; step 3: the MCX
+     mini's 2m/3m entry. Saved 1-minute days from the VPS (data/futures/1m/, one file per UTC day).
+     Below, the India page's own notes:
+     India Replay: one Indian trading day at a time, from the VPS's saved Dhan 1-minute candles (data/india/1m/).
+     Nifty setup: NIFTY 50 and GIFT NIFTY must show the same gate (step 1); RELIANCE, which must not already be on that
+     side when step 1 starts, then turns to it (step 2); the entry is RELIANCE's 2m or 3m MACD crossing 0 that way on a
+     closed candle (step 3). Bank Nifty setup: the same with NIFTY BANK alone, then HDFC BANK. */
+  :root {
+    color-scheme: dark;
+    --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
+    --text: #e8eef6; --muted: #8d99ab; --faint: #5c6879; --up: #2bb68a; --down: #f0555f; --accent: #5b8cff; --warn: #f2b33d;
+    --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text);
+         font: 13px/1.4 var(--font-ui); -webkit-font-smoothing: antialiased; }
+  button, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+  .up { color: var(--up); } .down { color: var(--down); }
+
+  /* ---- one slim bar (owner 24/10/2026): tabs, setup, day, candles and 2m / 3m in one row; always the whole day ---- */
+  .topbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; padding: 5px 10px;
+            background: var(--surface); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; }
+  .brand .mark { width: 24px; height: 24px; flex: none; display: block; }
+  .tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .tabs a { padding: 4px 10px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 500; }
+  .tabs a:hover { color: var(--text); }
+  .tabs a[aria-current="page"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .grp { display: inline-flex; align-items: center; gap: 4px; padding-left: 10px; border-left: 1px solid var(--line); }
+  .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .seg button { padding: 3px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
+                font-family: var(--font-num); font-size: 12px; white-space: nowrap; }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .seg.words button { font-family: var(--font-ui); }
+  .btn { padding: 3px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text); cursor: pointer;
+         font-size: 12px; white-space: nowrap; }
+  .btn:hover:not(:disabled) { border-color: var(--line-strong); background: var(--tile); }
+  .btn:disabled { opacity: .35; cursor: default; }
+  .btn[aria-pressed="true"] { border-color: var(--accent); background: rgba(91, 140, 255, .14); }
+  select.btn { padding-right: 4px; }
+  .day { font-family: var(--font-num); }
+
+  /* ---- steps 1 / 2 / 3: chips in the big chart's header (point at one for the details) ---- */
+  .steps { margin-left: auto; display: inline-flex; gap: 6px; min-width: 0; overflow: hidden; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 3px; border: 1px solid var(--line); border-radius: 999px;
+          background: var(--bg); font-size: 12px; white-space: nowrap; cursor: default; min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
+  .chip .k { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--tile);
+             color: var(--muted); font: 700 10.5px var(--font-num); }
+  .chip .v { font-weight: 600; color: var(--muted); }
+  .chip .v.bull { color: var(--up); } .chip .v.bear { color: var(--down); }
+  .chip .d { display: none; }
+
+  /* ---- the charts ---- */
+  /* one big chart, the others as small tiles on the right (owner 24/10/2026); click a tile (or 1 / 2 / 3) to swap */
+  .board { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 78fr) minmax(0, 22fr); grid-template-rows: minmax(0, 1fr); }
+  .panel { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .panel.big { grid-column: 1; grid-row: 1 / -1; }
+  .panel.half { grid-row: 1; }   /* two charts (Bank Nifty): side by side, equal by default (owner 24/10/2026) */
+  .panel.half + .panel.half { border-left: 1px solid var(--line-strong); }
+  .panel.tile { grid-column: 2; border-left: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); cursor: pointer; }
+  .panel.tile::after { content: ""; position: absolute; inset: 0; z-index: 8; }   /* the whole tile is one button */
+  .panel.tile:hover { box-shadow: inset 0 0 0 1px var(--accent); }
+  .panel.tile .stack.panes { grid-template-rows: minmax(0, 1fr); }
+  .panel.tile .pane:not(:first-child), .panel.tile .tag, .panel.tile .warm, .panel.tile .pextra { display: none; }
+  .panel.tile .phead > .gw { display: inline-flex; }
+  .panel.tile .phead::after { content: "click to enlarge"; margin-left: auto; color: var(--faint); font-size: 10.5px; }
+  .panel.big .pname { display: none; }   /* the switch in its header shows the name */
+  /* drag handles: between the charts, between the tiles, and between a price chart and its MACD panes (double-click: back to the default) */
+  .split { position: absolute; z-index: 20; touch-action: none; }
+  .split::after { content: ""; position: absolute; background: transparent; transition: background .12s; }
+  .split:hover::after, .split.on::after { background: var(--accent); }
+  .split.col { top: 0; bottom: 0; width: 9px; margin-left: -5px; cursor: col-resize; }
+  .split.col::after { left: 4px; top: 0; bottom: 0; width: 2px; }
+  .split.row { height: 9px; margin-top: -5px; cursor: row-resize; }
+  .split.row::after { top: 4px; left: 0; right: 0; height: 2px; }
+  .panel.tile .split { display: none; }
+  body.dragging, body.dragging * { cursor: inherit; user-select: none !important; }
+  body.dragging.col-drag { cursor: col-resize; } body.dragging.row-drag { cursor: row-resize; }
+  .phead { flex: none; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 10px; padding: 5px 10px; border-bottom: 1px solid var(--line); min-width: 0; overflow: hidden; white-space: nowrap; }
+  .panel.big .pextra { display: none; }   /* the step chips already say it (owner 24/10/2026: one tidy line) */
+  .phead > .gk, .phead > .gw, .phead > .conds { display: none; }   /* owner 23/10/2026: no "Gate SHORT 3m EMA 5m 9m" in the chart heads (the shading shows the gate) */
+  .pname { font-size: 13.5px; font-weight: 700; }
+  .pval { font: 600 14px var(--font-num); }
+  .gw { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 6px; background: var(--tile);
+        color: var(--muted); font-weight: 700; font-size: 11.5px; letter-spacing: .08em; }
+  .gw.bull { background: var(--up); color: #04150f; } .gw.bear { background: var(--down); color: #1e0507; }
+  .gk { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .conds { display: inline-flex; gap: 8px; font: 11.5px var(--font-num); color: var(--muted); }
+  .warm { color: var(--warn); font-size: 11px; }
+  .pextra { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; }
+  .pextra .gw { padding: 1px 7px; font-size: 10.5px; }
+  .stack { position: relative; flex: 1; min-height: 0; display: grid; grid-template-rows: 1fr; }
+  .stack.panes { grid-template-rows: 62fr 15fr 23fr; }   /* a drag on the handle changes the price chart's share */
+  .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }
+  .tag { position: absolute; top: 4px; left: 10px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 90px);
+         padding: 3px 8px; border-radius: 6px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 11.5px; color: var(--muted);
+         white-space: nowrap; overflow: hidden; }
+  .tag b { color: var(--text); font-weight: 600; }
+  .tag.main { flex-wrap: wrap; row-gap: 2px; white-space: normal; font-family: var(--font-num); }
+  .tag.main b { font-family: var(--font-ui); }
+  .tag .sw { width: 11px; height: 3px; border-radius: 2px; display: inline-block; vertical-align: middle; }
+  .tag .t-ema { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-ui); }
+
+  #loading { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center;
+             gap: 18px; background: var(--bg); color: var(--muted); }
+  #loading[hidden] { display: none; }
+  #loading img { width: 64px; height: 64px; }
+  #loading div { display: flex; align-items: center; gap: 10px; }
+  #loading div::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-strong);
+                         border-top-color: var(--accent); animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
+           background: var(--surface); color: var(--muted); font-size: 12px; }
+  .older[hidden] { display: none; }
+  .how { position: relative; }
+  .how summary { cursor: pointer; list-style: none; display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--line);
+                 border-radius: 50%; color: var(--muted); font-weight: 700; }
+  .how summary::-webkit-details-marker { display: none; }
+  .how-body { position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: min(560px, calc(100vw - 32px)); max-height: 75vh; overflow: auto;
+              padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text);
+              font-size: 12.5px; line-height: 1.5; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
+  .how-body h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+  .how-body p { margin: 0 0 8px; }
+  .how-body .credit { color: var(--muted); font-size: 11.5px; } .how-body .credit a { color: var(--muted); }
+  @media (max-width: 1100px) {
+    html, body { height: auto; }
+    .board { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: none !important; }
+    .board > .split { display: none; }
+    .panel.half { grid-row: auto; height: 88vh; min-height: 560px; }
+    .panel.half + .panel.half { border-left: 0; }
+    .panel.big { grid-row: auto; height: 88vh; min-height: 560px; }
+    .panel.tile { grid-column: 1; height: 34vh; min-height: 220px; border-left: 0; }
+    .steps { margin-left: 0; flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="./" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
+  <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html">Replay</a><a href="mnq.html">MNQ</a><a href="india-replay.html">India Replay</a><a href="commodities.html" aria-current="page">Commodities</a></nav>
+  <div class="grp" title="Setup"><div class="seg words" id="setupSel" role="group" aria-label="Setup"></div></div>
+  <div class="grp"><div id="dayPick"></div></div>
+  <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
+  <div class="grp">
+    <button class="btn" id="sc2" type="button" aria-pressed="true" title="Show the 2m scalper's entries">2m</button>
+    <button class="btn" id="sc3" type="button" aria-pressed="true" title="Show the 3m scalper's entries">3m</button>
+  </div>
+  <details class="how">
+    <summary title="How it works">?</summary>
+    <div class="how-body">
+      <h3>The setups</h3>
+      <p><b>Crude</b>: step 1, MCL's gate (CME micro WTI) is LONG or SHORT. Step 2, CRUDEOILM's gate (MCX mini) turns to that side after step 1 has started; if it is already on that side when step 1 starts, it doesn't count until it leaves that side and comes back. If it drops out again while the trend holds, it can sync again. Step 3, the entry: CRUDEOILM's 2m or 3m MACD crosses 0 that way on a closed candle while steps 1 and 2 hold (times shown are the candle's close, IST).</p>
+      <p><b>Nat Gas</b>: the same, with NG (CME natural gas) in step 1 and NATGASMINI (MCX) in steps 2 and 3.</p>
+      <h3>The gate</h3>
+      <p>For each market on its own candles: LONG when the 5m, 9m and 11m MACD are all above 0 and the 3m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. Exactly the Nasdaq pages' gate. Each indicator is warmed up on the saved days before, so it reads what it would have read live.</p>
+      <h3>Trends</h3>
+      <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown.</p>
+      <h3>Charts</h3>
+      <p>MCX on the left, the US future on the right, side by side and scrolling together. (On India Replay, Nifty: one chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right, showing the whole day with their gate. Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. Bank Nifty: the two charts side by side.) Drag the thin lines between the charts, between the tiles, or between a price chart and its MACD panes to size them as you like (remembered; double-click a line for the default). The index is shaded by step 1; GIFT NIFTY by its own gate (its whole session, 06:30 to 02:45 the next morning); the stock where step 2 holds, with its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <h3>Days</h3>
+      <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
+      <h3>Data</h3>
+      <p>Saved 1-minute candles from our VPS, from 15 Oct 2026, one file per UTC day: MCL and NG from NinjaTrader (the front month as it stitches it), CRUDEOILM and NATGASMINI from Dhan (the near month through its expiry day, then the next month). Nothing is filled in: a minute with no trade has no candle. Live candles for today come with the VPS's live stream.</p>
+      <p class="credit">Not investment advice · Data: NinjaTrader and Dhan, via our VPS · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
+    </div>
+  </details>
+</header>
+<div id="parked" hidden><div class="seg words" id="viewSel" role="group" aria-label="Big chart"></div>
+<div class="steps" id="steps" aria-label="Where the setup stands">
+  <span class="chip" id="s1"><span class="k">1</span><span class="v" id="s1v">—</span><span class="d" id="s1d"></span></span>
+  <span class="chip" id="s2"><span class="k">2</span><span class="v" id="s2v">—</span><span class="d" id="s2d"></span></span>
+  <span class="chip" id="s3"><span class="k">3</span><span class="v" id="s3v">—</span><span class="d" id="s3d"></span></span>
+</div></div>
+<main class="board" id="board"></main>
+<div id="older" class="older" hidden>Loading older days…</div>
+<div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
+<script>
+'use strict';
+const DAY = 86400000, MIN = 60000, IST = 19800000;  // IST = UTC + 5:30
+const { TrendSignal, SHOWN } = NdxEngine.internals;
+const { MacdPane, Bands, DayLines } = NsbMacd;
+const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: '#3a4554', label: '#283240',
+            bg: '#0a0d12', ema21: '#f2b33d', ema47: '#5b8cff' };
+const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
+const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
+const RULES = [['3m EMA21 vs EMA47', '3m EMA'], ['5m MACD vs 0', '5m'], ['9m MACD vs 0', '9m'], ['11m MACD vs 0', '11m']];
+const TFS = [1, 2, 3, 5];
+// Each market's bars start at its session open, as on TradingView (ms after 00:00 UTC): NSE 09:15 IST, GIFT NIFTY 06:30 IST
+// Bars start at each market's session open, as on TradingView (ms after 00:00 UTC): MCX 09:00 IST, CME 17:00 Chicago
+// (22:00 UTC in summer time; 23:00 UTC from 1 Nov, when Chicago moves its clocks)
+const MCX_OPEN = 3 * 3600000 + 30 * MIN, CME_OPEN = 22 * 3600000;
+const MARKETS = {
+  MCL: { name: 'MCL · WTI crude (CME micro)', origin: CME_OPEN, digits: 2, macdDigits: 3 },
+  NG: { name: 'NG · natural gas (CME)', origin: CME_OPEN, digits: 3, macdDigits: 4 },
+  CRUDEOILM: { name: 'CRUDEOILM · MCX', origin: MCX_OPEN, digits: 0, macdDigits: 2 },
+  NATGASMINI: { name: 'NATGASMINI · MCX', origin: MCX_OPEN, digits: 1, macdDigits: 3 },
+};
+const SETUPS = {
+  crude: { label: 'Crude', index: 'MCL', gift: null, stock: 'CRUDEOILM' },
+  gas: { label: 'Nat Gas', index: 'NG', gift: null, stock: 'NATGASMINI' },
+};
+const WARM_DAYS = 3;  // saved days before the oldest one shown, for the indicators to settle
+const SHOW_DAYS = 3, MORE_DAYS = 3;  // days shown when a day is picked (it is the newest); days added each time you scroll to the left edge
+const $ = id => document.getElementById(id);
+const two = n => String(n).padStart(2, '0');
+const sec = ms => Math.floor(ms / 1000);
+const ok = v => v !== null && v !== undefined && isFinite(v);
+const num = (v, d = 2) => ok(v) ? v.toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
+const hhmm = ms => { const d = new Date(ms + IST); return `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`; };
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WKD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const when = ms => { const d = new Date(ms + IST); return `${WKD[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${hhmm(ms)}`; };
+const kind = st => st === 'BULLISH' ? 'bull' : st === 'BEARISH' ? 'bear' : '';
+const dayOf = (t, origin) => t - ((t - origin) % DAY + DAY) % DAY;
+const bucketStart = (t, m, origin) => { const d0 = dayOf(t, origin), s = m * MIN; return d0 + Math.floor((t - d0) / s) * s; };
+const bucketEnd = (t, m, origin) => Math.min(bucketStart(t, m, origin) + m * MIN, dayOf(t, origin) + DAY);
+const istMidnight = key => Date.parse(key + 'T00:00:00Z') - IST;  // 00:00 IST of a day key (YYYY-MM-DD)
+const pref = (k, fallback) => { try { const v = localStorage.getItem('nsb.comm.' + k); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } };
+const save = (k, v) => { try { localStorage.setItem('nsb.comm.' + k, JSON.stringify(v)); } catch (e) {} };
+
+// ---- settings (remembered in this browser) ----------------------------------------------------------------
+const opt = {
+  setup: SETUPS[location.hash.slice(1)] ? location.hash.slice(1)   // a link to a setup: india-replay.html#bank or #nifty
+       : SETUPS[pref('setup', 'crude')] ? pref('setup', 'crude') : 'crude',
+  tf: TFS.includes(pref('tf', 1)) ? pref('tf', 1) : 1,
+  sc2: pref('sc2', true), sc3: pref('sc3', true),
+};
+
+// ---- data: the VPS's saved days (data/futures/1m/YYYY-MM-DD.json, UTC days) --------------------------------
+let DAYS = [], dayPick = null;  // saved day keys, oldest first; the calendar
+const fileCache = new Map();
+async function loadFile(key) {  // -> { market: [{ t (ms), o, h, l, c, v }] }
+  if (fileCache.has(key)) return fileCache.get(key);
+  const r = await fetch(`data/futures/1m/${key}.json`, { cache: 'no-cache' });  // re-checked: today's file grows after the close
+  if (!r.ok) throw new Error(`${key}: ${r.status}`);
+  const j = await r.json(), out = {};
+  for (const [m, rows] of Object.entries(j)) if (m !== 'contracts') out[m] = rows.map(([t, o, h, l, c, v]) => ({ t: t * 1000, o, h, l, c, v }));
+  out.contracts = j.contracts || {};  // which MCX contract each stretch is (near month through expiry day)
+  fileCache.set(key, out);
+  return out;
+}
+
+// ---- one market's gate, minute by minute, exactly as the live engine runs it ----------------------------------
+function runMarket(market, rows) {  // rows: its 1-minute candles over the warm-up days and the day, oldest first
+  const sig = new TrendSignal({ [market]: 1 }, SHOWN, MARKETS[market].origin), checksAt = new Map();
+  let captured = null;
+  const evaluate = sig.evaluate.bind(sig), finish = sig.finishMinute.bind(sig);
+  sig.evaluate = (v, now) => { const ev = evaluate(v, now); captured = ev; return ev; };
+  sig.finishMinute = (start, close, vol) => { captured = null; finish(start, close, vol); if (captured) checksAt.set(start, captured.checks); };
+  for (const b of rows) sig.onMemberBar(market, b.t, b.c, b.v);
+  return { stateAt: new Map(sig.history), checksAt, bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) };
+}
+
+// ---- the setup ----------------------------------------------------------------------------------------------
+// Each index minute: step 1 (the index trend: NIFTY and GIFT NIFTY's gates agree, or BANK NIFTY's gate), its trend
+// number (trendsOf), and step 2 (the stock synced: on the trend's side, after having been off it since the trend began).
+// A trend: one run of step 1 in one direction. A NO TRADE minute or a turn ends it, and so does a break of more than an
+// hour without candles (overnight, a session break). A quiet minute with no trade (no candle) does not: it is not a
+// NO TRADE reading (owner 24/10/2026; NG often skips minutes).
+const SESSION_BREAK = 60 * MIN;
+function trendsOf(stateAt) {
+  const id = new Map(), keys = [...stateAt.keys()].sort((a, b) => a - b);
+  let cur = null, n = 0;
+  for (const t of keys) {
+    const s = stateAt.get(t);
+    if (s !== 'BULLISH' && s !== 'BEARISH') { cur = null; continue; }
+    if (!cur || cur.dir !== s || t - cur.last > SESSION_BREAK) cur = { dir: s, id: ++n };
+    cur.last = t;
+    id.set(t, cur.id);
+  }
+  return id;
+}
+function latestState(run, t, within = 15) {  // a market's gate at minute t, or its last one shortly before (GIFT can skip quiet minutes)
+  for (let k = t; k >= t - within * MIN; k -= MIN) { const s = run.stateAt.get(k); if (s) return s; }
+  return null;
+}
+function setupOf(S, runs, indexMinutes) {
+  const idx = runs[S.index], gift = S.gift ? runs[S.gift] : null, stk = runs[S.stock];
+  const trend = new Map();  // minute -> step 1 state
+  for (const t of indexMinutes) {
+    const a = idx.stateAt.get(t);
+    if (!a) continue;
+    if (!gift) { trend.set(t, a); continue; }
+    const b = latestState(gift, t);
+    if (b) trend.set(t, a === b ? a : 'NEUTRAL');
+  }
+  const ids = trendsOf(trend), at = new Map(), syncs = [], starts = [];
+  let cur = null;  // the trend being followed: { id, dir, start, last, armed, synced, since, told }
+  for (const t of indexMinutes) {
+    const id = ids.get(t), s = latestState(stk, t, 3) || 'NEUTRAL';  // the MCX mini's gate (a quiet minute: its last one); outside MCX hours: off the trend's side
+    if (cur && id === undefined) cur = null;  // a NO TRADE minute ends the trend
+    if (id !== undefined && (!cur || cur.id !== id)) {  // a new trend: the stock must be the odd man out first
+      cur = { id, dir: trend.get(t), start: t, last: t, armed: s !== trend.get(t), synced: false, since: null, told: false };
+      starts.push({ t, dir: cur.dir });
+    }
+    if (cur) {  // inside a gap the stock is still followed: if the trend resumes, what it did meanwhile counts
+      if (s !== cur.dir) { cur.armed = true; cur.synced = false; cur.told = false; }
+      else if (cur.armed && !cur.synced) { cur.synced = true; cur.since = t; }
+      if (id !== undefined) cur.last = t;
+    }
+    const on = id !== undefined;
+    if (on && cur.synced && !cur.told) { cur.told = true; syncs.push({ t, dir: cur.dir }); }  // a sync counts while step 1 is on
+    at.set(t, { trend: trend.get(t) || null, step1: on ? cur.dir : null, id: on ? id : null, synced: on && cur.synced,
+                since: on && cur.synced ? cur.since : null, start: on ? cur.start : null });
+  }
+  return { trend, at, syncs, starts };
+}
+
+// The entries: the stock's 2m or 3m MACD crossing 0 on a closed candle, the trend's way, while steps 1 and 2 hold.
+function crosses(run, m) {
+  const out = [], bars = run.bars[m] || [], origin = MARKETS[day.setup.stock].origin;
+  for (let i = 1; i < bars.length; i++) {
+    const a = bars[i - 1].macd, b = bars[i].macd;
+    if (!ok(a) || !ok(b)) continue;
+    const dir = a <= 0 && b > 0 ? 'BULLISH' : a >= 0 && b < 0 ? 'BEARISH' : null;
+    if (!dir) continue;
+    // the candle's last minute (a bar can close early at the end of the session: its last minute then is earlier)
+    const close = bucketEnd(bars[i].time, m, origin), last = lastMinuteIn(run, bars[i].time, close);
+    out.push({ t: last + MIN, m, dir, macd: b, k: last });
+  }
+  return out;
+}
+function lastMinuteIn(run, from, to) {  // the stock's last candle minute in [from, to)
+  const ones = day.rows[day.setup.stock];
+  let lo = 0, hi = ones.length - 1, hit = from;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (ones[mid].t < to) { hit = ones[mid].t; lo = mid + 1; } else hi = mid - 1; }
+  return Math.max(hit, from);
+}
+function entriesOf() {
+  const want = [opt.sc2 && 2, opt.sc3 && 3].filter(Boolean), stk = day.runs[day.setup.stock], st = day.setupRun;
+  const all = want.flatMap(m => crosses(stk, m)).sort((a, b) => a.t - b.t || a.m - b.m);
+  const out = [];
+  for (const e of all) {  // every entry of a trend counts
+    const s = st.at.get(e.k);
+    if (!s || !s.synced || s.step1 !== e.dir || s.trend !== e.dir) continue;  // steps 1 and 2 at that candle's close
+    if (e.k >= day.d0 && e.k < day.d1) out.push(e);
+  }
+  return out;
+}
+
+// ---- building a day -----------------------------------------------------------------------------------------
+let day = null;
+// One long strip of days (owner 24/10/2026): the picked day is the newest; `shown` days up to it are drawn, and older
+// ones join when you scroll to the left edge. quiet: no loading screen (adding older days).
+async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
+  const i = DAYS.indexOf(key), first = Math.max(0, i - shown + 1), keys = DAYS.slice(Math.max(0, first - WARM_DAYS), i + 1);
+  if (!quiet) loading(`Loading ${key}…`);
+  const files = await Promise.all(keys.map(loadFile));
+  const S = SETUPS[opt.setup], markets = [S.index, S.gift, S.stock].filter(Boolean);
+  const rows = {};
+  for (const m of markets) {
+    const byT = new Map();
+    for (const f of files) for (const b of f[m] || []) byT.set(b.t, b);
+    rows[m] = [...byT.values()].sort((a, b) => a.t - b.t);
+  }
+  const runs = Object.fromEntries(markets.map(m => [m, runMarket(m, rows[m])]));
+  // the strip: 06:30 IST (GIFT NIFTY's open) of its oldest day to 06:30 the morning after the picked day
+  const open = k => Date.parse(k + 'T00:00:00Z');  // a UTC day
+  const d0 = open(DAYS[first]), lastD0 = open(key), d1 = lastD0 + DAY;
+  const indexMinutes = rows[S.index].map(b => b.t);
+  day = { key, d0, d1, lastD0, shown: i - first + 1, more: first > 0, setup: S, rows, runs, indexMinutes, warm: keys.length - 1 - (i - first) };
+  day.setupRun = setupOf(S, runs, indexMinutes);
+  day.entries = entriesOf();
+  const inDay = b => b.t >= d0 && b.t < d1;
+  day.price = Object.fromEntries(markets.map(m => [m, rows[m].filter(inDay).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }))]));
+  day.nse = day.price[S.index].length > 0;
+  const lastNse = day.nse ? day.price[S.index][day.price[S.index].length - 1].time : d0;
+  day.start = day.nse ? day.price[S.index][0].time : d0;
+  day.end = Math.max(...markets.map(m => day.price[m].length ? day.price[m][day.price[m].length - 1].time + MIN : d0));
+  day.nseEnd = lastNse + MIN;
+  loading(null);
+}
+
+// ---- the charts ---------------------------------------------------------------------------------------------
+let panels = {};
+function options(showTime, isMain) {
+  return {
+    watermark: isMain ? { visible: true, text: '', color: 'rgba(232, 238, 246, 0.04)', fontSize: 36, fontStyle: '700' } : { visible: false },
+    autoSize: true, handleScroll: isMain, handleScale: isMain,
+    layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },
+    grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
+    rightPriceScale: { borderColor: C.line, minimumWidth: 70 },
+    timeScale: { visible: showTime, borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.05,
+      tickMarkFormatter: (t, type) => { const d = new Date(t * 1000 + IST); return type < 3 ? `${d.getUTCDate()} ${MON[d.getUTCMonth()]}` : hhmm(t * 1000); } },
+    localization: { timeFormatter: t => when(t * 1000) },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label },
+      horzLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label } },
+  };
+}
+class Panel {
+  // role: 'index', 'gift' or 'stock' (every chart has the MACD panes since 23/10, owner); cls: layout classes
+  constructor(key, market, role, cls) {
+    this.key = key; this.market = market; this.role = role; this.origin = MARKETS[market].origin;
+    this.mainBars = []; this.mainStates = []; this.src = {}; this.store = new Map(); this.emaPts = [];
+    const panes = true;   // owner 23/10/2026: the Entry and Trend MACD panes under the indices too (were the stock's only)
+    $('board').insertAdjacentHTML('beforeend', `
+      <section class="panel ${cls}" id="${key}">
+        <div class="phead">
+          <span class="pname">${MARKETS[market].name}</span><span class="pval" id="${key}-val">—</span>
+          <span class="gk">Gate</span><span class="gw" id="${key}-gate">—</span>
+          <span class="conds" id="${key}-conds"></span>
+          <span class="warm" id="${key}-warm"></span>
+          <span class="pextra" id="${key}-extra"></span>
+        </div>
+        <div class="stack${panes ? ' panes' : ''}">
+          <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
+          ${panes ? `<div class="pane" id="${key}-pentry"><div class="tag mix" id="${key}-tentry"></div></div>
+                     <div class="pane" id="${key}-ptrend"><div class="tag mix" id="${key}-ttrend"></div></div>` : ''}
+        </div>
+      </section>`);
+    this.main = LightweightCharts.createChart($(`${key}-pmain`), options(true, true));
+    this.vol = this.main.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
+    this.main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.88, bottom: 0 }, visible: false });
+    this.candles = this.main.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
+    this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.14, bottom: 0.14 } });
+    const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+    this.e21 = emaLine(C.ema21); this.e47 = emaLine(C.ema47);
+    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
+    this.candles.attachPrimitive(this.zones);
+    this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30));  // where each day begins, with its date
+    this.macd = {};
+    if (panes) for (const k of ['entry', 'trend']) this.macd[k] = new MacdPane({
+      el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 3, options: options(false, false), origin: this.origin,
+      bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.waveAt(i),
+    });
+    this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
+      for (const p of Object.values(this.macd)) p.sync(r);
+      if (r && r.from < 8 && !syncing && this.mode !== 'tile' && day && day.more) loadOlder(this);  // at the left edge: older days
+    });
+    const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
+                 ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
+    this.charts = all;
+    for (const self of all) self.chart.subscribeCrosshairMove(p => {
+      if (!p.sourceEvent) return;
+      const t = p.time;
+      for (const o of all) if (o !== self) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
+      hoverAll(this, t);
+    });
+    for (const el of $(key).querySelectorAll('.pane')) el.addEventListener('mouseleave', () => hoverAll(this, undefined));
+    $(key).addEventListener('click', e => { if (this.mode === 'tile' && !e.target.closest('#viewSel')) select(this.key); });
+    const ps = document.createElement('div');  // the handle between the price chart and the MACD panes
+    ps.className = 'split row'; ps.title = 'Drag to size the price chart and its MACD panes (double-click: default)';
+    $(key).querySelector('.stack').append(ps); this.paneSplit = ps;
+    dragger(ps, 'row', e => { const r = $(key).querySelector('.stack').getBoundingClientRect(); setPriceShare((e.clientY - r.top) / r.height); },
+            () => setPriceShare(DEFAULT_PRICE));
+  }
+  setMode(mode) {  // 'big' or 'half': scroll, zoom, time axis and MACD panes; 'tile': the whole day at a glance, one click to enlarge
+    this.mode = mode;
+    for (const m of ['big', 'half', 'tile']) $(this.key).classList.toggle(m, m === mode);
+    const full = mode !== 'tile';
+    this.main.applyOptions({ handleScroll: full, handleScale: full, timeScale: { visible: full }, rightPriceScale: { minimumWidth: full ? 70 : 56 } });
+  }
+  waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }  // the colour at candle i
+  remove() { this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
+  shadeAt(t) {  // the state a candle is shaded by, at minute t
+    if (this.role === 'gift') return day.runs[this.market].stateAt.get(t) || null;
+    const s = day.setupRun.at.get(t);
+    if (!s) return null;
+    if (this.role === 'index') return s.trend;
+    return s.synced ? s.step1 : null;  // the stock: where step 2 holds
+  }
+  draw() {
+    const upto = Infinity, tf = opt.tf, o = this.origin;
+    const ones = day.price[this.market].filter(b => b.time < upto);
+    this.mainBars = aggregate(ones, tf, o);
+    this.mainStates = this.mainBars.map((b, i) => {
+      for (let t = Math.min(bucketEnd(b.time, tf, o), upto) - MIN; t >= b.time; t -= MIN) { const s = this.shadeAt(t); if (s) return s; }
+      return null;
+    });
+    const run = day.runs[this.market];
+    this.src = Object.fromEntries(Object.entries(run.bars).map(([m, bars]) => [m, bars.filter(b => b.time < day.d1 && bucketEnd(b.time, +m, o) <= upto)]));
+    this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
+    this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
+    this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
+    this.setEmas();
+    for (const p of Object.values(this.macd)) { p.digits = MARKETS[this.market].macdDigits; p.update(); p.showLines(); }
+    this.setMarkers(upto);
+    this.main.applyOptions({ watermark: { text: `${MARKETS[this.market].name} · ${tf}m` } });
+    if (this.zones.requestUpdate) this.zones.requestUpdate();
+    for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
+  }
+  fit() {  // the newest day of the strip (the older ones are to the left)
+    const n = this.mainBars.length;
+    if (!n) return;
+    let i = this.mainBars.findIndex(b => b.time >= day.lastD0);
+    if (i < 0) i = 0;
+    this.main.timeScale().setVisibleLogicalRange({ from: i - 1, to: n + 2 });
+  }
+  setEmas() {  // the 3m EMA 21 and 47 as of each candle's close
+    const src = (this.src[3] || []).filter(b => ok(b.ema47)), out = [];
+    let k = -1;
+    for (let i = 0; i < this.mainBars.length; i++) {
+      const end = bucketEnd(this.mainBars[i].time, opt.tf, this.origin);
+      while (k + 1 < src.length && bucketEnd(src[k + 1].time, 3, this.origin) <= end) k++;
+      if (k >= 0) out.push({ time: sec(this.mainBars[i].time), e21: src[k].ema21, e47: src[k].ema47 });
+    }
+    this.emaPts = out;
+    this.e21.setData(out.map(p => ({ time: p.time, value: p.e21 })));
+    this.e47.setData(out.map(p => ({ time: p.time, value: p.e47 })));
+  }
+  setMarkers(upto) {  // the stock: sync points and entries
+    if (this.role !== 'stock') { this.candles.setMarkers([]); return; }
+    const m = [], at = t => sec(bucketStart(t, opt.tf, this.origin));
+    for (const s of day.setupRun.syncs) {
+      if (s.t < day.d0 || s.t >= day.d1 || s.t >= upto) continue;
+      m.push({ time: at(s.t), position: s.dir === 'BULLISH' ? 'belowBar' : 'aboveBar', color: '#e8eef6', shape: 'circle', text: 'sync' });
+    }
+    for (const e of day.entries) {
+      if (e.t > upto) continue;
+      const color = e.m === 2 ? '#fb7185' : '#22d3ee';
+      m.push(e.dir === 'BULLISH' ? { time: at(e.k), position: 'belowBar', color, shape: 'arrowUp', text: `${e.m}m` }
+                                 : { time: at(e.k), position: 'aboveBar', color, shape: 'arrowDown', text: `${e.m}m` });
+    }
+    m.sort((a, b) => a.time - b.time);
+    this.candles.setMarkers(m);
+  }
+  head(t) {  // the header at minute t (hovering), or at the market's last candle
+    const run = day.runs[this.market], own = day.price[this.market], ownEnd = own.length ? own[own.length - 1].time + MIN : day.end;
+    const at = t !== undefined ? t : ownEnd - MIN;  // its own last candle
+    let st = null, k = null;
+    for (let x = at; x >= at - 15 * MIN; x -= MIN) { const s = run.stateAt.get(x); if (s) { st = s; k = x; break; } }
+    const bar = [...day.price[this.market]].reverse().find(b => b.time <= at);
+    $(`${this.key}-val`).textContent = bar ? num(bar.close, MARKETS[this.market].digits) : '—';
+    $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
+    const ch = k !== null ? run.checksAt.get(k) : null;
+    $(`${this.key}-conds`).innerHTML = ch ? RULES.map(([key, name]) => `<span class="${ch[key] > 0 ? 'up' : 'down'}">${name} ${ch[key] > 0 ? '▲' : '▼'}</span>`).join('') : '';
+    const first = Math.min(...[...run.stateAt.keys()].filter(x => x >= day.d0 && x < day.d1), Infinity);
+    const firstBar = day.price[this.market].length ? day.price[this.market][0].time : Infinity;
+    $(`${this.key}-warm`).textContent = first === Infinity && firstBar < Infinity ? 'not enough earlier days for the indicators'
+      : first > firstBar ? `warming up until ${hhmm(first)}` : '';
+    if (this.role === 'index') {
+      const s = day.setupRun.at.get(at) || day.setupRun.at.get(nearestIndexMinute(at));
+      $(`${this.key}-extra`).innerHTML = day.setup.gift ? `Step 1 <span class="gw ${kind(s && s.trend)}">${s && s.trend ? WORD[s.trend] : '—'}</span>` : '';
+    } else $(`${this.key}-extra`).innerHTML = '';
+  }
+  tags(t) {
+    const b = t !== undefined ? this.store.get(t) : this.mainBars.length ? { ...this.mainBars[this.mainBars.length - 1], state: this.mainStates[this.mainStates.length - 1] } : null;
+    const d = MARKETS[this.market].digits;
+    if (b) {
+      let e = null;
+      for (const p of this.emaPts) if (p.time <= sec(b.time)) e = p; else break;
+      $(`${this.key}-tmain`).innerHTML = `<b>${MARKETS[this.market].name}</b><span>${opt.tf}m</span>${t !== undefined ? `<span>${when(b.time)}</span>` : ''}`
+        + `<span>O <b>${num(b.open, d)}</b> H <b>${num(b.high, d)}</b> L <b>${num(b.low, d)}</b> C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close, d)}</b></span>`
+        + (e ? `<span class="t-ema"><span class="sw" style="background:${C.ema21}"></span>EMA 21 <b>${num(e.e21, d)}</b><span class="sw" style="background:${C.ema47}"></span>EMA 47 <b>${num(e.e47, d)}</b></span>` : '');
+    } else $(`${this.key}-tmain`).innerHTML = `<b>${MARKETS[this.market].name}</b><span>no candles this day</span>`;
+    for (const p of Object.values(this.macd)) { p.name = MARKETS[this.market].name; p.tag(t); }
+  }
+}
+function nearestIndexMinute(t) {  // the last index minute at or before t (after the close: the close)
+  const a = day.indexMinutes;
+  let lo = 0, hi = a.length - 1, hit = null;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (a[mid] <= t) { hit = a[mid]; lo = mid + 1; } else hi = mid - 1; }
+  return hit;
+}
+function aggregate(bars, m, origin) {
+  const out = [];
+  for (const b of bars) {
+    const s = bucketStart(b.time, m, origin), last = out[out.length - 1];
+    if (!last || last.time !== s) out.push({ time: s, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 });
+    else { last.high = Math.max(last.high, b.high); last.low = Math.min(last.low, b.low); last.close = b.close; last.volume += b.volume || 0; }
+  }
+  return out;
+}
+// Candle position <-> time, to keep the same stretch of time when another chart becomes the big one.
+function timeAt(bars, x) {
+  const n = bars.length, tf = opt.tf * MIN;
+  if (x <= 0) return bars[0].time + x * tf;
+  if (x >= n - 1) return bars[n - 1].time + (x - n + 1) * tf;
+  const i = Math.floor(x);
+  return bars[i].time + (x - i) * (bars[i + 1].time - bars[i].time);
+}
+function indexAt(bars, t) {
+  const n = bars.length, tf = opt.tf * MIN;
+  if (t <= bars[0].time) return (t - bars[0].time) / tf;
+  if (t >= bars[n - 1].time) return n - 1 + (t - bars[n - 1].time) / tf;
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) lo = mid; else hi = mid; }
+  return lo + (t - bars[lo].time) / (bars[hi].time - bars[lo].time);
+}
+function hoverAll(src, t) {
+  for (const p of Object.values(panels)) {
+    if (p !== src) for (const o of p.charts) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
+    p.tags(t); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
+  }
+  showStrip(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
+}
+let bigKey = null;
+const ORDER = () => Object.values(panels);  // the setup's markets in their order: index, (GIFT), stock
+function buildPanels() {
+  $('parked').append($('viewSel'), $('steps'));  // out of the old big chart's header before it goes
+  for (const p of Object.values(panels)) p.remove();
+  panels = {};
+  const S = SETUPS[opt.setup];
+  panels.stock = new Panel('pStock', S.stock, 'stock', '');  // MCX left, US right (owner 24/10/2026)
+  panels.index = new Panel('pIndex', S.index, 'index', '');
+  halves = ORDER().length === 2;
+  $('board').style.gridTemplateRows = halves ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)';
+  bigKey = null;
+  buildSplits();
+  setPriceShare(pref('split.price', DEFAULT_PRICE), false);
+  if (halves) {  // two charts: side by side, both full, scrolling together
+    for (const p of ORDER()) p.setMode('half');
+    panels.index.main.timeScale().subscribeVisibleLogicalRangeChange(() => syncHalves(panels.index));
+    panels.stock.main.timeScale().subscribeVisibleLogicalRangeChange(() => syncHalves(panels.stock));
+    $('pStock').querySelector('.phead').append($('steps'));
+    return;
+  }
+  seg($('viewSel'), ORDER().map((p, i) => [`${MARKETS[p.market].name}`, p.key]), null, v => select(v));
+  for (const [i, b] of [...$('viewSel').children].entries()) b.title = `Make ${b.textContent} the big chart (${i + 1})`;
+  const saved = pref('big.' + opt.setup, 'pIndex');
+  placeBig(ORDER().some(p => p.key === saved) ? saved : 'pIndex');
+}
+let halves = false;
+function syncHalves(src) {  // the two half charts show the same stretch of time
+  if (src.echo) { src.echo = false; return; }  // the other chart's own move coming back: not a new one
+  if (syncing || !halves) return;
+  const other = src === panels.index ? panels.stock : panels.index, r = src.main.timeScale().getVisibleLogicalRange();
+  if (!r || !src.mainBars.length || !other.mainBars.length) return;
+  const to = { from: indexAt(other.mainBars, timeAt(src.mainBars, r.from)), to: indexAt(other.mainBars, timeAt(src.mainBars, r.to)) };
+  const now = other.main.timeScale().getVisibleLogicalRange();
+  if (now && Math.abs(now.from - to.from) < 0.01 && Math.abs(now.to - to.to) < 0.01) return;
+  other.echo = true;
+  try { other.main.timeScale().setVisibleLogicalRange(to); } catch (e) { other.echo = false; }
+}
+
+// ---- sizes: drag the handles; each layout remembers its own (double-click a handle: back to the default) ----
+const DEFAULT_PRICE = 0.62, clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const colKey = () => 'split.col.' + (halves ? 'halves' : opt.setup);
+function dragger(el, axis, onMove, onReset) {
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation();
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    el.classList.add('on');
+    document.body.classList.add('dragging', axis + '-drag');
+    const move = ev => onMove(ev);
+    const up = () => { el.removeEventListener('pointermove', move); el.classList.remove('on'); document.body.classList.remove('dragging', axis + '-drag'); };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up, { once: true });
+    el.addEventListener('pointercancel', up, { once: true });
+  });
+  el.addEventListener('dblclick', e => { e.stopPropagation(); onReset(); });
+  el.addEventListener('click', e => e.stopPropagation());
+}
+function buildSplits() {
+  for (const el of $('board').querySelectorAll(':scope > .split')) el.remove();
+  const col = document.createElement('div');
+  col.className = 'split col'; col.title = 'Drag to size the charts (double-click: default)';
+  $('board').append(col);
+  dragger(col, 'col', e => { const r = $('board').getBoundingClientRect(); setCol((e.clientX - r.left) / r.width); }, () => setCol(halves ? 0.5 : 0.78));
+  if (!halves) {
+    const row = document.createElement('div');
+    row.className = 'split row'; row.title = 'Drag to size the two small charts (double-click: default)';
+    $('board').append(row);
+    dragger(row, 'row', e => { const r = $('board').getBoundingClientRect(); setRow((e.clientY - r.top) / r.height); }, () => setRow(0.5));
+  }
+  setCol(pref(colKey(), halves ? 0.5 : 0.78), false);
+  if (!halves) setRow(pref('split.row', 0.5), false);
+}
+function setCol(f, keep = true) {
+  f = clamp(f, 0.15, 0.85);
+  $('board').style.gridTemplateColumns = `minmax(0, ${f * 100}fr) minmax(0, ${(1 - f) * 100}fr)`;
+  $('board').querySelector(':scope > .split.col').style.left = `${f * 100}%`;
+  const row = $('board').querySelector(':scope > .split.row');
+  if (row) { row.style.left = `${f * 100}%`; row.style.right = '0'; }
+  if (keep) save(colKey(), f);
+}
+function setRow(g, keep = true) {
+  g = clamp(g, 0.15, 0.85);
+  $('board').style.gridTemplateRows = `minmax(0, ${g * 100}fr) minmax(0, ${(1 - g) * 100}fr)`;
+  $('board').querySelector(':scope > .split.row').style.top = `${g * 100}%`;
+  if (keep) save('split.row', g);
+}
+function setPriceShare(p, keep = true) {  // the price chart's share of a full chart's height (the rest: Entry 15 : Trend 23)
+  p = clamp(p, 0.25, 0.92);
+  const rest = 1 - p, rows = `minmax(0, ${p * 100}fr) minmax(0, ${rest * 15 / 38 * 100}fr) minmax(0, ${rest * 23 / 38 * 100}fr)`;
+  for (const q of ORDER()) {
+    const st = $(q.key).querySelector('.stack');
+    st.style.gridTemplateRows = q.mode === 'tile' ? '' : rows;
+    q.paneSplit.style.top = `${p * 100}%`; q.paneSplit.style.left = '0'; q.paneSplit.style.right = '70px';
+  }
+  if (keep) save('split.price', p);
+}
+function placeBig(key) {  // the chosen chart big, the others as tiles in the setup's order
+  bigKey = key;
+  for (const p of ORDER()) p.setMode(p.key === key ? 'big' : 'tile');
+  setPriceShare(pref('split.price', DEFAULT_PRICE), false);  // a tile has no MACD panes: its price chart fills it
+  const head = $(key).querySelector('.phead');
+  head.prepend($('viewSel')); head.append($('steps'));
+  for (const b of $('viewSel').children) b.setAttribute('aria-pressed', String(b.dataset.v === key));
+  save('big.' + opt.setup, key);
+}
+function select(key) {
+  if (!day || halves || key === bigKey || !$(key)) return;
+  placeBig(key);
+  render(true);
+}
+
+// ---- the strip: where the setup stands -----------------------------------------------------------------------
+const stamp = t => day.shown > 1 ? `${WKD[new Date(t + IST).getUTCDay()]} ${hhmm(t)}` : hhmm(t);  // a time, with its day on a strip of days
+function showStrip(t) {
+  const S = day.setup, st = day.setupRun, names = MARKETS[S.index].name.split(' ·')[0], stock = MARKETS[S.stock].name;
+  const set = (k, cls, v, d) => { $(`${k}v`).className = 'v ' + cls; $(`${k}v`).textContent = v; $(`${k}d`).textContent = d;
+                                  $(k).title = `Step ${k[1]} · ${['Trend', 'Sync', 'Entry'][k[1] - 1]}: ${v}${d ? ' · ' + d : ''}`; };
+  if (!day.nse) { set('s1', 'wait', 'Closed', 'no candles this day'); set('s2', 'wait', '—', ''); set('s3', 'wait', '—', ''); return; }
+  if (t === undefined) {  // the day as a whole
+    const inDay = x => x.t >= day.d0 && x.t < day.d1;
+    const trends = st.starts.filter(inDay), syncs = st.syncs.filter(inDay);
+    set('s1', 'wait', `${trends.length} trend${trends.length === 1 ? '' : 's'}`, trends.map(x => `${WORD[x.dir]} ${stamp(x.t)}`).join(' · ') || `${names}: no trend`);
+    set('s2', 'wait', `${syncs.length} sync${syncs.length === 1 ? '' : 's'}`, syncs.map(x => `${WORD[x.dir]} ${stamp(x.t)}`).join(' · ') || `${stock} never synced`);
+    set('s3', 'wait', `${day.entries.length} entr${day.entries.length === 1 ? 'y' : 'ies'}`, day.entries.map(e => `${e.m}m ${WORD[e.dir]} ${stamp(e.t)}`).join(' · ') || 'none');
+    return;
+  }
+  const at = t, k = nearestIndexMinute(at), s = k !== null ? st.at.get(k) : null;
+  if (!s || !s.step1) {
+    set('s1', 'wait', s && s.trend ? WORD[s.trend] : 'No trend', s && S.gift ? `NIFTY ${WORD[day.runs.NIFTY.stateAt.get(k)] || '—'} · GIFT ${WORD[latestState(day.runs.GIFTNIFTY, k)] || '—'}` : '');
+    set('s2', 'wait', 'Needs step 1', ''); set('s3', 'wait', 'Not yet', '');
+  } else {
+    set('s1', kind(s.step1), WORD[s.step1], `${names} since ${hhmm(s.start)}${s.trend !== s.step1 ? ' · now NO TRADE (gap)' : ''}`);
+    const ss = day.runs[S.stock].stateAt.get(k);
+    if (s.synced) set('s2', kind(s.step1), `${stock} synced`, `at ${hhmm(s.since)}`);
+    else set('s2', 'wait', `Waiting for ${stock}`, `${stock}: ${ss ? WORD[ss] : 'no candle'}${ss === s.step1 ? ' (was already on this side: must leave first)' : ''}`);
+    const last = day.entries.filter(e => e.k <= at && e.k >= s.start).pop();
+    set('s3', last ? kind(last.dir) : 'wait', last ? `${last.m}m ${WORD[last.dir]} at ${hhmm(last.t)}` : s.synced ? 'Waiting for 2m / 3m' : 'Not yet', s.synced ? '' : 'needs step 2');
+  }
+}
+
+// ---- drawing --------------------------------------------------------------------------------------------------
+let syncing = false;
+function render(full) {
+  syncing = true;
+  try {
+    for (const p of Object.values(panels)) p.draw();
+    for (const p of Object.values(panels)) if (p.mode === 'tile' || (full && !(halves && p === panels.stock))) p.fit();
+  } finally { syncing = false; }
+  if (full) refit();
+  refreshText();
+}
+function refit() {  // the whole day again once the charts have their final size (a chart sized later keeps its bar spacing)
+  const go = () => {
+    for (const p of Object.values(panels)) if (!(halves && p === panels.stock)) p.fit();
+    if (halves) syncHalves(panels.index);  // the stock follows the index's whole day
+  };
+  go(); requestAnimationFrame(() => requestAnimationFrame(go)); setTimeout(go, 150);
+}
+function refreshText() {
+  for (const p of Object.values(panels)) { p.tags(); p.head(); }
+  showStrip();
+}
+// ---- controls ----------------------------------------------------------------------------------------------
+function seg(el, items, current, onPick) {
+  el.innerHTML = items.map(([label, val]) => `<button type="button" data-v="${val}" aria-pressed="${String(val) === String(current)}">${label}</button>`).join('');
+  for (const b of el.children) b.onclick = () => { onPick(b.dataset.v); for (const x of el.children) x.setAttribute('aria-pressed', String(x === b)); };
+}
+function buildControls() {
+  seg($('setupSel'), Object.entries(SETUPS).map(([k, s]) => [s.label, k]), opt.setup, async v => { opt.setup = v; save('setup', v); buildPanels(); await openDay(day.key); });
+  $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === opt.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
+  $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
+  const toggle = (id, key) => { $(id).setAttribute('aria-pressed', String(opt[key])); $(id).onclick = () => { opt[key] = !opt[key]; save(key, opt[key]); $(id).setAttribute('aria-pressed', String(opt[key])); recompute(); }; };
+  toggle('sc2', 'sc2'); toggle('sc3', 'sc3');
+  dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Day (UTC)' });
+  document.addEventListener('keydown', e => {
+    if (e.target.closest && e.target.closest('select, input, summary')) return;
+    const n = Number(e.key);
+    if (!halves && n >= 1 && n <= ORDER().length && !e.ctrlKey && !e.metaKey && !e.altKey) select(ORDER()[n - 1].key);
+  });
+}
+function recompute() { if (!day) return; day.entries = entriesOf(); render(false); }
+let olderBusy = false;
+async function loadOlder(src) {  // add older days to the strip, keeping what you are looking at in place
+  if (olderBusy) return;
+  olderBusy = true;
+  $('older').hidden = false;
+  try {
+    const keep = Object.values(panels).filter(q => q.mode !== 'tile' && q.mainBars.length).map(q => {
+      const r = q.main.timeScale().getVisibleLogicalRange();
+      return [q, r ? [timeAt(q.mainBars, r.from), timeAt(q.mainBars, r.to)] : null];
+    });
+    await buildDay(day.key, day.shown + MORE_DAYS, true);
+    syncing = true;
+    try {
+      render(false);
+      for (const [q, span] of keep) if (span && q.mainBars.length) q.main.timeScale().setVisibleLogicalRange({ from: indexAt(q.mainBars, span[0]), to: indexAt(q.mainBars, span[1]) });
+    } finally { syncing = false; }
+  } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
+}
+async function openDay(key) {
+  await buildDay(key);
+  dayPick.set(DAYS, key, new Date().toISOString().slice(0, 10));
+  render(true);
+}
+const loading = text => { if (text === null) { $('loading').hidden = true; return; } $('loading').hidden = false; $('loading-text').textContent = text; };
+
+// ---- start ---------------------------------------------------------------------------------------------------
+NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } refreshText(); });
+(async () => {
+  try {
+    loading('Loading the list of days…');
+    const j = await (await fetch('data/futures/1m/index.json', { cache: 'no-cache' })).json();
+    DAYS = (Array.isArray(j) ? j : j.dates || []).map(String).sort();
+    if (!DAYS.length) throw new Error('no saved days yet');
+    buildControls();
+    buildPanels();
+    await openDay(DAYS[DAYS.length - 1]);
+  } catch (e) {
+    loading(`Couldn't load the India data (${e.message}). Reload the page to try again.`);
+  }
+})();
+</script>
+</body>
+</html>

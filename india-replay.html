@@ -70,9 +70,9 @@
   .day { font-family: var(--font-num); }
 
   /* ---- steps 1 / 2 / 3: chips in the big chart's header (point at one for the details) ---- */
-  .steps { margin-left: auto; display: inline-flex; gap: 6px; }
+  .steps { margin-left: auto; display: inline-flex; gap: 6px; min-width: 0; overflow: hidden; }
   .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 3px; border: 1px solid var(--line); border-radius: 999px;
-          background: var(--bg); font-size: 12px; white-space: nowrap; cursor: default; }
+          background: var(--bg); font-size: 12px; white-space: nowrap; cursor: default; min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
   .chip .k { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--tile);
              color: var(--muted); font: 700 10.5px var(--font-num); }
   .chip .v { font-weight: 600; color: var(--muted); }
@@ -105,7 +105,8 @@
   .panel.tile .split { display: none; }
   body.dragging, body.dragging * { cursor: inherit; user-select: none !important; }
   body.dragging.col-drag { cursor: col-resize; } body.dragging.row-drag { cursor: row-resize; }
-  .phead { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 5px 10px; border-bottom: 1px solid var(--line); }
+  .phead { flex: none; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 10px; padding: 5px 10px; border-bottom: 1px solid var(--line); min-width: 0; overflow: hidden; white-space: nowrap; }
+  .panel.big .pextra { display: none; }   /* the step chips already say it (owner 24/10/2026: one tidy line) */
   .phead > .gk, .phead > .gw, .phead > .conds { display: none; }   /* owner 23/10/2026: no "Gate SHORT 3m EMA 5m 9m" in the chart heads (the shading shows the gate) */
   .pname { font-size: 13.5px; font-weight: 700; }
   .pval { font: 600 14px var(--font-num); }
@@ -120,7 +121,7 @@
   .stack { position: relative; flex: 1; min-height: 0; display: grid; grid-template-rows: 1fr; }
   .stack.panes { grid-template-rows: 62fr 15fr 23fr; }   /* a drag on the handle changes the price chart's share */
   .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }
-  .tag { position: absolute; top: 4px; left: 6px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 90px);
+  .tag { position: absolute; top: 4px; left: 10px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 90px);
          padding: 3px 8px; border-radius: 6px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 11.5px; color: var(--muted);
          white-space: nowrap; overflow: hidden; }
   .tag b { color: var(--text); font-weight: 600; }
@@ -165,7 +166,7 @@
 <body>
 <header class="topbar">
   <a class="brand" href="./" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
-  <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html">Replay</a><a href="india-replay.html" aria-current="page">India Replay</a></nav>
+  <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html">Replay</a><a href="mnq.html">MNQ</a><a href="india-replay.html" aria-current="page">India Replay</a><a href="commodities.html">Commodities</a></nav>
   <div class="grp" title="Setup"><div class="seg words" id="setupSel" role="group" aria-label="Setup"></div></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
@@ -280,13 +281,17 @@ function runMarket(market, rows) {  // rows: its 1-minute candles over the warm-
 // ---- the setup ----------------------------------------------------------------------------------------------
 // Each index minute: step 1 (the index trend: NIFTY and GIFT NIFTY's gates agree, or BANK NIFTY's gate), its trend
 // number (trendsOf), and step 2 (the stock synced: on the trend's side, after having been off it since the trend began).
-function trendsOf(stateAt, gap) {  // as on the Nasdaq Replay: a NO TRADE stretch longer than `gap` or a turn ends a trend
+// A trend: one run of step 1 in one direction. A NO TRADE minute or a turn ends it, and so does a break of more than an
+// hour without candles (overnight, a session break). A quiet minute with no trade (no candle) does not: it is not a
+// NO TRADE reading (owner 24/10/2026; NG often skips minutes).
+const SESSION_BREAK = 60 * MIN;
+function trendsOf(stateAt) {
   const id = new Map(), keys = [...stateAt.keys()].sort((a, b) => a - b);
   let cur = null, n = 0;
   for (const t of keys) {
     const s = stateAt.get(t);
-    if (s !== 'BULLISH' && s !== 'BEARISH') continue;
-    if (!cur || cur.dir !== s || t - cur.last - MIN > gap * MIN) cur = { dir: s, id: ++n };
+    if (s !== 'BULLISH' && s !== 'BEARISH') { cur = null; continue; }
+    if (!cur || cur.dir !== s || t - cur.last > SESSION_BREAK) cur = { dir: s, id: ++n };
     cur.last = t;
     id.set(t, cur.id);
   }
@@ -306,11 +311,11 @@ function setupOf(S, runs, indexMinutes) {
     const b = latestState(gift, t);
     if (b) trend.set(t, a === b ? a : 'NEUTRAL');
   }
-  const ids = trendsOf(trend, 0), at = new Map(), syncs = [], starts = [];
+  const ids = trendsOf(trend), at = new Map(), syncs = [], starts = [];
   let cur = null;  // the trend being followed: { id, dir, start, last, armed, synced, since, told }
   for (const t of indexMinutes) {
     const id = ids.get(t), s = stk.stateAt.get(t) || 'NEUTRAL';  // no stock candle (after 15:14): off the trend's side
-    if (cur && id === undefined && t - cur.last - MIN > 0) cur = null;  // a NO TRADE minute ends the trend
+    if (cur && id === undefined) cur = null;  // a NO TRADE minute ends the trend
     if (id !== undefined && (!cur || cur.id !== id)) {  // a new trend: the stock must be the odd man out first
       cur = { id, dir: trend.get(t), start: t, last: t, armed: s !== trend.get(t), synced: false, since: null, told: false };
       starts.push({ t, dir: cur.dir });

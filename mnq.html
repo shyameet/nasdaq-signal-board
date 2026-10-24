@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MNQ · Indra Quant Signal Board</title>
+<meta name="description" content="Your Nasdaq stocks beside the real MNQ future: both gates, and the marks where they disagree.">
+<meta name="theme-color" content="#0a0d12">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="manifest" href="brand/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="lightweight-charts.js"></script>
+<script src="labels.js?v=2" defer></script>
+<script src="macd.js?v=6c40434fbc"></script>
+<script src="engine.js?v=071c0c2a3d"></script>
+<script src="daypick.js?v=2"></script>
+<style>
+  .iq-lock { height: 26px; width: auto; display: block; flex: none; }
+  /* the candle size: one dropdown (owner 24/10/2026) */
+  .tf-sel { padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text);
+            font: 500 12px var(--font-num); cursor: pointer; }
+  .tf-sel:hover { border-color: var(--line-strong); }   /* the official Indra Quant lockup (logo + wordmark), as is */
+  .brand .board-name { font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
+  /* The MNQ page (owner 24/10/2026): the Replay page with the real MNQ future on the right instead of XYZ100, and the
+     Divergence page's marks (MNQ alone / stocks first / other) on both charts instead of the 2m/3m signals.
+     The Replay page's notes: one UTC day at a time. Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
+     has the same indicators as the Signals page (gate zones, 3m EMA 21/47, Entry and Trend MACD panes) plus its 2m and
+     3m entry signals: the scalper's MACD crossing 0 on a closed candle the way its own gate points. */
+  :root {
+    color-scheme: dark;
+    --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
+    --text: #e8eef6; --muted: #8d99ab; --faint: #5c6879; --up: #2bb68a; --down: #f0555f; --accent: #5b8cff; --warn: #f2b33d;
+    --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text);
+         font: 13px/1.4 var(--font-ui); -webkit-font-smoothing: antialiased; }
+  button, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+  .up { color: var(--up); } .down { color: var(--down); }
+
+  /* ---- top bar ---- */
+  .topbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 6px 12px;
+            background: var(--surface); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .mark { width: 26px; height: 26px; flex: none; display: block; }
+  .brand b { display: block; font-size: 14px; font-weight: 700; letter-spacing: .01em; }
+  .tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .tabs a { padding: 5px 12px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 500; }
+  .tabs a:hover { color: var(--text); }
+  .tabs a[aria-current="page"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .spacer { flex: 1; }
+
+  /* ---- the replay controls ---- */
+  .controls { flex: none; display: flex; flex-direction: column; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .crow { display: flex; align-items: center; padding: 5px 12px; min-height: 38px; }
+  .cgrps { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; row-gap: 6px; }
+  .crow + .crow { border-top: 1px solid var(--line); }
+  .crow > .rname { width: 74px; flex: none; color: var(--muted); font-size: 11px; font-weight: 600; }
+  .grp { display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; }
+  .cgrps > .grp:first-child { padding-left: 0; }
+  .grp + .grp { border-left: 1px solid var(--line); }
+  /* ---- one slim bar (owner 24/10/2026): every control in the top bar, How it works behind ? ---- */
+  .topbar { gap: 5px 10px; padding: 5px 10px; }
+  .topbar .brand .iq-lock { height: 24px; }
+  .topbar .grp { padding: 0 0 0 8px; border-left: 1px solid var(--line); gap: 4px; }
+  .topbar .tabs a { padding: 4px 9px; }
+  .topbar .seg button { padding: 3px 7px; }
+  .topbar .lbl { font-size: 10px; }
+  #dataNote { cursor: help; white-space: nowrap; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 6px; background: var(--tile); color: var(--muted); font-weight: 700;
+           font-size: 11.5px; letter-spacing: .06em; white-space: nowrap; }
+  .badge.alone { background: rgba(255, 138, 61, .2); color: #ff8a3d; } .badge.first { background: rgba(43, 182, 138, .2); color: var(--up); }
+  .badge.other { background: rgba(141, 153, 171, .16); color: var(--muted); } .badge.sync { color: var(--text); }
+  .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
+           background: var(--surface); color: var(--muted); font-size: 12px; }
+  .older[hidden] { display: none; }
+  .topbar .how summary { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 50%; font-weight: 700; }
+  .topbar .how-body { top: calc(100% + 8px); bottom: auto; left: auto; right: 0; max-height: 75vh; overflow: auto; }
+  .how-body .credit { color: var(--muted); font-size: 11.5px; } .how-body .credit a { color: var(--muted); }
+  .grp > .lbl { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .seg button { padding: 3px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
+                font-family: var(--font-num); font-size: 12px; }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .btn { padding: 3px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text); cursor: pointer;
+         font-size: 12px; white-space: nowrap; }
+  .btn:hover:not(:disabled) { border-color: var(--line-strong); background: var(--tile); }
+  .btn:disabled { opacity: .35; cursor: default; }
+  .btn[aria-pressed="true"] { border-color: var(--accent); background: rgba(91, 140, 255, .14); }
+  select.btn { padding-right: 4px; }
+  .day { font-family: var(--font-num); }
+  .note { color: var(--muted); font-size: 11.5px; }
+  .note.warn { color: var(--warn); }
+
+  /* ---- the two charts ---- */
+  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .panel + .panel { border-left: 1px solid var(--line-strong); }
+  .phead { flex: none; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 10px; padding: 6px 10px; border-bottom: 1px solid var(--line); min-width: 0; overflow: hidden; white-space: nowrap; }   /* one tidy line (owner 24/10/2026) */
+  .pname { font-size: 13.5px; font-weight: 700; }
+  .pval { font: 600 14px var(--font-num); }
+  .gw { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 6px; background: var(--tile);
+        color: var(--muted); font-weight: 700; font-size: 11.5px; letter-spacing: .08em; }
+  .gw.bull { background: var(--up); color: #04150f; } .gw.bear { background: var(--down); color: #1e0507; }
+  .gk { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .conds { display: inline-flex; gap: 8px; font: 11.5px var(--font-num); color: var(--muted); }
+  .conds b { font-weight: 600; }
+  .other { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; }
+  .other .gw { padding: 1px 7px; font-size: 10.5px; }
+  .warm { color: var(--warn); font-size: 11px; }
+  .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 58fr 16fr 26fr; }
+  .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }
+  .tag { position: absolute; top: 4px; left: 10px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 90px);
+         padding: 3px 8px; border-radius: 6px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 11.5px; color: var(--muted);
+         white-space: nowrap; overflow: hidden; }
+  .tag b { color: var(--text); font-weight: 600; }
+  .tag.main { flex-wrap: wrap; row-gap: 2px; white-space: normal; font-family: var(--font-num); }
+  .tag.main b { font-family: var(--font-ui); }
+  .tag .sw { width: 11px; height: 3px; border-radius: 2px; display: inline-block; vertical-align: middle; }
+  .tag .t-ema { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-ui); }
+
+  #loading { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center;
+             gap: 18px; background: var(--bg); color: var(--muted); }
+  #loading[hidden] { display: none; }
+  #loading img { width: 64px; height: 64px; }
+  #loading div { display: flex; align-items: center; gap: 10px; }
+  #loading div::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-strong);
+                         border-top-color: var(--accent); animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .foot { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 4px 12px; background: var(--surface);
+          border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; }
+  .how { position: relative; }
+  .how summary { cursor: pointer; list-style: none; padding: 3px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); }
+  .how summary::-webkit-details-marker { display: none; }
+  .how-body { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 30; width: min(520px, calc(100vw - 32px)); padding: 14px 16px;
+              border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 12.5px;
+              line-height: 1.5; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
+  .how-body h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+  .how-body p { margin: 0 0 8px; }
+  .credit { margin-left: auto; } .credit a { color: var(--muted); }
+  /* ---- basket picker ---- */
+  .pick { position: relative; }
+  .pick-btn { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px;
+              background: transparent; color: var(--text); cursor: pointer; font-size: 12px; }
+  .pick-btn:hover, .pick-btn[aria-expanded="true"] { border-color: var(--line-strong); background: var(--tile); }
+  .pick-btn small { color: var(--muted); font-size: 11.5px; }
+  .pick-btn .caret { color: var(--muted); font-size: 9px; }
+  .pick-btn.custom { border-color: rgba(91, 140, 255, .55); }
+  .pick-pop { position: fixed; z-index: 45; width: min(360px, calc(100vw - 24px)); padding: 14px;
+              border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); box-shadow: 0 16px 48px rgba(0, 0, 0, .55); }
+  .pick-pop h3 { margin: 0 0 2px; font-size: 13px; font-weight: 600; }
+  .pick-pop > p { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .presets button, .pick-actions button { padding: 5px 10px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted);
+                                          cursor: pointer; font-size: 12px; }
+  .presets button:hover, .pick-actions button:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); }
+  .stocks { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 2px; }
+  .stocks label { display: grid; grid-template-columns: 18px 56px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+  .stocks label:hover { background: var(--tile); }
+  .stocks input { accent-color: var(--accent); margin: 0; width: 15px; height: 15px; }
+  .stocks .tk { font: 600 12.5px var(--font-num); }
+  .stocks .co { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stocks .wt { font: 500 12px var(--font-num); color: var(--muted); }
+  .stocks input:checked ~ .tk { color: var(--text); }
+  .stocks li:not(.on) .tk, .stocks li:not(.on) .co { opacity: .55; }
+  .pick-actions { display: flex; align-items: center; gap: 8px; }
+  .pick-actions .msg { margin-right: auto; color: var(--muted); font-size: 11.5px; }
+  .pick-actions .msg.warn { color: var(--warn); }
+  .pick-actions .go { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
+  .pick-actions .go:disabled { opacity: .4; cursor: default; }
+  @media (max-width: 1100px) {
+    html, body { height: auto; }
+    .board { grid-template-columns: minmax(0, 1fr); }
+    .panel { height: 92vh; min-height: 600px; }
+    .panel + .panel { border-left: 0; border-top: 1px solid var(--line-strong); }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="./" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
+  <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html">Replay</a><a href="mnq.html" aria-current="page">MNQ</a><a href="india-replay.html">India Replay</a><a href="commodities.html">Commodities</a></nav>
+  <div class="grp"><div id="dayPick"></div></div>
+  <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
+  <div class="grp"><span class="badge" id="badge" title="Right now">LOADING</span>
+    <span class="note" id="dataNote"></span></div>
+  <div class="spacer"></div>
+  <div class="pick" id="pick" hidden>
+    <button class="pick-btn" id="pickBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Choose which stocks make up the left chart"><span id="pickLabel">Stocks</span><small id="pickSub"></small><span class="caret">▼</span></button>
+    <div class="pick-pop" id="pickPop" role="dialog" aria-label="Choose your stocks" hidden>
+      <h3>Choose your stocks</h3>
+      <p>Pick any of them (even just one). Each counts equally, and the gate is LONG (or SHORT) only when every one you pick is. The left chart and its signals are rebuilt for every day you replay.</p>
+      <div class="presets" id="presets"></div>
+      <ul class="stocks" id="stocks"></ul>
+      <div class="pick-actions"><span class="msg" id="pickMsg"></span><button type="button" id="pickCancel">Cancel</button><button type="button" class="go" id="pickGo">Apply</button></div>
+    </div>
+  </div>
+  <details class="how">
+    <summary title="How it works">?</summary>
+    <div class="how-body">
+      <h3>What you see</h3>
+      <p>Left: your stocks' composite from Hyperliquid (Stocks button; the same pick as the other pages, each stock counting equally, its gate LONG or SHORT only when every picked stock agrees). Right: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS). Both get the same gate, EMAs and Entry/Trend MACD panes. The price charts are tinted where the two gates disagree, as on the Divergence page: <b style="color:#ff8a3d">MNQ alone</b> (MNQ's gate is LONG, your stocks' isn't), <b style="color:#2bb68a">Stocks first</b> (your stocks' gate is LONG, MNQ's not yet), and grey for any other difference; an arrow marks where an MNQ-alone or stocks-first stretch begins. The badge in the top bar says where they stand right now. MNQ's bars start at its session open (17:00 Chicago), as on TradingView.</p>
+      <h3>The gate</h3>
+      <p>LONG when the 5m, 9m and 11m MACD are all above 0 and the 3m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
+      <h3>Days</h3>
+      <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The marks cover everything loaded.</p>
+      <h3>Data</h3>
+      <p>Stocks: our daily archive of Hyperliquid's 1-minute candles and, for the last days, Hyperliquid itself; today updates every minute. MNQ: the VPS's saved 1-minute candles from 15 Oct 2026 (NinjaTrader's front month); today's MNQ arrives with the VPS's live stream. Nothing is filled in: a minute with no trade has no candle.</p>
+      <p class="credit">Not investment advice · Data: Hyperliquid and NinjaTrader (via our VPS) · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
+    </div>
+  </details>
+</header>
+<main class="board" id="board"></main>
+<div id="older" class="older" hidden>Loading older days…</div>
+<div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
+<script>
+'use strict';
+const DAY = 86400000, MIN = 60000;
+const { TrendSignal, SHOWN, contiguous, toBar, flat, candleRows, BENCH } = NdxEngine.internals;
+const { MacdPane, Bands, DayLines } = NsbMacd;
+const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: '#3a4554', label: '#283240',
+            bg: '#0a0d12', ema21: '#f2b33d', ema47: '#5b8cff' };
+const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
+const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
+const RULES = [['3m EMA21 vs EMA47', '3m EMA'], ['5m MACD vs 0', '5m'], ['9m MACD vs 0', '9m'], ['11m MACD vs 0', '11m']];
+const TFS = [1, 2, 3, 5], GAPS = [0, 1, 3, 5, 10, 15, 30], PER_TREND = [['1', 1], ['2', 2], ['∞', Infinity]];
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const $ = id => document.getElementById(id);
+const two = n => String(n).padStart(2, '0');
+const sec = ms => Math.floor(ms / 1000);
+const ok = v => v !== null && v !== undefined && isFinite(v);
+const num = (v, d = 2) => ok(v) ? v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
+const sgn = (v, d) => ok(v) ? (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(d) : '—';
+const hhmm = ms => { const d = new Date(ms); return `${two(d.getHours())}:${two(d.getMinutes())}`; };
+const when = ms => new Date(ms).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+const dayKey = ms => new Date(ms).toISOString().slice(0, 10);          // UTC day
+const dayStart = key => Date.parse(key + 'T00:00:00Z');
+const kind = st => st === 'BULLISH' ? 'bull' : st === 'BEARISH' ? 'bear' : '';
+// bars restart each day at `o` ms after 00:00 UTC: 0 for the stock perps (24/7), MNQ's session open 17:00 Chicago
+// (22:00 UTC in summer time, 23:00 UTC from 1 Nov), as on TradingView
+const CME_OPEN = 22 * 3600000;
+const day0Of = (t, o) => t - ((t - o) % DAY + DAY) % DAY;
+const bucketStart = (t, m, o = 0) => { const d0 = day0Of(t, o), s = m * MIN; return d0 + Math.floor((t - d0) / s) * s; };
+const bucketEnd = (t, m, o = 0) => Math.min(bucketStart(t, m, o) + m * MIN, day0Of(t, o) + DAY);
+const pref = (k, fallback) => { try { const v = localStorage.getItem('nsb.mnq.' + k); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } };
+const save = (k, v) => { try { localStorage.setItem('nsb.mnq.' + k, JSON.stringify(v)); } catch (e) {} };
+
+// ---- settings (remembered in this browser) ----------------------------------------------------------------
+const opt = {
+  tf: TFS.includes(pref('tf', 1)) ? pref('tf', 1) : 1,
+  sc2: pref('sc2', true), sc3: pref('sc3', true),
+  perTrend: pref('perTrend', 'inf'),          // '1', '2' or 'inf'
+  gap: GAPS.includes(pref('gap', 0)) ? pref('gap', 0) : 0,
+  oneTrend: pref('oneTrend', false),
+};
+const perTrendLimit = () => opt.perTrend === '1' ? 1 : opt.perTrend === '2' ? 2 : Infinity;
+
+// ---- data: one UTC day of 1-minute candles per market -------------------------------------------------------
+// From our daily archive (data/1m/YYYY-MM-DD.json, written by the VPS) when it has the day, else straight from
+// Hyperliquid, which keeps about the last 3.5 days of 1-minute candles.
+let BASKET = null, ALL = [], ACTIVE = [], archiveDays = new Set(), hlFrom = Infinity;
+const dayCache = new Map();
+// MNQ: the VPS's saved futures days (data/futures/1m, one file per UTC day; NinjaTrader's front month)
+let futDays = new Set();
+const futCache = new Map();
+async function futIndex() {
+  try { const j = await (await fetch('data/futures/1m/index.json', { cache: 'no-cache' })).json(); return new Set((j.dates || []).map(String)); } catch (e) { return new Set(); }
+}
+async function loadFut(key) {  // -> MNQ's 1-minute candles of that UTC day (none: [])
+  if (futCache.has(key)) return futCache.get(key);
+  let rows = [];
+  if (futDays.has(key)) {
+    try {
+      const j = await (await fetch(`data/futures/1m/${key}.json`, { cache: 'no-cache' })).json();
+      rows = (j.MNQ || []).map(([t, o, h, l, c, v]) => ({ t: t * 1000, o, h, l, c, v, n: 1 }));
+    } catch (e) {}
+  }
+  futCache.set(key, rows);
+  return rows;
+}
+async function archiveIndex() {
+  try {
+    const r = await fetch('data/1m/index.json', { cache: 'no-cache' });
+    if (!r.ok) return new Set();
+    const j = await r.json(), list = Array.isArray(j) ? j : j.dates || [];
+    return new Set(list.map(String));
+  } catch (e) { return new Set(); }
+}
+async function hlEarliest() {  // the first minute Hyperliquid still serves at 1m (XYZ100's)
+  const rows = await candleRows(BENCH, '1m', Date.now() - 6 * DAY, Date.now());
+  return rows.length ? rows[0].t : Infinity;
+}
+async function loadDay(key) {  // -> { coin: [bars (toBar objects)] } for the 10 stocks and XYZ100
+  if (dayCache.has(key)) return dayCache.get(key);
+  const coins = [...ALL, BENCH], out = {}, d0 = dayStart(key);
+  let source = 'hl';
+  if (archiveDays.has(key) && key !== dayKey(Date.now())) {
+    try {
+      const r = await fetch(`data/1m/${key}.json`, { cache: 'no-cache' });  // re-checked each time: a day can be rebuilt with more markets
+      if (r.ok) {
+        const j = await r.json();
+        for (const c of coins) if (j.coins && j.coins[c]) out[c] = j.coins[c].map(([t, o, h, l, cl, v, n]) => toBar({ t, o, h, l, c: cl, v, n }));
+        source = 'archive';
+      }
+    } catch (e) { /* falls back to Hyperliquid below */ }
+  }
+  const missing = coins.filter(c => !out[c]);
+  if (missing.length && d0 + DAY > hlFrom) {  // Hyperliquid still has (some of) this day
+    const end = Math.min(d0 + DAY - 1, Date.now());
+    await Promise.all(missing.map(async c => { out[c] = (await candleRows(c, '1m', d0, end)).map(toBar).filter(b => b.t >= d0 && b.t < d0 + DAY); }));
+    if (source === 'archive') source = 'archive+hl';
+  }
+  const day = { key, source, coins: out };
+  dayCache.set(key, day);
+  return day;
+}
+
+// ---- one series, minute by minute, exactly as the live engine runs it ----------------------------------------
+// coef: { coin: scaled coefficient } (the composite), or { XYZ100: 1 }. Returns its 1-minute candles, its bars
+// at every size with their indicators, the gate at each minute's close and the four conditions behind it.
+function runSeries(coef, minutes, origin = 0) {  // minutes: { coin: contiguous bars over the warm-up day and the day }
+  const sig = new TrendSignal(coef, SHOWN, origin), coins = Object.keys(coef), checksAt = new Map();
+  let captured = null;
+  const evaluate = sig.evaluate.bind(sig), finish = sig.finishMinute.bind(sig);
+  sig.evaluate = (v, now) => { const ev = evaluate(v, now); captured = ev; return ev; };
+  sig.finishMinute = (start, close, vol) => { captured = null; finish(start, close, vol); if (captured) checksAt.set(start, captured.checks); };
+  const at = Object.fromEntries(coins.map(c => [c, 0]));
+  const first = Math.min(...coins.map(c => minutes[c] && minutes[c].length ? minutes[c][0].t : Infinity));
+  const last = Math.max(...coins.map(c => minutes[c] && minutes[c].length ? minutes[c][minutes[c].length - 1].t : -Infinity));
+  for (let t = first; t <= last; t += MIN) for (const c of coins) {
+    const a = minutes[c] || [];
+    while (at[c] < a.length && a[at[c]].t < t) at[c]++;
+    if (at[c] < a.length && a[at[c]].t === t) sig.onMemberBar(c, t, a[at[c]].c, a[at[c]].v);
+  }
+  return { sig, stateAt: new Map(sig.history), checksAt, bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) };
+}
+
+// The trends of a series: each minute the gate is LONG or SHORT gets a trend number; a NO TRADE stretch longer than
+// `gap` minutes, or a turn to the other side, starts a new trend.
+function trendsOf(stateAt, gap) {
+  const id = new Map(), keys = [...stateAt.keys()].sort((a, b) => a - b);
+  let cur = null, n = 0;
+  for (const t of keys) {
+    const s = stateAt.get(t);
+    if (s !== 'BULLISH' && s !== 'BEARISH') continue;
+    if (!cur || cur.dir !== s || t - cur.last - MIN > gap * MIN) cur = { dir: s, id: ++n };
+    cur.last = t;
+    id.set(t, cur.id);
+  }
+  return id;
+}
+// The entry signals of a series: the 2m or 3m MACD crossing 0 on a closed candle the way the gate points at its close.
+function crosses(run, m) {
+  const out = [], bars = run.bars[m] || [];
+  for (let i = 1; i < bars.length; i++) {
+    const a = bars[i - 1].macd, b = bars[i].macd;
+    if (!ok(a) || !ok(b)) continue;
+    const dir = a <= 0 && b > 0 ? 'BULLISH' : a >= 0 && b < 0 ? 'BEARISH' : null;
+    if (!dir) continue;
+    const close = bucketEnd(bars[i].time, m), gate = run.stateAt.get(close - MIN);
+    if (gate === dir) out.push({ t: close, m, dir, macd: b });
+  }
+  return out;
+}
+function signalsOf(run, d0, d1) {  // the strip's signals after the boxes: scalpers shown, per trend, one trend per day
+  const want = [opt.sc2 && 2, opt.sc3 && 3].filter(Boolean);
+  const all = want.flatMap(m => crosses(run, m)).sort((a, b) => a.t - b.t || a.m - b.m);
+  const trend = trendsOf(run.stateAt, opt.gap), used = new Map(), limit = perTrendLimit();
+  const dayDir = new Map();  // each UTC day's first gate trend: the first minute of the day the gate is LONG or SHORT
+  for (const t of [...run.stateAt.keys()].sort((a, b) => a - b)) {
+    const s = run.stateAt.get(t), k = t - t % DAY;
+    if ((s === 'BULLISH' || s === 'BEARISH') && !dayDir.has(k)) dayDir.set(k, s);
+  }
+  const out = [];
+  for (const s of all) {  // counted over the warm-up day too, so a trend running past midnight keeps its count
+    const k = (s.t - MIN) - (s.t - MIN) % DAY;
+    if (opt.oneTrend && s.t > d0 && s.t <= d1 && s.dir !== dayDir.get(k)) continue;
+    const id = trend.get(s.t - MIN), n = used.get(id) || 0;
+    if (n >= limit) continue;
+    used.set(id, n + 1);
+    if (s.t > d0 && s.t <= d1) out.push(s);
+  }
+  return out;
+}
+
+// ---- building a day ----------------------------------------------------------------------------------------
+let day = null;  // { key, d0, left, right, note }
+function minutesOf(days, coins) {  // each market's bars over the loaded days, one per minute (no gaps after its first)
+  const out = {};
+  for (const c of coins) out[c] = contiguous(days.flatMap(d => d.coins[c] || []).sort((a, b) => a.t - b.t));
+  return out;
+}
+function composite() {  // the left chart's coefficients: every picked stock counts equally
+  return Object.fromEntries(ACTIVE.map(c => [c, BASKET.base / ACTIVE.length / BASKET.members[c].ref_price]));
+}
+const tk = coin => coin.replace(/^xyz:/, '');
+const DEFAULT = () => (BASKET && BASKET.default ? ALL.filter(c => BASKET.default.includes(c)) : ALL);  // the basket's default pick
+const custom = () => ACTIVE.join() !== DEFAULT().join();
+const leftName = () => custom() ? (ACTIVE.length <= 3 ? ACTIVE.map(tk).join('+') : `Basket ${ACTIVE.length}`) : 'NDX10';
+// One long strip of days (owner 24/10/2026): the picked day is the newest; `shown` days up to it are drawn (plus one
+// more behind them to warm the indicators up), and older ones join when you scroll to the left edge.
+// quiet: no loading screen (the minute refresh of today, or adding older days).
+async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
+  const list = dayList.length ? dayList : listDays(), i = Math.max(0, list.indexOf(key));
+  const shownKeys = list.slice(i, i + shown), warmKey = list[i + shown];
+  const d0 = dayStart(shownKeys[shownKeys.length - 1]), lastD0 = dayStart(key), d1 = lastD0 + DAY;
+  if (!quiet) loading(`Loading ${key}…`);
+  const days = (await Promise.all([...shownKeys, warmKey].filter(Boolean).reverse().map(loadDay))).filter(Boolean);
+  const m = minutesOf(days, [...ALL, BENCH]);
+  const fut = (await Promise.all([...shownKeys, warmKey].filter(Boolean).reverse().map(loadFut))).flat().sort((a, b) => a.t - b.t);
+  const runL = runSeries(composite(), m), runR = runSeries({ MNQ: 1 }, { MNQ: fut }, CME_OPEN);  // MNQ: no candle in a quiet minute or the daily break
+  const inDay = b => b.t >= d0 && b.t < d1;  // the strip
+  // the right chart's candles are MNQ's own 1-minute candles; the left's are the composite's
+  const priceR = fut.filter(inDay).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }));
+  const priceL = (runL.bars[1] || []).filter(b => b.time >= d0 && b.time < d1)
+    .map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 }));
+  const src = days.map(d => d.source).join(' + ');
+  const lacking = ACTIVE.filter(c => !m[c].some(inDay));  // picked stocks with no candles on this day (not archived yet)
+  day = { key, d0, d1, lastD0, shown: shownKeys.length, more: !!warmKey, prevLoaded: !!warmKey || list.length > i + shownKeys.length, source: src, lacking,
+          left: { name: leftName(), run: runL, price: priceL, digits: 2, macdDigits: 3, origin: 0 },
+          right: { name: 'MNQ', run: runR, price: priceR, digits: 2, macdDigits: 2, origin: CME_OPEN } };
+  computeSignals();
+  const lastT = Math.max(priceL.length ? priceL[priceL.length - 1].time : 0, priceR.length ? priceR[priceR.length - 1].time : 0);
+  day.end = lastT + MIN;
+  showNote();
+  loading(null);
+}
+function computeSignals() { for (const side of [day.left, day.right]) side.signals = []; }  // no 2m/3m signals on this page
+
+// ---- the Divergence page's marks: where the two gates disagree ----------------------------------------------
+const PATTERN = {
+  alone: { name: 'MNQ alone', word: 'MNQ ALONE', band: 'rgba(255, 138, 61, 0.17)', color: '#ff8a3d', note: "MNQ's gate is LONG, your stocks' gate isn't." },
+  first: { name: 'Stocks first', word: 'STOCKS FIRST', band: 'rgba(43, 182, 138, 0.17)', color: '#2bb68a', note: "Your stocks' gate is LONG, MNQ's not yet." },
+  other: { name: 'Other difference', word: 'DIFFERENT', band: 'rgba(141, 153, 171, 0.12)', color: '#8d99ab', note: 'Their gates differ in another way.' },
+};
+// the stocks' and MNQ's gates at one moment -> null when they agree (or MNQ is closed), else which disagreement
+const classify = (sn, sx) => !sn || !sx || sn === sx ? null : sx === 'BULLISH' ? 'alone' : sn === 'BULLISH' ? 'first' : 'other';
+const gateNear = (run, t) => { for (let k = t; k >= t - 2 * MIN; k -= MIN) { const s = run.stateAt.get(k); if (s) return s; } return null; };
+const kindAt = t => classify(gateNear(day.left.run, t), gateNear(day.right.run, t));
+const hasDay = key => archiveDays.has(key) || dayStart(key) + DAY > hlFrom;
+
+// ---- the charts --------------------------------------------------------------------------------------------
+const panels = {};
+function options(showTime, isMain, name) {
+  return {
+    watermark: isMain ? { visible: true, text: name, color: 'rgba(232, 238, 246, 0.04)', fontSize: 40, fontStyle: '700' } : { visible: false },
+    autoSize: true, handleScroll: isMain, handleScale: isMain,
+    layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },
+    grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
+    rightPriceScale: { borderColor: C.line, minimumWidth: 64 },
+    timeScale: { visible: showTime, borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.05,  // a whole day of 1m candles fits
+      tickMarkFormatter: (t, type) => { const d = new Date(t * 1000); return type < 3 ? `${d.getDate()} ${MON[d.getMonth()]}` : `${two(d.getHours())}:${two(d.getMinutes())}`; } },
+    localization: { timeFormatter: t => when(t * 1000) },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label },
+      horzLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label } },
+  };
+}
+class Panel {
+  constructor(key) {
+    this.key = key; this.mainBars = []; this.mainStates = []; this.kinds = []; this.src = {}; this.store = new Map(); this.emaPts = [];
+    const origin = key === 'right' ? CME_OPEN : 0;
+    $('board').insertAdjacentHTML('beforeend', `
+      <section class="panel" id="${key}">
+        <div class="phead">
+          <span class="pname" id="${key}-name">—</span><span class="pval" id="${key}-val">—</span>
+          <span class="gk">Gate</span><span class="gw" id="${key}-gate">—</span>
+          <span class="conds" id="${key}-conds"></span>
+          <span class="warm" id="${key}-warm"></span>
+          <span class="other"><span id="${key}-oname"></span><span class="gw" id="${key}-ogate">—</span></span>
+        </div>
+        <div class="stack">
+          <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
+          <div class="pane" id="${key}-pentry"><div class="tag mix" id="${key}-tentry"></div></div>
+          <div class="pane" id="${key}-ptrend"><div class="tag mix" id="${key}-ttrend"></div></div>
+        </div>
+      </section>`);
+    this.main = LightweightCharts.createChart($(`${key}-pmain`), options(true, true, ''));
+    this.vol = this.main.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
+    this.main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.88, bottom: 0 }, visible: false });
+    this.candles = this.main.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
+    this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.14 } });
+    const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+    this.e21 = emaLine(C.ema21); this.e47 = emaLine(C.ema47);
+    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => (PATTERN[this.kinds[i]] || {}).band || null);  // where the gates disagree
+    this.candles.attachPrimitive(this.zones);
+    this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30));  // where each day begins, with its date
+    this.macd = {};
+    for (const k of ['entry', 'trend']) this.macd[k] = new MacdPane({
+      el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 2, options: options(false, false, ''), origin,
+      bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.waveAt(i),
+    });
+    this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
+      for (const p of Object.values(this.macd)) p.sync(r);
+      syncOther(this);
+      if (r && r.from < 8 && !syncing && day && day.more) loadOlder();  // at the left edge: older days
+    });
+    // one crosshair over this chart and its panes (and the other chart at the same time)
+    const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
+                 ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
+    this.charts = all;
+    for (const self of all) self.chart.subscribeCrosshairMove(p => {
+      if (!p.sourceEvent) return;
+      const t = p.time;
+      for (const o of all) if (o !== self) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
+      hoverAll(this, t);
+    });
+    for (const k of ['pmain', 'pentry', 'ptrend']) $(`${key}-${k}`).addEventListener('mouseleave', () => hoverAll(this, undefined));
+  }
+  waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }  // the colour at candle i
+  get side() { return day[this.key]; }
+  draw(full) {  // the whole day
+    const side = this.side, upto = Infinity;
+    const tf = opt.tf, ones = side.price.filter(b => b.time < upto), o = side.origin;
+    this.mainBars = aggregate(ones, tf, o);
+    const st = side.run.stateAt;
+    this.mainStates = this.mainBars.map(b => {  // the gate at the candle's last finished minute (so far)
+      for (let t = Math.min(bucketEnd(b.time, tf, o), upto) - MIN; t >= b.time; t -= MIN) { const s = st.get(t); if (s) return s; }
+      return null;
+    });
+    this.kinds = this.mainBars.map(b => {  // the disagreement at the candle's last minute with both gates
+      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { if (gateNear(day.left.run, t) && gateNear(day.right.run, t)) return kindAt(t); }
+      return null;
+    });
+    // MACD panes and EMAs: only bars closed by then
+    this.src = Object.fromEntries(Object.entries(side.run.bars).map(([m, bars]) => [m, bars.filter(b => bucketEnd(b.time, +m, o) <= upto)]));
+    this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
+    this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
+    this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
+    this.setEmas();
+    for (const p of Object.values(this.macd)) { p.digits = side.macdDigits; p.update(); p.showLines(); }
+    this.setMarkers(upto);
+    this.main.applyOptions({ watermark: { text: `${side.name} · ${tf}m` } });
+    if (this.zones.requestUpdate) this.zones.requestUpdate();
+    for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
+  }
+  fit() {  // the newest day of the strip (the older ones are to the left)
+    const n = this.mainBars.length;
+    if (!n) return;
+    let i = this.mainBars.findIndex(b => b.time >= day.lastD0);
+    if (i < 0) i = 0;
+    this.main.timeScale().setVisibleLogicalRange({ from: i - 1, to: n + 2 });
+  }
+  setEmas() {  // the 3m EMA 21 and 47 as of each candle's close (never ahead of it)
+    const src = (this.src[3] || []).filter(b => ok(b.ema47)), out = [];
+    let k = -1;
+    for (let i = 0; i < this.mainBars.length; i++) {
+      const end = bucketEnd(this.mainBars[i].time, opt.tf, this.side.origin);
+      while (k + 1 < src.length && bucketEnd(src[k + 1].time, 3, this.side.origin) <= end) k++;
+      if (k >= 0) out.push({ time: sec(this.mainBars[i].time), e21: src[k].ema21, e47: src[k].ema47 });
+    }
+    this.emaPts = out;
+    this.e21.setData(out.map(p => ({ time: p.time, value: p.e21 })));
+    this.e47.setData(out.map(p => ({ time: p.time, value: p.e47 })));
+  }
+  setMarkers() {  // a mark where an MNQ alone or a stocks-first stretch begins (as on the Divergence page)
+    const m = [];
+    let lastAt = -Infinity;
+    for (let i = 1; i < this.kinds.length; i++) {
+      const k = this.kinds[i], time = sec(this.mainBars[i].time);
+      if (k === this.kinds[i - 1] || (k !== 'alone' && k !== 'first')) continue;
+      const roomy = i - lastAt >= 40;  // marks close together keep their arrows but not their words
+      lastAt = i;
+      if (k === 'alone') m.push({ time, position: 'aboveBar', color: PATTERN.alone.color, shape: 'arrowDown', text: roomy ? PATTERN.alone.name : '' });
+      if (k === 'first') m.push({ time, position: 'belowBar', color: PATTERN.first.color, shape: 'arrowUp', text: roomy ? PATTERN.first.name : '' });
+    }
+    this.candles.setMarkers(m);
+  }
+  head(t) {  // the header at time t (ms, a minute) or at the day's end
+    const side = this.side, other = day[this.key === 'left' ? 'right' : 'left'];
+    const at = t !== undefined ? t : day.end - MIN;
+    const gateAt = run => { for (let k = at; k >= at - 5 * MIN; k -= MIN) { const s = run.stateAt.get(k); if (s) return [s, k]; } return [null, null]; };
+    const [st, k] = gateAt(side.run), [ost] = gateAt(other.run);
+    $(`${this.key}-name`).textContent = side.name;
+    const bar = [...side.price].reverse().find(b => b.time <= at);
+    $(`${this.key}-val`).textContent = bar ? num(bar.close, side.digits) : '—';
+    $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
+    const ch = k !== null ? side.run.checksAt.get(k) : null;
+    $(`${this.key}-conds`).innerHTML = ch ? RULES.map(([key, name]) => `<span class="${ch[key] > 0 ? 'up' : 'down'}">${name} ${ch[key] > 0 ? '▲' : '▼'}</span>`).join('') : '';
+    $(`${this.key}-oname`).textContent = other.name;
+    $(`${this.key}-ogate`).className = 'gw ' + kind(ost); $(`${this.key}-ogate`).textContent = ost ? WORD[ost] : '—';
+    const firstState = Math.min(...[...side.run.stateAt.keys()].filter(x => x >= day.d0), Infinity);
+    $(`${this.key}-warm`).textContent = firstState > day.d0 + MIN && firstState < Infinity ? `warming up until ${hhmm(firstState)}`
+      : firstState === Infinity ? 'not enough data for the indicators' : '';
+  }
+  tags(t) {  // the chart labels (t: candle time in seconds, or the newest candle)
+    const b = t !== undefined ? this.store.get(t) : this.mainBars.length ? { ...this.mainBars[this.mainBars.length - 1], state: this.mainStates[this.mainStates.length - 1] } : null;
+    if (b) {
+      let e = null;
+      for (const p of this.emaPts) if (p.time <= sec(b.time)) e = p; else break;
+      $(`${this.key}-tmain`).innerHTML = `<b>${this.side.name}</b><span>${opt.tf}m</span>${t !== undefined ? `<span>${when(b.time)}</span>` : ''}`
+        + `<span>O <b>${num(b.open, this.side.digits)}</b> H <b>${num(b.high, this.side.digits)}</b> L <b>${num(b.low, this.side.digits)}</b> C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close, this.side.digits)}</b></span>`
+        + (b.state ? `<span class="${kind(b.state) === 'bull' ? 'up' : kind(b.state) === 'bear' ? 'down' : ''}">GATE ${WORD[b.state]}</span>` : '')
+        + (e ? `<span class="t-ema"><span class="sw" style="background:${C.ema21}"></span>EMA 21 <b>${num(e.e21, this.side.digits)}</b><span class="sw" style="background:${C.ema47}"></span>EMA 47 <b>${num(e.e47, this.side.digits)}</b></span>` : '');
+    }
+    for (const [k, p] of Object.entries(this.macd)) { p.name = this.side.name; p.tag(t); }
+  }
+}
+function aggregate(bars, m, o = 0) {
+  const out = [];
+  for (const b of bars) {
+    const s = bucketStart(b.time, m, o), last = out[out.length - 1];
+    if (!last || last.time !== s) out.push({ time: s, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 });
+    else { last.high = Math.max(last.high, b.high); last.low = Math.min(last.low, b.low); last.close = b.close; last.volume += b.volume || 0; }
+  }
+  return out;
+}
+let syncing = false;
+function timeAt(bars, x) {  // candle position (fractional, may lie past either end) -> time
+  const n = bars.length, tf = opt.tf * MIN;
+  if (x <= 0) return bars[0].time + x * tf;
+  if (x >= n - 1) return bars[n - 1].time + (x - n + 1) * tf;
+  const i = Math.floor(x);
+  return bars[i].time + (x - i) * (bars[i + 1].time - bars[i].time);
+}
+function indexAt(bars, t) {  // the reverse
+  const n = bars.length, tf = opt.tf * MIN;
+  if (t <= bars[0].time) return (t - bars[0].time) / tf;
+  if (t >= bars[n - 1].time) return n - 1 + (t - bars[n - 1].time) / tf;
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) lo = mid; else hi = mid; }
+  return lo + (t - bars[lo].time) / (bars[hi].time - bars[lo].time);
+}
+function syncOther(src) {  // both charts show the same stretch of time, empty space past the day's ends included
+  if (syncing) return;
+  const other = panels[src.key === 'left' ? 'right' : 'left'];
+  if (!other || !src.mainBars.length || !other.mainBars.length) return;
+  const r = src.main.timeScale().getVisibleLogicalRange();
+  if (!r) return;
+  const to = { from: indexAt(other.mainBars, timeAt(src.mainBars, r.from)), to: indexAt(other.mainBars, timeAt(src.mainBars, r.to)) };
+  const now = other.main.timeScale().getVisibleLogicalRange();
+  if (now && Math.abs(now.from - to.from) < 0.01 && Math.abs(now.to - to.to) < 0.01) return;  // already there: no echo back
+  syncing = true;
+  try { other.main.timeScale().setVisibleLogicalRange(to); } catch (e) {}
+  syncing = false;
+}
+let hovering = false;
+function hoverAll(src, t) {
+  hovering = t !== undefined;
+  document.body.classList.toggle('hovering', hovering);
+  for (const p of Object.values(panels)) {
+    if (p !== src) for (const o of p.charts) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
+    p.tags(t); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
+  }
+}
+
+// ---- drawing ------------------------------------------------------------------------------------------------
+function render(full) {
+  syncing = true;  // both charts are redrawn: no syncing back and forth meanwhile
+  try {
+    for (const p of Object.values(panels)) p.draw(full);
+    if (full) for (const p of Object.values(panels)) p.fit();
+  } finally { syncing = false; }
+  if (full) {  // again once the charts have their final size (a chart sized later keeps its bar spacing)
+    const go = () => { syncing = true; try { for (const p of Object.values(panels)) p.fit(); } finally { syncing = false; } };
+    requestAnimationFrame(() => requestAnimationFrame(go)); setTimeout(go, 150);
+  }
+  refreshText();
+}
+function showBadge() {  // right now: the latest minute where both gates exist
+  let t = null;
+  for (let k = day.end - MIN; k >= day.end - 30 * MIN; k -= MIN) if (gateNear(day.left.run, k) && gateNear(day.right.run, k)) { t = k; break; }
+  const k = t === null ? undefined : kindAt(t), el = $('badge');
+  if (t === null) { el.className = 'badge'; el.textContent = 'MNQ CLOSED'; el.title = 'No MNQ candle in the last 30 minutes (the daily break, the weekend, or no live data yet)'; return; }
+  el.className = 'badge ' + (k || 'sync');
+  el.textContent = k ? PATTERN[k].word : 'IN SYNC';
+  el.title = k ? PATTERN[k].note : `Both gates say ${WORD[gateNear(day.left.run, t)]}.`;
+}
+function refreshText() {
+  showBadge();
+  for (const p of Object.values(panels)) { p.tags(); p.head(); }
+}
+// ---- controls ----------------------------------------------------------------------------------------------
+function seg(el, items, current, onPick) {
+  el.innerHTML = items.map(([label, val]) => `<button type="button" data-v="${val}" aria-pressed="${String(val) === String(current)}">${label}</button>`).join('');
+  for (const b of el.children) b.onclick = () => { onPick(b.dataset.v); for (const x of el.children) x.setAttribute('aria-pressed', String(x === b)); };
+}
+function buildControls() {
+  $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === opt.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
+  $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
+  dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Day (UTC)' });  // (no signal rules on this page)
+}
+function recompute() { if (!day) return; computeSignals(); render(false); }
+function listDays() {  // newest first: archived days and the days Hyperliquid still has
+  const keys = new Set(archiveDays);
+  for (let t = Date.now(); t + DAY > hlFrom; t -= DAY) keys.add(dayKey(t));
+  return [...keys].filter(k => dayStart(k) <= Date.now()).sort().reverse();
+}
+// ---- today: new candles from Hyperliquid every minute (owner 24/10/2026), keeping your zoom ----------------------
+let refreshing = false, dayPick = null, dayList = [], olderBusy = false;
+const SHOW_DAYS = 3, MORE_DAYS = 2;  // days shown when a day is picked (it is the newest); days added at the left edge
+async function loadOlder() {  // add older days to the strip, keeping what you are looking at in place
+  if (olderBusy || refreshing) return;
+  olderBusy = true;
+  $('older').hidden = false;
+  try {
+    const keep = Object.values(panels).filter(q => q.mainBars.length).map(q => {
+      const r = q.main.timeScale().getVisibleLogicalRange();
+      return [q, r ? [timeAt(q.mainBars, r.from), timeAt(q.mainBars, r.to)] : null];
+    });
+    await buildDay(day.key, day.shown + MORE_DAYS, true);
+    render(false);
+    syncing = true;
+    try { for (const [q, span] of keep) if (span && q.mainBars.length) q.main.timeScale().setVisibleLogicalRange({ from: indexAt(q.mainBars, span[0]), to: indexAt(q.mainBars, span[1]) }); }
+    finally { syncing = false; }
+  } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
+}
+async function refreshToday() {
+  if (refreshing || !day || document.visibilityState !== 'visible') return;
+  const today = dayKey(Date.now());
+  refreshing = true;
+  try {
+    if (!dayList.includes(today)) {  // past 00:00 UTC: a new day in the calendar
+      const was = day.key;
+      dayList = listDays();
+      if (dayKey(Date.now() - DAY) === was) { dayCache.delete(was); await openDay(today); return; }  // you were on today: follow it
+      dayPick.set(dayList, was, today);
+    }
+    if (day.key !== today) return;
+    const cached = dayCache.get(today), now = Date.now();
+    if (!cached) return;
+    await Promise.all(Object.keys(cached.coins).map(async c => {  // only the minutes since each market's last candle
+      const a = cached.coins[c], from = a.length ? a[a.length - 1].t : dayStart(today);
+      const rows = (await candleRows(c, '1m', from, now)).map(toBar).filter(b => b.t >= dayStart(today));
+      for (const b of rows) { if (a.length && a[a.length - 1].t === b.t) a[a.length - 1] = b; else if (!a.length || b.t > a[a.length - 1].t) a.push(b); }
+    }));
+    const before = Object.fromEntries(Object.entries(panels).map(([k, q]) => {
+      const r = q.main.timeScale().getVisibleLogicalRange(), n = q.mainBars.length;
+      return [k, { r, n, atEnd: !r || r.to >= n - 2 }];
+    }));
+    await buildDay(today, day.shown, true);
+    render(false);
+    for (const [k, q] of Object.entries(panels)) {  // looking at the newest candles: keep them in view as new ones come
+      const b = before[k], added = q.mainBars.length - b.n;
+      if (b.r && b.atEnd && added > 0) q.main.timeScale().setVisibleLogicalRange({ from: b.r.from + added, to: b.r.to + added });
+    }
+  } catch (e) { /* tried again next minute */ } finally { refreshing = false; }
+}
+setInterval(refreshToday, 60000);
+document.addEventListener('visibilitychange', refreshToday);
+async function openDay(key) {
+  await buildDay(key);
+  dayPick.set(dayList, key, dayKey(Date.now()));
+  render(true);
+}
+function showNote() {
+  const today = day.key === dayKey(Date.now());
+  const msg = [`${day.key} UTC${day.shown > 1 ? ` and the ${day.shown - 1} days before (scroll left for older)` : ''}`, today ? 'today, updating every minute' : '', day.source.includes('archive') ? (day.source.includes('hl') ? 'archive + Hyperliquid' : 'archive') : 'Hyperliquid',
+               !day.prevLoaded ? 'no earlier day to warm up on' : '',
+               day.lacking.length ? `no ${day.lacking.map(tk).join(', ')} data for this day yet, so the left chart is empty` : ''].filter(Boolean).join(' · ');
+  const warn = !day.prevLoaded || day.lacking.length;
+  $('dataNote').textContent = !warn ? 'ⓘ' : day.lacking.length ? `⚠ no ${day.lacking.map(tk).join(', ')} data` : '⚠ no warm-up day';
+  $('dataNote').title = msg;
+  $('dataNote').className = 'note' + (warn ? ' warn' : '');
+}
+const loading = text => { if (text === null) { $('loading').hidden = true; return; } $('loading').hidden = false; $('loading-text').textContent = text; };
+
+// ---- the stock picker (shared with the other pages) ---------------------------------------------------------
+const SEL_KEY = 'nsb.div.stocks';
+function savedSelection() { try { const a = JSON.parse(localStorage.getItem(SEL_KEY)); return Array.isArray(a) ? a : null; } catch (e) { return null; } }
+function setActive(list) {
+  const pick = Array.isArray(list) ? ALL.filter(c => list.includes(c)) : [];
+  ACTIVE = pick.length ? pick : DEFAULT();
+  $('pickLabel').textContent = custom() ? `${ACTIVE.length} of ${ALL.length} stocks` : `${ACTIVE.length} stocks`;
+  $('pickSub').textContent = ACTIVE.length <= 4 && custom() ? ACTIVE.map(tk).join(' ') : '';
+  $('pickBtn').classList.toggle('custom', custom());
+  $('pickBtn').title = `Left chart: ${ACTIVE.map(tk).join(', ')}`;
+}
+let draft = new Set(), picking = false;
+function renderPick() {
+  const members = BASKET.members, total = draft.size;  // each picked stock counts equally
+  $('stocks').innerHTML = ALL.map(c => `<li class="${draft.has(c) ? 'on' : ''}"><label><input type="checkbox" data-c="${c}"${draft.has(c) ? ' checked' : ''}>`
+    + `<span class="tk">${tk(c)}</span><span class="co">${members[c].company}</span>`
+    + `<span class="wt">${draft.has(c) ? (100 / total).toFixed(1) + '%' : '—'}</span></label></li>`).join('');
+  for (const box of $('stocks').querySelectorAll('input')) box.onchange = () => { if (box.checked) draft.add(box.dataset.c); else draft.delete(box.dataset.c); renderPick(); };
+  const list = ALL.filter(c => draft.has(c)), changed = list.join() !== ACTIVE.join();
+  $('pickMsg').textContent = !list.length ? 'Pick at least one stock' : `${list.length} selected`;
+  $('pickMsg').className = 'msg' + (list.length ? '' : ' warn');
+  $('pickGo').disabled = !list.length || !changed || picking;
+}
+function openPick(open) {
+  $('pickPop').hidden = !open;
+  $('pickBtn').setAttribute('aria-expanded', String(open));
+  if (open) {
+    draft = new Set(ACTIVE); renderPick();
+    const r = $('pickBtn').getBoundingClientRect(), w = Math.min(360, innerWidth - 24), s = $('pickPop').style;
+    s.top = `${Math.round(r.bottom + 8)}px`; s.left = `${Math.round(Math.max(12, Math.min(r.right - w, innerWidth - w - 12)))}px`;
+    s.maxHeight = `${Math.max(240, innerHeight - r.bottom - 20)}px`; s.overflowY = 'auto';
+  }
+}
+async function applyPick() {
+  const list = ALL.filter(c => draft.has(c));
+  if (!list.length || picking) return;
+  picking = true;
+  try { localStorage.setItem(SEL_KEY, JSON.stringify(list)); } catch (e) {}
+  setActive(list); openPick(false);
+  await openDay(day.key);
+  picking = false;
+}
+function buildPicker() {
+  const top = n => DEFAULT().slice(0, n), presets = [['Top 5', top(5)], ['Top 6', top(6)], ['Top 8', top(8)], [`Default ${DEFAULT().length}`, DEFAULT()], [`All ${ALL.length}`, ALL], ['None', []]];
+  $('presets').innerHTML = presets.map(([name], i) => `<button type="button" data-i="${i}">${name}</button>`).join('');
+  for (const b of $('presets').children) b.onclick = () => { draft = new Set(presets[b.dataset.i][1]); renderPick(); };
+  $('pickBtn').onclick = () => openPick($('pickPop').hidden);
+  $('pickCancel').onclick = () => openPick(false);
+  $('pickGo').onclick = applyPick;
+  document.addEventListener('mousedown', e => { if (!$('pickPop').hidden && !$('pick').contains(e.target)) openPick(false); });
+  $('pick').hidden = false;
+}
+
+// ---- start ---------------------------------------------------------------------------------------------------
+NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } refreshText(); });
+(async () => {
+  try {
+    loading('Loading the list of days…');
+    BASKET = await (await fetch('basket.json', { cache: 'no-cache' })).json();
+    ALL = Object.keys(BASKET.members);
+    setActive(savedSelection());
+    [archiveDays, hlFrom, futDays] = await Promise.all([archiveIndex(), hlEarliest(), futIndex()]);
+    const days = listDays();
+    dayList = days;
+    buildPicker(); buildControls();
+    panels.left = new Panel('left'); panels.right = new Panel('right');
+    await openDay(days[0]);  // today (owner 24/10/2026), updating every minute
+  } catch (e) {
+    loading(`Couldn't load the replay data (${e.message}). Reload the page to try again.`);
+  }
+})();
+</script>
+</body>
+</html>
