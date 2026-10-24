@@ -14,13 +14,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
-<script src="focus.js?v=1" defer></script>
-<script src="labels.js?v=1" defer></script>
+<script src="labels.js?v=2" defer></script>
 <script src="macd.js?v=c14084b975"></script>
 <script src="engine.js?v=6e41c8dcde"></script>
 <script src="daypick.js?v=1"></script>
 <style>
-  .iq-lock { height: 26px; width: auto; display: block; flex: none; }   /* the official Indra Quant lockup (logo + wordmark), as is */
+  .iq-lock { height: 26px; width: auto; display: block; flex: none; }
+  /* the candle size: one dropdown (owner 24/10/2026) */
+  .tf-sel { padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text);
+            font: 500 12px var(--font-num); cursor: pointer; }
+  .tf-sel:hover { border-color: var(--line-strong); }   /* the official Indra Quant lockup (logo + wordmark), as is */
   .brand .board-name { font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
   /* The Replay page: one UTC day at a time. Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
      has the same indicators as the Signals page (gate zones, 3m EMA 21/47, Entry and Trend MACD panes) plus its 2m and
@@ -178,7 +181,7 @@
   <a class="brand" href="./" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
   <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html" aria-current="page">Replay</a><a href="india-replay.html">India Replay</a></nav>
   <div class="grp"><div id="dayPick"></div></div>
-  <div class="grp" title="Candle size"><div class="seg" id="tfs" role="group" aria-label="Candle size"></div></div>
+  <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
   <div class="grp">
     <button class="btn" id="sc2" type="button" aria-pressed="true" title="Show the 2m scalper's signals">2m</button>
     <button class="btn" id="sc3" type="button" aria-pressed="true" title="Show the 3m scalper's signals">3m</button>
@@ -613,7 +616,8 @@ function seg(el, items, current, onPick) {
   for (const b of el.children) b.onclick = () => { onPick(b.dataset.v); for (const x of el.children) x.setAttribute('aria-pressed', String(x === b)); };
 }
 function buildControls() {
-  seg($('tfs'), TFS.map(m => [`${m}m`, m]), opt.tf, v => { opt.tf = +v; save('tf', opt.tf); render(true); });
+  $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === opt.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
+  $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
   seg($('perTrend'), PER_TREND.map(([l, v]) => [l, v === Infinity ? 'inf' : String(v)]), opt.perTrend, v => { opt.perTrend = v; save('perTrend', v); recompute(); });
   $('gapSel').innerHTML = GAPS.map(g => `<option value="${g}"${g === opt.gap ? ' selected' : ''}>Gap ${g ? g + ' min' : 'off'}</option>`).join('');
   $('gapSel').onchange = () => { opt.gap = +$('gapSel').value; save('gap', opt.gap); recompute(); };

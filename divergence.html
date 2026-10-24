@@ -25,11 +25,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
-<script src="focus.js?v=1" defer></script>
-<script src="labels.js?v=1" defer></script>
+<script src="labels.js?v=2" defer></script>
 <script src="macd.js?v=c14084b975"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
+  /* the candle size: one dropdown (owner 24/10/2026) */
+  .tf-sel { padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text);
+            font: 500 12px var(--font-num); cursor: pointer; }
+  .tf-sel:hover { border-color: var(--line-strong); }
   /* one slim bar (owner 24/10/2026): everything on one row, the logo alone at the left */
   .topbar { gap: 5px 10px !important; padding: 5px 10px !important; }
   .topbar .tabs a { padding: 4px 9px; }
@@ -225,7 +228,7 @@
   <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html" aria-current="page">Divergence</a><a href="replay.html">Replay</a><a href="india-replay.html">India Replay</a></nav>
   <div class="quote"><span class="sym">XYZ100</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
   <div class="spacer"></div>
-  <div class="seg" id="tfs" role="group" aria-label="Candle size"></div>
+  <select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select>
   <div class="pick" id="pick" hidden>
     <button class="pick-btn" id="pickBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Choose which stocks make up the composite"><span id="pickLabel">Stocks</span><small id="pickSub"></small><span class="caret">▼</span></button>
     <div class="pick-pop" id="pickPop" role="dialog" aria-label="Choose your stocks" hidden>
@@ -642,11 +645,11 @@ $('alerts').onclick = async () => {
   if (alertsOn) beep(true);
 };
 function buildTfs() {
-  $('tfs').innerHTML = TFS.map(m => `<button type="button" data-m="${m}" aria-pressed="${m === tf}">${m}m</button>`).join('');
-  for (const b of $('tfs').children) b.onclick = () => {
-    tf = Number(b.dataset.m);
+  $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === tf ? ' selected' : ''}>${m}m candles</option>`).join('');
+  $('tfs').onchange = () => {
+    tf = Number($('tfs').value);
     try { localStorage.setItem('ndx10.tf', tf); } catch (e) {}
-    buildTfs(); draw(); showRecent(); tag(); mixTag();
+    draw(); showRecent(); tag(); mixTag();
   };
 }
 setInterval(() => {

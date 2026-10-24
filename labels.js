@@ -32,8 +32,7 @@
   function mount() {
     const bar = document.querySelector(".topbar");
     if (!bar) return;
-    const co = bar.querySelector(".co-btn");               // beside "Charts only" when that is there
-    if (co) bar.insertBefore(btn, co); else bar.appendChild(btn);
+    bar.appendChild(btn);
     set(get());
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);
