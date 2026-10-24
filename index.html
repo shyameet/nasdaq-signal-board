@@ -32,7 +32,8 @@
 <script src="draw.js?v=3"></script>
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
-<script src="macd.js?v=7"></script>
+<script src="cme.js?v=1"></script>
+<script src="macd.js?v=8"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
   .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
@@ -531,7 +532,7 @@ class Panel {
     // the signal zones behind the candles: green while bullish, red while bearish
     this.zones = new ZoneLayer(this, () => this.main, false);  // the Trend waves switched on (no gate words on them)
     this.candles.attachPrimitive(this.zones);
-    this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 48));  // over the zones' tint
+    this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 48, 'cme'));  // over the zones' tint; each trading day from the CME open
     this.mainEl = $(`${key}-pmain`);
     this.drawing = NsbDraw.add({ id: 'basket', chart: this.main, series: this.candles, el: this.mainEl, bars: () => this.mainBars, tf: () => tf, fmt: v => num(v) });
     allCharts.push({ panel: this, key: 'main', chart: this.main, anchor: this.candles, minutes: () => tf, value: b => b.close });
@@ -556,7 +557,7 @@ class Panel {
     this.macd = {};
     for (const kind of MACD_KINDS) {
       const pane = this.macd[kind] = new MacdPane({
-        el: $(`${key}-p${kind}`), tagEl: $(`${key}-t${kind}`), kind, name: NAME, digits: cfg.macdDigits, options: options(false, false),
+        el: $(`${key}-p${kind}`), tagEl: $(`${key}-t${kind}`), kind, name: NAME, digits: cfg.macdDigits, options: options(false, false), days: 'cme',
         bars: () => this.mainBars, tf: () => tf, src: () => this.paneBars, shade: i => this.waveAt(i),
       });
       this.store[kind] = pane.store;
@@ -1023,16 +1024,19 @@ async function loadOlder(untilMs = null) {  // older days until `untilMs` is loa
     if (added) { await resync(); if (engine.gen !== gen) await resync(); showDays(); }  // a reload begun before the new days: once more
   } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
 }
-function showDays(value) {  // the calendar: the archive's days and the days loaded, up to today
+// The calendar's days are CME trading days (owner 24/10/2026: a US market's day starts at the CME open, 17:00 Chicago =
+// 03:30 IST, 04:30 IST in Chicago's winter time; cme.js); candles are still loaded by UTC day.
+function showDays(value) {  // the calendar: the trading days of the archive's days and of the days loaded, up to today
   if (!dayPick || !engine) return;
-  const days = new Set(archive), first = engine.firstMinute(), today = dayKeyOf(Date.now());
-  if (first != null) for (let t = dayStartOf(dayKeyOf(first)); t <= Date.now(); t += DAY_MS) days.add(dayKeyOf(t));
-  dayPick.set([...days], value || dayPick.value || today, today);
+  const files = new Set(archive), first = engine.firstMinute(), today = NsbCme.key(Date.now());
+  if (first != null) for (let t = dayStartOf(dayKeyOf(first)); t <= Date.now(); t += DAY_MS) files.add(dayKeyOf(t));
+  const days = [...files].flatMap(f => [f, NsbCme.next(f)]).filter(k => NsbCme.open(k) <= Date.now());
+  dayPick.set([...new Set(days)], value || dayPick.value || today, today);
 }
-async function jumpToDay(key) {  // load back to that day if needed, then show it
-  await loadOlder(dayStartOf(key));
+async function jumpToDay(key) {  // load back to that trading day if needed, then show it
+  await loadOlder(NsbCme.open(key));
   showDays(key);
-  viewDay(dayStartOf(key), dayStartOf(key) + DAY_MS);
+  viewDay(NsbCme.open(key), NsbCme.open(NsbCme.next(key)));
 }
 async function threeDays() {  // on open: today and the two days before
   await readArchiveIndex();
@@ -1062,7 +1066,7 @@ async function pickSource() {
   const basketLoad = fetch('basket.json', { cache: 'no-cache' }).then(r => r.json());  // at the same time as the engine
   await new Promise((resolve, reject) => {
     const tag = document.createElement('script');
-    tag.src = 'engine.js?v=8'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
+    tag.src = 'engine.js?v=9'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tag);
   });
   const basketFile = await basketLoad;
@@ -1163,7 +1167,7 @@ function connect() {
   $('loading').remove();
   showRecent();
   connect();
-  if (engine) { dayPick = DayPick($('dayPick'), { onPick: jumpToDay, title: 'Jump to a day (UTC)' }); threeDays(); }
+  if (engine) { dayPick = DayPick($('dayPick'), { onPick: jumpToDay, title: 'Jump to a trading day (from the CME open, 17:00 Chicago: 03:30 IST, 04:30 IST in its winter time)' }); threeDays(); }
 })();
 </script>
 </body>

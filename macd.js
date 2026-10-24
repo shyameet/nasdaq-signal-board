@@ -10,8 +10,12 @@
 (() => {
 'use strict';
 const DAY = 86400000;
-// origin: where each day's bars start, in ms after 00:00 UTC (a market's session open; 0 for the 24/7 perps)
-const bucketEnd = (t, m, origin = 0) => { const d0 = t - ((t - origin) % DAY + DAY) % DAY, s = m * 60000; return Math.min(d0 + Math.floor((t - d0) / s) * s + s, d0 + DAY); };
+// origin: where each day's bars start, in ms after 00:00 UTC (a market's session open; 0 for the 24/7 perps), or 'cme':
+// the CME open, 17:00 Chicago (cme.js)
+const bucketEnd = (t, m, origin = 0) => {
+  const cme = origin === 'cme', d0 = cme ? NsbCme.day0(t) : t - ((t - origin) % DAY + DAY) % DAY, s = m * 60000;
+  return Math.min(d0 + Math.floor((t - d0) / s) * s + s, cme ? NsbCme.dayEnd(t) : d0 + DAY);
+};
 const ok = v => v !== null && v !== undefined && isFinite(v);
 const sgn = (v, d) => ok(v) ? (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(d) : '—';
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -129,7 +133,8 @@ class Bands {  // colored bands behind a chart's series, one per run of candles:
 class DayLines {  // a dashed line where a new day begins, with its date along the top
   // labelTop: where the date goes (px from the top), null for no date. origin: the market's session open (ms after
   // 00:00 UTC): its day begins there (owner 24/10/2026: a market's new day starts at its open, not at midnight);
-  // 0 or none: at midnight in the viewer's timezone (24-hour markets)
+  // 'cme': at the CME open, 17:00 Chicago, dated by its trading day (owner 24/10/2026: every US chart, the stock
+  // perps too); 0 or none: at midnight in the viewer's timezone
   constructor(chart, bars, labelTop, origin) {
     this.chart = chart; this.bars = bars; this.top = labelTop; this.origin = origin || 0; this.lines = [];
     this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: t => this.render(t) }) }];
@@ -141,15 +146,17 @@ class DayLines {  // a dashed line where a new day begins, with its date along t
     const bars = this.bars(), ts = this.chart().timeScale(), out = [];
     const x0 = bars.length > 1 ? ts.logicalToCoordinate(0) : null, x1 = bars.length > 1 ? ts.logicalToCoordinate(1) : null;
     if (x0 !== null && x1 !== null) {
-      const step = x1 - x0, o = this.origin;
-      const day = o ? t => Math.floor((t - o) / 86400000) : t => { const d = new Date(t); return d.getFullYear() * 512 + d.getMonth() * 32 + d.getDate(); };
+      const step = x1 - x0, o = this.origin, cme = o === 'cme';
+      const day = cme ? NsbCme.dayNo : o ? t => Math.floor((t - o) / 86400000) : t => { const d = new Date(t); return d.getFullYear() * 512 + d.getMonth() * 32 + d.getDate(); };
       let prev = day(bars[0].time);
       for (let i = 1; i < bars.length; i++) {
         const k = day(bars[i].time);
         if (k === prev) continue;
         prev = k;
-        const d = new Date(bars[i].time);
-        out.push([x0 + (i - 0.5) * step, `${WEEKDAY[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`]);
+        // the date: a CME day's trading date; a market with its own open, the date of that open in UTC (= the local
+        // date where it trades, NSE's 09:15 IST is 03:45 UTC), whatever the viewer's timezone; otherwise the viewer's date
+        const d = new Date(cme ? k * 86400000 : o ? k * 86400000 + o : bars[i].time), u = cme || o ? 'getUTC' : 'get';
+        out.push([x0 + (i - 0.5) * step, `${WEEKDAY[d[u + 'Day']()]} ${d[u + 'Date']()} ${MON[d[u + 'Month']()]}`]);
       }
     }
     this.lines = out;
@@ -213,7 +220,7 @@ class MacdPane {
       return MATCH[matchAt(a[i], b[i], this.lines)] || null;
     });
     this.zero.attachPrimitive(this.shading);
-    this.zero.attachPrimitive(new DayLines(() => chart, this.bars, null, this.origin));
+    this.zero.attachPrimitive(new DayLines(() => chart, this.bars, null, this.days !== undefined ? this.days : this.origin));  // days: where the day lines go, if not at origin
     this.tagEl.addEventListener('pointerdown', e => {  // the label's names are switches
       const b = e.target.closest('[data-k]');
       if (b) { e.preventDefault(); e.stopPropagation(); toggle(b.dataset.k); }

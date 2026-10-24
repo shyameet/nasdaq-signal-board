@@ -15,8 +15,9 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
-<script src="macd.js?v=7"></script>
-<script src="engine.js?v=8"></script>
+<script src="cme.js?v=1"></script>
+<script src="macd.js?v=8"></script>
+<script src="engine.js?v=9"></script>
 <script src="daypick.js?v=2"></script>
 <script src="draw.js?v=3"></script>
 <style>
@@ -28,7 +29,7 @@
   .brand .board-name { font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
   /* The MNQ page (owner 24/10/2026): the Replay page with the real MNQ future on the right instead of XYZ100, and the
      Divergence page's marks (MNQ alone / stocks first / other) on both charts instead of the 2m/3m signals.
-     The Replay page's notes: one UTC day at a time. Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
+     The Replay page's notes: one trading day at a time (from the CME open). Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
      has the same indicators as the Signals page (gate zones, 3m EMA 21/47, Entry and Trend MACD panes) plus its 2m and
      3m entry signals: the scalper's MACD crossing 0 on a closed candle the way its own gate points. */
   :root {
@@ -214,7 +215,7 @@
       <h3>The gate</h3>
       <p>LONG when the 5m, 9m and 11m MACD are all above 0 and the 3m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
       <h3>Days</h3>
-      <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The marks cover everything loaded.</p>
+      <p>A day is a CME trading day: it starts at the CME open, 17:00 Chicago (03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time), on both charts. The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The marks cover everything loaded.</p>
       <h3>Data</h3>
       <p>Stocks: our daily archive of Hyperliquid's 1-minute candles and, for the last days, Hyperliquid itself; today updates every minute. MNQ: the VPS's saved 1-minute candles from 15 Oct 2026 (NinjaTrader's front month); today's MNQ arrives with the VPS's live stream. Nothing is filled in: a minute with no trade has no candle.</p>
       <p class="credit">Not investment advice · Data: Hyperliquid and NinjaTrader (via our VPS) · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
@@ -247,12 +248,13 @@ const when = ms => new Date(ms).toLocaleString([], { weekday: 'short', day: 'num
 const dayKey = ms => new Date(ms).toISOString().slice(0, 10);          // UTC day
 const dayStart = key => Date.parse(key + 'T00:00:00Z');
 const kind = st => st === 'BULLISH' ? 'bull' : st === 'BEARISH' ? 'bear' : '';
-// bars restart each day at `o` ms after 00:00 UTC: 0 for the stock perps (24/7), MNQ's session open 17:00 Chicago
-// (22:00 UTC in summer time, 23:00 UTC from 1 Nov), as on TradingView
-const CME_OPEN = 22 * 3600000;
-const day0Of = (t, o) => t - ((t - o) % DAY + DAY) % DAY;
+// bars restart each day at `o` ms after 00:00 UTC: 0 for the stock perps (24/7); 'cme' for MNQ, its session open 17:00
+// Chicago on whichever clock Chicago is on (22:00 UTC in summer time, 23:00 UTC from 1 Nov; cme.js), as on TradingView
+const CME_OPEN = 'cme';
+const day0Of = (t, o) => o === 'cme' ? NsbCme.day0(t) : t - ((t - o) % DAY + DAY) % DAY;
+const dayEndOf = (t, o) => o === 'cme' ? NsbCme.dayEnd(t) : day0Of(t, o) + DAY;
 const bucketStart = (t, m, o = 0) => { const d0 = day0Of(t, o), s = m * MIN; return d0 + Math.floor((t - d0) / s) * s; };
-const bucketEnd = (t, m, o = 0) => Math.min(bucketStart(t, m, o) + m * MIN, day0Of(t, o) + DAY);
+const bucketEnd = (t, m, o = 0) => Math.min(bucketStart(t, m, o) + m * MIN, dayEndOf(t, o));
 const pref = (k, fallback) => { try { const v = localStorage.getItem('nsb.mnq.' + k); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } };
 const save = (k, v) => { try { localStorage.setItem('nsb.mnq.' + k, JSON.stringify(v)); } catch (e) {} };
 
@@ -300,8 +302,13 @@ async function archiveIndex() {
 async function hlEarliest() {  // a minute Hyperliquid surely still serves at 1m: it keeps the last 5000 candles of each
   return Date.now() - 4990 * MIN;  // market (asking cost a 700 KB download before anything could show; owner 24/10: faster)
 }
+// The strip's days are CME trading days (owner 24/10/2026: a US market's day starts at the CME open, 17:00 Chicago =
+// 03:30 IST, 04:30 IST in Chicago's winter time; cme.js): trading day D takes the end of UTC day D-1 from the open, and
+// UTC day D up to the next open. Candles are still fetched and cached by UTC day.
+const filesOf = keys => [...new Set(keys.flatMap(k => [NsbCme.prev(k), k]))].sort();  // the UTC days trading days take candles from
 async function loadDay(key) {  // -> { coin: [bars (toBar objects)] } for the 10 stocks and XYZ100
   if (dayCache.has(key)) return dayCache.get(key);
+  if (dayStart(key) > Date.now()) return { key, source: 'hl', coins: {} };  // a UTC day not begun yet (not cached: it will)
   const coins = [...ALL, BENCH], out = {}, d0 = dayStart(key);
   let source = 'hl';
   if (archiveDays.has(key) && key !== dayKey(Date.now())) {
@@ -376,14 +383,14 @@ function signalsOf(run, d0, d1) {  // the strip's signals after the boxes: scalp
   const want = [opt.sc2 && 2, opt.sc3 && 3].filter(Boolean);
   const all = want.flatMap(m => crosses(run, m)).sort((a, b) => a.t - b.t || a.m - b.m);
   const trend = trendsOf(run.stateAt, opt.gap), used = new Map(), limit = perTrendLimit();
-  const dayDir = new Map();  // each UTC day's first gate trend: the first minute of the day the gate is LONG or SHORT
+  const dayDir = new Map();  // each trading day's first gate trend: the first minute of the day the gate is LONG or SHORT
   for (const t of [...run.stateAt.keys()].sort((a, b) => a - b)) {
-    const s = run.stateAt.get(t), k = t - t % DAY;
+    const s = run.stateAt.get(t), k = NsbCme.dayNo(t);
     if ((s === 'BULLISH' || s === 'BEARISH') && !dayDir.has(k)) dayDir.set(k, s);
   }
   const out = [];
-  for (const s of all) {  // counted over the warm-up day too, so a trend running past midnight keeps its count
-    const k = (s.t - MIN) - (s.t - MIN) % DAY;
+  for (const s of all) {  // counted over the warm-up day too, so a trend running past the day's start keeps its count
+    const k = NsbCme.dayNo(s.t - MIN);
     if (opt.oneTrend && s.t > d0 && s.t <= d1 && s.dir !== dayDir.get(k)) continue;
     const id = trend.get(s.t - MIN), n = used.get(id) || 0;
     if (n >= limit) continue;
@@ -413,11 +420,12 @@ const leftName = () => custom() ? (ACTIVE.length <= 3 ? ACTIVE.map(tk).join('+')
 async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const list = dayList.length ? dayList : listDays(), i = Math.max(0, list.indexOf(key));
   const shownKeys = list.slice(i, i + shown), warmKey = list[i + shown];
-  const d0 = dayStart(shownKeys[shownKeys.length - 1]), lastD0 = dayStart(key), d1 = lastD0 + DAY;
+  const d0 = NsbCme.open(shownKeys[shownKeys.length - 1]), lastD0 = NsbCme.open(key), d1 = NsbCme.open(NsbCme.next(key));
   if (!quiet) loading(`Loading ${key}…`);
-  const days = (await Promise.all([...shownKeys, warmKey].filter(Boolean).reverse().map(loadDay))).filter(Boolean);
+  const files = filesOf([...shownKeys, warmKey].filter(Boolean));
+  const days = (await Promise.all(files.map(loadDay))).filter(Boolean);
   const m = minutesOf(days, [...ALL, BENCH]);
-  const fut = (await Promise.all([...shownKeys, warmKey].filter(Boolean).reverse().map(loadFut))).flat().sort((a, b) => a.t - b.t);
+  const fut = (await Promise.all(files.map(loadFut))).flat().sort((a, b) => a.t - b.t);
   const runL = runSeries(composite(), m), runR = runSeries({ MNQ: 1 }, { MNQ: fut }, CME_OPEN);  // MNQ: no candle in a quiet minute or the daily break
   const inDay = b => b.t >= d0 && b.t < d1;  // the strip
   // the right chart's candles are MNQ's own 1-minute candles; the left's are the composite's
@@ -495,12 +503,12 @@ class Panel {
     this.e21 = emaLine(C.ema21); this.e47 = emaLine(C.ema47);
     this.zones = new Bands(() => this.main, () => this.mainBars.length, i => (PATTERN[this.kinds[i]] || {}).band || null);  // where the gates disagree
     this.candles.attachPrimitive(this.zones);
-    this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30, origin));  // where each day begins, with its date (at the market's open)
+    this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30, 'cme'));  // where each trading day begins (the CME open), with its date
     this.drawing = NsbDraw.add({ id: key, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
                   tf: () => opt.tf, fmt: v => num(v, day && day[key] ? day[key].digits : 2) });
     this.macd = {};
     for (const k of ['entry', 'trend']) this.macd[k] = new MacdPane({
-      el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 2, options: options(false, false, ''), origin,
+      el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 2, options: options(false, false, ''), origin, days: 'cme',
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.waveAt(i),
     });
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
@@ -692,13 +700,14 @@ function seg(el, items, current, onPick) {
 function buildControls() {
   $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === opt.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
   $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
-  dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Day (UTC)' });  // (no signal rules on this page)
+  dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Trading day (from the CME open, 17:00 Chicago: 03:30 IST, 04:30 IST in its winter time)' });  // (no signal rules on this page)
 }
 function recompute() { if (!day) return; computeSignals(); render(false); }
-function listDays() {  // newest first: archived days and the days Hyperliquid still has
-  const keys = new Set(archiveDays);
-  for (let t = Date.now(); t + DAY > hlFrom; t -= DAY) keys.add(dayKey(t));
-  return [...keys].filter(k => dayStart(k) <= Date.now()).sort().reverse();
+function listDays() {  // newest first: the trading days of the archived UTC days and the days Hyperliquid still has
+  const files = new Set(archiveDays);
+  for (let t = Date.now(); t + DAY > hlFrom; t -= DAY) files.add(dayKey(t));
+  const keys = new Set([...files].flatMap(f => [f, NsbCme.next(f)]));  // a UTC day's evening is the next trading day's start
+  return [...keys].filter(k => NsbCme.open(k) <= Date.now()).sort().reverse();
 }
 // ---- today: new candles from Hyperliquid every minute (owner 24/10/2026), keeping your zoom ----------------------
 let refreshing = false, dayPick = null, dayList = [], olderBusy = false;
@@ -721,23 +730,26 @@ async function loadOlder() {  // add older days to the strip, keeping what you a
 }
 async function refreshToday() {
   if (refreshing || !day || document.visibilityState !== 'visible') return;
-  const today = dayKey(Date.now());
+  const today = NsbCme.key(Date.now());
   refreshing = true;
   try {
-    if (!dayList.includes(today)) {  // past 00:00 UTC: a new day in the calendar
+    if (!dayList.includes(today)) {  // past the CME open: a new trading day in the calendar
       const was = day.key;
       dayList = listDays();
-      if (dayKey(Date.now() - DAY) === was) { dayCache.delete(was); await openDay(today); return; }  // you were on today: follow it
+      if (NsbCme.prev(today) === was) { await openDay(today); return; }  // you were on today: follow it
       dayPick.set(dayList, was, today);
     }
     if (day.key !== today) return;
-    const cached = dayCache.get(today), now = Date.now();
-    if (!cached) return;
-    await Promise.all(Object.keys(cached.coins).map(async c => {  // only the minutes since each market's last candle
-      const a = cached.coins[c], from = a.length ? a[a.length - 1].t : dayStart(today);
-      const rows = (await candleRows(c, '1m', from, now)).map(toBar).filter(b => b.t >= dayStart(today));
-      for (const b of rows) { if (a.length && a[a.length - 1].t === b.t) a[a.length - 1] = b; else if (!a.length || b.t > a[a.length - 1].t) a.push(b); }
-    }));
+    const now = Date.now();
+    for (const f of filesOf([today])) {  // today's UTC days already loaded (one begun since is fetched whole by buildDay)
+      const cached = dayCache.get(f), f0 = dayStart(f);
+      if (!cached || f0 > now) continue;
+      await Promise.all(Object.keys(cached.coins).map(async c => {  // only the minutes since each market's last candle
+        const a = cached.coins[c], from = a.length ? a[a.length - 1].t : f0;
+        const rows = (await candleRows(c, '1m', from, Math.min(now, f0 + DAY - 1))).map(toBar).filter(b => b.t >= f0 && b.t < f0 + DAY);
+        for (const b of rows) { if (a.length && a[a.length - 1].t === b.t) a[a.length - 1] = b; else if (!a.length || b.t > a[a.length - 1].t) a.push(b); }
+      }));
+    }
     const before = Object.fromEntries(Object.entries(panels).map(([k, q]) => {
       const r = q.main.timeScale().getVisibleLogicalRange(), n = q.mainBars.length;
       return [k, { r, n, atEnd: !r || r.to >= n - 2 }];
@@ -754,12 +766,12 @@ setInterval(refreshToday, 60000);
 document.addEventListener('visibilitychange', refreshToday);
 async function openDay(key) {
   await buildDay(key);
-  dayPick.set(dayList, key, dayKey(Date.now()));
+  dayPick.set(dayList, key, NsbCme.key(Date.now()));
   render(true);
 }
 function showNote() {
-  const today = day.key === dayKey(Date.now());
-  const msg = [`${day.key} UTC${day.shown > 1 ? ` and the ${day.shown - 1} days before (scroll left for older)` : ''}`, today ? 'today, updating every minute' : '', day.source.includes('archive') ? (day.source.includes('hl') ? 'archive + Hyperliquid' : 'archive') : 'Hyperliquid',
+  const today = day.key === NsbCme.key(Date.now());
+  const msg = [`${day.key}, from the CME open (${hhmm(day.lastD0)} your time)${day.shown > 1 ? ` and the ${day.shown - 1} days before (scroll left for older)` : ''}`, today ? 'today, updating every minute' : '', day.source.includes('archive') ? (day.source.includes('hl') ? 'archive + Hyperliquid' : 'archive') : 'Hyperliquid',
                !day.prevLoaded ? 'no earlier day to warm up on' : '',
                day.lacking.length ? `no ${day.lacking.map(tk).join(', ')} data for this day yet, so the left chart is empty` : ''].filter(Boolean).join(' · ');
   const warn = !day.prevLoaded || day.lacking.length;

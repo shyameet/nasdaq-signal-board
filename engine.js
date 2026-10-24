@@ -47,10 +47,12 @@ const CACHE = 'nsb.candles.v2.';  // v1 caches can hold flat bars from a stuck s
 
 // ---- the signal: a line-for-line port of ndx10.py ----------------------------------------------
 // [start, end] of the bar containing t; bars restart at 00:00 UTC each day, or `origin` ms after it (a market's session
-// open, e.g. 03:45 UTC for NSE's 09:15 IST, so bars line up with the exchange's as on TradingView)
+// open, e.g. 03:45 UTC for NSE's 09:15 IST, so bars line up with the exchange's as on TradingView), or with origin 'cme'
+// at the CME open, 17:00 Chicago, whichever clock Chicago is on (cme.js)
 const bucket = (t, minutes, origin = 0) => {
-  const day0 = t - ((t - origin) % DAY + DAY) % DAY, size = minutes * MIN, start = day0 + Math.floor((t - day0) / size) * size;
-  return [start, Math.min(start + size, day0 + DAY)];
+  const cme = origin === 'cme', day0 = cme ? NsbCme.day0(t) : t - ((t - origin) % DAY + DAY) % DAY, size = minutes * MIN;
+  const start = day0 + Math.floor((t - day0) / size) * size;
+  return [start, Math.min(start + size, cme ? NsbCme.dayEnd(t) : day0 + DAY)];
 };
 
 class Ema {

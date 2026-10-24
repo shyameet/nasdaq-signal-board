@@ -15,8 +15,9 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
-<script src="macd.js?v=7"></script>
-<script src="engine.js?v=8"></script>
+<script src="cme.js?v=1"></script>
+<script src="macd.js?v=8"></script>
+<script src="engine.js?v=9"></script>
 <script src="daypick.js?v=2"></script>
 <script src="draw.js?v=3"></script>
 <style>
@@ -190,9 +191,9 @@
       <h3>Trends</h3>
       <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown.</p>
       <h3>Charts</h3>
-      <p>The CME future on the left, the MCX mini on the right, side by side and scrolling together. (On the India tab, Nifty: one chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right, showing the whole day with their gate. Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. Bank Nifty: the two charts side by side.) Drag the thin lines between the charts, between the tiles, or between a price chart and its MACD panes to size them as you like (remembered; double-click a line for the default). The index is shaded by step 1; GIFT NIFTY by its own gate (its whole session, 06:30 to 02:45 the next morning); the stock where step 2 holds, with its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <p>The CME future on the left, the MCX mini on the right, side by side and scrolling together. (On the India tab, Nifty: one chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right with their gate, all on the same stretch of time. Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. Bank Nifty: the two charts side by side.) Drag the thin lines between the charts, between the tiles, or between a price chart and its MACD panes to size them as you like (remembered; double-click a line for the default). The index is shaded by step 1; GIFT NIFTY by its own gate (its whole session, 06:30 to 02:45 the next morning); the stock where step 2 holds, with its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
       <h3>Days</h3>
-      <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
+      <p>A day starts at the CME open, 17:00 Chicago: 03:30 IST (04:30 IST from 2 Nov, when Chicago leaves summer time). So Monday's day begins at 03:30 IST on Monday with the Globex session that opened on Sunday evening in Chicago, and holds that whole CME session and MCX's day. The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
       <h3>Data</h3>
       <p>Saved 1-minute candles from our VPS, from 15 Oct 2026, one file per UTC day: MCL and NG from NinjaTrader (the front month as it stitches it), CRUDEOILM and NATGASMINI from Dhan (the near month through its expiry day, then the next month). Nothing is filled in: a minute with no trade has no candle. Live candles for today come with the VPS's live stream.</p>
       <p class="credit">Not investment advice · Data: NinjaTrader and Dhan, via our VPS · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
@@ -220,12 +221,12 @@ const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
 const RULES = [['3m EMA21 vs EMA47', '3m EMA'], ['5m MACD vs 0', '5m'], ['9m MACD vs 0', '9m'], ['11m MACD vs 0', '11m']];
 const TFS = [1, 2, 3, 5];
 // Each market's bars start at its session open, as on TradingView (ms after 00:00 UTC): NSE 09:15 IST, GIFT NIFTY 06:30 IST
-// Bars start at each market's session open, as on TradingView (ms after 00:00 UTC): MCX 09:00 IST, CME 17:00 Chicago
-// (22:00 UTC in summer time; 23:00 UTC from 1 Nov, when Chicago moves its clocks)
-const MCX_OPEN = 3 * 3600000 + 30 * MIN, CME_OPEN = 22 * 3600000;
+// Bars start at each market's session open, as on TradingView (ms after 00:00 UTC): MCX 09:00 IST; CME 'cme', 17:00
+// Chicago on whichever clock Chicago is on (22:00 UTC in its summer time, 23:00 UTC from 1 Nov; cme.js)
+const MCX_OPEN = 3 * 3600000 + 30 * MIN;
 const MARKETS = {
-  MCL: { name: 'MCL', origin: CME_OPEN, digits: 2, macdDigits: 3 },   // CME micro WTI crude
-  NG: { name: 'NG', origin: CME_OPEN, digits: 3, macdDigits: 4 },     // CME Henry Hub natural gas
+  MCL: { name: 'MCL', origin: 'cme', digits: 2, macdDigits: 3 },   // CME micro WTI crude
+  NG: { name: 'NG', origin: 'cme', digits: 3, macdDigits: 4 },     // CME Henry Hub natural gas
   CRUDEOILM: { name: 'CRUDEOILM', origin: MCX_OPEN, digits: 0, macdDigits: 2 },   // MCX crude oil mini
   NATGASMINI: { name: 'NATGASMINI', origin: MCX_OPEN, digits: 1, macdDigits: 3 },  // MCX natural gas mini
 };
@@ -245,10 +246,10 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 const WKD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const when = ms => { const d = new Date(ms + IST); return `${WKD[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${hhmm(ms)}`; };
 const kind = st => st === 'BULLISH' ? 'bull' : st === 'BEARISH' ? 'bear' : '';
-const dayOf = (t, origin) => t - ((t - origin) % DAY + DAY) % DAY;
+const dayOf = (t, origin) => origin === 'cme' ? NsbCme.day0(t) : t - ((t - origin) % DAY + DAY) % DAY;
+const dayEnd = (t, origin) => origin === 'cme' ? NsbCme.dayEnd(t) : dayOf(t, origin) + DAY;
 const bucketStart = (t, m, origin) => { const d0 = dayOf(t, origin), s = m * MIN; return d0 + Math.floor((t - d0) / s) * s; };
-const bucketEnd = (t, m, origin) => Math.min(bucketStart(t, m, origin) + m * MIN, dayOf(t, origin) + DAY);
-const istMidnight = key => Date.parse(key + 'T00:00:00Z') - IST;  // 00:00 IST of a day key (YYYY-MM-DD)
+const bucketEnd = (t, m, origin) => Math.min(bucketStart(t, m, origin) + m * MIN, dayEnd(t, origin));
 const pref = (k, fallback) => { try { const v = localStorage.getItem('nsb.comm.' + k); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } };
 const save = (k, v) => { try { localStorage.setItem('nsb.comm.' + k, JSON.stringify(v)); } catch (e) {} };
 
@@ -261,7 +262,16 @@ const opt = {
 };
 
 // ---- data: the VPS's saved days (data/futures/1m/YYYY-MM-DD.json, UTC days) --------------------------------
-let DAYS = [], dayPick = null;  // saved day keys, oldest first; the calendar
+// The page's days are CME trading days (owner 24/10/2026: a day starts at the CME open, 17:00 Chicago = 03:30 IST,
+// 04:30 IST in Chicago's winter time; cme.js): day D runs from that open the evening before D, so it takes the end of
+// the UTC file before D (MCL and NG from the open) and file D (the rest, and MCX's whole session).
+let FILES = new Set(), DAYS = [], dayPick = null;  // the saved UTC files; the trading days they hold, oldest first; the calendar
+function tradingDays(files) {  // Monday to Friday: the CME is shut on Saturday, and Sunday evening's session is Monday's
+  const out = new Set(), week = k => { const w = new Date(k + 'T00:00:00Z').getUTCDay(); return w >= 1 && w <= 5; };
+  for (const f of files) for (const k of [f, NsbCme.next(f)]) if (week(k) && NsbCme.open(k) <= Date.now()) out.add(k);
+  return [...out].sort();
+}
+const filesOf = keys => [...new Set(keys.flatMap(k => [NsbCme.prev(k), k]))].filter(f => FILES.has(f)).sort();
 const fileCache = new Map();
 async function loadFile(key) {  // -> { market: [{ t (ms), o, h, l, c, v }] }
   if (fileCache.has(key)) return fileCache.get(key);
@@ -379,7 +389,7 @@ let day = null;
 async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const i = DAYS.indexOf(key), first = Math.max(0, i - shown + 1), keys = DAYS.slice(Math.max(0, first - WARM_DAYS), i + 1);
   if (!quiet) loading(`Loading ${key}…`);
-  const files = await Promise.all(keys.map(loadFile));
+  const files = await Promise.all(filesOf(keys).map(loadFile));
   const S = SETUPS[opt.setup], markets = [S.index, S.gift, S.stock].filter(Boolean);
   const rows = {};
   for (const m of markets) {
@@ -388,9 +398,8 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
     rows[m] = [...byT.values()].sort((a, b) => a.t - b.t);
   }
   const runs = Object.fromEntries(markets.map(m => [m, runMarket(m, rows[m])]));
-  // the strip: 06:30 IST (GIFT NIFTY's open) of its oldest day to 06:30 the morning after the picked day
-  const open = k => Date.parse(k + 'T00:00:00Z');  // a UTC day
-  const d0 = open(DAYS[first]), lastD0 = open(key), d1 = lastD0 + DAY;
+  // the strip: the CME open starting its oldest trading day to the one after the picked day
+  const d0 = NsbCme.open(DAYS[first]), lastD0 = NsbCme.open(key), d1 = NsbCme.open(NsbCme.next(key));
   const indexMinutes = rows[S.index].map(b => b.t);
   day = { key, d0, d1, lastD0, shown: i - first + 1, more: first > 0, setup: S, rows, runs, indexMinutes, warm: keys.length - 1 - (i - first) };
   day.setupRun = setupOf(S, runs, indexMinutes);
@@ -797,7 +806,7 @@ function buildControls() {
   $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
   const toggle = (id, key) => { $(id).setAttribute('aria-pressed', String(opt[key])); $(id).onclick = () => { opt[key] = !opt[key]; save(key, opt[key]); $(id).setAttribute('aria-pressed', String(opt[key])); recompute(); }; };
   toggle('sc2', 'sc2'); toggle('sc3', 'sc3');
-  dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Day (UTC)' });
+  dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Trading day (from the CME open, 17:00 Chicago: 03:30 IST, 04:30 IST in its winter time)' });
   document.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('select, input, summary')) return;
     const n = Number(e.key);
@@ -825,7 +834,7 @@ async function loadOlder(src) {  // add older days to the strip, keeping what yo
 }
 async function openDay(key) {
   await buildDay(key);
-  dayPick.set(DAYS, key, new Date().toISOString().slice(0, 10));
+  dayPick.set(DAYS, key, NsbCme.key(Date.now()));
   render(true);
 }
 const loading = text => { if (text === null) { $('loading').hidden = true; return; } $('loading').hidden = false; $('loading-text').textContent = text; };
@@ -836,7 +845,8 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
   try {
     loading('Loading the list of days…');
     const j = await (await fetch('data/futures/1m/index.json', { cache: 'no-cache' })).json();
-    DAYS = (Array.isArray(j) ? j : j.dates || []).map(String).sort();
+    FILES = new Set((Array.isArray(j) ? j : j.dates || []).map(String));
+    DAYS = tradingDays(FILES);
     if (!DAYS.length) throw new Error('no saved days yet');
     buildControls();
     NsbDraw.setup({ key: 'nsb.draw.comm.' + opt.setup, when });

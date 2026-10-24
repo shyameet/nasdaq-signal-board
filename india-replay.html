@@ -15,8 +15,9 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
-<script src="macd.js?v=7"></script>
-<script src="engine.js?v=8"></script>
+<script src="cme.js?v=1"></script>
+<script src="macd.js?v=8"></script>
+<script src="engine.js?v=9"></script>
 <script src="daypick.js?v=2"></script>
 <script src="draw.js?v=3"></script>
 <style>
@@ -87,8 +88,8 @@
   .panel.big { grid-column: 1; grid-row: 1 / -1; }
   .panel.half { grid-row: 1; }   /* two charts (Bank Nifty): side by side, equal by default (owner 24/10/2026) */
   .panel.half + .panel.half { border-left: 1px solid var(--line-strong); }
-  .panel.tile { grid-column: 2; border-left: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); cursor: pointer; }
-  .panel.tile::after { content: ""; position: absolute; inset: 0; z-index: 8; }   /* the whole tile is one button */
+  .panel.tile { grid-column: 2; border-left: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); }
+  .panel.tile .phead { cursor: pointer; }   /* a click anywhere on a tile enlarges it; a drag on its chart scrolls (owner 24/10/2026) */
   .panel.tile:hover { box-shadow: inset 0 0 0 1px var(--accent); }
   .panel.tile .stack.panes { grid-template-rows: minmax(0, 1fr); }
   .panel.tile .pane:not(:first-child), .panel.tile .tag, .panel.tile .warm, .panel.tile .pextra { display: none; }
@@ -186,7 +187,7 @@
       <h3>Trends</h3>
       <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown.</p>
       <h3>Charts</h3>
-      <p>Nifty: one chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right, showing the whole day with their gate. Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. Bank Nifty: the two charts side by side, scrolling together. Drag the thin lines between the charts, between the tiles, or between a price chart and its MACD panes to size them as you like (remembered; double-click a line for the default). The index is shaded by step 1; GIFT NIFTY by its own gate (its whole session, 06:30 to 02:45 the next morning); the stock where step 2 holds, with its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <p>Nifty: one chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right with their gate. All the charts show the same stretch of time: drag or zoom any of them and the others follow. Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. Bank Nifty: the two charts side by side, scrolling together. Drag the thin lines between the charts, between the tiles, or between a price chart and its MACD panes to size them as you like (remembered; double-click a line for the default). The index is shaded by step 1; GIFT NIFTY by its own gate (its whole session, 06:30 to 02:45 the next morning); the stock where step 2 holds, with its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
       <h3>Days</h3>
       <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
       <h3>Data</h3>
@@ -458,7 +459,7 @@ class Panel {
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
     this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
       for (const p of Object.values(this.macd)) p.sync(r);
-      if (r && r.from < 8 && !syncing && this.mode !== 'tile' && day && day.more) loadOlder(this);  // at the left edge: older days
+      if (r && r.from < 8 && !syncing && this === driver && day && day.more) loadOlder();  // scrolled to the left edge: older days
     });
     const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
                  ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
@@ -470,18 +471,28 @@ class Panel {
       hoverAll(this, t);
     });
     for (const el of $(key).querySelectorAll('.pane')) el.addEventListener('mouseleave', () => hoverAll(this, undefined));
-    $(key).addEventListener('click', e => { if (this.mode === 'tile' && !e.target.closest('#viewSel')) select(this.key); });
+    let downAt = null;  // where a press began: a drag scrolls a tile, only a click makes it the big chart (owner 24/10/2026)
+    $(key).addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; driver = this; }, true);
+    for (const ev of ['wheel', 'touchstart']) $(key).addEventListener(ev, () => { driver = this; }, { capture: true, passive: true });
+    $(key).addEventListener('click', e => {
+      const dragged = downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5;
+      if (this.mode === 'tile' && !dragged && !e.target.closest('#viewSel')) select(this.key);
+    });
     const ps = document.createElement('div');  // the handle between the price chart and the MACD panes
     ps.className = 'split row'; ps.title = 'Drag to size the price chart and its MACD panes (double-click: default)';
     $(key).querySelector('.stack').append(ps); this.paneSplit = ps;
     dragger(ps, 'row', e => { const r = $(key).querySelector('.stack').getBoundingClientRect(); setPriceShare((e.clientY - r.top) / r.height); },
             () => setPriceShare(DEFAULT_PRICE));
   }
-  setMode(mode) {  // 'big' or 'half': scroll, zoom, time axis and MACD panes; 'tile': the whole day at a glance, one click to enlarge
+  setMode(mode) {  // 'big' or 'half': time axis and MACD panes; 'tile': the price chart only, one click to enlarge. All of them
+    // scroll and zoom, and show the same stretch of time as the others (owner 24/10/2026: scrolling back on Nifty, GIFT
+    // NIFTY or Reliance moves all three; the tiles used to stay on the newest day)
     this.mode = mode;
     for (const m of ['big', 'half', 'tile']) $(this.key).classList.toggle(m, m === mode);
     const full = mode !== 'tile';
-    this.main.applyOptions({ handleScroll: full, handleScale: full, timeScale: { visible: full }, rightPriceScale: { minimumWidth: full ? 70 : 56 } });
+    // (a tile leaves an up-down finger to the page, so a phone can still scroll past the charts)
+    this.main.applyOptions({ handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: full }, handleScale: true,
+                             timeScale: { visible: full }, rightPriceScale: { minimumWidth: full ? 70 : 56 } });
   }
   waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }  // the colour at candle i
   remove() { this.drawing.remove(); this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
@@ -633,10 +644,9 @@ function buildPanels() {
   bigKey = null;
   buildSplits();
   setPriceShare(pref('split.price', DEFAULT_PRICE), false);
-  if (halves) {  // two charts: side by side, both full, scrolling together
+  for (const p of ORDER()) p.main.timeScale().subscribeVisibleLogicalRangeChange(() => syncOthers(p));  // all scrolling together
+  if (halves) {  // two charts: side by side, both full
     for (const p of ORDER()) p.setMode('half');
-    panels.index.main.timeScale().subscribeVisibleLogicalRangeChange(() => syncHalves(panels.index));
-    panels.stock.main.timeScale().subscribeVisibleLogicalRangeChange(() => syncHalves(panels.stock));
     $('pIndex').querySelector('.phead').append($('steps'));
     return;
   }
@@ -646,16 +656,35 @@ function buildPanels() {
   placeBig(ORDER().some(p => p.key === saved) ? saved : 'pIndex');
 }
 let halves = false;
-function syncHalves(src) {  // the two half charts show the same stretch of time
-  if (src.echo) { src.echo = false; return; }  // the other chart's own move coming back: not a new one
-  if (syncing || !halves) return;
-  const other = src === panels.index ? panels.stock : panels.index, r = src.main.timeScale().getVisibleLogicalRange();
-  if (!r || !src.mainBars.length || !other.mainBars.length) return;
-  const to = { from: indexAt(other.mainBars, timeAt(src.mainBars, r.from)), to: indexAt(other.mainBars, timeAt(src.mainBars, r.to)) };
-  const now = other.main.timeScale().getVisibleLogicalRange();
-  if (now && Math.abs(now.from - to.from) < 0.01 && Math.abs(now.to - to.to) < 0.01) return;
-  other.echo = true;
-  try { other.main.timeScale().setVisibleLogicalRange(to); } catch (e) { other.echo = false; }
+const lead = () => halves ? panels.index : ORDER().find(p => p.mode === 'big') || panels.index;  // the chart the others follow
+// Only the chart the viewer is moving (pressed, scrolled or zoomed last: `driver`) passes its moves on. The charts report
+// a range change some time after it is set, so passing on every chart's changes would let a chart that was just moved
+// for another pull that one back while it is still being dragged.
+let driver = null;
+function syncOthers(src, force = false) {  // every chart shows the same stretch of time as src
+  if (syncing || (!force && src !== driver)) return;
+  const r = src.main.timeScale().getVisibleLogicalRange();
+  if (!r || !src.mainBars.length) return;
+  const a = timeAt(src.mainBars, r.from), b = timeAt(src.mainBars, r.to);
+  for (const other of ORDER()) {
+    if (other === src || !other.mainBars.length) continue;
+    const to = { from: indexAt(other.mainBars, a), to: indexAt(other.mainBars, b) };
+    const now = other.main.timeScale().getVisibleLogicalRange();
+    if (now && Math.abs(now.from - to.from) < 0.01 && Math.abs(now.to - to.to) < 0.01) continue;
+    try { other.main.timeScale().setVisibleLogicalRange(to); } catch (e) {}
+  }
+}
+function follow() { syncOthers(lead(), true); }  // the others onto the lead chart's stretch of time
+const spanOf = q => { const r = q.main.timeScale().getVisibleLogicalRange(); return r && q.mainBars.length ? [timeAt(q.mainBars, r.from), timeAt(q.mainBars, r.to)] : null; };
+function showSpan(span) {  // the lead chart on this stretch of time, the others following (again once the charts have their final size)
+  const go = () => {
+    const l = lead();
+    if (!l.mainBars.length) return;
+    syncing = true;
+    try { l.main.timeScale().setVisibleLogicalRange({ from: indexAt(l.mainBars, span[0]), to: indexAt(l.mainBars, span[1]) }); } finally { syncing = false; }
+    follow();
+  };
+  requestAnimationFrame(() => requestAnimationFrame(go)); setTimeout(go, 150);  // after the charts have their new sizes
 }
 
 // ---- sizes: drag the handles; each layout remembers its own (double-click a handle: back to the default) ----
@@ -724,10 +753,14 @@ function placeBig(key) {  // the chosen chart big, the others as tiles in the se
   for (const b of $('viewSel').children) b.setAttribute('aria-pressed', String(b.dataset.v === key));
   save('big.' + opt.setup, key);
 }
-function select(key) {
+function select(key) {  // another chart big, on the same stretch of time
   if (!day || halves || key === bigKey || !$(key)) return;
+  const span = spanOf(lead());
+  driver = null;  // the charts' new sizes move their ranges: nobody's move to pass on (showSpan sets them)
   placeBig(key);
-  render(true);
+  if (!span) { render(true); return; }
+  render(false);
+  showSpan(span);
 }
 
 // ---- the strip: where the setup stands -----------------------------------------------------------------------
@@ -765,15 +798,17 @@ function render(full) {
   syncing = true;
   try {
     for (const p of Object.values(panels)) p.draw();
-    for (const p of Object.values(panels)) if (p.mode === 'tile' || (full && !(halves && p === panels.stock))) p.fit();
+    if (full) lead().fit();
   } finally { syncing = false; }
+  follow();
   if (full) refit();
   refreshText();
 }
 function refit() {  // the whole day again once the charts have their final size (a chart sized later keeps its bar spacing)
   const go = () => {
-    for (const p of Object.values(panels)) if (!(halves && p === panels.stock)) p.fit();
-    if (halves) syncHalves(panels.index);  // the stock follows the index's whole day
+    syncing = true;
+    try { lead().fit(); } finally { syncing = false; }
+    follow();  // the others on the lead chart's day
   };
   go(); requestAnimationFrame(() => requestAnimationFrame(go)); setTimeout(go, 150);
 }
@@ -801,21 +836,20 @@ function buildControls() {
 }
 function recompute() { if (!day) return; day.entries = entriesOf(); render(false); }
 let olderBusy = false;
-async function loadOlder(src) {  // add older days to the strip, keeping what you are looking at in place
+async function loadOlder() {  // add older days to the strip, keeping what you are looking at in place
   if (olderBusy) return;
   olderBusy = true;
   $('older').hidden = false;
   try {
-    const keep = Object.values(panels).filter(q => q.mode !== 'tile' && q.mainBars.length).map(q => {
-      const r = q.main.timeScale().getVisibleLogicalRange();
-      return [q, r ? [timeAt(q.mainBars, r.from), timeAt(q.mainBars, r.to)] : null];
-    });
+    const span = spanOf(lead());
     await buildDay(day.key, day.shown + MORE_DAYS, true);
-    syncing = true;
-    try {
-      render(false);
-      for (const [q, span] of keep) if (span && q.mainBars.length) q.main.timeScale().setVisibleLogicalRange({ from: indexAt(q.mainBars, span[0]), to: indexAt(q.mainBars, span[1]) });
-    } finally { syncing = false; }
+    render(false);
+    if (span && lead().mainBars.length) {
+      const l = lead();
+      syncing = true;
+      try { l.main.timeScale().setVisibleLogicalRange({ from: indexAt(l.mainBars, span[0]), to: indexAt(l.mainBars, span[1]) }); } finally { syncing = false; }
+      follow();
+    }
   } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
 }
 async function openDay(key) {
