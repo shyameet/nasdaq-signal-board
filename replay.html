@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Replay · Indra Quant Signal Board</title>
+<title>Nasdaq · XYZ100 · Indra Quant Signal Board</title>
 <meta name="description" content="Replay past days: your stocks' composite beside the Nasdaq-100 perp, with the gate, the 2m/3m entry signals and the MACD panes.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
@@ -183,7 +183,8 @@
 <body>
 <header class="topbar">
   <a class="brand" href="./" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
-  <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="replay.html" aria-current="page">Replay</a><a href="mnq.html">MNQ</a><a href="india-replay.html">India Replay</a><a href="commodities.html">Commodities</a></nav>
+  <nav class="tabs" aria-label="Pages"><a href="./">Stocks</a><a href="replay.html" aria-current="page">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a></nav>
+  <div class="grp" title="Section"><div class="seg" role="group" aria-label="Section"><button type="button" aria-pressed="true" title="Your stocks beside XYZ100">XYZ100</button><button type="button" aria-pressed="false" onclick="location.href='mnq.html'" title="Your stocks beside MNQ">MNQ</button></div></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
   <div class="grp">
