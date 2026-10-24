@@ -29,7 +29,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="daypick.js?v=2"></script>
-<script src="draw.js?v=1"></script>
+<script src="draw.js?v=2"></script>
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
 <script src="macd.js?v=5"></script>
@@ -533,7 +533,7 @@ class Panel {
     this.candles.attachPrimitive(this.zones);
     this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 48));  // over the zones' tint
     this.mainEl = $(`${key}-pmain`);
-    NsbDraw.add({ id: 'basket', chart: this.main, series: this.candles, el: this.mainEl, bars: () => this.mainBars, tf: () => tf, fmt: v => num(v) });
+    this.drawing = NsbDraw.add({ id: 'basket', chart: this.main, series: this.candles, el: this.mainEl, bars: () => this.mainBars, tf: () => tf, fmt: v => num(v) });
     allCharts.push({ panel: this, key: 'main', chart: this.main, anchor: this.candles, minutes: () => tf, value: b => b.close });
     // MACD panes. Their scale always takes in 0, so the zero line (what the 5m and 7m rules test) stays in view
     const withZero = base => { const r = base();
@@ -562,6 +562,7 @@ class Panel {
       this.store[kind] = pane.store;
       allCharts.push({ panel: this, key: kind, chart: pane.chart, anchor: pane.zero, minutes: () => tf, value: q => pane.value(q) });
     }
+    for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
     this.main.timeScale().subscribeVisibleLogicalRangeChange(r => { this.syncPanes(); syncMains(this); if (r && r.from < 8 && !pending) loadOlder(); });  // left edge: older days
   }
 

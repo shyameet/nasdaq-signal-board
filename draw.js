@@ -96,7 +96,7 @@
     priceAxisViews() { return this.prices; }
     timeAxisViews() { return this.times; }
     hitTest(x, y) {  // the chart asks on every mouse move; the answer sets the mouse cursor
-      if (!this.c.active()) return null;
+      if (this.c.pane || !this.c.active()) return null;
       let cursor = null;
       if (S.gesture) cursor = S.gesture.kind === 'drag' ? 'grabbing' : 'crosshair';
       else if (S.tool || S.temp) cursor = 'crosshair';
@@ -117,11 +117,12 @@
       if (S.temp) all.push({ d: S.temp });
       if (S.measure) all.push({ d: S.measure });
       for (const it of all) {
+        if (c.pane && it.d.type !== 'vline') continue;  // a pane under a chart shows its vertical lines only
         const s = shape(c, m, it.d), d = it.d;
         if (!s) continue;
         shapes.push({ ...it, s });
         if (d.type === 'hline') priceTag(priceOn(c, d.a, d.src));
-        else if (d.type === 'vline') timeTag(d.a.t);
+        else if (d.type === 'vline') { if (!c.pane) timeTag(d.a.t); }
         else { priceTag(priceOn(c, d.a, d.src)); priceTag(priceOn(c, d.b, d.src)); timeTag(d.a.t); timeTag(d.b.t); }
       }
     }
@@ -157,7 +158,7 @@
           } else if (d.type === 'vline') {
             const w = px(bold ? 2 : 1.5), x = crisp(s.x, hr, w);
             g.lineWidth = w; seg(x, 0, x, H);
-            if (sel) handle(s.x, H / vr / 2);
+            if (sel && !c.pane) handle(s.x, H / vr / 2);
           } else {  // measure: the change in price and %, and how many candles and how long, on this chart
             const pa = priceOn(c, d.a, d.src), pb = priceOn(c, d.b, d.src), dp = pb - pa, up = dp >= 0, col = up ? INK : DOWN;
             const tagBg = up ? INK_TAG : '#c23b47';  // darker, so the white text reads
@@ -182,7 +183,9 @@
     }
   }
 
-  function redraw() { for (const c of charts) if (c.layer.requestUpdate) c.layer.requestUpdate(); }
+  function redraw() {
+    for (const c of charts) for (const l of [c.layer, ...c.panes.map(q => q.layer)]) if (l.requestUpdate) l.requestUpdate();
+  }
   function save() { try { localStorage.setItem(S.key, JSON.stringify(S.items)); } catch (e) {} show(); }
   function remember(state = JSON.stringify(S.items)) { S.undo.push(state); if (S.undo.length > 100) S.undo.shift(); }
   function load() {
@@ -394,7 +397,7 @@
     use(key) { if (key === S.key) return; S.key = key; load(); setTool(null); },
     add(spec) {
       const c = { active: () => true, fmt: v => v.toFixed(2), ...spec };
-      c.layer = new Layer(c);
+      c.layer = new Layer(c); c.panes = [];
       c.series.attachPrimitive(c.layer);
       // a press that starts a drawing or grabs one never reaches the chart, so the chart doesn't scroll at the same time
       const onDown = e => down(e, c), onMouse = e => { if (S.press) { e.stopPropagation(); e.preventDefault(); } };
@@ -407,6 +410,12 @@
       if (S.tool) c.el.classList.add('dr-on');
       charts.push(c);
       return {
+        pane(chart, series) {  // a MACD pane under this chart (same candles): the vertical lines go through it too
+          const q = { ...c, chart, series, el: chart.chartElement(), pane: true };
+          q.layer = new Layer(q);
+          series.attachPrimitive(q.layer);
+          c.panes.push(q);
+        },
         remove() {
           const i = charts.indexOf(c);
           if (i >= 0) charts.splice(i, 1);

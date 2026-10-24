@@ -18,7 +18,7 @@
 <script src="macd.js?v=5"></script>
 <script src="engine.js?v=071c0c2a3d"></script>
 <script src="daypick.js?v=2"></script>
-<script src="draw.js?v=1"></script>
+<script src="draw.js?v=2"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
   /* the candle size: one dropdown (owner 24/10/2026) */
@@ -461,6 +461,7 @@ class Panel {
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 3, options: options(false, false), origin: this.origin,
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.waveAt(i),
     });
+    for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
     this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
       for (const p of Object.values(this.macd)) p.sync(r);
       if (r && r.from < 8 && !syncing && this.mode !== 'tile' && day && day.more) loadOlder(this);  // at the left edge: older days

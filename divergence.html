@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="daypick.js?v=2"></script>
-<script src="draw.js?v=1"></script>
+<script src="draw.js?v=2"></script>
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
 <script src="macd.js?v=5"></script>
@@ -425,7 +425,7 @@ function makeChart() {
   candles.attachPrimitive(layer);
   candles.attachPrimitive(new DayLines(() => chart, () => mainBars, 52));
   NsbDraw.setup({ key: 'nsb.draw.divergence', when });
-  NsbDraw.add({ id: 'xyz100', chart, series: candles, el: $('pmain'), bars: () => mainBars, tf: () => tf, fmt: v => num(v) });
+  const drawing = NsbDraw.add({ id: 'xyz100', chart, series: candles, el: $('pmain'), bars: () => mainBars, tf: () => tf, fmt: v => num(v) });
   new ResizeObserver(fitMargins).observe($('pmain'));
   // XYZ100's Trend and Entry MACD panes, on the chart's own candles (so the same bar indexes; they follow its scrolling
   // and zoom), each shaded where the stocks' and the index's MACDs agree on the lines switched on in it
@@ -436,6 +436,7 @@ function makeChart() {
     bars: () => mainBars, tf: () => tf, src: () => macd, stocks: () => macdStocks,
     shade: i => NsbMacd.trendState(panes.trend && panes.trend.pts[i]),  // XYZ100's Trend waves switched on
   });
+  for (const k of MACD_KINDS) drawing.pane(panes[k].chart, panes[k].zero);  // drawn vertical lines go through the panes too
   chart.timeScale().subscribeVisibleLogicalRangeChange(r => { syncMix(); if (r && r.from < 8 && !pending) loadOlder(); });  // left edge: older days
   NsbMacd.onToggle(() => { for (const pane of Object.values(panes)) pane.showLines(); mixTag(); });
   // one crosshair over the chart and both panes: the one under the mouse moves the others
