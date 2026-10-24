@@ -1,6 +1,6 @@
 // The day picker of the replay pages (owner 24/10/2026: "a small calendar instead of going back and forward"): one
 // small button with the day; a click opens a month calendar where only the days with data can be picked.
-//   const pick = DayPick(hostElement, { onPick: key => ..., title: 'Day' });
+//   const pick = DayPick(hostElement, { onPick: key => ..., title: 'Day' });   // onPick: on every click of a day, the one shown too
 //   pick.set(['2026-10-24', '2026-10-23', ...], '2026-10-24', todayKey);   // days with data (any order), the one shown
 (function () {
   const MON = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -58,7 +58,7 @@
     function open(on) {
       pop.hidden = !on; btn.setAttribute('aria-expanded', String(on));
       if (!on) return;
-      view = value ? { y: parse(value).y, m: parse(value).m } : view;
+      view = value ? { y: parse(value).y, m: parse(value).m } : view || { y: new Date().getUTCFullYear(), m: new Date().getUTCMonth() };  // opened before set(): this month, no day to pick yet
       draw();
       const r = btn.getBoundingClientRect();
       pop.style.top = `${Math.round(r.bottom + 6)}px`;
@@ -69,7 +69,7 @@
       const s = e.target.closest('[data-step]');
       if (s && !s.disabled) { const t = view.y * 12 + view.m + Number(s.dataset.step); view = { y: Math.floor(t / 12), m: t % 12 }; draw(); return; }
       const b = e.target.closest('[data-k]');
-      if (b && !b.disabled) { open(false); if (b.dataset.k !== value) onPick(b.dataset.k); }
+      if (b && !b.disabled) { open(false); onPick(b.dataset.k); }  // the day shown too: after scrolling away, it brings it back
     });
     document.addEventListener('mousedown', e => { if (!pop.hidden && !pop.contains(e.target) && !host.contains(e.target)) open(false); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pop.hidden) open(false); });

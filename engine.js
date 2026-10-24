@@ -43,7 +43,8 @@ const KEEP = { bars: KEEP_BARS, minutes: KEEP_MINUTES };  // raised when older d
 const TIMEFRAMES = { 3: 'ema', 5: 'macd', 9: 'macd', 11: 'macd' };  // the gate: minutes -> what runs on it
 // what the page draws, beyond the gate: MACD on 1m, 2m, 7m and 15m, and on 3m beside the EMAs (none of them in the gate)
 const SHOWN = { ...TIMEFRAMES, 1: 'macd', 2: 'macd', 3: 'both', 7: 'macd', 15: 'macd' };
-const CACHE = 'nsb.candles.v2.';  // v1 caches can hold flat bars from a stuck stream: they are not read
+const CACHE = 'nsb.candles.v2.';  // v1 caches can hold flat bars from a stuck stream: they are not read, and start() removes them
+const OLD_CACHE = 'nsb.candles.v1.';  // ~1.65M characters left in Safari's 5 MB, which every shyameet.github.io page shares: v2 failed to save
 
 // ---- the signal: a line-for-line port of ndx10.py ----------------------------------------------
 // [start, end] of the bar containing t; bars restart at 00:00 UTC each day, or `origin` ms after it (a market's session
@@ -375,11 +376,12 @@ class Engine {
     const copy = JSON.parse(JSON.stringify(data));  // the page gets its own copy, as if it came over the wire
     for (const fn of this.handlers[event]) fn(copy);
   }
-  snapshot() {
+  snapshot() {  // with the stocks' own gate, only their section: the Stocks page reads neither NAS100 nor `price`, and each copy is half the size
     if (!this.lastTick) return { loading: true };
+    const stocksOnly = this.gateOf === 'stocks';
     return JSON.parse(JSON.stringify({
-      boot: this.boot, gen: this.gen, basket: this.basket, selection: this.active, bench: BENCH, price: this.priceBars, tick: this.lastTick,
-      sections: Object.fromEntries(this.sections.map(s => [s.key, {
+      boot: this.boot, gen: this.gen, basket: this.basket, selection: this.active, bench: BENCH, price: stocksOnly ? undefined : this.priceBars, tick: this.lastTick,
+      sections: Object.fromEntries(this.sections.filter(s => !stocksOnly || s.key === 'ndx10').map(s => [s.key, {
         bars: Object.fromEntries(Object.entries(s.signal.tfs).map(([m, tf]) => [m, tf.bars])),
         signal: s.signal.historyRuns(),
       }])),
@@ -387,6 +389,11 @@ class Engine {
   }
 
   async start() {
+    try {  // the keys first, then the removals: once the count changes, the key order may too (WebKit rehashes), and a walk skips some
+      const old = [];
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(OLD_CACHE)) old.push(k); }
+      for (const k of old) localStorage.removeItem(k);
+    } catch (e) {}
     this.connect();  // first: its updates wait in `buffer` while the history loads, so nothing falls in between
     await this.load(false);
     setInterval(() => this.step(), 250);
@@ -538,6 +545,14 @@ class Engine {
     ws.onclose = () => { if (this.ws === ws) { this.ws = null; setTimeout(() => this.connect(), 2000); } };
     ws.onerror = () => ws.close();
   }
+  // A silent or stuck socket is dropped and replaced at once: on a dead connection the browser fires onclose only when
+  // its closing handshake times out (about 60 s in Chrome). The new socket's onopen marks the gap, as any reconnect does.
+  reconnect() {
+    const ws = this.ws;
+    this.ws = null;
+    if (ws) { ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null; try { ws.close(); } catch (e) {} }
+    this.connect();
+  }
   onCandle(d, replay) {  // the exchange's current candle for one market: newer minutes close the older ones
     const mk = this.markets[d.s];
     if (!mk) return;
@@ -565,12 +580,12 @@ class Engine {
     if (this.gap) { this.recover(); return; }
     const open = this.ws && this.ws.readyState === WebSocket.OPEN;
     if (document.visibilityState === 'visible' && open && now - this.lastHeard > SILENCE) {
-      this.ws.close();  // silent: reconnect, which counts as a gap
+      this.reconnect();  // silent: reconnect, which counts as a gap
       return;
     }
     if (open && now - this.lastCandleAt > STALL && now - this.lastUnstick > 5 * MIN) {
       this.lastUnstick = now;  // connected, yet nothing for 2 minutes: stuck. Reconnect and rebuild (at most every 5 min,
-      this.ws.close();         // in case the market is only very quiet)
+      this.reconnect();        // in case the market is only very quiet)
       return;
     }
     // Minutes before the exchange's newest one are over once its first update is 1.5 s old. Only in a true lull, with

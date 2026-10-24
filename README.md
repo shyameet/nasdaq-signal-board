@@ -15,7 +15,7 @@ Each series gets a gate, checked every second on the bars still forming:
 | SHORT | all three below 0, and the EMA 21 below the EMA 47 |
 | NO TRADE | anything else |
 
-The **Stocks** tab runs the gate on the stocks you pick: the ten largest Nasdaq-100 stocks that trade on Hyperliquid by default, plus AVGO, TSM and INTC to add, any 1 to 13 of them. Each picked stock gets its own gate on its own candles, and the page's gate is LONG only when every picked stock is LONG, SHORT only when every one is SHORT, NO TRADE otherwise. The chart is the picked stocks combined with equal weights (1000 = the 10/05/2026 close; each minute 1000 x the average of the stocks' moves since then). Its candles: each minute's close as above, open = the previous close, volume = the stocks' dollar volume; with the gate's zones, the composite's 3m EMA 21/47, and the Entry (2m/3m) and Trend (5m/7m/9m/11m/15m) MACD panes.
+The **Stocks** tab runs the gate on the stocks you pick: the ten largest Nasdaq-100 stocks that trade on Hyperliquid by default, plus AVGO, TSM and INTC to add, any 1 to 13 of them. Each picked stock gets its own gate on its own candles, and the page's gate is LONG only when every picked stock is LONG, SHORT only when every one is SHORT, NO TRADE otherwise. The chart is the picked stocks combined with equal weights (1000 = the 10/05/2026 close; each minute 1000 x the average of the stocks' moves since then). Its candles: each minute's close as above, open = the previous close, volume = the stocks' dollar volume; coloured by the Trend waves (green where every 5m/7m/9m/11m/15m MACD switched on is above 0, red where every one is below), with the composite's 3m EMA 21/47, and the Entry (2m/3m) and Trend (5m/7m/9m/11m/15m) MACD panes.
 
 The **Nasdaq** tab shows that composite beside the Nasdaq-100 perp `xyz:XYZ100` (`replay.html`) or beside the CME MNQ future (`mnq.html`), picked in the tab's XYZ100 / MNQ switch. The **India** tab replays the Nifty and Bank Nifty setups on Dhan's saved 1-minute candles, and the **Commodities** tab the Crude (MCL with CRUDEOILM) and Nat Gas (NG with NATGASMINI) setups.
 
@@ -38,12 +38,13 @@ Hyperliquid or TradingView.
 | `macd.js` | the Trend and Entry MACD panes, their on/off switches and shading, and the day separators (every page) |
 | `draw.js` | the drawing tools (vertical and horizontal lines, measure), shared by a page's charts |
 | `daypick.js` | the calendar that picks a day |
+| `rolls.js` | the futures' contract switches (Commodities, MNQ): older candles moved by the gap so the chart runs on smoothly, a mark at each switch, and a warning on the switch day and the trading day before it |
 | `labels.js` | the Labels switch (a short explanation on each control) |
 | `basket.json` | the stocks on offer (the default 10 and the extra 3) and their reference prices |
 | `data/1m/` | Hyperliquid 1-minute candles of the board's markets, one file per UTC day, from the VPS's daily archive (from 18 Oct 2026, that day only from its evening) |
 | `data/india/1m/` | Dhan 1-minute candles of NIFTY, BANKNIFTY, GIFTNIFTY, RELIANCE and HDFCBANK, one file per Indian trading day, from 15 Oct 2026 |
-| `data/futures/1m/` | 1-minute candles of MNQ, MCL and NG (NinjaTrader's front month) and CRUDEOILM, NATGASMINI (Dhan, the near month, moving to the next on its expiry day), one file per UTC day, from 15 Oct 2026, with the contract behind each stretch |
-| `data/live.json` | the address of the VPS's live stream of these markets (for the live charts) |
+| `data/futures/1m/` | 1-minute candles of MNQ, MCL and NG (NinjaTrader's front month) and CRUDEOILM, NATGASMINI (Dhan, the near month, moving to the next on its expiry day), one file per UTC day, from 15 Oct 2026, with the contract behind each stretch; `rolls.json`: each contract switch, the price gap between the two contracts, and the next switch |
+| `data/live.json` | the address of the VPS's live stream of these markets (for live charts; no page reads it yet) |
 | `divergence.html` | the old Divergence page's address, which now opens the Nasdaq tab's MNQ section |
 | `lightweight-charts.js` | TradingView Lightweight Charts™ 4.2.3 |
 | `brand/` | the official Indra Quant lockup, emblem and icons (copied as is from the brand kit, `rdx-quant-lab/branding/`), the app manifest and the link-preview pictures |

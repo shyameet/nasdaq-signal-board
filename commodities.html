@@ -16,9 +16,10 @@
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
+<script src="rolls.js?v=1"></script>
 <script src="macd.js?v=8"></script>
-<script src="engine.js?v=9"></script>
-<script src="daypick.js?v=2"></script>
+<script src="engine.js?v=10"></script>
+<script src="daypick.js?v=3"></script>
 <script src="draw.js?v=4"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
@@ -147,6 +148,10 @@
   .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
            background: var(--surface); color: var(--muted); font-size: 12px; }
   .older[hidden] { display: none; }
+  /* a contract switch on the day shown or the next trading day (rolls.js) */
+  .rollnote { flex: none; padding: 5px 12px; border-bottom: 1px solid rgba(242, 179, 61, .35); background: rgba(242, 179, 61, .08);
+              color: var(--warn); font-size: 12.5px; }
+  .rollnote[hidden] { display: none; }
   .how { position: relative; }
   .how summary { cursor: pointer; list-style: none; display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--line);
                  border-radius: 50%; color: var(--muted); font-weight: 700; }
@@ -191,15 +196,16 @@
       <h3>Trends</h3>
       <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown.</p>
       <h3>Charts</h3>
-      <p>The CME future on the left, the MCX mini on the right, side by side and scrolling together. (On the India tab, Nifty: one chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right with their gate, all on the same stretch of time. Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. Bank Nifty: the two charts side by side.) Drag the thin lines between the charts, between the tiles, or between a price chart and its MACD panes to size them as you like (remembered; double-click a line for the default). The index is shaded by step 1; GIFT NIFTY by its own gate (its whole session, 06:30 to 02:45 the next morning); the stock where step 2 holds, with its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <p>The CME future (MCL or NG) on the left and the MCX mini (CRUDEOILM or NATGASMINI) on the right, side by side and scrolling together (both end at the same time and show as many candles each, so the CME's longer hours just scroll past), each with its Entry (2m/3m) and Trend MACD panes. Drag the thin line between the two charts, or between a price chart and its MACD panes, to size them as you like (remembered; double-click a line for the default). Each chart and its MACD panes are green where every Trend wave switched on (5m, 7m, 9m, 11m, 15m) is above 0, red where every one is below (the gate is shown in words, in the step chips); the MCX mini shows its sync points (dots) and entries (arrows). The chips in the CME chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's open, as on TradingView: the CME's at 17:00 Chicago (03:30 IST, 04:30 IST in Chicago's winter time), MCX's at 09:00 IST. Times are IST.</p>
       <h3>Days</h3>
       <p>A day starts at the CME open, 17:00 Chicago: 03:30 IST (04:30 IST from 2 Nov, when Chicago leaves summer time). So Monday's day begins at 03:30 IST on Monday with the Globex session that opened on Sunday evening in Chicago, and holds that whole CME session and MCX's day. The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
       <h3>Data</h3>
-      <p>Saved 1-minute candles from our VPS, from 15 Oct 2026, one file per UTC day: MCL and NG from NinjaTrader (the front month as it stitches it), CRUDEOILM and NATGASMINI from Dhan (the near month, moving to the next month on its expiry day, so a roll shows as a jump between two days). Nothing is filled in: a minute with no trade has no candle. Live candles for today come with the VPS's live stream.</p>
+      <p>Saved 1-minute candles from our VPS, from 15 Oct 2026, one file per UTC day: MCL and NG from NinjaTrader (the front month, moving to the next on NinjaTrader's rollover date), CRUDEOILM and NATGASMINI from Dhan (the near month, moving to the next on its expiry day). At a switch the older candles are moved by the gap between the two contracts, so the chart and its indicators run on smoothly and the newest candles are the contract traded now, at its own prices; a yellow mark shows where it switched, and a yellow note warns on the switch day and the trading day before it (the chart is only a chart: check the contract and its expiry on the platform you trade on). Nothing is filled in: a minute with no trade has no candle. A trading day is listed once its own UTC file is saved (the file before it holds only its first hours); the page reads the saved files only, so reload it for what the VPS has saved since.</p>
       <p class="credit">Not investment advice · Data: NinjaTrader and Dhan, via our VPS · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
     </div>
   </details>
 </header>
+<div class="rollnote" id="rollNote" role="note" hidden></div>
 <div id="parked" hidden><div class="seg words" id="viewSel" role="group" aria-label="Big chart"></div>
 <div class="steps" id="steps" aria-label="Where the setup stands">
   <span class="chip" id="s1"><span class="k">1</span><span class="v" id="s1v">—</span><span class="d" id="s1d"></span></span>
@@ -213,6 +219,7 @@
 'use strict';
 const DAY = 86400000, MIN = 60000, IST = 19800000;  // IST = UTC + 5:30
 const { TrendSignal, SHOWN } = NdxEngine.internals;
+NdxEngine.internals.keep(Infinity);  // every loaded day keeps its gate minutes and bars (the engine trims past 5,500 bars / 7,700 minutes: older days lost their gates)
 const { MacdPane, Bands, DayLines } = NsbMacd;
 const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: 'rgba(232, 238, 246, 0.85)', label: '#283240',
             bg: '#0a0d12', ema21: '#f2b33d', ema47: '#5b8cff' };
@@ -267,9 +274,10 @@ const opt = {
 // the UTC file before D (MCL and NG from the open) and file D (the rest, and MCX's whole session).
 let FILES = new Set(), DAYS = [], dayPick = null;  // the saved UTC files; the trading days they hold, oldest first; the calendar
 function tradingDays(files) {  // Monday to Friday: the CME is shut on Saturday, and Sunday evening's session is Monday's
-  const out = new Set(), week = k => { const w = new Date(k + 'T00:00:00Z').getUTCDay(); return w >= 1 && w <= 5; };
-  for (const f of files) for (const k of [f, NsbCme.next(f)]) if (week(k) && NsbCme.open(k) <= Date.now()) out.add(k);
-  return [...out].sort();
+  // day k once file k is saved: the file before only gives its first hours (MCL / NG from the open, no MCX), so a day
+  // listed from it alone opened almost empty until the VPS wrote the next file
+  const week = k => { const w = new Date(k + 'T00:00:00Z').getUTCDay(); return w >= 1 && w <= 5; };
+  return [...files].filter(k => week(k) && NsbCme.open(k) <= Date.now()).sort();
 }
 const filesOf = keys => [...new Set(keys.flatMap(k => [NsbCme.prev(k), k]))].filter(f => FILES.has(f)).sort();
 const fileCache = new Map();
@@ -375,7 +383,9 @@ function entriesOf() {
   const all = want.flatMap(m => crosses(stk, m)).sort((a, b) => a.t - b.t || a.m - b.m);
   const out = [];
   for (const e of all) {  // every entry of a trend counts
-    const s = st.at.get(e.k);
+    // steps 1 and 2 at the CME future's last minute at or before that candle's close, within 15: a quiet minute has no
+    // candle (NG skips dozens a day), and an entry at one was dropped
+    const k = nearestIndexMinute(e.k), s = k !== null && e.k - k <= 15 * MIN ? st.at.get(k) : null;
     if (!s || !s.synced || s.step1 !== e.dir || s.trend !== e.dir) continue;  // steps 1 and 2 at that candle's close
     if (e.k >= day.d0 && e.k < day.d1) out.push(e);
   }
@@ -383,19 +393,23 @@ function entriesOf() {
 }
 
 // ---- building a day -----------------------------------------------------------------------------------------
-let day = null;
+let day = null, builds = 0;  // builds: each build's number, so only the newest one is drawn
 // One long strip of days (owner 24/10/2026): the picked day is the newest; `shown` days up to it are drawn, and older
-// ones join when you scroll to the left edge. quiet: no loading screen (adding older days).
+// ones join when you scroll to the left edge. quiet: no loading screen (adding older days). False when a newer build
+// started while this one loaded its files (a pick during an older-days load, two quick picks): that one is drawn.
 async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
-  const i = DAYS.indexOf(key), first = Math.max(0, i - shown + 1), keys = DAYS.slice(Math.max(0, first - WARM_DAYS), i + 1);
+  const seq = ++builds, i = DAYS.indexOf(key), first = Math.max(0, i - shown + 1), keys = DAYS.slice(Math.max(0, first - WARM_DAYS), i + 1);
   if (!quiet) loading(`Loading ${key}…`);
-  const files = await Promise.all(filesOf(keys).map(loadFile));
+  let files = null, err = null;
+  try { files = await Promise.all(filesOf(keys).map(loadFile)); } catch (e) { err = e; }
+  if (seq !== builds) return false;  // stale: dropped, even its error
+  if (err) throw err;
   const S = SETUPS[opt.setup], markets = [S.index, S.gift, S.stock].filter(Boolean);
   const rows = {};
   for (const m of markets) {
     const byT = new Map();
     for (const f of files) for (const b of f[m] || []) byT.set(b.t, b);
-    rows[m] = [...byT.values()].sort((a, b) => a.t - b.t);
+    rows[m] = NsbRolls.adjust(m, [...byT.values()].sort((a, b) => a.t - b.t));  // older contracts moved onto the one traded now
   }
   const runs = Object.fromEntries(markets.map(m => [m, runMarket(m, rows[m])]));
   // the strip: the CME open starting its oldest trading day to the one after the picked day
@@ -412,10 +426,12 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   day.end = Math.max(...markets.map(m => day.price[m].length ? day.price[m][day.price[m].length - 1].time + MIN : d0));
   day.nseEnd = lastNse + MIN;
   loading(null);
+  return true;
 }
 
 // ---- the charts ---------------------------------------------------------------------------------------------
 let panels = {};
+let pressedChart = null;  // the chart (or MACD pane) last pressed: a finger moves its crosshair
 function options(showTime, isMain) {
   return {
     watermark: isMain ? { visible: true, text: '', color: 'rgba(232, 238, 246, 0.04)', fontSize: 36, fontStyle: '700' } : { visible: false },
@@ -478,8 +494,11 @@ class Panel {
     const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
                  ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
     this.charts = all;
+    for (const self of all) self.chart.chartElement().addEventListener('pointerdown', () => { pressedChart = self.chart; }, true);
     for (const self of all) self.chart.subscribeCrosshairMove(p => {
-      if (!p.sourceEvent) return;
+      // a mouse's moves carry their event; a finger's (iPad) may not, so the chart last pressed counts too. The positions
+      // set on the other charts below fire no move of their own
+      if (!p.sourceEvent && self.chart !== pressedChart) return;
       const t = p.time;
       for (const o of all) if (o !== self) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
       hoverAll(this, t);
@@ -516,6 +535,8 @@ class Panel {
       return null;
     });
     const run = day.runs[this.market];
+    this.firstState = Infinity;  // its first gate minute in the strip, once per draw (head() runs on every crosshair move)
+    for (const x of run.stateAt.keys()) if (x >= day.d0 && x < day.d1 && x < this.firstState) this.firstState = x;
     this.src = Object.fromEntries(Object.entries(run.bars).map(([m, bars]) => [m, bars.filter(b => b.time < day.d1 && bucketEnd(b.time, +m, o) <= upto)]));
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
     this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
@@ -527,6 +548,7 @@ class Panel {
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
   }
+  onDay() { const n = this.mainBars.length; return n > 0 && this.mainBars[n - 1].time >= day.lastD0; }  // a candle on the picked day (the strip ends with it)
   fit() {  // the newest day of the strip (the older ones are to the left)
     const n = this.mainBars.length;
     if (!n) return;
@@ -546,9 +568,10 @@ class Panel {
     this.e21.setData(out.map(p => ({ time: p.time, value: p.e21 })));
     this.e47.setData(out.map(p => ({ time: p.time, value: p.e47 })));
   }
-  setMarkers(upto) {  // the stock: sync points and entries
-    if (this.role !== 'stock') { this.candles.setMarkers([]); return; }
+  setMarkers(upto) {  // both: where the contract switched; the stock: sync points and entries
     const m = [], at = t => sec(bucketStart(t, opt.tf, this.origin));
+    for (const r of NsbRolls.marks(this.market, day.d0, Math.min(day.d1, upto))) m.push({ time: at(r.t), position: 'aboveBar', color: C.ema21, shape: 'square', text: r.text });
+    if (this.role !== 'stock') { this.candles.setMarkers(m); return; }
     for (const s of day.setupRun.syncs) {
       if (s.t < day.d0 || s.t >= day.d1 || s.t >= upto) continue;
       m.push({ time: at(s.t), position: s.dir === 'BULLISH' ? 'belowBar' : 'aboveBar', color: '#e8eef6', shape: 'circle', text: 'sync' });
@@ -567,12 +590,12 @@ class Panel {
     const at = t !== undefined ? t : ownEnd - MIN;  // its own last candle
     let st = null, k = null;
     for (let x = at; x >= at - 15 * MIN; x -= MIN) { const s = run.stateAt.get(x); if (s) { st = s; k = x; break; } }
-    const bar = [...day.price[this.market]].reverse().find(b => b.time <= at);
+    const bar = barAt(own, at);
     $(`${this.key}-val`).textContent = bar ? num(bar.close, MARKETS[this.market].digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
     const ch = k !== null ? run.checksAt.get(k) : null;
     $(`${this.key}-conds`).innerHTML = ch ? RULES.map(([key, name]) => `<span class="${ch[key] > 0 ? 'up' : 'down'}">${name} ${ch[key] > 0 ? '▲' : '▼'}</span>`).join('') : '';
-    const first = Math.min(...[...run.stateAt.keys()].filter(x => x >= day.d0 && x < day.d1), Infinity);
+    const first = this.firstState;
     const firstBar = day.price[this.market].length ? day.price[this.market][0].time : Infinity;
     $(`${this.key}-warm`).textContent = first === Infinity && firstBar < Infinity ? 'not enough earlier days for the indicators'
       : first > firstBar ? `warming up until ${hhmm(first)}` : '';
@@ -600,6 +623,11 @@ function nearestIndexMinute(t) {  // the last index minute at or before t (after
   while (lo <= hi) { const mid = (lo + hi) >> 1; if (a[mid] <= t) { hit = a[mid]; lo = mid + 1; } else hi = mid - 1; }
   return hit;
 }
+function barAt(bars, t) {  // the last bar at or before t (bars oldest first), or null
+  let lo = 0, hi = bars.length - 1, hit = null;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) { hit = bars[mid]; lo = mid + 1; } else hi = mid - 1; }
+  return hit;
+}
 function aggregate(bars, m, origin) {
   const out = [];
   for (const b of bars) {
@@ -609,7 +637,7 @@ function aggregate(bars, m, origin) {
   }
   return out;
 }
-// Candle position <-> time, to keep the same stretch of time when another chart becomes the big one.
+// Candle position (fractional, may lie past either end) <-> time, to line the charts up in time.
 function timeAt(bars, x) {
   const n = bars.length, tf = opt.tf * MIN;
   if (x <= 0) return bars[0].time + x * tf;
@@ -660,12 +688,18 @@ function buildPanels() {
   placeBig(ORDER().some(p => p.key === saved) ? saved : 'pIndex');
 }
 let halves = false;
-function syncHalves(src) {  // the two half charts show the same stretch of time
+// The chart fitted to the picked day, the other following it: the CME future, or the MCX mini on a day the future has no
+// candle (a CME holiday, MCX trading), as the future's own fit would show the whole strip
+const lead = () => !panels.index.onDay() && panels.stock.onDay() ? panels.stock : panels.index;
+// The two charts line up on the time at their right edge and show as many candles each, so a zoom zooms both alike.
+// Not the same stretch of time: the CME trades 23 hours, MCX 14, so a stretch holding a night (or a weekend's Monday
+// open) held far more CME candles and the other chart zoomed out (owner 24/10/2026, on the India page).
+function syncHalves(src) {  // the other chart ends at the time src ends, with as many candles
   if (src.echo) { src.echo = false; return; }  // the other chart's own move coming back: not a new one
   if (syncing || !halves) return;
   const other = src === panels.index ? panels.stock : panels.index, r = src.main.timeScale().getVisibleLogicalRange();
   if (!r || !src.mainBars.length || !other.mainBars.length) return;
-  const to = { from: indexAt(other.mainBars, timeAt(src.mainBars, r.from)), to: indexAt(other.mainBars, timeAt(src.mainBars, r.to)) };
+  const end = indexAt(other.mainBars, timeAt(src.mainBars, r.to)), to = { from: end - (r.to - r.from), to: end };
   const now = other.main.timeScale().getVisibleLogicalRange();
   if (now && Math.abs(now.from - to.from) < 0.01 && Math.abs(now.to - to.to) < 0.01) return;
   other.echo = true;
@@ -779,15 +813,15 @@ function render(full) {
   syncing = true;
   try {
     for (const p of Object.values(panels)) p.draw();
-    for (const p of Object.values(panels)) if (p.mode === 'tile' || (full && !(halves && p === panels.stock))) p.fit();
+    for (const p of Object.values(panels)) if (p.mode === 'tile' || (full && !(halves && p !== lead()))) p.fit();
   } finally { syncing = false; }
   if (full) refit();
   refreshText();
 }
 function refit() {  // the whole day again once the charts have their final size (a chart sized later keeps its bar spacing)
   const go = () => {
-    for (const p of Object.values(panels)) if (!(halves && p === panels.stock)) p.fit();
-    if (halves) syncHalves(panels.index);  // the stock follows the index's whole day
+    for (const p of Object.values(panels)) if (!(halves && p !== lead())) p.fit();
+    if (halves) syncHalves(lead());  // the other follows its whole day
   };
   go(); requestAnimationFrame(() => requestAnimationFrame(go)); setTimeout(go, 150);
 }
@@ -816,7 +850,7 @@ function buildControls() {
 function recompute() { if (!day) return; day.entries = entriesOf(); render(false); }
 let olderBusy = false;
 async function loadOlder(src) {  // add older days to the strip, keeping what you are looking at in place
-  if (olderBusy) return;
+  if (olderBusy || !$('loading').hidden) return;  // not while a day is opening (its loading screen is up): that strip replaces this one
   olderBusy = true;
   $('older').hidden = false;
   try {
@@ -824,7 +858,7 @@ async function loadOlder(src) {  // add older days to the strip, keeping what yo
       const r = q.main.timeScale().getVisibleLogicalRange();
       return [q, r ? [timeAt(q.mainBars, r.from), timeAt(q.mainBars, r.to)] : null];
     });
-    await buildDay(day.key, day.shown + MORE_DAYS, true);
+    if (!await buildDay(day.key, day.shown + MORE_DAYS, true)) return;  // a day was picked meanwhile: it is drawn instead
     syncing = true;
     try {
       render(false);
@@ -833,9 +867,13 @@ async function loadOlder(src) {  // add older days to the strip, keeping what yo
   } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
 }
 async function openDay(key) {
-  await buildDay(key);
-  dayPick.set(DAYS, key, NsbCme.key(Date.now()));
-  render(true);
+  try {
+    if (!await buildDay(key)) return;  // another day was picked meanwhile: it is drawn instead
+    dayPick.set(DAYS, key, NsbCme.key(Date.now()));
+    render(true);
+    const w = NsbRolls.warning([day.setup.index, day.setup.stock], key);  // the switch day and the trading day before it
+    $('rollNote').textContent = w; $('rollNote').hidden = !w;
+  } catch (e) { loading(`Couldn't load ${key} (${e.message}). Reload the page to try again.`); }  // not "Loading…" for good
 }
 const loading = text => { if (text === null) { $('loading').hidden = true; return; } $('loading').hidden = false; $('loading-text').textContent = text; };
 
@@ -844,7 +882,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
 (async () => {
   try {
     loading('Loading the list of days…');
-    const j = await (await fetch('data/futures/1m/index.json', { cache: 'no-cache' })).json();
+    const [j] = await Promise.all([fetch('data/futures/1m/index.json', { cache: 'no-cache' }).then(r => r.json()), NsbRolls.load()]);
     FILES = new Set((Array.isArray(j) ? j : j.dates || []).map(String));
     DAYS = tradingDays(FILES);
     if (!DAYS.length) throw new Error('no saved days yet');
@@ -853,7 +891,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
     buildPanels();
     await openDay(DAYS[DAYS.length - 1]);
   } catch (e) {
-    loading(`Couldn't load the India data (${e.message}). Reload the page to try again.`);
+    loading(`Couldn't load the Commodities data (${e.message}). Reload the page to try again.`);
   }
 })();
 </script>

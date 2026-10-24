@@ -16,9 +16,10 @@
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
+<script src="rolls.js?v=1"></script>
 <script src="macd.js?v=8"></script>
-<script src="engine.js?v=9"></script>
-<script src="daypick.js?v=2"></script>
+<script src="engine.js?v=10"></script>
+<script src="daypick.js?v=3"></script>
 <script src="draw.js?v=4"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
@@ -84,6 +85,10 @@
   .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
            background: var(--surface); color: var(--muted); font-size: 12px; }
   .older[hidden] { display: none; }
+  /* a contract switch on the day shown or the next trading day (rolls.js) */
+  .rollnote { flex: none; padding: 5px 12px; border-bottom: 1px solid rgba(242, 179, 61, .35); background: rgba(242, 179, 61, .08);
+              color: var(--warn); font-size: 12.5px; }
+  .rollnote[hidden] { display: none; }
   .topbar .how summary { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 50%; font-weight: 700; }
   .topbar .how-body { top: calc(100% + 8px); bottom: auto; left: auto; right: 0; max-height: 75vh; overflow: auto; }
   .how-body .credit { color: var(--muted); font-size: 11.5px; } .how-body .credit a { color: var(--muted); }
@@ -211,17 +216,18 @@
     <summary title="How it works">?</summary>
     <div class="how-body">
       <h3>What you see</h3>
-      <p>Left: your stocks' composite from Hyperliquid (Stocks button; the same pick as the other pages, each stock counting equally, its gate LONG or SHORT only when every picked stock agrees). Right: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS). Both get the same gate, EMAs and Entry/Trend MACD panes. The price charts are tinted where the two gates disagree: <b style="color:#ff8a3d">MNQ alone</b> (MNQ's gate is LONG, your stocks' isn't), <b style="color:#2bb68a">Stocks first</b> (your stocks' gate is LONG, MNQ's not yet), and grey for any other difference; an arrow marks where an MNQ-alone or stocks-first stretch begins. The badge in the top bar says where they stand right now. MNQ's bars start at its session open (17:00 Chicago), as on TradingView.</p>
+      <p>Left: your stocks' composite from Hyperliquid (Stocks button; the same pick as the other pages, each stock counting equally, its gate LONG or SHORT only when every picked stock agrees). Right: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS). Both get the same gate, EMAs and Entry/Trend MACD panes. The price charts are tinted where the two gates disagree: <b style="color:#ff8a3d">MNQ alone</b> (MNQ's gate is LONG, your stocks' isn't), <b style="color:#2bb68a">Stocks first</b> (your stocks' gate is LONG, MNQ's not yet), and grey for any other difference; an arrow marks where an MNQ-alone or stocks-first stretch begins. The badge in the top bar says where they stand right now (on a past day, at MNQ's last candle of it). MNQ's bars start at its session open (17:00 Chicago), as on TradingView.</p>
       <h3>The gate</h3>
       <p>LONG when the 5m, 9m and 11m MACD are all above 0 and the 3m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
       <h3>Days</h3>
-      <p>A day is a CME trading day: it starts at the CME open, 17:00 Chicago (03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time), on both charts. The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The marks cover everything loaded.</p>
+      <p>A day is a CME trading day: it starts at the CME open, 17:00 Chicago (03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time), on both charts. Saturday and Sunday trading days have no CME session: the MNQ chart says <b>CME closed – weekend</b> (the stocks still trade). The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The marks cover everything loaded.</p>
       <h3>Data</h3>
-      <p>Stocks: our daily archive of Hyperliquid's 1-minute candles and, for the last days, Hyperliquid itself; today updates every minute. MNQ: the VPS's saved 1-minute candles from 15 Oct 2026 (NinjaTrader's front month); today's MNQ arrives with the VPS's live stream. Nothing is filled in: a minute with no trade has no candle.</p>
+      <p>Stocks: our daily archive of Hyperliquid's 1-minute candles and, for the last days, Hyperliquid itself; today updates every minute. MNQ: the VPS's saved 1-minute candles from 15 Oct 2026 (NinjaTrader's front month, moving to the next on its rollover date: the older candles are then moved by the gap between the two contracts so the chart runs on smoothly, a yellow mark shows the switch, and a yellow note warns on the switch day and the trading day before it; check the contract and its expiry on the platform you trade on). Each UTC day is saved shortly after it ends (00:45 UTC, 06:15 IST), so the newest MNQ candles are from the day before. Nothing is filled in: a minute with no trade has no candle.</p>
       <p class="credit">Not investment advice · Data: Hyperliquid and NinjaTrader (via our VPS) · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
     </div>
   </details>
 </header>
+<div class="rollnote" id="rollNote" role="note" hidden></div>
 <main class="board" id="board"></main>
 <div id="older" class="older" hidden>Loading older days…</div>
 <div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
@@ -229,6 +235,7 @@
 'use strict';
 const DAY = 86400000, MIN = 60000;
 const { TrendSignal, SHOWN, contiguous, toBar, flat, candleRows, BENCH } = NdxEngine.internals;
+NdxEngine.internals.keep(Infinity);  // every loaded day runs through one TrendSignal: keep all of it (else past 5,500 bars / 7,700 minutes the strip's oldest stretch is trimmed away)
 const { MacdPane, Bands, DayLines } = NsbMacd;
 const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: 'rgba(232, 238, 246, 0.85)', label: '#283240',
             bg: '#0a0d12', ema21: '#f2b33d', ema47: '#5b8cff' };
@@ -274,22 +281,27 @@ const perTrendLimit = () => opt.perTrend === '1' ? 1 : opt.perTrend === '2' ? 2 
 let BASKET = null, ALL = [], ACTIVE = [], archiveDays = new Set(), hlFrom = Infinity;
 const dayCache = new Map();
 // MNQ: the VPS's saved futures days (data/futures/1m, one file per UTC day; NinjaTrader's front month)
-let futDays = new Set();
+let futDays = new Set(), futRead = 0;  // futRead: when the index was last read
 const futCache = new Map();
 async function futIndex() {
   try { const j = await (await fetch('data/futures/1m/index.json', { cache: 'no-cache' })).json(); return new Set((j.dates || []).map(String)); } catch (e) { return new Set(); }
 }
+async function rereadFut() {  // the index again (refreshToday: every 10 minutes, and at each new trading day); a file it now lists is fetched fresh
+  const [fresh] = await Promise.all([futIndex(), NsbRolls.load()]);  // and the contract switches
+  if (!fresh.size) return;  // unreadable just now: the last list stands, and the next minute tries again
+  futRead = Date.now();
+  for (const k of fresh) if (!futDays.has(k)) futCache.delete(k);
+  futDays = fresh;
+}
 async function loadFut(key) {  // -> MNQ's 1-minute candles of that UTC day (none: [])
   if (futCache.has(key)) return futCache.get(key);
-  let rows = [];
-  if (futDays.has(key)) {
-    try {
-      const j = await (await fetch(`data/futures/1m/${key}.json`, { cache: 'no-cache' })).json();
-      rows = (j.MNQ || []).map(([t, o, h, l, c, v]) => ({ t: t * 1000, o, h, l, c, v, n: 1 }));
-    } catch (e) {}
-  }
-  futCache.set(key, rows);
-  return rows;
+  if (!futDays.has(key)) return [];  // not saved yet (not cached: asked again once the index lists it)
+  try {
+    const j = await (await fetch(`data/futures/1m/${key}.json`, { cache: 'no-cache' })).json();
+    const rows = (j.MNQ || []).map(([t, o, h, l, c, v]) => ({ t: t * 1000, o, h, l, c, v, n: 1 }));
+    if (ended(key)) futCache.set(key, rows);  // a UTC day still under way is read again at the next build
+    return rows;
+  } catch (e) { return []; }  // (not cached: the next build asks again)
 }
 async function archiveIndex() {
   try {
@@ -306,10 +318,38 @@ async function hlEarliest() {  // a minute Hyperliquid surely still serves at 1m
 // 03:30 IST, 04:30 IST in Chicago's winter time; cme.js): trading day D takes the end of UTC day D-1 from the open, and
 // UTC day D up to the next open. Candles are still fetched and cached by UTC day.
 const filesOf = keys => [...new Set(keys.flatMap(k => [NsbCme.prev(k), k]))].sort();  // the UTC days trading days take candles from
-async function loadDay(key) {  // -> { coin: [bars (toBar objects)] } for the 10 stocks and XYZ100
-  if (dayCache.has(key)) return dayCache.get(key);
+const ended = key => Date.now() >= dayStart(key) + DAY + MIN;  // UTC day over, with a minute's grace so its last candle has closed
+// Only the picked stocks are fetched (this page draws nothing else: no XYZ100). A cached UTC day is `complete` once
+// fetched (or topped up) after its end: never asked for again (the minute refresh had asked Hyperliquid for
+// yesterday's file too, all day long). One cached while under way is topped up; an unpicked stock in it is dropped
+// rather than kept up to date, and fetched whole if picked again.
+async function topUp(keys, want) {  // the cached, unfinished UTC days among keys: only the minutes since each market's last candle
+  await Promise.all(keys.map(k => dayCache.get(k)).filter(d => d && !d.complete).map(async d => {
+    const f0 = dayStart(d.key), now = Date.now(), done = ended(d.key);
+    for (const c of Object.keys(d.coins)) if (!want.includes(c)) delete d.coins[c];
+    await Promise.all(Object.keys(d.coins).map(async c => {
+      const a = d.coins[c], from = a.length ? a[a.length - 1].t : f0;
+      const rows = (await candleRows(c, '1m', from, Math.min(now, f0 + DAY - 1))).map(toBar).filter(b => b.t >= f0 && b.t < f0 + DAY);
+      for (const b of rows) { if (a.length && a[a.length - 1].t === b.t) a[a.length - 1] = b; else if (!a.length || b.t > a[a.length - 1].t) a.push(b); }
+    }));
+    if (done) d.complete = true;
+  }));
+}
+async function loadDay(key, want) {  // -> { key, source, coins: { coin: [bars (toBar objects)] }, complete } with the stocks in `want`
   if (dayStart(key) > Date.now()) return { key, source: 'hl', coins: {} };  // a UTC day not begun yet (not cached: it will)
-  const coins = [...ALL, BENCH], out = {}, d0 = dayStart(key);
+  const d = dayCache.get(key);
+  if (!d) { const got = await fetchDay(key, want); dayCache.set(key, got); return got; }
+  if (ended(key)) await topUp([key], want);  // cached while under way, over since: completed first
+  const missing = want.filter(c => !d.coins[c]);  // stocks picked since
+  if (missing.length) {
+    const got = await fetchDay(key, missing);
+    Object.assign(d.coins, got.coins);
+    if (got.source !== d.source && Object.values(got.coins).some(a => a.length)) d.source = 'archive+hl';
+  }
+  return d;
+}
+async function fetchDay(key, coins) {  // one UTC day of these markets, whole
+  const out = {}, d0 = dayStart(key), done = ended(key);
   let source = 'hl';
   if (archiveDays.has(key) && key !== dayKey(Date.now())) {
     try {
@@ -327,9 +367,8 @@ async function loadDay(key) {  // -> { coin: [bars (toBar objects)] } for the 10
     await Promise.all(missing.map(async c => { out[c] = (await candleRows(c, '1m', d0, end)).map(toBar).filter(b => b.t >= d0 && b.t < d0 + DAY); }));
     if (source === 'archive') source = 'archive+hl';
   }
-  const day = { key, source, coins: out };
-  dayCache.set(key, day);
-  return day;
+  for (const c of coins) if (!out[c]) out[c] = [];  // none to be had: not asked for again at every build
+  return { key, source, coins: out, complete: done };
 }
 
 // ---- one series, minute by minute, exactly as the live engine runs it ----------------------------------------
@@ -416,16 +455,20 @@ const custom = () => ACTIVE.join() !== DEFAULT().join();
 const leftName = () => custom() ? (ACTIVE.length <= 3 ? ACTIVE.map(tk).join('+') : `Basket ${ACTIVE.length}`) : 'NDX10';
 // One long strip of days (owner 24/10/2026): the picked day is the newest; `shown` days up to it are drawn (plus one
 // more behind them to warm the indicators up), and older ones join when you scroll to the left edge.
-// quiet: no loading screen (the minute refresh of today, or adding older days).
+// quiet: no loading screen (the minute refresh of today, or adding older days). False: a newer build started meanwhile
+// and its result stands (a day picked while the minute refresh or older days were loading is not overwritten by them).
+let builds = 0;  // buildDay's sequence number
 async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
+  const seq = ++builds, want = ACTIVE;
   const list = dayList.length ? dayList : listDays(), i = Math.max(0, list.indexOf(key));
   const shownKeys = list.slice(i, i + shown), warmKey = list[i + shown];
   const d0 = NsbCme.open(shownKeys[shownKeys.length - 1]), lastD0 = NsbCme.open(key), d1 = NsbCme.open(NsbCme.next(key));
   if (!quiet) loading(`Loading ${key}…`);
   const files = filesOf([...shownKeys, warmKey].filter(Boolean));
-  const days = (await Promise.all(files.map(loadDay))).filter(Boolean);
-  const m = minutesOf(days, [...ALL, BENCH]);
-  const fut = (await Promise.all(files.map(loadFut))).flat().sort((a, b) => a.t - b.t);
+  const days = (await Promise.all(files.map(f => loadDay(f, want)))).filter(Boolean);
+  const fut = NsbRolls.adjust('MNQ', (await Promise.all(files.map(loadFut))).flat().sort((a, b) => a.t - b.t));  // older contracts moved onto the one traded now
+  if (seq !== builds) return false;
+  const m = minutesOf(days, want);  // only the picked stocks: nothing else is drawn here
   const runL = runSeries(composite(), m), runR = runSeries({ MNQ: 1 }, { MNQ: fut }, CME_OPEN);  // MNQ: no candle in a quiet minute or the daily break
   const inDay = b => b.t >= d0 && b.t < d1;  // the strip
   // the right chart's candles are MNQ's own 1-minute candles; the left's are the composite's
@@ -441,7 +484,8 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const lastT = Math.max(priceL.length ? priceL[priceL.length - 1].time : 0, priceR.length ? priceR[priceR.length - 1].time : 0);
   day.end = lastT + MIN;
   showNote();
-  loading(null);
+  if (!quiet) loading(null);  // a quiet build never hides another build's loading screen
+  return true;
 }
 function computeSignals() { for (const side of [day.left, day.right]) side.signals = []; }  // no 2m/3m signals on this page
 
@@ -455,6 +499,10 @@ const PATTERN = {
 const classify = (sn, sx) => !sn || !sx || sn === sx ? null : sx === 'BULLISH' ? 'alone' : sn === 'BULLISH' ? 'first' : 'other';
 const gateNear = (run, t) => { for (let k = t; k >= t - 2 * MIN; k -= MIN) { const s = run.stateAt.get(k); if (s) return s; } return null; };
 const kindAt = t => classify(gateNear(day.left.run, t), gateNear(day.right.run, t));
+// A past day ends at the next CME open, inside MNQ's daily break: MNQ's header and the badge read it at MNQ's last candle of
+// the day instead (none, as at a weekend: the day's end, where MNQ is closed).
+const mnqEnd = () => { const p = day.right.price, b = p[p.length - 1]; return day.d1 <= Date.now() && b && b.time >= day.lastD0 ? b.time + MIN : day.end; };
+const weekend = t => [0, 6].includes(new Date(NsbCme.key(t) + 'T00:00:00Z').getUTCDay());  // a Saturday or Sunday trading day: no CME session (owner 24/10/2026: "just let it show that market is closed on weekends")
 const hasDay = key => archiveDays.has(key) || dayStart(key) + DAY > hlFrom;
 
 // ---- the charts --------------------------------------------------------------------------------------------
@@ -521,8 +569,11 @@ class Panel {
     const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
                  ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
     this.charts = all;
+    for (const self of all) self.chart.chartElement().addEventListener('pointerdown', () => { pressedChart = self.chart; }, true);
     for (const self of all) self.chart.subscribeCrosshairMove(p => {
-      if (!p.sourceEvent) return;
+      // a mouse's moves carry their event; a finger's (iPad) may not, so the chart last pressed counts too. The positions
+      // set on the other charts below fire no move of their own
+      if (!p.sourceEvent && self.chart !== pressedChart) return;
       const t = p.time;
       for (const o of all) if (o !== self) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
       hoverAll(this, t);
@@ -540,12 +591,14 @@ class Panel {
       for (let t = Math.min(bucketEnd(b.time, tf, o), upto) - MIN; t >= b.time; t -= MIN) { const s = st.get(t); if (s) return s; }
       return null;
     });
+    this.firstState = Infinity;  // its first gate minute in the strip (not after it), once per draw: head() runs on every crosshair move, and a long strip has too many to spread
+    for (const x of st.keys()) if (x >= day.d0 && x < day.d1 && x < this.firstState) this.firstState = x;
     this.kinds = this.mainBars.map(b => {  // the disagreement at the candle's last minute with both gates
       for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { if (gateNear(day.left.run, t) && gateNear(day.right.run, t)) return kindAt(t); }
       return null;
     });
-    // MACD panes and EMAs: only bars closed by then
-    this.src = Object.fromEntries(Object.entries(side.run.bars).map(([m, bars]) => [m, bars.filter(b => bucketEnd(b.time, +m, o) <= upto)]));
+    // MACD panes and EMAs: only bars closed by then, and by the strip's end (the UTC files run past it, and the last candle takes the newest bar)
+    this.src = Object.fromEntries(Object.entries(side.run.bars).map(([m, bars]) => [m, bars.filter(b => bucketEnd(b.time, +m, o) <= Math.min(upto, day.d1))]));
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
     this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
     this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
@@ -557,11 +610,10 @@ class Panel {
     for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
   }
   fit() {  // the newest day of the strip (the older ones are to the left)
-    const n = this.mainBars.length;
-    if (!n) return;
-    let i = this.mainBars.findIndex(b => b.time >= day.lastD0);
-    if (i < 0) i = 0;
+    const n = this.mainBars.length, i = this.mainBars.findIndex(b => b.time >= day.lastD0);
+    if (i < 0) return false;  // no candle on it (MNQ at a weekend): follows the other chart (fitAll), not zoomed out to every day (which hit the left edge and loaded older days)
     this.main.timeScale().setVisibleLogicalRange({ from: i - 1, to: n + 2 });
+    return true;
   }
   setEmas() {  // the 3m EMA 21 and 47 as of each candle's close (never ahead of it)
     const src = (this.src[3] || []).filter(b => ok(b.ema47)), out = [];
@@ -575,8 +627,10 @@ class Panel {
     this.e21.setData(out.map(p => ({ time: p.time, value: p.e21 })));
     this.e47.setData(out.map(p => ({ time: p.time, value: p.e47 })));
   }
-  setMarkers() {  // a mark where an MNQ alone or a stocks-first stretch begins (as on the Divergence page)
+  setMarkers() {  // a mark where an MNQ alone or a stocks-first stretch begins (as on the Divergence page), and MNQ's contract switches
     const m = [];
+    if (this.side.origin === CME_OPEN) for (const r of NsbRolls.marks('MNQ', day.d0, day.d1))
+      m.push({ time: sec(bucketStart(r.t, opt.tf, CME_OPEN)), position: 'aboveBar', color: C.ema21, shape: 'square', text: r.text });
     let lastAt = -Infinity;
     for (let i = 1; i < this.kinds.length; i++) {
       const k = this.kinds[i], time = sec(this.mainBars[i].time);
@@ -586,11 +640,12 @@ class Panel {
       if (k === 'alone') m.push({ time, position: 'aboveBar', color: PATTERN.alone.color, shape: 'arrowDown', text: roomy ? PATTERN.alone.name : '' });
       if (k === 'first') m.push({ time, position: 'belowBar', color: PATTERN.first.color, shape: 'arrowUp', text: roomy ? PATTERN.first.name : '' });
     }
+    m.sort((a, b) => a.time - b.time);
     this.candles.setMarkers(m);
   }
   head(t) {  // the header at time t (ms, a minute) or at the day's end
-    const side = this.side, other = day[this.key === 'left' ? 'right' : 'left'];
-    const at = t !== undefined ? t : day.end - MIN;
+    const side = this.side, other = day[this.key === 'left' ? 'right' : 'left'], mnq = side.origin === CME_OPEN;
+    const at = t !== undefined ? t : (mnq ? mnqEnd() : day.end) - MIN;
     const gateAt = run => { for (let k = at; k >= at - 5 * MIN; k -= MIN) { const s = run.stateAt.get(k); if (s) return [s, k]; } return [null, null]; };
     const [st, k] = gateAt(side.run), [ost] = gateAt(other.run);
     $(`${this.key}-name`).textContent = side.name;
@@ -601,9 +656,11 @@ class Panel {
     $(`${this.key}-conds`).innerHTML = ch ? RULES.map(([key, name]) => `<span class="${ch[key] > 0 ? 'up' : 'down'}">${name} ${ch[key] > 0 ? '▲' : '▼'}</span>`).join('') : '';
     $(`${this.key}-oname`).textContent = other.name;
     $(`${this.key}-ogate`).className = 'gw ' + kind(ost); $(`${this.key}-ogate`).textContent = ost ? WORD[ost] : '—';
-    const firstState = Math.min(...[...side.run.stateAt.keys()].filter(x => x >= day.d0), Infinity);
-    $(`${this.key}-warm`).textContent = firstState > day.d0 + MIN && firstState < Infinity ? `warming up until ${hhmm(firstState)}`
+    const from = mnq && side.price.length ? side.price[0].time : day.d0;  // MNQ: from its first candle in the strip, not the strip's start (a weekend or its break may come first)
+    const firstState = this.firstState;
+    const warm = firstState > from + MIN && firstState < Infinity ? `warming up until ${hhmm(firstState)}`
       : firstState === Infinity ? 'not enough data for the indicators' : '';
+    $(`${this.key}-warm`).textContent = [mnq && weekend(at) ? 'CME closed – weekend' : '', warm].filter(Boolean).join(' · ');
   }
   tags(t) {  // the chart labels (t: candle time in seconds, or the newest candle)
     const b = t !== undefined ? this.store.get(t) : this.mainBars.length ? { ...this.mainBars[this.mainBars.length - 1], state: this.mainStates[this.mainStates.length - 1] } : null;
@@ -643,20 +700,23 @@ function indexAt(bars, t) {  // the reverse
   while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) lo = mid; else hi = mid; }
   return lo + (t - bars[lo].time) / (bars[hi].time - bars[lo].time);
 }
-function syncOther(src) {  // both charts show the same stretch of time, empty space past the day's ends included
+// The two charts line up on the time at their right edge and show as many candles each, so a zoom zooms both alike.
+// Not the same stretch of time: the stocks trade round the clock and MNQ not at weekends, so a stretch holding a weekend
+// held two days of stock candles and next to no MNQ ones, and MNQ zoomed in to a few candles (owner 24/10/2026, on the India page).
+function syncOther(src) {  // the other chart ends at the time src ends, with as many candles (empty space past the day's ends included)
   if (syncing) return;
   const other = panels[src.key === 'left' ? 'right' : 'left'];
   if (!other || !src.mainBars.length || !other.mainBars.length) return;
   const r = src.main.timeScale().getVisibleLogicalRange();
   if (!r) return;
-  const to = { from: indexAt(other.mainBars, timeAt(src.mainBars, r.from)), to: indexAt(other.mainBars, timeAt(src.mainBars, r.to)) };
+  const end = indexAt(other.mainBars, timeAt(src.mainBars, r.to)), to = { from: end - (r.to - r.from), to: end };
   const now = other.main.timeScale().getVisibleLogicalRange();
   if (now && Math.abs(now.from - to.from) < 0.01 && Math.abs(now.to - to.to) < 0.01) return;  // already there: no echo back
   syncing = true;
   try { other.main.timeScale().setVisibleLogicalRange(to); } catch (e) {}
   syncing = false;
 }
-let hovering = false;
+let hovering = false, pressedChart = null;  // pressedChart: the chart (or MACD pane) last pressed: a finger moves its crosshair
 function hoverAll(src, t) {
   hovering = t !== undefined;
   document.body.classList.toggle('hovering', hovering);
@@ -667,21 +727,25 @@ function hoverAll(src, t) {
 }
 
 // ---- drawing ------------------------------------------------------------------------------------------------
+function fitAll() {  // both charts on the picked day; one with no candle on it (MNQ at a weekend) follows the other
+  syncing = true;
+  let fitted = [];
+  try { fitted = Object.values(panels).filter(p => p.fit()); } finally { syncing = false; }
+  if (fitted.length === 1) syncOther(fitted[0]);
+}
 function render(full) {
   syncing = true;  // both charts are redrawn: no syncing back and forth meanwhile
-  try {
-    for (const p of Object.values(panels)) p.draw(full);
-    if (full) for (const p of Object.values(panels)) p.fit();
-  } finally { syncing = false; }
-  if (full) {  // again once the charts have their final size (a chart sized later keeps its bar spacing)
-    const go = () => { syncing = true; try { for (const p of Object.values(panels)) p.fit(); } finally { syncing = false; } };
-    requestAnimationFrame(() => requestAnimationFrame(go)); setTimeout(go, 150);
+  try { for (const p of Object.values(panels)) p.draw(full); } finally { syncing = false; }
+  if (full) {  // and again once the charts have their final size (a chart sized later keeps its bar spacing)
+    fitAll();
+    requestAnimationFrame(() => requestAnimationFrame(fitAll)); setTimeout(fitAll, 150);
   }
   refreshText();
 }
-function showBadge() {  // right now: the latest minute where both gates exist
+function showBadge() {  // right now (a past day: at MNQ's last candle of it): the latest minute where both gates exist
+  const end = mnqEnd();
   let t = null;
-  for (let k = day.end - MIN; k >= day.end - 30 * MIN; k -= MIN) if (gateNear(day.left.run, k) && gateNear(day.right.run, k)) { t = k; break; }
+  for (let k = end - MIN; k >= end - 30 * MIN; k -= MIN) if (gateNear(day.left.run, k) && gateNear(day.right.run, k)) { t = k; break; }
   const k = t === null ? undefined : kindAt(t), el = $('badge');
   if (t === null) { el.className = 'badge'; el.textContent = 'MNQ CLOSED'; el.title = 'No MNQ candle in the last 30 minutes (the daily break, the weekend, or no live data yet)'; return; }
   el.className = 'badge ' + (k || 'sync');
@@ -704,16 +768,18 @@ function buildControls() {
 }
 function recompute() { if (!day) return; computeSignals(); render(false); }
 function listDays() {  // newest first: the trading days of the archived UTC days and the days Hyperliquid still has
-  const files = new Set(archiveDays);
-  for (let t = Date.now(); t + DAY > hlFrom; t -= DAY) files.add(dayKey(t));
-  const keys = new Set([...files].flatMap(f => [f, NsbCme.next(f)]));  // a UTC day's evening is the next trading day's start
+  const files = new Set(archiveDays), live = NsbCme.key(Date.now());
+  for (let t = Date.now(); dayStart(dayKey(t)) + DAY > hlFrom; t -= DAY) files.add(dayKey(t));  // UTC days ending after hlFrom
+  // trading day k takes UTC day k-1's evening and UTC day k: offered when both are at hand (not the archive's first
+  // day, 18 Oct, which has only its evening), and today's trading day always; weekends too, as the stocks trade then
+  const keys = new Set([...files].filter(k => files.has(NsbCme.prev(k))).concat(live));
   return [...keys].filter(k => NsbCme.open(k) <= Date.now()).sort().reverse();
 }
 // ---- today: new candles from Hyperliquid every minute (owner 24/10/2026), keeping your zoom ----------------------
-let refreshing = false, dayPick = null, dayList = [], olderBusy = false;
+let refreshing = false, dayPick = null, dayList = [], olderBusy = false, opening = 0;  // opening: openDay builds under way
 const SHOW_DAYS = 3, MORE_DAYS = 2;  // days shown when a day is picked (it is the newest); days added at the left edge
 async function loadOlder() {  // add older days to the strip, keeping what you are looking at in place
-  if (olderBusy || refreshing) return;
+  if (olderBusy || refreshing || opening) return;  // not over a day being picked
   olderBusy = true;
   $('older').hidden = false;
   try {
@@ -721,7 +787,7 @@ async function loadOlder() {  // add older days to the strip, keeping what you a
       const r = q.main.timeScale().getVisibleLogicalRange();
       return [q, r ? [timeAt(q.mainBars, r.from), timeAt(q.mainBars, r.to)] : null];
     });
-    await buildDay(day.key, day.shown + MORE_DAYS, true);
+    if (!await buildDay(day.key, day.shown + MORE_DAYS, true)) return;  // a day picked meanwhile: its build stands
     render(false);
     syncing = true;
     try { for (const [q, span] of keep) if (span && q.mainBars.length) q.main.timeScale().setVisibleLogicalRange({ from: indexAt(q.mainBars, span[0]), to: indexAt(q.mainBars, span[1]) }); }
@@ -729,32 +795,35 @@ async function loadOlder() {  // add older days to the strip, keeping what you a
   } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
 }
 async function refreshToday() {
-  if (refreshing || !day || document.visibilityState !== 'visible') return;
-  const today = NsbCme.key(Date.now());
+  if (refreshing || olderBusy || opening || !day || document.visibilityState !== 'visible') return;  // never over another build
+  const today = NsbCme.key(Date.now()), was = day.key;
   refreshing = true;
   try {
     if (!dayList.includes(today)) {  // past the CME open: a new trading day in the calendar
-      const was = day.key;
-      dayList = listDays();
-      if (NsbCme.prev(today) === was) { await openDay(today); return; }  // you were on today: follow it
+      const [a, h] = await Promise.all([archiveIndex(), hlEarliest(), rereadFut()]);  // the archive, Hyperliquid's reach and MNQ's saved days have moved on too
+      if (a.size) archiveDays = a;  // (an unreadable index keeps the last one)
+      hlFrom = h;
+      const list = listDays();  // dayList takes it only where this branch finishes: until then each minute runs it again
+      if (opening) return;  // a pick still loading (on the old list): next minute, once its build stands
+      if (day.key !== was) { dayList = list; dayPick.set(dayList, day.key, today); return; }  // a day picked meanwhile stays, and the calendar gets the new day
+      if (NsbCme.prev(today) === was) {  // you were on today: follow it, with the minutes since the last refresh
+        await topUp(filesOf([today]), ACTIVE);  // (failing, or a pick meanwhile: again next minute)
+        if (day.key !== was || opening) return;
+        dayList = list;
+        await openDay(today);
+        return;
+      }
+      dayList = list;
       dayPick.set(dayList, was, today);
-    }
+    } else if (Date.now() - futRead >= 10 * MIN) await rereadFut();  // MNQ's saved days, every 10 minutes: a file listed since comes in at the next build
     if (day.key !== today) return;
-    const now = Date.now();
-    for (const f of filesOf([today])) {  // today's UTC days already loaded (one begun since is fetched whole by buildDay)
-      const cached = dayCache.get(f), f0 = dayStart(f);
-      if (!cached || f0 > now) continue;
-      await Promise.all(Object.keys(cached.coins).map(async c => {  // only the minutes since each market's last candle
-        const a = cached.coins[c], from = a.length ? a[a.length - 1].t : f0;
-        const rows = (await candleRows(c, '1m', from, Math.min(now, f0 + DAY - 1))).map(toBar).filter(b => b.t >= f0 && b.t < f0 + DAY);
-        for (const b of rows) { if (a.length && a[a.length - 1].t === b.t) a[a.length - 1] = b; else if (!a.length || b.t > a[a.length - 1].t) a.push(b); }
-      }));
-    }
+    await topUp(filesOf([today]), ACTIVE);  // today's UTC days already loaded and not complete (one begun since is fetched whole by buildDay)
+    if (day.key !== was || opening) return;  // another day picked meanwhile: its build stands
     const before = Object.fromEntries(Object.entries(panels).map(([k, q]) => {
       const r = q.main.timeScale().getVisibleLogicalRange(), n = q.mainBars.length;
       return [k, { r, n, atEnd: !r || r.to >= n - 2 }];
     }));
-    await buildDay(today, day.shown, true);
+    if (!await buildDay(today, day.shown, true)) return;  // (rebuilt every minute: an MNQ file listed since comes in with it)
     render(false);
     for (const [k, q] of Object.entries(panels)) {  // looking at the newest candles: keep them in view as new ones come
       const b = before[k], added = q.mainBars.length - b.n;
@@ -764,10 +833,22 @@ async function refreshToday() {
 }
 setInterval(refreshToday, 60000);
 document.addEventListener('visibilitychange', refreshToday);
-async function openDay(key) {
-  await buildDay(key);
-  dayPick.set(dayList, key, NsbCme.key(Date.now()));
-  render(true);
+async function openDay(key) {  // the calendar, the stock picker, today's follow: a failed load says why for a moment, the day shown stays
+  opening++;
+  const run = buildDay(key), seq = builds;
+  try {
+    if (!await run) return;  // a newer pick took over
+    dayPick.set(dayList, key, NsbCme.key(Date.now()));
+    render(true);
+    return true;
+  } catch (e) {
+    if (!day) throw e;  // nothing shown yet: the page's start says so
+    if (seq !== builds) return;  // a newer pick is loading: its loading screen stays
+    const msg = `Couldn't load ${key} (${e.message})`;
+    loading(msg);
+    setTimeout(() => { if ($('loading-text').textContent === msg) loading(null); }, 3000);
+    return false;  // failed: the day and pick shown stay
+  } finally { opening--; }
 }
 function showNote() {
   const today = day.key === NsbCme.key(Date.now());
@@ -778,6 +859,8 @@ function showNote() {
   $('dataNote').textContent = !warn ? 'ⓘ' : day.lacking.length ? `⚠ no ${day.lacking.map(tk).join(', ')} data` : '⚠ no warm-up day';
   $('dataNote').title = msg;
   $('dataNote').className = 'note' + (warn ? ' warn' : '');
+  const w = NsbRolls.warning(['MNQ'], day.key);  // the switch day and the trading day before it
+  $('rollNote').textContent = w; $('rollNote').hidden = !w;
 }
 const loading = text => { if (text === null) { $('loading').hidden = true; return; } $('loading').hidden = false; $('loading-text').textContent = text; };
 
@@ -818,10 +901,16 @@ async function applyPick() {
   const list = ALL.filter(c => draft.has(c));
   if (!list.length || picking) return;
   picking = true;
-  try { localStorage.setItem(SEL_KEY, JSON.stringify(list)); } catch (e) {}
+  const before = ACTIVE;
+  let saved = null;
+  try { saved = localStorage.getItem(SEL_KEY); localStorage.setItem(SEL_KEY, JSON.stringify(list)); } catch (e) {}
   setActive(list); openPick(false);
-  await openDay(day.key);
-  picking = false;
+  try {
+    if (await openDay(day.key) === false) {  // not loaded: back to the pick the charts still show
+      setActive(before);
+      try { if (saved === null) localStorage.removeItem(SEL_KEY); else localStorage.setItem(SEL_KEY, saved); } catch (e) {}
+    }
+  } finally { picking = false; }
 }
 function buildPicker() {
   const top = n => DEFAULT().slice(0, n), presets = [['Top 5', top(5)], ['Top 6', top(6)], ['Top 8', top(8)], [`Default ${DEFAULT().length}`, DEFAULT()], [`All ${ALL.length}`, ALL], ['None', []]];
@@ -842,7 +931,8 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
     BASKET = await (await fetch('basket.json', { cache: 'no-cache' })).json();
     ALL = Object.keys(BASKET.members);
     setActive(savedSelection());
-    [archiveDays, hlFrom, futDays] = await Promise.all([archiveIndex(), hlEarliest(), futIndex()]);
+    [archiveDays, hlFrom, futDays] = await Promise.all([archiveIndex(), hlEarliest(), futIndex(), NsbRolls.load()]);
+    futRead = Date.now();
     const days = listDays();
     dayList = days;
     buildPicker(); buildControls();

@@ -28,7 +28,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<script src="daypick.js?v=2"></script>
+<script src="daypick.js?v=3"></script>
 <script src="draw.js?v=4"></script>
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
@@ -293,12 +293,12 @@
         <tr><td><b class="down">SHORT</b></td><td>all three below 0, and the EMA 21 below the EMA 47</td></tr>
         <tr><td>NO TRADE</td><td>anything else</td></tr>
       </table>
-      <p>It shades the chart and the MACD panes, and sets the alerts. The header shows the gate and its four conditions. MACD is 12/26/9.</p>
+      <p>It sets the alerts. The header shows the gate and its four conditions, and the price chart's label the gate at the candle under the mouse (else the live one); the chart's colours are the Trend waves (below), not the gate. MACD is 12/26/9.</p>
       <h3>Your stocks</h3>
       <p>The chart is your own composite of the stocks you pick (<b>Stocks</b> button, top right; the 10 largest Nasdaq-100 stocks that trade on Hyperliquid by default, plus AVGO, TSM and INTC; any 1 to 13 of them). Each stock you pick counts equally, so the composite is 1000 at the basket's reference close and each minute's close is 1000 times the average of the stocks' moves since then. The gate is LONG only when every stock you pick is LONG on its own candles, SHORT only when every one is SHORT, and NO TRADE otherwise; the rule tiles show the composite's own values. Each minute's open is the previous minute's close and its high and low the larger and smaller of the two (live candles also catch the highs and lows in between), so older candles have shorter wicks than live ones. Volume is the stocks' combined dollar volume. The pick is shared with the other pages and kept in this browser.</p>
-      <p>Under the price chart are two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the gate. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>, the gate's three MACD rules, plus <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each wave has two colors of its own, one while its MACD is above 0 and another while below, so its color changes where it crosses zero; the chips in a pane's label show each wave's pair (left: above 0, right: below). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. The price chart and both panes are coloured by the Trend waves you switch on: green where every one of them is above 0, red where every one is below (no colour with all of them off); the gate itself is the word in the header. Dashed vertical lines mark where a new day begins in your timezone.</p>
+      <p>Under the price chart are two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the gate. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>, the gate's three MACD rules, plus <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each wave has two colors of its own, one while its MACD is above 0 and another while below, so its color changes where it crosses zero; the chips in a pane's label show each wave's pair (left: above 0, right: below). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. The price chart and both panes are coloured by the Trend waves you switch on: green where every one of them is above 0, red where every one is below (no colour with all of them off); the gate itself is the word in the header. Dashed vertical lines mark where each trading day begins, at the CME open: 17:00 Chicago, which is 03:30 IST (04:30 IST in Chicago's winter time); the price chart dates each one by its trading day.</p>
       <h3>The charts</h3>
-      <p>Zones: green while the gate is LONG (labeled ▲ LONG), red while it is SHORT, no color for NO TRADE. The zone is the gate, not the candle: a red candle can sit in a green zone. The forming candle shows the gate live. The amber and blue lines are your stocks' 3m EMA 21 and EMA 47 that the gate tests, as of each candle's close. Times are in your timezone.</p>
+      <p>Zones: green where the Trend waves you switch on (5m, 7m, 9m, 11m and 15m MACD) are all above 0, red where all of them are below, no color otherwise. A zone is those waves, not the candle: a red candle can sit in a green zone, and the forming candle's zone follows the waves live. The amber and blue lines are your stocks' 3m EMA 21 and EMA 47 that the gate tests, as of each candle's close. Times are in your timezone.</p>
       <h3>Drawing tools</h3>
       <p>The sidebar on the left draws on the price chart: vertical line, horizontal line and measure (drag from one point to the other, or click one and then the other). Click a line to select it, drag it to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. The arrow at the bottom of the sidebar hides it. Drawings are saved in this browser.</p>
       <h3>Data</h3>
@@ -822,6 +822,7 @@ NsbMacd.onToggle(() => {
 });
 function setupCrosshair() {
   for (const c of allCharts) {
+    c.chart.chartElement().addEventListener('pointerdown', () => { hoverChart = c; }, true);  // a finger's moves (iPad) may carry no event
     c.chart.subscribeCrosshairMove(p => {
       // positions we set on the other charts carry no mouse event: skip them. The hovered chart's own updates
       // count too: when a new bar shifts the chart, a still mouse points at another bar
@@ -883,11 +884,14 @@ function showGlobal(k) {
          + `<span class="c ${ch >= 0 ? 'up' : 'down'}">${pct(ch)}</span></span>`;
   }).join('');
 }
+let cmeDay = null;  // the trading day now: at the CME open the calendar gains the new day and moves its outline
 setInterval(() => {
   const fresh = Date.now() - lastTickAt < 4000;
   $('dot').className = 'dot ' + (lastTickAt ? (fresh ? 'ok' : 'stale') : '');
   $('live').textContent = lastTickAt ? (fresh ? 'Live' : 'Reconnecting…') : 'Connecting…';
   showSession();
+  const k = NsbCme.key(Date.now()), was = cmeDay;  // on today (picked or not), the button follows it, as on the Nasdaq page; an older day picked stays
+  if (k !== cmeDay) { cmeDay = k; showDays(dayPick && dayPick.value === was ? k : undefined); }
 }, 1000);
 
 // ---- controls -------------------------------------------------------------------------------
@@ -1000,55 +1004,87 @@ function buildPicker() {
 // ---- older days (owner 24/10/2026): 3 days when the page opens, older ones from our archive (data/1m, written by the
 // VPS) when you scroll to the left edge, and a calendar that jumps to a day; the right end stays live ----------------
 const DAY_MS = 86400000, dayKeyOf = t => new Date(t).toISOString().slice(0, 10), dayStartOf = k => Date.parse(k + 'T00:00:00Z');
-let archive = new Set(), olderBusy = false, dayPick = null;
+// loaded: archive day -> its first XYZ100 minute. A day is not fetched again unless the engine has trimmed its start since
+// (a page left open for more than a day trims its oldest candles)
+let archive = new Set(), loaded = new Map(), olderRun = null, dayPick = null, noteTimer = 0;
 async function readArchiveIndex() {
   try { const j = await (await fetch('data/1m/index.json', { cache: 'no-cache' })).json(); archive = new Set((Array.isArray(j) ? j : j.dates || []).map(String)); } catch (e) {}
 }
-async function addOlderDay() {  // one more UTC day in front of what is loaded; true when something was added
-  const first = engine && engine.firstMinute();
-  if (first == null) return false;
-  const key = dayKeyOf(first - 1);  // the day before the first candle (or the start of the first candle's own day)
-  if (!archive.has(key)) return false;
-  const r = await fetch(`data/1m/${key}.json`, { cache: 'no-cache' });
-  if (!r.ok) return false;
-  const { toBar } = NdxEngine.internals, j = await r.json();
-  const rows = Object.fromEntries(Object.entries(j.coins || {}).map(([c, a]) => [c, a.map(([t, o, h, l, cl, v, n]) => toBar({ t, o, h, l, c: cl, v, n }))]));
-  return engine.extendBack(rows);
+function note(text, ms = 0) {  // the small note at the bottom left ('Loading older days…'); with `ms`, gone after that long
+  const el = $('older');
+  clearTimeout(noteTimer); el.textContent = text; el.hidden = !text;
+  if (text && ms) noteTimer = setTimeout(() => { el.hidden = true; }, ms);
 }
-async function loadOlder(untilMs = null) {  // older days until `untilMs` is loaded (or just one more); the view stays put
-  if (olderBusy || !engine) return;
-  olderBusy = true; $('older').hidden = false;
+// The archive days to add, newest first: back from the first candle with no gap, until `untilMs` is loaded (none when
+// it already is), or just one more. The first is the day before that candle, or the candle's own day when it is partial.
+function olderKeys(untilMs) {
+  const first = engine.firstMinute(), keys = [];
+  if (first == null || (untilMs !== null && first <= untilMs)) return keys;
+  for (let k = dayKeyOf(first - 1); archive.has(k); k = NsbCme.prev(k)) {
+    if (loaded.get(k) >= first) continue;  // added, and starts late (the archive's first day: 18 Oct from 20:47 UTC)
+    keys.push(k);
+    if (untilMs === null || dayStartOf(k) <= untilMs) break;
+  }
+  return keys;
+}
+async function addOlder(untilMs) {  // every day needed fetched first, then added in one go: one rebuild and one reload, not one per day
+  const keys = olderKeys(untilMs);
+  if (!keys.length) return;
+  note('Loading older days…');
   try {
-    let added = false;
-    do { if (!(await addOlderDay())) break; added = true; } while (untilMs !== null && engine.firstMinute() > untilMs);
+    const { toBar, BENCH } = NdxEngine.internals;
+    const files = await Promise.all(keys.map(k => fetch(`data/1m/${k}.json`, { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).catch(() => null)));
+    const bad = files.findIndex(j => !j || !j.coins), got = bad < 0 ? files : files.slice(0, bad);  // up to a day that failed: no gap
+    if (!got.length) return;
+    const rows = {};
+    for (const j of got) for (const [c, a] of Object.entries(j.coins)) (rows[c] = rows[c] || []).push(...a.map(([t, o, h, l, cl, v, n]) => toBar({ t, o, h, l, c: cl, v, n })));
+    await engine.whenReady();  // not while the engine rebuilds after a dropped stream: it would refuse the days
+    const added = engine.extendBack(rows);
+    got.forEach((j, i) => loaded.set(keys[i], (j.coins[BENCH] || []).reduce((m, r) => Math.min(m, r[0]), Infinity)));
     if (added) { await resync(); if (engine.gen !== gen) await resync(); showDays(); }  // a reload begun before the new days: once more
-  } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
+  } catch (e) { /* the next scroll tries again */ } finally { note(''); }
+}
+// Older days until `untilMs` is loaded (or just one more); the view stays put. A scroll at the left edge leaves a load in
+// progress be; a jump waits for it, then adds what it still lacks.
+function loadOlder(untilMs = null) {
+  if (!engine) return Promise.resolve();
+  if (olderRun && untilMs === null) return olderRun;
+  const run = (olderRun || Promise.resolve()).then(() => addOlder(untilMs)).finally(() => { if (olderRun === run) olderRun = null; });
+  return olderRun = run;
 }
 // The calendar's days are CME trading days (owner 24/10/2026: a US market's day starts at the CME open, 17:00 Chicago =
 // 03:30 IST, 04:30 IST in Chicago's winter time; cme.js); candles are still loaded by UTC day.
-function showDays(value) {  // the calendar: the trading days of the archive's days and of the days loaded, up to today
+function showDays(value) {  // the calendar: the trading days whose candles are loaded, or can be added from the archive without a gap
   if (!dayPick || !engine) return;
-  const files = new Set(archive), first = engine.firstMinute(), today = NsbCme.key(Date.now());
-  if (first != null) for (let t = dayStartOf(dayKeyOf(first)); t <= Date.now(); t += DAY_MS) files.add(dayKeyOf(t));
-  const days = [...files].flatMap(f => [f, NsbCme.next(f)]).filter(k => NsbCme.open(k) <= Date.now());
+  const first = engine.firstMinute(), today = NsbCme.key(Date.now()), utc = new Set();
+  if (first != null) {
+    for (let t = dayStartOf(dayKeyOf(first)); t <= Date.now(); t += DAY_MS) utc.add(dayKeyOf(t));  // the UTC days loaded
+    for (let k = dayKeyOf(first - 1); archive.has(k); k = NsbCme.prev(k)) utc.add(k);              // and the archive's before them
+  }
+  // trading day k runs from the CME open on UTC day k-1 to the one on day k: both are needed (the archive's first day
+  // starts late, so its own trading day has a few minutes and no gate), except for the live trading day
+  const days = [...utc, today].filter(k => k === today || (utc.has(NsbCme.prev(k)) && NsbCme.open(k) <= Date.now()));
   dayPick.set([...new Set(days)], value || dayPick.value || today, today);
 }
-async function jumpToDay(key) {  // load back to that trading day if needed, then show it
+async function jumpToDay(key) {  // load back to that trading day if needed (after a load in progress), then show it
   await loadOlder(NsbCme.open(key));
-  showDays(key);
-  viewDay(NsbCme.open(key), NsbCme.open(NsbCme.next(key)));
+  const moved = viewDay(NsbCme.open(key), NsbCme.open(NsbCme.next(key)));
+  showDays(moved ? key : undefined);  // nothing loaded (offline, a file missing): the button keeps the day still shown
 }
 async function threeDays() {  // on open: today and the two days before
   await readArchiveIndex();
+  showDays();  // the calendar's days at once, not after the older days load (a click before then opened an empty box)
   await loadOlder(dayStartOf(dayKeyOf(Date.now())) - 2 * DAY_MS);
   showDays();
 }
-function viewDay(a, b) {  // show the candles of [a, b) on the price charts
+const dayName = k => new Date(dayStartOf(k)).toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
+function viewDay(a, b) {  // show the candles of [a, b) on the price charts; with none there (a gap, or not loaded) the view stays
   const p = Object.values(panels)[0], bars = p.mainBars;
   let i = bars.findIndex(x => x.time >= a), j = bars.length - 1;
-  if (i < 0) return;
+  if (i < 0 || bars[i].time >= b) { note(`No candles for ${dayName(NsbCme.key(a))}`, 4000); return false; }
   while (j > i && bars[j].time >= b) j--;
   p.main.timeScale().setVisibleLogicalRange({ from: i - 1, to: j + 2 });
+  return true;
 }
 
 // ---- data -----------------------------------------------------------------------------------
@@ -1066,7 +1102,7 @@ async function pickSource() {
   const basketLoad = fetch('basket.json', { cache: 'no-cache' }).then(r => r.json());  // at the same time as the engine
   await new Promise((resolve, reject) => {
     const tag = document.createElement('script');
-    tag.src = 'engine.js?v=9'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
+    tag.src = 'engine.js?v=10'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tag);
   });
   const basketFile = await basketLoad;

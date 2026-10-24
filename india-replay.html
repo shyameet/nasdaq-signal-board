@@ -17,8 +17,8 @@
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="macd.js?v=8"></script>
-<script src="engine.js?v=9"></script>
-<script src="daypick.js?v=2"></script>
+<script src="engine.js?v=10"></script>
+<script src="daypick.js?v=3"></script>
 <script src="draw.js?v=4"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
@@ -187,7 +187,7 @@
       <h3>Trends</h3>
       <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown.</p>
       <h3>Charts</h3>
-      <p>Nifty: one chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right with their gate. All the charts show the same stretch of time: drag or zoom any of them and the others follow. Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. Bank Nifty: the two charts side by side, scrolling together. Drag the thin lines between the charts, between the tiles, or between a price chart and its MACD panes to size them as you like (remembered; double-click a line for the default). The index is shaded by step 1; GIFT NIFTY by its own gate (its whole session, 06:30 to 02:45 the next morning); the stock where step 2 holds, with its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <p>Nifty: one chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right with their gate. All the charts end at the same time and show as many candles each: drag or zoom any of them and the others follow (GIFT NIFTY's night hours then simply scroll past). Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. Bank Nifty: the two charts side by side, scrolling together. Drag the thin lines between the charts, between the tiles, or between a price chart and its MACD panes to size them as you like (remembered; double-click a line for the default). Each chart and its MACD panes are green where every Trend wave switched on (5m, 7m, 9m, 11m, 15m) is above 0, red where every one is below (the gate is shown in words: in the tiles' headers and the step chips); GIFT NIFTY shows its whole session, 06:30 to 02:45 the next morning; the stock shows its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
       <h3>Days</h3>
       <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
       <h3>Data</h3>
@@ -209,6 +209,7 @@
 'use strict';
 const DAY = 86400000, MIN = 60000, IST = 19800000;  // IST = UTC + 5:30
 const { TrendSignal, SHOWN } = NdxEngine.internals;
+NdxEngine.internals.keep(Infinity);  // every loaded day keeps its gate minutes and bars (the engine trims past 5,500 bars / 7,700 minutes: older days lost their gates)
 const { MacdPane, Bands, DayLines } = NsbMacd;
 const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: 'rgba(232, 238, 246, 0.85)', label: '#283240',
             bg: '#0a0d12', ema21: '#f2b33d', ema47: '#5b8cff' };
@@ -368,13 +369,17 @@ function entriesOf() {
 }
 
 // ---- building a day -----------------------------------------------------------------------------------------
-let day = null;
+let day = null, builds = 0;  // builds: each build's number, so only the newest one is drawn
 // One long strip of days (owner 24/10/2026): the picked day is the newest; `shown` days up to it are drawn, and older
-// ones join when you scroll to the left edge. quiet: no loading screen (adding older days).
+// ones join when you scroll to the left edge. quiet: no loading screen (adding older days). False when a newer build
+// started while this one loaded its files (a pick during an older-days load, two quick picks): that one is drawn.
 async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
-  const i = DAYS.indexOf(key), first = Math.max(0, i - shown + 1), keys = DAYS.slice(Math.max(0, first - WARM_DAYS), i + 1);
+  const seq = ++builds, i = DAYS.indexOf(key), first = Math.max(0, i - shown + 1), keys = DAYS.slice(Math.max(0, first - WARM_DAYS), i + 1);
   if (!quiet) loading(`Loading ${key}…`);
-  const files = await Promise.all(keys.map(loadFile));
+  let files = null, err = null;
+  try { files = await Promise.all(keys.map(loadFile)); } catch (e) { err = e; }
+  if (seq !== builds) return false;  // stale: dropped, even its error
+  if (err) throw err;
   const S = SETUPS[opt.setup], markets = [S.index, S.gift, S.stock].filter(Boolean);
   const rows = {};
   for (const m of markets) {
@@ -398,10 +403,13 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   day.end = Math.max(...markets.map(m => day.price[m].length ? day.price[m][day.price[m].length - 1].time + MIN : d0));
   day.nseEnd = lastNse + MIN;
   loading(null);
+  return true;
 }
 
 // ---- the charts ---------------------------------------------------------------------------------------------
 let panels = {};
+let pressedChart = null;  // the chart (or MACD pane) last pressed: a finger moves its crosshair
+let touched = false;  // the last press on any chart was a finger or pen: page-wide, as the click the browser still sends after a tap can land on another chart (the tap enlarged a tile and the tiles moved under the finger)
 function options(showTime, isMain) {
   return {
     watermark: isMain ? { visible: true, text: '', color: 'rgba(232, 238, 246, 0.04)', fontSize: 36, fontStyle: '700' } : { visible: false },
@@ -464,19 +472,29 @@ class Panel {
     const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
                  ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
     this.charts = all;
+    for (const self of all) self.chart.chartElement().addEventListener('pointerdown', () => { pressedChart = self.chart; }, true);
     for (const self of all) self.chart.subscribeCrosshairMove(p => {
-      if (!p.sourceEvent) return;
+      // a mouse's moves carry their event; a finger's (iPad) may not, so the chart last pressed counts too. The positions
+      // set on the other charts below fire no move of their own
+      if (!p.sourceEvent && self.chart !== pressedChart) return;
       const t = p.time;
       for (const o of all) if (o !== self) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
       hoverAll(this, t);
     });
     for (const el of $(key).querySelectorAll('.pane')) el.addEventListener('mouseleave', () => hoverAll(this, undefined));
     let downAt = null;  // where a press began: a drag scrolls a tile, only a click makes it the big chart (owner 24/10/2026)
-    $(key).addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; driver = this; }, true);
+    $(key).addEventListener('pointerdown', e => {
+      downAt = e.isPrimary ? [e.clientX, e.clientY] : null;  // a second finger (a pinch): no tap
+      touched = e.pointerType === 'touch' || e.pointerType === 'pen'; driver = this;
+    }, true);
     for (const ev of ['wheel', 'touchstart']) $(key).addEventListener(ev, () => { driver = this; }, { capture: true, passive: true });
-    $(key).addEventListener('click', e => {
-      const dragged = downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5;
-      if (this.mode === 'tile' && !dragged && !e.target.closest('#viewSel')) select(this.key);
+    const moved = e => downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5;
+    // a finger or pen: the chart (LWC 4.2.3) takes a tap as its own and cancels its touchend, so no click comes; the tap is caught here
+    $(key).addEventListener('pointerup', e => {
+      if ((e.pointerType === 'touch' || e.pointerType === 'pen') && e.isPrimary && downAt && !moved(e) && this.mode === 'tile') select(this.key);
+    });
+    $(key).addEventListener('click', e => {  // a mouse (after a finger or pen, a click that still comes was the tap above, on this chart or the one now under the finger)
+      if (this.mode === 'tile' && !touched && !moved(e) && !e.target.closest('#viewSel')) select(this.key);
     });
     const ps = document.createElement('div');  // the handle between the price chart and the MACD panes
     ps.className = 'split row'; ps.title = 'Drag to size the price chart and its MACD panes (double-click: default)';
@@ -485,7 +503,7 @@ class Panel {
             () => setPriceShare(DEFAULT_PRICE));
   }
   setMode(mode) {  // 'big' or 'half': time axis and MACD panes; 'tile': the price chart only, one click to enlarge. All of them
-    // scroll and zoom, and show the same stretch of time as the others (owner 24/10/2026: scrolling back on Nifty, GIFT
+    // scroll and zoom, lined up with the others (syncOthers) (owner 24/10/2026: scrolling back on Nifty, GIFT
     // NIFTY or Reliance moves all three; the tiles used to stay on the newest day)
     this.mode = mode;
     for (const m of ['big', 'half', 'tile']) $(this.key).classList.toggle(m, m === mode);
@@ -512,6 +530,8 @@ class Panel {
       return null;
     });
     const run = day.runs[this.market];
+    this.firstState = Infinity;  // its first gate minute in the strip, once per draw (head() runs on every crosshair move)
+    for (const x of run.stateAt.keys()) if (x >= day.d0 && x < day.d1 && x < this.firstState) this.firstState = x;
     this.src = Object.fromEntries(Object.entries(run.bars).map(([m, bars]) => [m, bars.filter(b => b.time < day.d1 && bucketEnd(b.time, +m, o) <= upto)]));
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
     this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
@@ -523,6 +543,7 @@ class Panel {
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
   }
+  onDay() { const n = this.mainBars.length; return n > 0 && this.mainBars[n - 1].time >= day.lastD0; }  // a candle on the picked day (the strip ends with it)
   fit() {  // the newest day of the strip (the older ones are to the left)
     const n = this.mainBars.length;
     if (!n) return;
@@ -563,12 +584,12 @@ class Panel {
     const at = t !== undefined ? t : ownEnd - MIN;  // its own last candle
     let st = null, k = null;
     for (let x = at; x >= at - 15 * MIN; x -= MIN) { const s = run.stateAt.get(x); if (s) { st = s; k = x; break; } }
-    const bar = [...day.price[this.market]].reverse().find(b => b.time <= at);
+    const bar = barAt(own, at);
     $(`${this.key}-val`).textContent = bar ? num(bar.close, MARKETS[this.market].digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
     const ch = k !== null ? run.checksAt.get(k) : null;
     $(`${this.key}-conds`).innerHTML = ch ? RULES.map(([key, name]) => `<span class="${ch[key] > 0 ? 'up' : 'down'}">${name} ${ch[key] > 0 ? '▲' : '▼'}</span>`).join('') : '';
-    const first = Math.min(...[...run.stateAt.keys()].filter(x => x >= day.d0 && x < day.d1), Infinity);
+    const first = this.firstState;
     const firstBar = day.price[this.market].length ? day.price[this.market][0].time : Infinity;
     $(`${this.key}-warm`).textContent = first === Infinity && firstBar < Infinity ? 'not enough earlier days for the indicators'
       : first > firstBar ? `warming up until ${hhmm(first)}` : '';
@@ -596,6 +617,11 @@ function nearestIndexMinute(t) {  // the last index minute at or before t (after
   while (lo <= hi) { const mid = (lo + hi) >> 1; if (a[mid] <= t) { hit = a[mid]; lo = mid + 1; } else hi = mid - 1; }
   return hit;
 }
+function barAt(bars, t) {  // the last bar at or before t (bars oldest first), or null
+  let lo = 0, hi = bars.length - 1, hit = null;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) { hit = bars[mid]; lo = mid + 1; } else hi = mid - 1; }
+  return hit;
+}
 function aggregate(bars, m, origin) {
   const out = [];
   for (const b of bars) {
@@ -605,7 +631,7 @@ function aggregate(bars, m, origin) {
   }
   return out;
 }
-// Candle position <-> time, to keep the same stretch of time when another chart becomes the big one.
+// Candle position (fractional, may lie past either end) <-> time, to line the charts up in time.
 function timeAt(bars, x) {
   const n = bars.length, tf = opt.tf * MIN;
   if (x <= 0) return bars[0].time + x * tf;
@@ -623,8 +649,11 @@ function indexAt(bars, t) {
 }
 function hoverAll(src, t) {
   for (const p of Object.values(panels)) {
-    if (p !== src) for (const o of p.charts) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
-    p.tags(t); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
+    // each chart on its own candle holding that time: GIFT's candles start at 06:30, NSE's at 09:15, 165 minutes apart,
+    // so 2m candles start a minute apart and t itself is no candle of the other charts
+    const own = t === undefined ? undefined : sec(bucketStart(t * 1000, opt.tf, p.origin));
+    if (p !== src) for (const o of p.charts) { const v = own === undefined ? null : o.value(own); if (ok(v)) o.chart.setCrosshairPosition(v, own, o.series); else o.chart.clearCrosshairPosition(); }
+    p.tags(own); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
   }
   showStrip(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
 }
@@ -656,32 +685,36 @@ function buildPanels() {
   placeBig(ORDER().some(p => p.key === saved) ? saved : 'pIndex');
 }
 let halves = false;
-const lead = () => halves ? panels.index : ORDER().find(p => p.mode === 'big') || panels.index;  // the chart the others follow
+// The chart the others follow: the big one (Bank Nifty: the index). On a day it has no candle (NIFTY on an NSE holiday,
+// GIFT NIFTY trading), the first chart that has one, so the day is fitted on its candles (the big one's fit shows the whole strip)
+const lead = () => { const l = halves ? panels.index : ORDER().find(p => p.mode === 'big') || panels.index; return !l.onDay() && ORDER().find(p => p.onDay()) || l; };
 // Only the chart the viewer is moving (pressed, scrolled or zoomed last: `driver`) passes its moves on. The charts report
 // a range change some time after it is set, so passing on every chart's changes would let a chart that was just moved
 // for another pull that one back while it is still being dragged.
 let driver = null;
-function syncOthers(src, force = false) {  // every chart shows the same stretch of time as src
+// The charts line up on the time at their right edge and show as many candles each, so a zoom zooms them all alike
+// (owner 24/10/2026: scrolling back was "zooming out on other 2 charts"). Not the same stretch of time: GIFT NIFTY trades
+// through the night and on NSE holidays, so a stretch holding a night held two to three times as many GIFT candles.
+const viewOf = q => { const r = q.main.timeScale().getVisibleLogicalRange(); return r && q.mainBars.length ? { end: timeAt(q.mainBars, r.to), count: r.to - r.from } : null; };
+const rangeAt = (q, v) => { const to = indexAt(q.mainBars, v.end); return { from: to - v.count, to }; };
+function syncOthers(src, force = false) {  // every chart ends at the time src ends, with as many candles
   if (syncing || (!force && src !== driver)) return;
-  const r = src.main.timeScale().getVisibleLogicalRange();
-  if (!r || !src.mainBars.length) return;
-  const a = timeAt(src.mainBars, r.from), b = timeAt(src.mainBars, r.to);
+  const v = viewOf(src);
+  if (!v) return;
   for (const other of ORDER()) {
     if (other === src || !other.mainBars.length) continue;
-    const to = { from: indexAt(other.mainBars, a), to: indexAt(other.mainBars, b) };
-    const now = other.main.timeScale().getVisibleLogicalRange();
+    const to = rangeAt(other, v), now = other.main.timeScale().getVisibleLogicalRange();
     if (now && Math.abs(now.from - to.from) < 0.01 && Math.abs(now.to - to.to) < 0.01) continue;
     try { other.main.timeScale().setVisibleLogicalRange(to); } catch (e) {}
   }
 }
-function follow() { syncOthers(lead(), true); }  // the others onto the lead chart's stretch of time
-const spanOf = q => { const r = q.main.timeScale().getVisibleLogicalRange(); return r && q.mainBars.length ? [timeAt(q.mainBars, r.from), timeAt(q.mainBars, r.to)] : null; };
-function showSpan(span) {  // the lead chart on this stretch of time, the others following (again once the charts have their final size)
+function follow() { syncOthers(lead(), true); }  // the others onto the lead chart's view
+function showView(v) {  // the lead chart on this view, the others following (again once the charts have their final size)
   const go = () => {
     const l = lead();
     if (!l.mainBars.length) return;
     syncing = true;
-    try { l.main.timeScale().setVisibleLogicalRange({ from: indexAt(l.mainBars, span[0]), to: indexAt(l.mainBars, span[1]) }); } finally { syncing = false; }
+    try { l.main.timeScale().setVisibleLogicalRange(rangeAt(l, v)); } finally { syncing = false; }
     follow();
   };
   requestAnimationFrame(() => requestAnimationFrame(go)); setTimeout(go, 150);  // after the charts have their new sizes
@@ -753,14 +786,14 @@ function placeBig(key) {  // the chosen chart big, the others as tiles in the se
   for (const b of $('viewSel').children) b.setAttribute('aria-pressed', String(b.dataset.v === key));
   save('big.' + opt.setup, key);
 }
-function select(key) {  // another chart big, on the same stretch of time
+function select(key) {  // another chart big, on the same view
   if (!day || halves || key === bigKey || !$(key)) return;
-  const span = spanOf(lead());
-  driver = null;  // the charts' new sizes move their ranges: nobody's move to pass on (showSpan sets them)
+  const v = viewOf(lead());
+  driver = null;  // the charts' new sizes move their ranges: nobody's move to pass on (showView sets them)
   placeBig(key);
-  if (!span) { render(true); return; }
+  if (!v) { render(true); return; }
   render(false);
-  showSpan(span);
+  showView(v);
 }
 
 // ---- the strip: where the setup stands -----------------------------------------------------------------------
@@ -795,6 +828,7 @@ function showStrip(t) {
 // ---- drawing --------------------------------------------------------------------------------------------------
 let syncing = false;
 function render(full) {
+  if (full) driver = null;  // new candles and a refit move every range: nobody's move to pass on (a tile dragged before passed on a stale one, loading older days)
   syncing = true;
   try {
     for (const p of Object.values(panels)) p.draw();
@@ -837,25 +871,28 @@ function buildControls() {
 function recompute() { if (!day) return; day.entries = entriesOf(); render(false); }
 let olderBusy = false;
 async function loadOlder() {  // add older days to the strip, keeping what you are looking at in place
-  if (olderBusy) return;
+  if (olderBusy || !$('loading').hidden) return;  // not while a day is opening (its loading screen is up): that strip replaces this one
   olderBusy = true;
   $('older').hidden = false;
   try {
-    const span = spanOf(lead());
-    await buildDay(day.key, day.shown + MORE_DAYS, true);
+    const v = viewOf(lead());
+    if (!await buildDay(day.key, day.shown + MORE_DAYS, true)) return;  // a day was picked meanwhile: it is drawn instead
     render(false);
-    if (span && lead().mainBars.length) {
+    if (v && lead().mainBars.length) {
       const l = lead();
       syncing = true;
-      try { l.main.timeScale().setVisibleLogicalRange({ from: indexAt(l.mainBars, span[0]), to: indexAt(l.mainBars, span[1]) }); } finally { syncing = false; }
+      try { l.main.timeScale().setVisibleLogicalRange(rangeAt(l, v)); } finally { syncing = false; }
       follow();
     }
   } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
 }
 async function openDay(key) {
-  await buildDay(key);
-  dayPick.set(DAYS, key, new Date(Date.now() + IST).toISOString().slice(0, 10));
-  render(true);
+  driver = null;  // as select(): nobody's move to pass on while the charts get the new day
+  try {
+    if (!await buildDay(key)) return;  // another day was picked meanwhile: it is drawn instead
+    dayPick.set(DAYS, key, new Date(Date.now() + IST).toISOString().slice(0, 10));
+    render(true);
+  } catch (e) { loading(`Couldn't load ${key} (${e.message}). Reload the page to try again.`); }  // not "Loading…" for good
 }
 const loading = text => { if (text === null) { $('loading').hidden = true; return; } $('loading').hidden = false; $('loading-text').textContent = text; };
 
