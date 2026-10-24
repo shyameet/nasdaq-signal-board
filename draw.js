@@ -188,16 +188,34 @@
   function redraw() {
     for (const c of charts) for (const l of [c.layer, ...c.panes.map(q => q.layer)]) if (l.requestUpdate) l.requestUpdate();
   }
-  function save() { try { localStorage.setItem(S.key, JSON.stringify(S.items)); } catch (e) {} show(); }
+  // The same page open in two tabs (owner 24/10/2026: "save the drawings if the two tabs are open"): a tab saving its
+  // drawings used to write over whatever the other tab had saved meanwhile. Now each save first adds the drawings the
+  // other tab saved since this tab last read or wrote them (`known`: the ids it had then; one missing from this tab
+  // now was deleted here, so it stays deleted), and each tab picks up the other's saves as they happen (storage event).
+  let known = new Set();
+  const valid = d => d && d.a && ok(d.a.t) && (d.type === 'vline' || (d.type === 'hline' && ok(d.a.p) && ok(d.a.r))
+    || (d.type === 'measure' && ok(d.a.p) && ok(d.a.r) && d.b && ok(d.b.t) && ok(d.b.p) && ok(d.b.r)));
+  function stored() {
+    try { const a = JSON.parse(localStorage.getItem(S.key) || '[]'); return Array.isArray(a) ? a.filter(valid) : []; } catch (e) { return []; }
+  }
+  function save() {
+    const mine = new Set(S.items.map(d => d.id));
+    for (const d of stored()) if (d.id && !mine.has(d.id) && !known.has(d.id)) S.items.push(d);  // drawn in the other tab
+    try { localStorage.setItem(S.key, JSON.stringify(S.items)); } catch (e) {}
+    known = new Set(S.items.map(d => d.id));
+    show();
+  }
   function remember(state = JSON.stringify(S.items)) { S.undo.push(state); if (S.undo.length > 100) S.undo.shift(); }
   function load() {
-    S.items = []; S.sel = null; S.hover = null; S.temp = null; S.undo = [];
-    try {
-      const saved = JSON.parse(localStorage.getItem(S.key) || '[]');
-      if (Array.isArray(saved)) S.items = saved.filter(d => d && d.a && ok(d.a.t) && (d.type === 'vline' || (d.type === 'hline' && ok(d.a.p) && ok(d.a.r))
-        || (d.type === 'measure' && ok(d.a.p) && ok(d.a.r) && d.b && ok(d.b.t) && ok(d.b.p) && ok(d.b.r))));
-    } catch (e) {}
+    S.items = stored(); S.sel = null; S.hover = null; S.temp = null; S.undo = [];
+    known = new Set(S.items.map(d => d.id));
   }
+  window.addEventListener('storage', e => {  // the other tab saved: show its drawings here too (not in the middle of drawing)
+    if (!S.key || e.key !== S.key || S.gesture || S.temp) return;
+    S.items = stored(); known = new Set(S.items.map(d => d.id));
+    if (S.sel && !S.items.some(d => d.id === S.sel)) S.sel = null;
+    show(); redraw();
+  });
   function setTool(tool) {
     S.tool = tool; S.temp = null; S.tempChart = null;
     for (const c of charts) c.el.classList.toggle('dr-on', !!tool);
