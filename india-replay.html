@@ -15,8 +15,10 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="focus.js?v=1" defer></script>
+<script src="labels.js?v=1" defer></script>
 <script src="macd.js?v=c14084b975"></script>
 <script src="engine.js?v=6e41c8dcde"></script>
+<script src="daypick.js?v=1"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }   /* the official Indra Quant lockup (logo + wordmark), as is */
   .brand .board-name { font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
@@ -159,11 +161,7 @@
   <a class="brand" href="./" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
   <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html">Replay</a><a href="india-replay.html" aria-current="page">India Replay</a></nav>
   <div class="grp" title="Setup"><div class="seg words" id="setupSel" role="group" aria-label="Setup"></div></div>
-  <div class="grp" title="Day">
-    <button class="btn" id="dayPrev" type="button" title="Previous day">◀</button>
-    <select class="btn day" id="daySel" aria-label="Day"></select>
-    <button class="btn" id="dayNext" type="button" title="Next day">▶</button>
-  </div>
+  <div class="grp"><div id="dayPick"></div></div>
   <div class="grp" title="Candle size"><div class="seg" id="tfs" role="group" aria-label="Candle size"></div></div>
   <div class="grp">
     <button class="btn" id="sc2" type="button" aria-pressed="true" title="Show the 2m scalper's entries">2m</button>
@@ -246,7 +244,7 @@ const opt = {
 };
 
 // ---- data: the VPS's saved days (data/india/1m/YYYY-MM-DD.json) -------------------------------------------
-let DAYS = [];  // saved day keys, oldest first
+let DAYS = [], dayPick = null;  // saved day keys, oldest first; the calendar
 const fileCache = new Map();
 async function loadFile(key) {  // -> { market: [{ t (ms), o, h, l, c, v }] }
   if (fileCache.has(key)) return fileCache.get(key);
@@ -762,9 +760,7 @@ function buildControls() {
   seg($('tfs'), TFS.map(m => [`${m}m`, m]), opt.tf, v => { opt.tf = +v; save('tf', opt.tf); render(true); });
   const toggle = (id, key) => { $(id).setAttribute('aria-pressed', String(opt[key])); $(id).onclick = () => { opt[key] = !opt[key]; save(key, opt[key]); $(id).setAttribute('aria-pressed', String(opt[key])); recompute(); }; };
   toggle('sc2', 'sc2'); toggle('sc3', 'sc3');
-  $('daySel').onchange = () => openDay($('daySel').value);
-  $('dayPrev').onclick = () => { const i = $('daySel').selectedIndex; if (i + 1 < $('daySel').options.length) openDay($('daySel').options[i + 1].value); };
-  $('dayNext').onclick = () => { const i = $('daySel').selectedIndex; if (i > 0) openDay($('daySel').options[i - 1].value); };
+  dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Day (IST)' });
   document.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('select, input, summary')) return;
     const n = Number(e.key);
@@ -774,9 +770,7 @@ function buildControls() {
 function recompute() { if (!day) return; day.entries = entriesOf(); render(false); }
 async function openDay(key) {
   await buildDay(key);
-  $('daySel').value = key;
-  $('dayPrev').disabled = $('daySel').selectedIndex >= $('daySel').options.length - 1;
-  $('dayNext').disabled = $('daySel').selectedIndex <= 0;
+  dayPick.set(DAYS, key, new Date(Date.now() + IST).toISOString().slice(0, 10));
   render(true);
 }
 const loading = text => { if (text === null) { $('loading').hidden = true; return; } $('loading').hidden = false; $('loading-text').textContent = text; };
@@ -789,7 +783,6 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
     const j = await (await fetch('data/india/1m/index.json', { cache: 'no-cache' })).json();
     DAYS = (Array.isArray(j) ? j : j.dates || []).map(String).sort();
     if (!DAYS.length) throw new Error('no saved days yet');
-    $('daySel').innerHTML = [...DAYS].reverse().map(k => { const d = new Date(k + 'T00:00:00Z'); return `<option value="${k}" title="${k}">${WKD[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}</option>`; }).join('');
     buildControls();
     buildPanels();
     await openDay(DAYS[DAYS.length - 1]);

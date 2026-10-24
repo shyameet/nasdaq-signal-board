@@ -15,8 +15,10 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="focus.js?v=1" defer></script>
+<script src="labels.js?v=1" defer></script>
 <script src="macd.js?v=c14084b975"></script>
 <script src="engine.js?v=6e41c8dcde"></script>
+<script src="daypick.js?v=1"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }   /* the official Indra Quant lockup (logo + wordmark), as is */
   .brand .board-name { font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
@@ -60,7 +62,17 @@
   .grp { display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; }
   .cgrps > .grp:first-child { padding-left: 0; }
   .grp + .grp { border-left: 1px solid var(--line); }
-  #dataNote { margin-left: auto; }
+  /* ---- one slim bar (owner 24/10/2026): every control in the top bar, How it works behind ? ---- */
+  .topbar { gap: 5px 10px; padding: 5px 10px; }
+  .topbar .brand .iq-lock { height: 24px; }
+  .topbar .grp { padding: 0 0 0 8px; border-left: 1px solid var(--line); gap: 4px; }
+  .topbar .tabs a { padding: 4px 9px; }
+  .topbar .seg button { padding: 3px 7px; }
+  .topbar .lbl { font-size: 10px; }
+  #dataNote { cursor: help; white-space: nowrap; }
+  .topbar .how summary { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 50%; font-weight: 700; }
+  .topbar .how-body { top: calc(100% + 8px); bottom: auto; left: auto; right: 0; max-height: 75vh; overflow: auto; }
+  .how-body .credit { color: var(--muted); font-size: 11.5px; } .how-body .credit a { color: var(--muted); }
   .grp > .lbl { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
   .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
   .seg button { padding: 3px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
@@ -163,8 +175,20 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"><div><b class="board-name">Signal Board</b></div></div>
+  <a class="brand" href="./" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
   <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html" aria-current="page">Replay</a><a href="india-replay.html">India Replay</a></nav>
+  <div class="grp"><div id="dayPick"></div></div>
+  <div class="grp" title="Candle size"><div class="seg" id="tfs" role="group" aria-label="Candle size"></div></div>
+  <div class="grp">
+    <button class="btn" id="sc2" type="button" aria-pressed="true" title="Show the 2m scalper's signals">2m</button>
+    <button class="btn" id="sc3" type="button" aria-pressed="true" title="Show the 3m scalper's signals">3m</button>
+  </div>
+  <div class="grp" title="Signals kept per trend"><span class="lbl">Per trend</span><div class="seg" id="perTrend" role="group" aria-label="Signals per trend"></div></div>
+  <div class="grp">
+    <select class="btn" id="gapSel" aria-label="How long a NO TRADE gap may last inside one trend" title="How long the gate may sit at NO TRADE inside one trend before the trend counts as over"></select>
+  </div>
+  <div class="grp"><button class="btn" id="oneTrend" type="button" aria-pressed="false" title="Only the first gate trend's direction of the day counts">1 trend/day</button>
+    <span class="note" id="dataNote"></span></div>
   <div class="spacer"></div>
   <div class="pick" id="pick" hidden>
     <button class="pick-btn" id="pickBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Choose which stocks make up the left chart"><span id="pickLabel">Stocks</span><small id="pickSub"></small><span class="caret">▼</span></button>
@@ -176,53 +200,22 @@
       <div class="pick-actions"><span class="msg" id="pickMsg"></span><button type="button" id="pickCancel">Cancel</button><button type="button" class="go" id="pickGo">Apply</button></div>
     </div>
   </div>
-</header>
-<section class="controls" aria-label="Replay controls">
-  <div class="crow">
-    <span class="rname">Replay</span>
-    <div class="cgrps">
-      <div class="grp"><span class="lbl">Day</span>
-        <button class="btn" id="dayPrev" type="button" title="Previous day">◀</button>
-        <select class="btn day" id="daySel" aria-label="Day (UTC)"></select>
-        <button class="btn" id="dayNext" type="button" title="Next day">▶</button>
-      </div>
-      <div class="grp"><span class="lbl">Candles</span><div class="seg" id="tfs" role="group" aria-label="Candle size"></div></div>
-      <span class="note" id="dataNote"></span>
-    </div>
-  </div>
-  <div class="crow">
-    <span class="rname">Signal rules</span>
-    <div class="cgrps">
-      <div class="grp"><span class="lbl">Scalper</span>
-        <button class="btn" id="sc2" type="button" aria-pressed="true" title="Show the 2m scalper's signals">2m</button>
-        <button class="btn" id="sc3" type="button" aria-pressed="true" title="Show the 3m scalper's signals">3m</button>
-      </div>
-      <div class="grp"><span class="lbl">Per trend</span><div class="seg" id="perTrend" role="group" aria-label="Signals per trend"></div></div>
-      <div class="grp"><span class="lbl">Gap</span>
-        <select class="btn" id="gapSel" aria-label="How long a NO TRADE gap may last inside one trend" title="How long the gate may sit at NO TRADE inside one trend before the trend counts as over"></select>
-      </div>
-      <div class="grp"><button class="btn" id="oneTrend" type="button" aria-pressed="false" title="Only the first gate trend's direction of the day counts">One trend per day</button></div>
-    </div>
-  </div>
-</section>
-<main class="board" id="board"></main>
-<footer class="foot">
   <details class="how">
-    <summary>How it works</summary>
+    <summary title="How it works">?</summary>
     <div class="how-body">
       <h3>What you see</h3>
       <p>One UTC day at a time (00:00 to 24:00 UTC; times are shown in your timezone). Left: your stocks' composite (Stocks button; the same pick as the other pages, applied to every past day). Right: the Nasdaq-100 perp, XYZ100. Both get exactly the same treatment: candles, the gate's zones, the 3m EMA 21 and EMA 47, the Entry (2m/3m) and Trend MACD panes. Each indicator is warmed up on the day before, so it reads what it would have read live.</p>
       <h3>The gate</h3>
       <p>LONG when the 5m, 9m and 11m MACD are all above 0 and the 3m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
       <h3>Signals</h3>
-      <p>A 2m (or 3m) signal is that scalper's MACD line crossing 0 on a closed candle the same way the chart's gate points at that candle's close: crossing up while the gate is LONG, down while it is SHORT. Crosses against the gate are ignored. <b>Per trend</b> keeps only the first 1 or 2 signals of each gate trend (or all). A trend is one run of the gate in one direction; <b>Gap</b> lets the gate sit at NO TRADE for that many minutes without ending the trend (Off: any NO TRADE ends it). <b>One trend per day</b> keeps only signals in the direction of the day's first gate trend. Only signals are shown: no exits or results.</p>
+      <p>A 2m (or 3m) signal is that scalper's MACD line crossing 0 on a closed candle the same way the chart's gate points at that candle's close: crossing up while the gate is LONG, down while it is SHORT. Crosses against the gate are ignored. <b>Per trend</b> keeps only the first 1 or 2 signals of each gate trend (or all). A trend is one run of the gate in one direction; <b>Gap</b> lets the gate sit at NO TRADE for that many minutes without ending the trend (Off: any NO TRADE ends it). <b>1 trend/day</b> keeps only signals in the direction of the day's first gate trend. Only signals are shown: no exits or results.</p>
       <h3>Data</h3>
       <p>The page opens on today (UTC), which takes in Hyperliquid's new candles every minute while the page is open; if you are looking at the newest candles they stay in view. Days come from our own daily archive of Hyperliquid's 1-minute candles (from 18 Oct 2026; that day only from its evening) and, for the last few days, straight from Hyperliquid, which keeps about 3.5 days of 1-minute candles. Nothing is filled in or made up: a minute with no trade is a flat bar at the last price, as on the exchange.</p>
-      <p>For information only, not investment advice.</p>
+      <p class="credit">Not investment advice · Data: Hyperliquid · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
     </div>
   </details>
-  <div class="credit">Not investment advice · Data: Hyperliquid · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></div>
-</footer>
+</header>
+<main class="board" id="board"></main>
 <div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
 <script>
 'use strict';
@@ -622,13 +615,11 @@ function seg(el, items, current, onPick) {
 function buildControls() {
   seg($('tfs'), TFS.map(m => [`${m}m`, m]), opt.tf, v => { opt.tf = +v; save('tf', opt.tf); render(true); });
   seg($('perTrend'), PER_TREND.map(([l, v]) => [l, v === Infinity ? 'inf' : String(v)]), opt.perTrend, v => { opt.perTrend = v; save('perTrend', v); recompute(); });
-  $('gapSel').innerHTML = GAPS.map(g => `<option value="${g}"${g === opt.gap ? ' selected' : ''}>${g ? g + ' min' : 'Off'}</option>`).join('');
+  $('gapSel').innerHTML = GAPS.map(g => `<option value="${g}"${g === opt.gap ? ' selected' : ''}>Gap ${g ? g + ' min' : 'off'}</option>`).join('');
   $('gapSel').onchange = () => { opt.gap = +$('gapSel').value; save('gap', opt.gap); recompute(); };
   const toggle = (id, key) => { $(id).setAttribute('aria-pressed', String(opt[key])); $(id).onclick = () => { opt[key] = !opt[key]; save(key, opt[key]); $(id).setAttribute('aria-pressed', String(opt[key])); recompute(); }; };
   toggle('sc2', 'sc2'); toggle('sc3', 'sc3'); toggle('oneTrend', 'oneTrend');
-  $('daySel').onchange = () => openDay($('daySel').value);
-  $('dayPrev').onclick = () => { const i = $('daySel').selectedIndex; if (i + 1 < $('daySel').options.length) openDay($('daySel').options[i + 1].value); };
-  $('dayNext').onclick = () => { const i = $('daySel').selectedIndex; if (i > 0) openDay($('daySel').options[i - 1].value); };
+  dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Day (UTC)' });
 }
 function recompute() { if (!day) return; computeSignals(); render(false); }
 function listDays() {  // newest first: archived days and the days Hyperliquid still has
@@ -637,17 +628,17 @@ function listDays() {  // newest first: archived days and the days Hyperliquid s
   return [...keys].filter(k => dayStart(k) <= Date.now()).sort().reverse();
 }
 // ---- today: new candles from Hyperliquid every minute (owner 24/10/2026), keeping your zoom ----------------------
-let refreshing = false;
+let refreshing = false, dayPick = null, dayList = [];
 async function refreshToday() {
   if (refreshing || !day || document.visibilityState !== 'visible') return;
   const today = dayKey(Date.now());
   refreshing = true;
   try {
-    if (!$('daySel').querySelector(`option[value="${today}"]`)) {  // past 00:00 UTC: a new day in the list
+    if (!dayList.includes(today)) {  // past 00:00 UTC: a new day in the calendar
       const was = day.key;
-      $('daySel').innerHTML = listDays().map(k => `<option value="${k}">${k}${k === today ? ' (today)' : ''}</option>`).join('');
+      dayList = listDays();
       if (dayKey(Date.now() - DAY) === was) { dayCache.delete(was); await openDay(today); return; }  // you were on today: follow it
-      $('daySel').value = was;
+      dayPick.set(dayList, was, today);
     }
     if (day.key !== today) return;
     const cached = dayCache.get(today), now = Date.now();
@@ -673,9 +664,7 @@ setInterval(refreshToday, 60000);
 document.addEventListener('visibilitychange', refreshToday);
 async function openDay(key) {
   await buildDay(key);
-  $('daySel').value = key;
-  $('dayPrev').disabled = $('daySel').selectedIndex >= $('daySel').options.length - 1;
-  $('dayNext').disabled = $('daySel').selectedIndex <= 0;
+  dayPick.set(dayList, key, dayKey(Date.now()));
   render(true);
 }
 function showNote() {
@@ -683,8 +672,10 @@ function showNote() {
   const msg = [`${day.key} UTC`, today ? 'today, updating every minute' : '', day.source.includes('archive') ? (day.source.includes('hl') ? 'archive + Hyperliquid' : 'archive') : 'Hyperliquid',
                !day.prevLoaded ? 'no earlier day to warm up on' : '',
                day.lacking.length ? `no ${day.lacking.map(tk).join(', ')} data for this day yet, so the left chart is empty` : ''].filter(Boolean).join(' · ');
-  $('dataNote').textContent = msg;
-  $('dataNote').className = 'note' + (!day.prevLoaded || day.lacking.length ? ' warn' : '');
+  const warn = !day.prevLoaded || day.lacking.length;
+  $('dataNote').textContent = !warn ? 'ⓘ' : day.lacking.length ? `⚠ no ${day.lacking.map(tk).join(', ')} data` : '⚠ no warm-up day';
+  $('dataNote').title = msg;
+  $('dataNote').className = 'note' + (warn ? ' warn' : '');
 }
 const loading = text => { if (text === null) { $('loading').hidden = true; return; } $('loading').hidden = false; $('loading-text').textContent = text; };
 
@@ -694,7 +685,7 @@ function savedSelection() { try { const a = JSON.parse(localStorage.getItem(SEL_
 function setActive(list) {
   const pick = Array.isArray(list) ? ALL.filter(c => list.includes(c)) : [];
   ACTIVE = pick.length ? pick : DEFAULT();
-  $('pickLabel').textContent = custom() ? `${ACTIVE.length} of ${ALL.length} stocks` : `Default ${ACTIVE.length} stocks`;
+  $('pickLabel').textContent = custom() ? `${ACTIVE.length} of ${ALL.length} stocks` : `${ACTIVE.length} stocks`;
   $('pickSub').textContent = ACTIVE.length <= 4 && custom() ? ACTIVE.map(tk).join(' ') : '';
   $('pickBtn').classList.toggle('custom', custom());
   $('pickBtn').title = `Left chart: ${ACTIVE.map(tk).join(', ')}`;
@@ -751,7 +742,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
     setActive(savedSelection());
     [archiveDays, hlFrom] = await Promise.all([archiveIndex(), hlEarliest()]);
     const days = listDays();
-    $('daySel').innerHTML = days.map(k => `<option value="${k}">${k}${k === dayKey(Date.now()) ? ' (today)' : ''}</option>`).join('');
+    dayList = days;
     buildPicker(); buildControls();
     panels.left = new Panel('left'); panels.right = new Panel('right');
     await openDay(days[0]);  // today (owner 24/10/2026), updating every minute
