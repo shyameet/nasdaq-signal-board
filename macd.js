@@ -126,7 +126,7 @@ class Bands {  // colored bands behind a chart's series, one per run of candles:
   }
 }
 
-class DayLines {  // a solid line where a new day begins in the viewer's timezone, with its date in a chip along the top
+class DayLines {  // a dashed line where a new day begins in the viewer's timezone, with its date in a chip along the top
   constructor(chart, bars, labelTop) {  // labelTop: where the date goes (px from the top); null for no date
     this.chart = chart; this.bars = bars; this.top = labelTop; this.lines = [];
     this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: t => this.render(t) }) }];
@@ -153,8 +153,9 @@ class DayLines {  // a solid line where a new day begins in the viewer's timezon
   render(target) {
     target.useBitmapCoordinateSpace(({ context: c, bitmapSize: size, horizontalPixelRatio: hr, verticalPixelRatio: vr }) => {
       c.save();
-      // a solid, brighter line (owner 24/10/2026: the small dashed one was hard to see)
-      c.strokeStyle = 'rgba(214, 224, 238, 0.55)'; c.lineWidth = Math.max(2, Math.round(2 * hr));
+      // dashed, but brighter, thicker and with longer dashes than before (owner 24/10/2026)
+      c.strokeStyle = 'rgba(214, 224, 238, 0.6)'; c.lineWidth = Math.max(2, Math.round(1.5 * hr));
+      c.setLineDash([Math.round(7 * vr), Math.round(5 * vr)]);
       for (const [x] of this.lines) {
         const px = Math.round(x * hr) + 0.5;
         if (px < 0 || px > size.width) continue;
