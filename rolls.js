@@ -21,7 +21,13 @@
                        return m ? m[1] : n && +n[1] >= 1 && +n[1] <= 12 ? MON[+n[1] - 1] : s; };
   const dateOf = k => { const d = new Date(k + 'T00:00:00Z'); return `${WKD[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}`; };
   const iso = ms => new Date(ms).toISOString().slice(0, 10);
-  const weekdayBefore = k => { let t = Date.parse(k + 'T00:00:00Z') - 86400000; while ([0, 6].includes(new Date(t).getUTCDay())) t -= 86400000; return iso(t); };
+  // trade dates on which CME Globex is shut for these markets (the VPS job's CME_CLOSED; add next year's in December)
+  const CLOSED = new Set(['2026-12-25', '2027-01-01', '2027-03-26', '2027-12-24']);
+  const weekdayBefore = k => {  // the trading day before k
+    let t = Date.parse(k + 'T00:00:00Z') - 86400000;
+    while ([0, 6].includes(new Date(t).getUTCDay()) || CLOSED.has(iso(t))) t -= 86400000;
+    return iso(t);
+  };
   const r6 = v => Math.round(v * 1e6) / 1e6;  // no 2.6550000000000002
 
   async function load() {

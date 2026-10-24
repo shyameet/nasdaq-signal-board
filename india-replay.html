@@ -474,9 +474,11 @@ class Panel {
     this.charts = all;
     for (const self of all) self.chart.chartElement().addEventListener('pointerdown', () => { pressedChart = self.chart; }, true);
     for (const self of all) self.chart.subscribeCrosshairMove(p => {
-      // a mouse's moves carry their event; a finger's (iPad) may not, so the chart last pressed counts too. The positions
-      // set on the other charts below fire no move of their own
-      if (!p.sourceEvent && self.chart !== pressedChart) return;
+      // a mouse's moves carry their event; a finger's (iPad) may not, so the chart last pressed or moved over counts too
+      // (the chart's own re-checks, after a zoom or new data, come without one). The positions set on the other charts
+      // below fire no move of their own
+      if (p.sourceEvent) pressedChart = self.chart;
+      else if (self.chart !== pressedChart) return;
       const t = p.time;
       for (const o of all) if (o !== self) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
       hoverAll(this, t);
@@ -875,14 +877,15 @@ async function loadOlder() {  // add older days to the strip, keeping what you a
   olderBusy = true;
   $('older').hidden = false;
   try {
-    const v = viewOf(lead());
     if (!await buildDay(day.key, day.shown + MORE_DAYS, true)) return;  // a day was picked meanwhile: it is drawn instead
+    // the view now, the old candles still drawn (read after the load, as you may have scrolled on meanwhile), from the
+    // chart you are moving; then every chart is set to it directly (a range set is applied a frame late, so one chart
+    // followed by the others would pass on its old range)
+    const src = driver && driver.mainBars.length ? driver : lead(), v = viewOf(src);
     render(false);
-    if (v && lead().mainBars.length) {
-      const l = lead();
+    if (v) {
       syncing = true;
-      try { l.main.timeScale().setVisibleLogicalRange(rangeAt(l, v)); } finally { syncing = false; }
-      follow();
+      try { for (const q of ORDER()) if (q.mainBars.length) q.main.timeScale().setVisibleLogicalRange(rangeAt(q, v)); } finally { syncing = false; }
     }
   } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
 }

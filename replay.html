@@ -511,9 +511,11 @@ class Panel {
     this.charts = all;
     for (const self of all) self.chart.chartElement().addEventListener('pointerdown', () => { pressedChart = self.chart; }, true);
     for (const self of all) self.chart.subscribeCrosshairMove(p => {
-      // a mouse's moves carry their event; a finger's (iPad) may not, so the chart last pressed counts too. The positions
-      // set on the other charts below fire no move of their own
-      if (!p.sourceEvent && self.chart !== pressedChart) return;
+      // a mouse's moves carry their event; a finger's (iPad) may not, so the chart last pressed or moved over counts too
+      // (the chart's own re-checks, after a zoom or new data, come without one). The positions set on the other charts
+      // below fire no move of their own
+      if (p.sourceEvent) pressedChart = self.chart;
+      else if (self.chart !== pressedChart) return;
       const t = p.time;
       for (const o of all) if (o !== self) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
       hoverAll(this, t);
@@ -703,11 +705,12 @@ async function loadOlder() {  // add older days to the strip, keeping what you a
   olderBusy = true;
   $('older').hidden = false;
   try {
+    if (!await buildDay(day.key, day.shown + MORE_DAYS, true)) return;  // a day picked meanwhile: its build stands
+    // what each chart shows now, the old candles still drawn: read after the load, as you may have scrolled on meanwhile
     const keep = Object.values(panels).filter(q => q.mainBars.length).map(q => {
       const r = q.main.timeScale().getVisibleLogicalRange();
       return [q, r ? [timeAt(q.mainBars, r.from), timeAt(q.mainBars, r.to)] : null];
     });
-    if (!await buildDay(day.key, day.shown + MORE_DAYS, true)) return;  // a day picked meanwhile: its build stands
     render(false);
     syncing = true;
     try { for (const [q, span] of keep) if (span && q.mainBars.length) q.main.timeScale().setVisibleLogicalRange({ from: indexAt(q.mainBars, span[0]), to: indexAt(q.mainBars, span[1]) }); }
@@ -729,8 +732,9 @@ async function refreshToday() {
       if (NsbCme.prev(today) === was) {  // you were on today: follow it, with the minutes since the last refresh
         await topUp(filesOf([today]));  // (failing, or a pick meanwhile: again next minute)
         if (day.key !== was || opening) return;
-        dayList = list;
-        await openDay(today);
+        const old = dayList;
+        dayList = list;  // (buildDay reads it)
+        if (await openDay(today) === false) dayList = old;  // not loaded: this branch runs again next minute
         return;
       }
       dayList = list;

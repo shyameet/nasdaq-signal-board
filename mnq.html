@@ -16,7 +16,7 @@
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="rolls.js?v=1"></script>
+<script src="rolls.js?v=2"></script>
 <script src="macd.js?v=8"></script>
 <script src="engine.js?v=10"></script>
 <script src="daypick.js?v=3"></script>
@@ -560,6 +560,7 @@ class Panel {
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.waveAt(i),
     });
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
+    for (const ev of ['pointerdown', 'wheel', 'touchstart']) $(key).addEventListener(ev, () => { driver = this; }, { capture: true, passive: true });
     this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
       for (const p of Object.values(this.macd)) p.sync(r);
       syncOther(this);
@@ -571,9 +572,11 @@ class Panel {
     this.charts = all;
     for (const self of all) self.chart.chartElement().addEventListener('pointerdown', () => { pressedChart = self.chart; }, true);
     for (const self of all) self.chart.subscribeCrosshairMove(p => {
-      // a mouse's moves carry their event; a finger's (iPad) may not, so the chart last pressed counts too. The positions
-      // set on the other charts below fire no move of their own
-      if (!p.sourceEvent && self.chart !== pressedChart) return;
+      // a mouse's moves carry their event; a finger's (iPad) may not, so the chart last pressed or moved over counts too
+      // (the chart's own re-checks, after a zoom or new data, come without one). The positions set on the other charts
+      // below fire no move of their own
+      if (p.sourceEvent) pressedChart = self.chart;
+      else if (self.chart !== pressedChart) return;
       const t = p.time;
       for (const o of all) if (o !== self) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
       hoverAll(this, t);
@@ -703,8 +706,12 @@ function indexAt(bars, t) {  // the reverse
 // The two charts line up on the time at their right edge and show as many candles each, so a zoom zooms both alike.
 // Not the same stretch of time: the stocks trade round the clock and MNQ not at weekends, so a stretch holding a weekend
 // held two days of stock candles and next to no MNQ ones, and MNQ zoomed in to a few candles (owner 24/10/2026, on the India page).
-function syncOther(src) {  // the other chart ends at the time src ends, with as many candles (empty space past the day's ends included)
-  if (syncing) return;
+// Only the chart you are moving (pressed, scrolled or zoomed last: `driver`) passes its moves on, as on the India page. The
+// charts apply a range a frame late, so the other chart's answer came back after `syncing` ended; where LWC had kept that
+// chart's last candles on screen (MNQ at a weekend) its answer differed and pulled the chart being zoomed back.
+let driver = null;
+function syncOther(src, force = false) {  // the other chart ends at the time src ends, with as many candles (empty space past the day's ends included)
+  if (syncing || (!force && src !== driver)) return;
   const other = panels[src.key === 'left' ? 'right' : 'left'];
   if (!other || !src.mainBars.length || !other.mainBars.length) return;
   const r = src.main.timeScale().getVisibleLogicalRange();
@@ -731,9 +738,10 @@ function fitAll() {  // both charts on the picked day; one with no candle on it 
   syncing = true;
   let fitted = [];
   try { fitted = Object.values(panels).filter(p => p.fit()); } finally { syncing = false; }
-  if (fitted.length === 1) syncOther(fitted[0]);
+  if (fitted.length) syncOther(fitted.length === 1 ? fitted[0] : panels.left, true);  // both fitted: MNQ lines up with the stocks
 }
 function render(full) {
+  if (full) driver = null;  // a new day or candle size: nobody's move to pass on
   syncing = true;  // both charts are redrawn: no syncing back and forth meanwhile
   try { for (const p of Object.values(panels)) p.draw(full); } finally { syncing = false; }
   if (full) {  // and again once the charts have their final size (a chart sized later keeps its bar spacing)
@@ -783,11 +791,12 @@ async function loadOlder() {  // add older days to the strip, keeping what you a
   olderBusy = true;
   $('older').hidden = false;
   try {
+    if (!await buildDay(day.key, day.shown + MORE_DAYS, true)) return;  // a day picked meanwhile: its build stands
+    // what each chart shows now, the old candles still drawn: read after the load, as you may have scrolled on meanwhile
     const keep = Object.values(panels).filter(q => q.mainBars.length).map(q => {
       const r = q.main.timeScale().getVisibleLogicalRange();
       return [q, r ? [timeAt(q.mainBars, r.from), timeAt(q.mainBars, r.to)] : null];
     });
-    if (!await buildDay(day.key, day.shown + MORE_DAYS, true)) return;  // a day picked meanwhile: its build stands
     render(false);
     syncing = true;
     try { for (const [q, span] of keep) if (span && q.mainBars.length) q.main.timeScale().setVisibleLogicalRange({ from: indexAt(q.mainBars, span[0]), to: indexAt(q.mainBars, span[1]) }); }
@@ -809,8 +818,9 @@ async function refreshToday() {
       if (NsbCme.prev(today) === was) {  // you were on today: follow it, with the minutes since the last refresh
         await topUp(filesOf([today]), ACTIVE);  // (failing, or a pick meanwhile: again next minute)
         if (day.key !== was || opening) return;
-        dayList = list;
-        await openDay(today);
+        const old = dayList;
+        dayList = list;  // (buildDay reads it)
+        if (await openDay(today) === false) dayList = old;  // not loaded: this branch runs again next minute
         return;
       }
       dayList = list;
