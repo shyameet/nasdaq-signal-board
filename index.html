@@ -29,10 +29,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="daypick.js?v=2"></script>
-<script src="draw.js?v=2"></script>
+<script src="draw.js?v=3"></script>
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
-<script src="macd.js?v=6"></script>
+<script src="macd.js?v=7"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
   .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
@@ -258,7 +258,7 @@
 <body>
 <header class="topbar">
   <a class="brand" href="./" title="Indra Quant Signal Board · live from Hyperliquid"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
-  <nav class="tabs" aria-label="Pages"><a href="./" aria-current="page">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html">Replay</a><a href="mnq.html">MNQ</a><a href="india-replay.html">India Replay</a><a href="commodities.html">Commodities</a></nav>
+  <nav class="tabs" aria-label="Pages"><a href="./" aria-current="page">Signals</a><a href="replay.html">Replay</a><a href="mnq.html">MNQ</a><a href="india-replay.html">India Replay</a><a href="commodities.html">Commodities</a></nav>
   <div class="quote"><span class="sym" id="sym">NDX10</span><span class="px num" id="px">—</span><span class="chg num" id="pxchg"></span></div>
   <div class="session" id="session" title="US stock market session (New York time; holidays not shown)"></div>
   <div class="spacer"></div>
@@ -294,7 +294,7 @@
       </table>
       <p>It shades the chart and the MACD panes, and sets the alerts. The header shows the gate and its four conditions. MACD is 12/26/9.</p>
       <h3>Your stocks</h3>
-      <p>The chart is your own composite of the stocks you pick (<b>Stocks</b> button, top right; the 10 largest Nasdaq-100 stocks that trade on Hyperliquid by default, plus AVGO, TSM and INTC; any 1 to 13 of them). Each stock you pick counts equally, so the composite is 1000 at the basket's reference close and each minute's close is 1000 times the average of the stocks' moves since then. The gate is LONG only when every stock you pick is LONG on its own candles, SHORT only when every one is SHORT, and NO TRADE otherwise; the rule tiles show the composite's own values. Each minute's open is the previous minute's close and its high and low the larger and smaller of the two (live candles also catch the highs and lows in between), so older candles have shorter wicks than live ones. Volume is the stocks' combined dollar volume. The pick is shared with the Divergence page and kept in this browser.</p>
+      <p>The chart is your own composite of the stocks you pick (<b>Stocks</b> button, top right; the 10 largest Nasdaq-100 stocks that trade on Hyperliquid by default, plus AVGO, TSM and INTC; any 1 to 13 of them). Each stock you pick counts equally, so the composite is 1000 at the basket's reference close and each minute's close is 1000 times the average of the stocks' moves since then. The gate is LONG only when every stock you pick is LONG on its own candles, SHORT only when every one is SHORT, and NO TRADE otherwise; the rule tiles show the composite's own values. Each minute's open is the previous minute's close and its high and low the larger and smaller of the two (live candles also catch the highs and lows in between), so older candles have shorter wicks than live ones. Volume is the stocks' combined dollar volume. The pick is shared with the other pages and kept in this browser.</p>
       <p>Under the price chart are two MACD panes (12/26/9). <b>Entry</b>: <b style="color:#fb7185">2m</b> and <b style="color:#22d3ee">3m</b>, for timing; they are not part of the gate. <b>Trend</b>: <b style="color:#38bdf8">5m</b>, <b style="color:#2dd4bf">9m</b> and <b style="color:#a3e635">11m</b>, the gate's three MACD rules, plus <b style="color:#c084fc">7m</b> and <b style="color:#f472b6">15m</b>; each with its signal line, dashed in the same color (the "signals" switch hides them all). Each wave has two colors of its own, one while its MACD is above 0 and another while below, so its color changes where it crosses zero; the chips in a pane's label show each wave's pair (left: above 0, right: below). Each line shows its value as of every candle's close, so a longer MACD steps along on shorter candles. Click a name in a pane's label to switch that line off or on; the choice is remembered in this browser, on both pages. The price chart and both panes are coloured by the Trend waves you switch on: green where every one of them is above 0, red where every one is below (no colour with all of them off); the gate itself is the word in the header. Dashed vertical lines mark where a new day begins in your timezone.</p>
       <h3>The charts</h3>
       <p>Zones: green while the gate is LONG (labeled ▲ LONG), red while it is SHORT, no color for NO TRADE. The zone is the gate, not the candle: a red candle can sit in a green zone. The forming candle shows the gate live. The amber and blue lines are your stocks' 3m EMA 21 and EMA 47 that the gate tests, as of each candle's close. Times are in your timezone.</p>
@@ -321,7 +321,7 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 const CFG = {
   ndx10: { name: 'NDX10', eyebrow: 'Your stocks, combined', panes: NsbMacd.LINES, digits: 2, macdDigits: 3, rows: '60fr 15fr 25fr' },
 };
-// The MACD panes (Trend and Entry), their switches and shading, and the day separators: macd.js, shared with Divergence
+// The MACD panes (Trend and Entry), their switches and shading, and the day separators: macd.js, shared with the other pages
 const { MacdPane, DayLines } = NsbMacd, MACD_KINDS = ['entry', 'trend'];  // top to bottom under the chart
 const RULES = [  // [engine key, rule text, candle size]: the gate's four conditions, shortest candle first
   ['3m EMA21 vs EMA47', 'EMA 21 › EMA 47', 3],

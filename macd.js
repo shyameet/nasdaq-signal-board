@@ -126,9 +126,12 @@ class Bands {  // colored bands behind a chart's series, one per run of candles:
   }
 }
 
-class DayLines {  // a dashed line where a new day begins in the viewer's timezone, with its date along the top
-  constructor(chart, bars, labelTop) {  // labelTop: where the date goes (px from the top); null for no date
-    this.chart = chart; this.bars = bars; this.top = labelTop; this.lines = [];
+class DayLines {  // a dashed line where a new day begins, with its date along the top
+  // labelTop: where the date goes (px from the top), null for no date. origin: the market's session open (ms after
+  // 00:00 UTC): its day begins there (owner 24/10/2026: a market's new day starts at its open, not at midnight);
+  // 0 or none: at midnight in the viewer's timezone (24-hour markets)
+  constructor(chart, bars, labelTop, origin) {
+    this.chart = chart; this.bars = bars; this.top = labelTop; this.origin = origin || 0; this.lines = [];
     this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: t => this.render(t) }) }];
   }
   attached({ requestUpdate }) { this.requestUpdate = requestUpdate; }
@@ -138,7 +141,8 @@ class DayLines {  // a dashed line where a new day begins in the viewer's timezo
     const bars = this.bars(), ts = this.chart().timeScale(), out = [];
     const x0 = bars.length > 1 ? ts.logicalToCoordinate(0) : null, x1 = bars.length > 1 ? ts.logicalToCoordinate(1) : null;
     if (x0 !== null && x1 !== null) {
-      const step = x1 - x0, day = t => { const d = new Date(t); return d.getFullYear() * 512 + d.getMonth() * 32 + d.getDate(); };
+      const step = x1 - x0, o = this.origin;
+      const day = o ? t => Math.floor((t - o) / 86400000) : t => { const d = new Date(t); return d.getFullYear() * 512 + d.getMonth() * 32 + d.getDate(); };
       let prev = day(bars[0].time);
       for (let i = 1; i < bars.length; i++) {
         const k = day(bars[i].time);
@@ -209,7 +213,7 @@ class MacdPane {
       return MATCH[matchAt(a[i], b[i], this.lines)] || null;
     });
     this.zero.attachPrimitive(this.shading);
-    this.zero.attachPrimitive(new DayLines(() => chart, this.bars, null));
+    this.zero.attachPrimitive(new DayLines(() => chart, this.bars, null, this.origin));
     this.tagEl.addEventListener('pointerdown', e => {  // the label's names are switches
       const b = e.target.closest('[data-k]');
       if (b) { e.preventDefault(); e.stopPropagation(); toggle(b.dataset.k); }

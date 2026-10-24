@@ -16,7 +16,7 @@
   const copy = v => JSON.parse(JSON.stringify(v));
   const charts = [];
   const S = { key: null, when: ms => new Date(ms).toLocaleString(), tool: null, items: [], sel: null, hover: null,
-              temp: null, tempChart: null, measure: null, gesture: null, press: false, pan: null, undo: [] };
+              temp: null, tempChart: null, gesture: null, press: false, pan: null, undo: [] };
 
   // ---- time <-> candle position, and the price of a chart at a time ----
   function indexAt(bars, tf, t) {  // fractional candle position of time t (extrapolated past either end)
@@ -76,7 +76,9 @@
     for (const d of [sel, ...S.items.slice().reverse()]) {
       const s = d && shape(c, m, d);
       if (!s) continue;
-      if (d.type === 'hline' ? Math.abs(s.y - y) <= 5 : Math.abs(s.x - x) <= 5) return d;
+      if (d.type === 'measure') {  // anywhere on its box
+        if (x >= Math.min(s.x1, s.x2) - 4 && x <= Math.max(s.x1, s.x2) + 4 && y >= Math.min(s.y1, s.y2) - 4 && y <= Math.max(s.y1, s.y2) + 4) return d;
+      } else if (d.type === 'hline' ? Math.abs(s.y - y) <= 5 : Math.abs(s.x - x) <= 5) return d;
     }
     return null;
   }
@@ -103,7 +105,7 @@
       else {
         const m = map(this.c), d = m && hit(this.c, m, x, y), id = d ? d.id : null;
         if (id !== S.hover) { S.hover = id; queueMicrotask(redraw); }
-        if (d) cursor = d.type === 'hline' ? 'ns-resize' : 'ew-resize';
+        if (d) cursor = d.type === 'hline' ? 'ns-resize' : d.type === 'vline' ? 'ew-resize' : 'grab';
       }
       return cursor && { cursorStyle: cursor, externalId: 'drawing', zOrder: 'top' };
     }
@@ -115,7 +117,6 @@
       const timeTag = t => times.push(axisTag(m.x(t), S.when(t)));
       const all = S.items.map(d => ({ d, sel: d.id === S.sel, hover: d.id === S.hover }));
       if (S.temp) all.push({ d: S.temp });
-      if (S.measure) all.push({ d: S.measure });
       for (const it of all) {
         if (c.pane && it.d.type !== 'vline') continue;  // a pane under a chart shows its vertical lines only
         const s = shape(c, m, it.d), d = it.d;
@@ -123,7 +124,7 @@
         shapes.push({ ...it, s });
         if (d.type === 'hline') priceTag(priceOn(c, d.a, d.src));
         else if (d.type === 'vline') { if (!c.pane) timeTag(d.a.t); }
-        else { priceTag(priceOn(c, d.a, d.src)); priceTag(priceOn(c, d.b, d.src)); timeTag(d.a.t); timeTag(d.b.t); }
+        else if (it.sel || it.hover || d === S.temp) { priceTag(priceOn(c, d.a, d.src)); priceTag(priceOn(c, d.b, d.src)); timeTag(d.a.t); timeTag(d.b.t); }
       }
     }
     render(target) {
@@ -164,6 +165,7 @@
             const tagBg = up ? INK_TAG : '#c23b47';  // darker, so the white text reads
             const l = Math.min(s.x1, s.x2), r = Math.max(s.x1, s.x2), t = Math.min(s.y1, s.y2), b = Math.max(s.y1, s.y2);
             g.fillStyle = up ? 'rgba(167, 139, 250, 0.16)' : 'rgba(240, 85, 95, 0.16)'; g.fillRect(X(l), Y(t), X(r - l), Y(b - t));
+            if (bold) { g.strokeStyle = col; g.lineWidth = px(1); g.strokeRect(X(l), Y(t), X(r - l), Y(b - t)); }  // selected: its outline
             g.strokeStyle = col; g.lineWidth = px(1.5);
             arrow((s.x1 + s.x2) / 2, s.y1, (s.x1 + s.x2) / 2, s.y2); arrow(s.x1, (s.y1 + s.y2) / 2, s.x2, (s.y1 + s.y2) / 2);
             const n = Math.round(Math.abs(indexAt(m.bars, m.tf, d.b.t) - indexAt(m.bars, m.tf, d.a.t)));
@@ -189,10 +191,11 @@
   function save() { try { localStorage.setItem(S.key, JSON.stringify(S.items)); } catch (e) {} show(); }
   function remember(state = JSON.stringify(S.items)) { S.undo.push(state); if (S.undo.length > 100) S.undo.shift(); }
   function load() {
-    S.items = []; S.sel = null; S.hover = null; S.temp = null; S.measure = null; S.undo = [];
+    S.items = []; S.sel = null; S.hover = null; S.temp = null; S.undo = [];
     try {
       const saved = JSON.parse(localStorage.getItem(S.key) || '[]');
-      if (Array.isArray(saved)) S.items = saved.filter(d => d && d.a && ok(d.a.t) && (d.type === 'vline' || (d.type === 'hline' && ok(d.a.p) && ok(d.a.r))));
+      if (Array.isArray(saved)) S.items = saved.filter(d => d && d.a && ok(d.a.t) && (d.type === 'vline' || (d.type === 'hline' && ok(d.a.p) && ok(d.a.r))
+        || (d.type === 'measure' && ok(d.a.p) && ok(d.a.r) && d.b && ok(d.b.t) && ok(d.b.p) && ok(d.b.r))));
     } catch (e) {}
   }
   function setTool(tool) {
@@ -207,7 +210,6 @@
     const m = map(c), [x, y] = local(c, e);
     if (!m || x < 0 || y < 0 || x > m.w || y > m.h) return;  // the price and time axes keep their drag-to-scale
     if (S.temp) { finish(S.tempChart === c ? at(c, m, x, y) : null); S.press = true; return; }  // the second click
-    if (S.measure) { S.measure = null; redraw(); }
     const tool = !S.tool && e.shiftKey ? 'measure' : S.tool;  // Shift+drag: a quick measure
     const start = { c, x0: e.clientX, y0: e.clientY, moved: false };
     if (!tool) {
@@ -237,6 +239,11 @@
     if (d.type === 'vline') {
       const di = Math.round(m.index(x) - g.from.i);
       d.a = { ...o.a, t: timeAt(m.bars, m.tf, Math.round(indexAt(m.bars, m.tf, o.a.t)) + di) };
+    } else if (d.type === 'measure') {  // the whole box: by whole candles and by the price moved on this chart
+      const di = Math.round(m.index(x) - g.from.i), dp = m.price(y) - g.from.p;
+      const mv = q => { const was = priceOn(c, q, o.src); return ok(was) && ok(dp) ? point(c, timeAt(m.bars, m.tf, Math.round(indexAt(m.bars, m.tf, q.t)) + di), was + dp) : null; };
+      const a = mv(o.a), b = mv(o.b);
+      if (a && b) { d.src = c.id; d.a = a; d.b = b; }
     } else {
       const was = priceOn(c, o.a, o.src), dp = m.price(y) - g.from.p;
       if (!ok(was) || !ok(dp)) return;
@@ -277,7 +284,12 @@
     S.temp = null; S.tempChart = null;
     if (!t) return;
     if (pt) t.b = pt;
-    S.measure = t;  // shown until the next click or Esc
+    if (t.a.t !== t.b.t || t.a.p !== t.b.p) {  // it stays, like the lines (owner 24/10): select it and Delete to remove
+      remember();
+      const item = { id: uid(), ...t };
+      S.items.push(item); S.sel = item.id;
+      save();
+    }
     setTool(null);
   }
   function del() {
@@ -349,8 +361,8 @@
       btn('', ICON.hline, 'Horizontal line: click a price', 'data-tool="hline"') +
       btn('', ICON.measure, 'Measure price, % and time: drag, or click two points (Shift+drag measures anytime)', 'data-tool="measure"') +
       '<span class="dr-sep" aria-hidden="true"></span>' +
-      btn('dr-del', ICON.del, 'Delete the selected line (Del)') +
-      btn('dr-clear', ICON.clear, 'Remove all lines (Ctrl+Z brings them back)') +
+      btn('dr-del', ICON.del, 'Delete the selected drawing (Del)') +
+      btn('dr-clear', ICON.clear, 'Remove all drawings (Ctrl+Z brings them back)') +
       '<span class="dr-grow"></span>' +
       btn('dr-fold', ICON.fold, 'Hide the drawing tools');
     wrap.append(rail, main);
@@ -379,7 +391,7 @@
     if (e.key === 'Escape') {
       const g = S.gesture;
       if (g && g.kind === 'drag') S.items = JSON.parse(g.before);  // put a half-dragged line back
-      S.gesture = null; S.press = false; S.measure = null; S.sel = null;
+      S.gesture = null; S.press = false; S.sel = null;
       setTool(null);
     } else if ((e.key === 'Delete' || e.key === 'Backspace') && S.sel && !S.gesture) {
       e.preventDefault(); del();

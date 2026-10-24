@@ -15,10 +15,10 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
-<script src="macd.js?v=6"></script>
+<script src="macd.js?v=7"></script>
 <script src="engine.js?v=071c0c2a3d"></script>
 <script src="daypick.js?v=2"></script>
-<script src="draw.js?v=2"></script>
+<script src="draw.js?v=3"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
   /* the candle size: one dropdown (owner 24/10/2026) */
@@ -189,7 +189,7 @@
 <body>
 <header class="topbar">
   <a class="brand" href="./" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
-  <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="divergence.html">Divergence</a><a href="replay.html">Replay</a><a href="mnq.html" aria-current="page">MNQ</a><a href="india-replay.html">India Replay</a><a href="commodities.html">Commodities</a></nav>
+  <nav class="tabs" aria-label="Pages"><a href="./">Signals</a><a href="replay.html">Replay</a><a href="mnq.html" aria-current="page">MNQ</a><a href="india-replay.html">India Replay</a><a href="commodities.html">Commodities</a></nav>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
   <div class="grp"><span class="badge" id="badge" title="Right now">LOADING</span>
@@ -209,7 +209,7 @@
     <summary title="How it works">?</summary>
     <div class="how-body">
       <h3>What you see</h3>
-      <p>Left: your stocks' composite from Hyperliquid (Stocks button; the same pick as the other pages, each stock counting equally, its gate LONG or SHORT only when every picked stock agrees). Right: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS). Both get the same gate, EMAs and Entry/Trend MACD panes. The price charts are tinted where the two gates disagree, as on the Divergence page: <b style="color:#ff8a3d">MNQ alone</b> (MNQ's gate is LONG, your stocks' isn't), <b style="color:#2bb68a">Stocks first</b> (your stocks' gate is LONG, MNQ's not yet), and grey for any other difference; an arrow marks where an MNQ-alone or stocks-first stretch begins. The badge in the top bar says where they stand right now. MNQ's bars start at its session open (17:00 Chicago), as on TradingView.</p>
+      <p>Left: your stocks' composite from Hyperliquid (Stocks button; the same pick as the other pages, each stock counting equally, its gate LONG or SHORT only when every picked stock agrees). Right: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS). Both get the same gate, EMAs and Entry/Trend MACD panes. The price charts are tinted where the two gates disagree: <b style="color:#ff8a3d">MNQ alone</b> (MNQ's gate is LONG, your stocks' isn't), <b style="color:#2bb68a">Stocks first</b> (your stocks' gate is LONG, MNQ's not yet), and grey for any other difference; an arrow marks where an MNQ-alone or stocks-first stretch begins. The badge in the top bar says where they stand right now. MNQ's bars start at its session open (17:00 Chicago), as on TradingView.</p>
       <h3>The gate</h3>
       <p>LONG when the 5m, 9m and 11m MACD are all above 0 and the 3m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
       <h3>Days</h3>
@@ -495,7 +495,7 @@ class Panel {
     this.e21 = emaLine(C.ema21); this.e47 = emaLine(C.ema47);
     this.zones = new Bands(() => this.main, () => this.mainBars.length, i => (PATTERN[this.kinds[i]] || {}).band || null);  // where the gates disagree
     this.candles.attachPrimitive(this.zones);
-    this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30));  // where each day begins, with its date
+    this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30, origin));  // where each day begins, with its date (at the market's open)
     this.drawing = NsbDraw.add({ id: key, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
                   tf: () => opt.tf, fmt: v => num(v, day && day[key] ? day[key].digits : 2) });
     this.macd = {};
