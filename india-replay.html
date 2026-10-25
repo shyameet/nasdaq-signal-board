@@ -16,8 +16,8 @@
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=8"></script>
-<script src="engine.js?v=10"></script>
+<script src="macd.js?v=9"></script>
+<script src="engine.js?v=11"></script>
 <script src="daypick.js?v=3"></script>
 <script src="draw.js?v=4"></script>
 <style>
@@ -457,6 +457,8 @@ class Panel {
     this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
     this.candles.attachPrimitive(this.zones);
     this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30, this.origin));  // where each day begins, with its date (at the market's open)
+    this.candles.attachPrimitive(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];  // time left in the newest candle (as on TradingView)
+      return b && { close: b.close, end: bucketEnd(b.time, opt.tf, this.origin), up: b.close >= b.open }; }));
     this.drawing = NsbDraw.add({ id: market, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
                                  tf: () => opt.tf, fmt: v => num(v, MARKETS[market].digits), active: () => this.mode !== 'tile' });
     this.macd = {};

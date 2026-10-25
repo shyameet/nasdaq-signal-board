@@ -311,5 +311,28 @@ css.textContent = `
 `;
 document.head.appendChild(css);
 
-window.NsbMacd = { PANES, LINES, COLOR, MacdPane, DayLines, Bands, show, toggle, onToggle: fn => listeners.push(fn), points, matchAt, trendState };
+// How long until the newest candle closes, just under its price on the price scale, as on TradingView (owner
+// 25/10/2026). last(): { close, end (when the candle closes, ms), up } of the newest candle; nothing shows once it has
+// closed (a market that is shut).
+const counters = new Set();
+setInterval(() => { for (const c of counters) if (c.requestUpdate) c.requestUpdate(); }, 1000);
+class Countdown {
+  constructor(series, last) { this.series = series; this.last = last; this.views = []; }
+  attached({ requestUpdate }) { this.requestUpdate = requestUpdate; counters.add(this); }
+  detached() { this.requestUpdate = null; counters.delete(this); }
+  paneViews() { return []; }
+  priceAxisViews() { return this.views; }
+  updateAllViews() {
+    const k = this.last(), now = Date.now();
+    this.views = [];
+    if (!k || !(k.end > now)) return;
+    const y = this.series.priceToCoordinate(k.close);
+    if (y === null) return;
+    const s = Math.ceil((k.end - now) / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), two = v => String(v).padStart(2, '0');
+    const text = h ? `${h}:${two(m)}:${two(s % 60)}` : `${two(m)}:${two(s % 60)}`, bg = k.up ? '#2bb68a' : '#f0555f';
+    this.views = [{ coordinate: () => y + 17, text: () => text, textColor: () => '#ffffff', backColor: () => bg, visible: () => true, tickVisible: () => false }];
+  }
+}
+
+window.NsbMacd = { PANES, LINES, COLOR, MacdPane, DayLines, Bands, Countdown, show, toggle, onToggle: fn => listeners.push(fn), points, matchAt, trendState };
 })();

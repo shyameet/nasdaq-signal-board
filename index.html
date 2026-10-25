@@ -33,7 +33,7 @@
 <script src="lightweight-charts.js"></script>
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=8"></script>
+<script src="macd.js?v=9"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
   .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
@@ -286,7 +286,7 @@
     <summary>How it works</summary>
     <div class="how-body">
       <h3>The gate</h3>
-      <p>The gate runs on your stocks' composite, checked every second on the bars still forming:</p>
+      <p>The gate runs on your stocks' composite and changes only when a minute closes (the price moves live in between):</p>
       <table>
         <tr><th>Gate</th><th>Condition</th></tr>
         <tr><td><b class="up">LONG</b></td><td>5m, 9m and 11m MACD all above 0, and the 3m EMA 21 above the EMA 47</td></tr>
@@ -302,7 +302,7 @@
       <h3>Drawing tools</h3>
       <p>The sidebar on the left draws on the price chart: vertical line, horizontal line and measure (drag from one point to the other, or click one and then the other). Click a line to select it, drag it to move it, and press Delete to remove it. Esc cancels, Ctrl+Z undoes, and Shift+drag measures without picking the tool. The arrow at the bottom of the sidebar hides it. Drawings are saved in this browser.</p>
       <h3>Data</h3>
-      <p>Prices stream live from Hyperliquid's public API, around the clock, and the signals are recalculated every second. The page keeps nothing about you; your drawings and settings stay in this browser. For information only, not investment advice. An independent project, not affiliated with Nasdaq, Inc., Hyperliquid or TradingView.</p>
+      <p>Prices stream live from Hyperliquid's public API, around the clock; the gate and its conditions are worked out at each minute's close. The page keeps nothing about you; your drawings and settings stay in this browser. For information only, not investment advice. An independent project, not affiliated with Nasdaq, Inc., Hyperliquid or TradingView.</p>
     </div>
   </details>
   <div class="credit">Not investment advice · Data: Hyperliquid · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></div>
@@ -533,6 +533,8 @@ class Panel {
     this.zones = new ZoneLayer(this, () => this.main, false);  // the Trend waves switched on (no gate words on them)
     this.candles.attachPrimitive(this.zones);
     this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 48, 'cme'));  // over the zones' tint; each trading day from the CME open
+    this.candles.attachPrimitive(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];  // time left in the newest candle (as on TradingView)
+      return b && { close: b.close, end: bucketEnd(b.time, tf), up: b.close >= b.open }; }));
     this.mainEl = $(`${key}-pmain`);
     this.drawing = NsbDraw.add({ id: 'basket', chart: this.main, series: this.candles, el: this.mainEl, bars: () => this.mainBars, tf: () => tf, fmt: v => num(v) });
     allCharts.push({ panel: this, key: 'main', chart: this.main, anchor: this.candles, minutes: () => tf, value: b => b.close });
@@ -1102,7 +1104,7 @@ async function pickSource() {
   const basketLoad = fetch('basket.json', { cache: 'no-cache' }).then(r => r.json());  // at the same time as the engine
   await new Promise((resolve, reject) => {
     const tag = document.createElement('script');
-    tag.src = 'engine.js?v=10'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
+    tag.src = 'engine.js?v=11'; tag.onload = resolve; tag.onerror = () => reject(new Error('engine.js did not load'));
     document.head.appendChild(tag);
   });
   const basketFile = await basketLoad;

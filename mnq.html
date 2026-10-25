@@ -17,8 +17,8 @@
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=2"></script>
-<script src="macd.js?v=8"></script>
-<script src="engine.js?v=10"></script>
+<script src="macd.js?v=9"></script>
+<script src="engine.js?v=11"></script>
 <script src="daypick.js?v=3"></script>
 <script src="draw.js?v=4"></script>
 <style>
@@ -444,6 +444,10 @@ let day = null;  // { key, d0, left, right, note }
 function minutesOf(days, coins) {  // each market's bars over the loaded days, one per minute (no gaps after its first)
   const out = {};
   for (const c of coins) out[c] = contiguous(days.flatMap(d => d.coins[c] || []).sort((a, b) => a.t - b.t));
+  if (days.some(d => !d.complete)) {  // today: a market quiet since its last trade stays at that price up to this minute, as
+    const now = Math.floor(Date.now() / MIN) * MIN;  // on the Stocks page (owner 25/10: the stocks chart had stopped at a quiet stock's last trade)
+    for (const c of coins) { const a = out[c], last = a[a.length - 1]; if (last) for (let t = last.t + MIN; t <= now; t += MIN) a.push(flat(t, last.c)); }
+  }
   return out;
 }
 function composite() {  // the left chart's coefficients: every picked stock counts equally
@@ -552,6 +556,8 @@ class Panel {
     this.zones = new Bands(() => this.main, () => this.mainBars.length, i => (PATTERN[this.kinds[i]] || {}).band || null);  // where the gates disagree
     this.candles.attachPrimitive(this.zones);
     this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30, 'cme'));  // where each trading day begins (the CME open), with its date
+    this.candles.attachPrimitive(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];  // time left in the newest candle (as on TradingView)
+      return b && { close: b.close, end: bucketEnd(b.time, opt.tf, origin), up: b.close >= b.open }; }));
     this.drawing = NsbDraw.add({ id: key, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
                   tf: () => opt.tf, fmt: v => num(v, day && day[key] ? day[key].digits : 2) });
     this.macd = {};
@@ -842,6 +848,82 @@ async function refreshToday() {
   } catch (e) { /* tried again next minute */ } finally { refreshing = false; }
 }
 setInterval(refreshToday, 60000);
+
+// ---- live: Hyperliquid's candle stream (owner 25/10/2026: "real time", the chart was a minute or two behind) -------
+// Each trade moves today's newest candle at once; when a minute closes the day is rebuilt with it straight away (the
+// gate, the waves and the signals are worked out on closed minutes, as before). The minute refresh above stays as
+// the safety net: it fills anything the stream missed.
+let liveWs = null, liveTimer = 0, liveTextAt = 0;
+const thisMinute = () => Math.floor(Date.now() / MIN) * MIN;
+function liveConnect() {
+  const ws = liveWs = new WebSocket('wss://api.hyperliquid.xyz/ws');
+  ws.onopen = () => { for (const coin of LIVE_COINS()) ws.send(JSON.stringify({ method: 'subscribe', subscription: { type: 'candle', coin, interval: '1m' } })); };
+  ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (x) { return; } if (m.channel === 'candle' && m.data) liveCandle(m.data); };
+  ws.onclose = () => { if (liveWs === ws) setTimeout(liveConnect, 3000); };
+  ws.onerror = () => ws.close();
+}
+setInterval(() => { if (liveWs && liveWs.readyState === WebSocket.OPEN) liveWs.send('{"method":"ping"}'); }, 30000);
+function liveCandle(r) {
+  const b = toBar(r), d = dayCache.get(dayKey(b.t));
+  if (!d || d.complete || !Array.isArray(d.coins[r.s])) return;  // a day not loaded (the next build fetches it whole)
+  const a = d.coins[r.s];
+  if (a.length && a[a.length - 1].t === b.t) a[a.length - 1] = b; else if (!a.length || b.t > a[a.length - 1].t) a.push(b); else return;
+  if (!day || day.key !== NsbCme.key(Date.now())) return;  // looking at an older day: nothing on screen moves
+  if (b.t === thisMinute()) liveTick();
+}
+function everyMinute() {  // 1.5 s past each minute (its last trades in): the minute just closed joins the charts
+  clearTimeout(liveTimer);
+  liveTimer = setTimeout(() => { liveRebuild(); everyMinute(); }, MIN - Date.now() % MIN + 1500);
+}
+function lastClose(c, t) {  // a market's latest close at or before minute t, from the loaded days
+  for (const k of [dayKey(t), dayKey(t - DAY)]) {
+    const d = dayCache.get(k), a = d && d.coins[c];
+    if (a) for (let i = a.length - 1; i >= 0; i--) if (a[i].t <= t) return a[i].c;
+  }
+  return null;
+}
+function liveTick() {  // the newest candle of each chart at the latest prices, between rebuilds
+  const T = thisMinute();
+  for (const p of Object.values(panels)) {
+    const bars = p.mainBars, last = bars[bars.length - 1];
+    if (!last || last.time !== bucketStart(T, opt.tf)) continue;  // its newest candle is not the one forming now (a rebuild is due)
+    const one = LIVE_ONE(p, T);  // { c, h, l } of the forming minute on this chart, or null
+    if (!one) continue;
+    last.close = one.c; last.high = Math.max(last.high, one.h); last.low = Math.min(last.low, one.l);
+    p.candles.update({ time: sec(last.time), open: last.open, high: last.high, low: last.low, close: last.close });
+    const s = p.store.get(sec(last.time));
+    if (s) Object.assign(s, { close: last.close, high: last.high, low: last.low });
+  }
+  if (Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }  // the headers' prices, a few times a second
+}
+async function liveRebuild() {  // a minute closed: today again with it, the view kept on the newest candles
+  if (refreshing || olderBusy || opening || !day) return;  // another build is on: it has the minute too
+  const today = NsbCme.key(Date.now()), was = day.key;
+  if (was !== today || !dayList.includes(today)) return;  // a new trading day: the minute refresh moves to it
+  refreshing = true;
+  try {
+    const before = Object.fromEntries(Object.entries(panels).map(([k, q]) => {
+      const r = q.main.timeScale().getVisibleLogicalRange(), n = q.mainBars.length;
+      return [k, { r, n, atEnd: !r || r.to >= n - 2 }];
+    }));
+    if (!await buildDay(today, day.shown, true) || day.key !== was) return;
+    render(false);
+    for (const [k, q] of Object.entries(panels)) {
+      const b = before[k], added = q.mainBars.length - b.n;
+      if (b.r && b.atEnd && added > 0) q.main.timeScale().setVisibleLogicalRange({ from: b.r.from + added, to: b.r.to + added });
+    }
+  } catch (e) { /* the minute refresh tries again */ } finally { refreshing = false; }
+}
+const LIVE_COINS = () => ALL;
+function LIVE_ONE(p, T) {  // MNQ (the right chart) comes from the VPS's stream, not Hyperliquid
+  if (p.key === 'left') {  // the composite: the sum of each picked stock's price times its weight (its candle: open = last close)
+      const coef = composite();
+      let c = 0;
+      for (const [coin, k] of Object.entries(coef)) { const px = lastClose(coin, T); if (!ok(px)) return null; c += k * px; }
+      return { c, h: c, l: c };
+    }
+  return null;
+}
 document.addEventListener('visibilitychange', refreshToday);
 async function openDay(key) {  // the calendar, the stock picker, today's follow: a failed load says why for a moment, the day shown stays
   opening++;
@@ -949,6 +1031,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
     NsbDraw.setup({ key: 'nsb.draw.mnq', when });
     panels.left = new Panel('left'); panels.right = new Panel('right');
     await openDay(days[0]);  // today (owner 24/10/2026), updating every minute
+    liveConnect(); everyMinute();  // and from then on, every trade
   } catch (e) {
     loading(`Couldn't load the replay data (${e.message}). Reload the page to try again.`);
   }

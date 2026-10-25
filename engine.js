@@ -169,7 +169,8 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     }
     for (const m of [...this.extremes.keys()]) if (m < start) this.extremes.delete(m);
     if (this.ready) {  // evaluated before the minute is added: exactly what the live check showed at that moment
-      const own = this.evaluate(close).state;
+      const ev = this.evaluate(close), own = ev.state;
+      this.closedChecks = ev.checks;  // the four conditions as of this close (the live board shows these, owner 25/10)
       this.history.push([start, this.parts ? this.partsState(start) : own]);
       if (this.history.length > KEEP.minutes + 500) this.history.splice(0, 500);
     }
@@ -653,6 +654,11 @@ class Engine {
     this.sections.forEach((s, i) => {
       s.signal.sample(now, values[i]);
       const ev = evs[s.key] = s.signal.evaluate(values[i], now);
+      // the gate and its conditions change only when a minute closes (owner 25/10/2026: "only at candle close"); the
+      // price and the forming bars still move live
+      const h = s.signal.history;
+      ev.state = h.length ? h[h.length - 1][1] : 'NEUTRAL';
+      if (s.signal.closedChecks) ev.checks = s.signal.closedChecks;
       const started = s.tracker.state === null ? s.signal.started(ev.state, now) : null;
       s.tracker.update(ev.state, now, started);
     });
