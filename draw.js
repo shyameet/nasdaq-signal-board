@@ -1,6 +1,6 @@
 // Drawing tools on every chart page (owner 24/10/2026: "few tools like vertical line and horizontal line and measuring
-// tool, that's it", in a sidebar that opens and closes for more space). A drawing made on one chart shows on every price
-// chart of the page, like TradingView's synced layouts: a time copies as it is; a price keeps the same % distance from
+// tool, that's it", in a sidebar that opens and closes for more space). A line drawn on one chart shows on every price
+// chart of the page (a measure stays on its own chart, owner 25/10), like TradingView's synced layouts: a time copies as it is; a price keeps the same % distance from
 // that chart's own price at the drawing's time, because the charts beside each other are different instruments at
 // different prices. Saved in this browser, per page. Also: while the chart is dragged, the crosshair keeps following
 // the mouse (the chart library freezes it during a drag).
@@ -11,6 +11,7 @@
 // active() (false: shows the drawings but can't draw, like the small tiles) }.
 (function () {
   const INK = '#a78bfa', INK_TAG = '#7457d6', DOWN = '#f0555f', BG = '#0a0d12';
+  const MEAS = 'rgba(232, 238, 246, 0.9)', MEAS_FILL = 'rgba(232, 238, 246, 0.09)', MEAS_TAG = '#5c6879';  // the measure: whitish (owner 25/10)
   const ok = v => typeof v === 'number' && isFinite(v);
   const uid = () => Math.random().toString(36).slice(2, 10);
   const copy = v => JSON.parse(JSON.stringify(v));
@@ -59,9 +60,9 @@
              x: t => x0 + indexAt(bars, tf, t) * step, y: v => ok(v) ? c.series.priceToCoordinate(v) : null,
              index: x => (x - x0) / step, price: y => c.series.coordinateToPrice(y) };
   }
-  function at(c, m, x, y) {  // the point under (x, y) on chart c, its time on the nearest candle
-    const p = m.price(y);
-    return ok(p) ? point(c, timeAt(m.bars, m.tf, Math.round(m.index(x))), p) : null;
+  function at(c, m, x, y, smooth) {  // the point under (x, y) on chart c, its time on the nearest candle (smooth: exactly under the mouse)
+    const p = m.price(y), i = m.index(x);
+    return ok(p) ? point(c, timeAt(m.bars, m.tf, smooth ? i : Math.round(i)), p) : null;
   }
   function shape(c, m, d) {  // drawing d on chart c's screen
     if (d.type === 'vline') return { x: m.x(d.a.t) };
@@ -71,20 +72,28 @@
     const y2 = m.y(priceOn(c, d.b, d.src));
     return y2 === null ? null : { x1: m.x(d.a.t), y1, x2: m.x(d.b.t), y2 };
   }
-  function hit(c, m, x, y) {  // the line under (x, y): the selected one first, then the newest
-    const sel = S.items.find(d => d.id === S.sel);
+  // A measure belongs to the chart it was drawn on (owner 25/10/2026: "separate, independent"); the lines show on all
+  const shows = (c, d) => d.type !== 'measure' || d.src === c.id;
+  function hit(c, m, x, y) {  // the drawing under (x, y), and the part grabbed: a measure's corner ('a', 'b', 'ab', 'ba') or the 'body'
+    const sel = S.items.find(d => d.id === S.sel), near = (px, py) => Math.hypot(px - x, py - y) <= 8;
     for (const d of [sel, ...S.items.slice().reverse()]) {
-      const s = d && shape(c, m, d);
+      const s = d && shows(c, d) && shape(c, m, d);
       if (!s) continue;
-      if (d.type === 'measure') {  // anywhere on its box
-        if (x >= Math.min(s.x1, s.x2) - 4 && x <= Math.max(s.x1, s.x2) + 4 && y >= Math.min(s.y1, s.y2) - 4 && y <= Math.max(s.y1, s.y2) + 4) return d;
-      } else if (d.type === 'hline' ? Math.abs(s.y - y) <= 5 : Math.abs(s.x - x) <= 5) return d;
+      if (d.type === 'measure') {
+        if (d === sel) {  // the selected one's corners: drag one to change the measure (owner 25/10: edit it, no need to draw it again)
+          if (near(s.x1, s.y1)) return { item: d, part: 'a' };
+          if (near(s.x2, s.y2)) return { item: d, part: 'b' };
+          if (near(s.x1, s.y2)) return { item: d, part: 'ab' };
+          if (near(s.x2, s.y1)) return { item: d, part: 'ba' };
+        }
+        if (x >= Math.min(s.x1, s.x2) - 4 && x <= Math.max(s.x1, s.x2) + 4 && y >= Math.min(s.y1, s.y2) - 4 && y <= Math.max(s.y1, s.y2) + 4) return { item: d, part: 'body' };
+      } else if (d.type === 'hline' ? Math.abs(s.y - y) <= 5 : Math.abs(s.x - x) <= 5) return { item: d, part: 'body' };
     }
     return null;
   }
   const lasting = ms => { const all = Math.round(ms / 60000), d = Math.floor(all / 1440), h = Math.floor(all % 1440 / 60), mm = all % 60;
     return d ? `${d}d ${h}h` : h ? `${h}h ${String(mm).padStart(2, '0')}m` : `${mm}m`; };
-  const axisTag = (at, text) => ({ coordinate: () => at, text: () => text, textColor: () => '#ffffff', backColor: () => INK_TAG,
+  const axisTag = (at, text, bg = INK_TAG) => ({ coordinate: () => at, text: () => text, textColor: () => '#ffffff', backColor: () => bg,
                                    visible: () => true, tickVisible: () => true });
 
   class Layer {  // the drawings on one chart (a Lightweight Charts series primitive)
@@ -103,9 +112,9 @@
       if (S.gesture) cursor = S.gesture.kind === 'drag' ? 'grabbing' : 'crosshair';
       else if (S.tool || S.temp) cursor = 'crosshair';
       else {
-        const m = map(this.c), d = m && hit(this.c, m, x, y), id = d ? d.id : null;
+        const m = map(this.c), h = m && hit(this.c, m, x, y), d = h && h.item, id = d ? d.id : null;
         if (id !== S.hover) { S.hover = id; queueMicrotask(redraw); }
-        if (d) cursor = d.type === 'hline' ? 'ns-resize' : d.type === 'vline' ? 'ew-resize' : 'grab';
+        if (d) cursor = h.part !== 'body' ? 'move' : d.type === 'hline' ? 'ns-resize' : d.type === 'vline' ? 'ew-resize' : 'grab';
       }
       return cursor && { cursorStyle: cursor, externalId: 'drawing', zOrder: 'top' };
     }
@@ -113,18 +122,19 @@
       const c = this.c, m = map(c), shapes = [], prices = [], times = [];
       this.m = m; this.shapes = shapes; this.prices = prices; this.times = times;  // new arrays: the chart re-reads the tags
       if (!m) return;
-      const priceTag = v => { const y = m.y(v); if (y !== null) prices.push(axisTag(y, c.fmt(v))); };
-      const timeTag = t => times.push(axisTag(m.x(t), S.when(t)));
+      const priceTag = (v, bg) => { const y = m.y(v); if (y !== null) prices.push(axisTag(y, c.fmt(v), bg)); };
+      const timeTag = (t, bg) => times.push(axisTag(m.x(t), S.when(t), bg));
       const all = S.items.map(d => ({ d, sel: d.id === S.sel, hover: d.id === S.hover }));
-      if (S.temp) all.push({ d: S.temp });
+      if (S.temp && S.tempChart === c) all.push({ d: S.temp });
       for (const it of all) {
         if (c.pane && it.d.type !== 'vline') continue;  // a pane under a chart shows its vertical lines only
+        if (!shows(c, it.d)) continue;
         const s = shape(c, m, it.d), d = it.d;
         if (!s) continue;
         shapes.push({ ...it, s });
         if (d.type === 'hline') priceTag(priceOn(c, d.a, d.src));
         else if (d.type === 'vline') { if (!c.pane) timeTag(d.a.t); }
-        else if (it.sel || it.hover || d === S.temp) { priceTag(priceOn(c, d.a, d.src)); priceTag(priceOn(c, d.b, d.src)); timeTag(d.a.t); timeTag(d.b.t); }
+        else if (it.sel || it.hover || d === S.temp) { priceTag(d.a.p, MEAS_TAG); priceTag(d.b.p, MEAS_TAG); timeTag(d.a.t, MEAS_TAG); timeTag(d.b.t, MEAS_TAG); }
       }
     }
     render(target) {
@@ -160,12 +170,11 @@
             const w = px(bold ? 2 : 1.5), x = crisp(s.x, hr, w);
             g.lineWidth = w; seg(x, 0, x, H);
             if (sel && !c.pane) handle(s.x, H / vr / 2);
-          } else {  // measure: the change in price and %, and how many candles and how long, on this chart
-            const pa = priceOn(c, d.a, d.src), pb = priceOn(c, d.b, d.src), dp = pb - pa, up = dp >= 0, col = up ? INK : DOWN;
-            const tagBg = up ? INK_TAG : '#c23b47';  // darker, so the white text reads
+          } else {  // measure: the change in price and %, and how many candles and how long (whitish, owner 25/10)
+            const pa = d.a.p, pb = d.b.p, dp = pb - pa, up = dp >= 0, col = MEAS;
             const l = Math.min(s.x1, s.x2), r = Math.max(s.x1, s.x2), t = Math.min(s.y1, s.y2), b = Math.max(s.y1, s.y2);
-            g.fillStyle = up ? 'rgba(167, 139, 250, 0.16)' : 'rgba(240, 85, 95, 0.16)'; g.fillRect(X(l), Y(t), X(r - l), Y(b - t));
-            if (bold) { g.strokeStyle = col; g.lineWidth = px(1); g.strokeRect(X(l), Y(t), X(r - l), Y(b - t)); }  // selected: its outline
+            g.fillStyle = MEAS_FILL; g.fillRect(X(l), Y(t), X(r - l), Y(b - t));
+            if (bold) { g.strokeStyle = 'rgba(232, 238, 246, 0.45)'; g.lineWidth = px(1); g.strokeRect(X(l), Y(t), X(r - l), Y(b - t)); }  // selected: its outline
             g.strokeStyle = col; g.lineWidth = px(1.5);
             arrow((s.x1 + s.x2) / 2, s.y1, (s.x1 + s.x2) / 2, s.y2); arrow(s.x1, (s.y1 + s.y2) / 2, s.x2, (s.y1 + s.y2) / 2);
             const n = Math.round(Math.abs(indexAt(m.bars, m.tf, d.b.t) - indexAt(m.bars, m.tf, d.a.t)));
@@ -175,9 +184,13 @@
             const bw = Math.max(...lines.map(text => g.measureText(text).width)) + 18 * hr, bh = 38 * vr;
             const bx = Math.max(2 * hr, Math.min(W - bw - 2 * hr, X((l + r) / 2) - bw / 2));
             const by = Math.max(2 * vr, Math.min(H - bh - 2 * vr, up ? Y(t) - bh - 8 * vr : Y(b) + 8 * vr));
-            box(bx, by, bw, bh, 5 * hr); g.fillStyle = tagBg; g.fill();
-            g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
-            g.fillText(lines[0], bx + bw / 2, by + bh * 0.3); g.fillText(lines[1], bx + bw / 2, by + bh * 0.72);
+            box(bx, by, bw, bh, 5 * hr); g.fillStyle = '#e8eef6'; g.fill();
+            g.textAlign = 'center'; g.textBaseline = 'middle';
+            g.fillStyle = up ? '#0b6b4f' : '#b3303b'; g.fillText(lines[0], bx + bw / 2, by + bh * 0.3);  // the change: green up, red down
+            g.fillStyle = '#2a3442'; g.fillText(lines[1], bx + bw / 2, by + bh * 0.72);
+            if (sel) for (const [hx, hy] of [[s.x1, s.y1], [s.x2, s.y2], [s.x1, s.y2], [s.x2, s.y1]]) {  // its corners, to drag
+              g.beginPath(); g.arc(X(hx), Y(hy), 4.5 * hr, 0, 2 * Math.PI); g.fillStyle = BG; g.fill(); g.lineWidth = px(1.5); g.strokeStyle = MEAS; g.stroke();
+            }
           }
         }
         g.restore();
@@ -227,16 +240,16 @@
     if (e.button !== 0 || S.gesture || !c.active()) return;
     const m = map(c), [x, y] = local(c, e);
     if (!m || x < 0 || y < 0 || x > m.w || y > m.h) return;  // the price and time axes keep their drag-to-scale
-    if (S.temp) { finish(S.tempChart === c ? at(c, m, x, y) : null); S.press = true; return; }  // the second click
+    if (S.temp) { finish(S.tempChart === c ? at(c, m, x, y, true) : null); S.press = true; return; }  // the second click
     const tool = !S.tool && e.shiftKey ? 'measure' : S.tool;  // Shift+drag: a quick measure
     const start = { c, x0: e.clientX, y0: e.clientY, moved: false };
     if (!tool) {
-      const d = hit(c, m, x, y);
+      const h = hit(c, m, x, y), d = h && h.item;
       if (!d) { if (S.sel) { S.sel = null; show(); redraw(); } S.pan = c; return; }  // empty space: the chart scrolls as usual
       S.sel = d.id;
-      S.gesture = { ...start, kind: 'drag', item: d, orig: copy(d), before: JSON.stringify(S.items), from: { i: m.index(x), p: m.price(y) } };
+      S.gesture = { ...start, kind: 'drag', item: d, part: h.part, orig: copy(d), before: JSON.stringify(S.items), from: { i: m.index(x), p: m.price(y) } };
     } else {
-      const pt = at(c, m, x, y);
+      const pt = at(c, m, x, y, tool === 'measure');
       if (!pt) return;
       if (tool === 'measure') {  // drag from one point to the other, or click one, move, click the other
         S.temp = { type: 'measure', src: c.id, a: pt, b: { ...pt } }; S.tempChart = c;
@@ -257,11 +270,19 @@
     if (d.type === 'vline') {
       const di = Math.round(m.index(x) - g.from.i);
       d.a = { ...o.a, t: timeAt(m.bars, m.tf, Math.round(indexAt(m.bars, m.tf, o.a.t)) + di) };
-    } else if (d.type === 'measure') {  // the whole box: by whole candles and by the price moved on this chart
-      const di = Math.round(m.index(x) - g.from.i), dp = m.price(y) - g.from.p;
-      const mv = q => { const was = priceOn(c, q, o.src); return ok(was) && ok(dp) ? point(c, timeAt(m.bars, m.tf, Math.round(indexAt(m.bars, m.tf, q.t)) + di), was + dp) : null; };
-      const a = mv(o.a), b = mv(o.b);
-      if (a && b) { d.src = c.id; d.a = a; d.b = b; }
+    } else if (d.type === 'measure') {  // on its own chart: a corner, or the whole box, smoothly with the mouse
+      const pt = at(c, m, x, y, true);
+      if (!pt) return;
+      if (g.part === 'a') d.a = pt;
+      else if (g.part === 'b') d.b = pt;
+      else if (g.part === 'ab') { d.a = { ...pt, p: o.a.p, r: o.a.r }; d.b = { ...o.b, p: pt.p }; }  // the corner at a's time and b's price
+      else if (g.part === 'ba') { d.b = { ...pt, p: o.b.p, r: o.b.r }; d.a = { ...o.a, p: pt.p }; }  // the corner at b's time and a's price
+      else {
+        const di = m.index(x) - g.from.i, dp = m.price(y) - g.from.p;
+        if (!ok(dp)) return;
+        const mv = q => point(c, timeAt(m.bars, m.tf, indexAt(m.bars, m.tf, q.t) + di), q.p + dp);
+        d.a = mv(o.a); d.b = mv(o.b);
+      }
     } else {
       const was = priceOn(c, o.a, o.src), dp = m.price(y) - g.from.p;
       if (!ok(was) || !ok(dp)) return;
@@ -280,11 +301,11 @@
     if (g) {
       if (!g.moved && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) > 3) g.moved = true;
       const [x, y] = local(g.c, e);
-      if (g.kind === 'create') { const m = map(g.c), pt = m && at(g.c, m, x, y); if (pt) S.temp.b = pt; }
+      if (g.kind === 'create') { const m = map(g.c), pt = m && at(g.c, m, x, y, true); if (pt) S.temp.b = pt; }
       else if (g.moved) dragTo(g, x, y);
       redraw();
     } else if (S.temp) {  // between the two clicks, the free end follows the mouse
-      const c = S.tempChart, [x, y] = local(c, e), m = map(c), pt = m && at(c, m, x, y);
+      const c = S.tempChart, [x, y] = local(c, e), m = map(c), pt = m && at(c, m, x, y, true);
       if (pt) { S.temp.b = pt; redraw(); }
     }
   }
