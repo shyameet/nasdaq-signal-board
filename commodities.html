@@ -20,6 +20,7 @@
 <script src="macd.js?v=9"></script>
 <script src="engine.js?v=11"></script>
 <script src="daypick.js?v=3"></script>
+<script src="live.js?v=1"></script>
 <script src="draw.js?v=4"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
@@ -279,6 +280,7 @@ function tradingDays(files) {  // Monday to Friday: the CME is shut on Saturday,
   const week = k => { const w = new Date(k + 'T00:00:00Z').getUTCDay(); return w >= 1 && w <= 5; };
   return [...files].filter(k => week(k) && NsbCme.open(k) <= Date.now()).sort();
 }
+const TODAY_KEY = () => { const k = NsbCme.key(Date.now()), w = new Date(k + 'T00:00:00Z').getUTCDay(); return w >= 1 && w <= 5 ? k : null; };  // today's CME trading day (none at weekends)
 const filesOf = keys => [...new Set(keys.flatMap(k => [NsbCme.prev(k), k]))].filter(f => FILES.has(f)).sort();
 const fileCache = new Map();
 async function loadFile(key) {  // -> { market: [{ t (ms), o, h, l, c, v }] }
@@ -409,6 +411,7 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   for (const m of markets) {
     const byT = new Map();
     for (const f of files) for (const b of f[m] || []) byT.set(b.t, b);
+    if (keys.includes(TODAY_KEY())) for (const b of NsbLive.bars(m)) byT.set(b.t, b);  // today: the live stream's candles
     rows[m] = NsbRolls.adjust(m, [...byT.values()].sort((a, b) => a.t - b.t));  // older contracts moved onto the one traded now
   }
   const runs = Object.fromEntries(markets.map(m => [m, runMarket(m, rows[m])]));
@@ -884,6 +887,61 @@ async function openDay(key) {
     $('rollNote').textContent = w; $('rollNote').hidden = !w;
   } catch (e) { loading(`Couldn't load ${key} (${e.message}). Reload the page to try again.`); }  // not "Loading…" for good
 }
+// ---- live: the VPS's stream (live.js; owner 25/10/2026: "real time", no lag) ------------------------------------
+// Today's trading day joins the calendar as soon as the stream has candles of it (its saved file is only written after
+// the day). Its newest candle moves with every tick; when a minute closes the day is rebuilt with it, so the gate, the
+// steps and the signals change only at a candle's close (owner 25/10). The dot in the top bar says if the stream is live.
+let liveTextAt = 0, liveTimer = 0, liveSoon = 0;
+function liveMarkets() { const S = SETUPS[opt.setup]; return [S.index, S.gift, S.stock].filter(Boolean); }
+function liveAddToday() {  // true when today was added (and opened, if you were on the newest day)
+  const k = TODAY_KEY();
+  if (!k || DAYS.includes(k) || !liveMarkets().some(m => NsbLive.has(m))) return false;
+  const wasNewest = !day || day.key === DAYS[DAYS.length - 1];
+  DAYS = [...DAYS, k].sort();
+  if (wasNewest) openDay(k); else if (dayPick) dayPick.set(DAYS, day.key, k);  // a day you picked stays
+  return true;
+}
+function liveTick(s) {  // the newest candle of the charts showing market s, at its latest price, between rebuilds
+  const cur = NsbLive.cur(s);
+  if (!cur || !day || day.key !== TODAY_KEY()) return;
+  for (const p of Object.values(panels)) {
+    if (p.market !== s) continue;
+    const bars = p.mainBars, last = bars[bars.length - 1], start = bucketStart(cur.t, opt.tf, p.origin);
+    if (!last || last.time > start) continue;
+    if (last.time === start) { last.close = cur.c; last.high = Math.max(last.high, cur.h); last.low = Math.min(last.low, cur.l); }
+    else bars.push({ time: start, open: cur.o, high: cur.h, low: cur.l, close: cur.c, volume: 0 });  // a new candle, until the rebuild draws it fully
+    const b = bars[bars.length - 1];
+    p.candles.update({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close });
+    const s0 = p.store.get(sec(b.time));
+    if (s0) Object.assign(s0, { close: b.close, high: b.high, low: b.low }); else p.store.set(sec(b.time), { ...b, state: null });
+  }
+  if (Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }
+}
+async function liveRebuild() {  // today again with the minutes closed since, the view kept on the newest candles
+  if (!day || olderBusy || !$('loading').hidden || day.key !== TODAY_KEY()) return;
+  const was = day.key, before = Object.values(panels).filter(q => q.mode !== 'tile').map(q => {
+    const r = q.main.timeScale().getVisibleLogicalRange(), n = q.mainBars.length;
+    return [q, r, n, !r || r.to >= n - 2];
+  });
+  try {
+    if (!await buildDay(was, day.shown, true) || day.key !== was) return;
+    syncing = true;
+    try {
+      render(false);
+      for (const [q, r, n, atEnd] of before) { const added = q.mainBars.length - n; if (r && atEnd && added > 0) q.main.timeScale().setVisibleLogicalRange({ from: r.from + added, to: r.to + added }); }
+    } finally { syncing = false; }
+  } catch (e) { /* the next minute tries again */ }
+}
+function liveSoonRebuild(ms) { clearTimeout(liveSoon); liveSoon = setTimeout(() => { if (!liveAddToday()) liveRebuild(); }, ms); }
+function everyMinute() {  // 2 s past each minute: its bars are in
+  clearTimeout(liveTimer);
+  liveTimer = setTimeout(() => { liveSoonRebuild(0); everyMinute(); }, MIN - Date.now() % MIN + 2000);
+}
+NsbLive.on((kind, s) => {
+  if (kind === 'tick') liveTick(s);
+  else if (kind === 'snapshot') liveSoonRebuild(0);
+  else if (kind === 'bar' && liveMarkets().includes(s)) liveSoonRebuild(700);  // a minute closed: once the others' bars are in too
+});
 const loading = text => { if (text === null) { $('loading').hidden = true; return; } $('loading').hidden = false; $('loading-text').textContent = text; };
 
 // ---- start ---------------------------------------------------------------------------------------------------
@@ -899,6 +957,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
     NsbDraw.setup({ key: 'nsb.draw.comm.' + opt.setup, when });
     buildPanels();
     await openDay(DAYS[DAYS.length - 1]);
+    NsbLive.start(); everyMinute();  // and today, live
   } catch (e) {
     loading(`Couldn't load the Commodities data (${e.message}). Reload the page to try again.`);
   }

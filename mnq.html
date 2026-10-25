@@ -20,6 +20,7 @@
 <script src="macd.js?v=9"></script>
 <script src="engine.js?v=11"></script>
 <script src="daypick.js?v=3"></script>
+<script src="live.js?v=1"></script>
 <script src="draw.js?v=4"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
@@ -470,7 +471,9 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   if (!quiet) loading(`Loading ${key}…`);
   const files = filesOf([...shownKeys, warmKey].filter(Boolean));
   const days = (await Promise.all(files.map(f => loadDay(f, want)))).filter(Boolean);
-  const fut = NsbRolls.adjust('MNQ', (await Promise.all(files.map(loadFut))).flat().sort((a, b) => a.t - b.t));  // older contracts moved onto the one traded now
+  const saved = (await Promise.all(files.map(loadFut))).flat(), byT = new Map(saved.map(b => [b.t, b]));
+  for (const b of NsbLive.bars('MNQ')) byT.set(b.t, { ...b, n: 1 });  // today: the VPS's live MNQ candles (its file is saved after the day)
+  const fut = NsbRolls.adjust('MNQ', [...byT.values()].sort((a, b) => a.t - b.t));  // older contracts moved onto the one traded now
   if (seq !== builds) return false;
   const m = minutesOf(days, want);  // only the picked stocks: nothing else is drawn here
   const runL = runSeries(composite(), m), runR = runSeries({ MNQ: 1 }, { MNQ: fut }, CME_OPEN);  // MNQ: no candle in a quiet minute or the daily break
@@ -853,13 +856,17 @@ setInterval(refreshToday, 60000);
 // Each trade moves today's newest candle at once; when a minute closes the day is rebuilt with it straight away (the
 // gate, the waves and the signals are worked out on closed minutes, as before). The minute refresh above stays as
 // the safety net: it fills anything the stream missed.
-let liveWs = null, liveTimer = 0, liveTextAt = 0;
+let liveWs = null, liveTimer = 0, liveTextAt = 0, hlLast = 0, hlDown = 0;
+NsbStatus.add('Hyperliquid live stream', () => {  // its replies to the 30 s ping keep it fresh in a quiet market
+  const fresh = liveWs && liveWs.readyState === WebSocket.OPEN && Date.now() - hlLast < 45000;
+  return { state: fresh ? 'live' : hlDown && Date.now() - hlDown > 60000 ? 'down' : 'reconnecting', last: hlLast };
+});
 const thisMinute = () => Math.floor(Date.now() / MIN) * MIN;
 function liveConnect() {
   const ws = liveWs = new WebSocket('wss://api.hyperliquid.xyz/ws');
   ws.onopen = () => { for (const coin of LIVE_COINS()) ws.send(JSON.stringify({ method: 'subscribe', subscription: { type: 'candle', coin, interval: '1m' } })); };
-  ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (x) { return; } if (m.channel === 'candle' && m.data) liveCandle(m.data); };
-  ws.onclose = () => { if (liveWs === ws) setTimeout(liveConnect, 3000); };
+  ws.onmessage = e => { hlLast = Date.now(); hlDown = 0; let m; try { m = JSON.parse(e.data); } catch (x) { return; } if (m.channel === 'candle' && m.data) liveCandle(m.data); };
+  ws.onclose = () => { if (liveWs !== ws) return; if (!hlDown) hlDown = Date.now(); setTimeout(liveConnect, 3000); };
   ws.onerror = () => ws.close();
 }
 setInterval(() => { if (liveWs && liveWs.readyState === WebSocket.OPEN) liveWs.send('{"method":"ping"}'); }, 30000);
@@ -886,7 +893,7 @@ function liveTick() {  // the newest candle of each chart at the latest prices, 
   const T = thisMinute();
   for (const p of Object.values(panels)) {
     const bars = p.mainBars, last = bars[bars.length - 1];
-    if (!last || last.time !== bucketStart(T, opt.tf)) continue;  // its newest candle is not the one forming now (a rebuild is due)
+    if (!last || last.time !== bucketStart(T, opt.tf, p.key === 'right' ? CME_OPEN : 0)) continue;  // its newest candle is not the one forming now (a rebuild is due)
     const one = LIVE_ONE(p, T);  // { c, h, l } of the forming minute on this chart, or null
     if (!one) continue;
     last.close = one.c; last.high = Math.max(last.high, one.h); last.low = Math.min(last.low, one.l);
@@ -915,7 +922,8 @@ async function liveRebuild() {  // a minute closed: today again with it, the vie
   } catch (e) { /* the minute refresh tries again */ } finally { refreshing = false; }
 }
 const LIVE_COINS = () => ALL;
-function LIVE_ONE(p, T) {  // MNQ (the right chart) comes from the VPS's stream, not Hyperliquid
+function LIVE_ONE(p, T) {  // MNQ (the right chart) comes from the VPS's stream (live.js), not Hyperliquid
+  if (p.key === 'right') { const b = NsbLive.cur('MNQ'); return b && b.t === T ? { c: b.c, h: b.h, l: b.l } : null; }
   if (p.key === 'left') {  // the composite: the sum of each picked stock's price times its weight (its candle: open = last close)
       const coef = composite();
       let c = 0;
@@ -1032,6 +1040,12 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
     panels.left = new Panel('left'); panels.right = new Panel('right');
     await openDay(days[0]);  // today (owner 24/10/2026), updating every minute
     liveConnect(); everyMinute();  // and from then on, every trade
+    NsbLive.start('VPS live stream (MNQ)');
+    let mnqSoon = 0;  // the snapshot (today's MNQ so far) or a closed MNQ minute: today again, straight away
+    NsbLive.on((kind, s) => {
+      if (kind === 'tick') { if (s === 'MNQ' && day && day.key === NsbCme.key(Date.now())) liveTick(); return; }
+      if (kind === 'snapshot' || s === 'MNQ') { clearTimeout(mnqSoon); mnqSoon = setTimeout(liveRebuild, kind === 'snapshot' ? 0 : 700); }
+    });
   } catch (e) {
     loading(`Couldn't load the replay data (${e.message}). Reload the page to try again.`);
   }

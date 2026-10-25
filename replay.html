@@ -19,6 +19,7 @@
 <script src="macd.js?v=9"></script>
 <script src="engine.js?v=11"></script>
 <script src="daypick.js?v=3"></script>
+<script src="live.js?v=1"></script>
 <script src="draw.js?v=4"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
@@ -767,13 +768,17 @@ setInterval(refreshToday, 60000);
 // Each trade moves today's newest candle at once; when a minute closes the day is rebuilt with it straight away (the
 // gate, the waves and the signals are worked out on closed minutes, as before). The minute refresh above stays as
 // the safety net: it fills anything the stream missed.
-let liveWs = null, liveTimer = 0, liveTextAt = 0;
+let liveWs = null, liveTimer = 0, liveTextAt = 0, hlLast = 0, hlDown = 0;
+NsbStatus.add('Hyperliquid live stream', () => {  // its replies to the 30 s ping keep it fresh in a quiet market
+  const fresh = liveWs && liveWs.readyState === WebSocket.OPEN && Date.now() - hlLast < 45000;
+  return { state: fresh ? 'live' : hlDown && Date.now() - hlDown > 60000 ? 'down' : 'reconnecting', last: hlLast };
+});
 const thisMinute = () => Math.floor(Date.now() / MIN) * MIN;
 function liveConnect() {
   const ws = liveWs = new WebSocket('wss://api.hyperliquid.xyz/ws');
   ws.onopen = () => { for (const coin of LIVE_COINS()) ws.send(JSON.stringify({ method: 'subscribe', subscription: { type: 'candle', coin, interval: '1m' } })); };
-  ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (x) { return; } if (m.channel === 'candle' && m.data) liveCandle(m.data); };
-  ws.onclose = () => { if (liveWs === ws) setTimeout(liveConnect, 3000); };
+  ws.onmessage = e => { hlLast = Date.now(); hlDown = 0; let m; try { m = JSON.parse(e.data); } catch (x) { return; } if (m.channel === 'candle' && m.data) liveCandle(m.data); };
+  ws.onclose = () => { if (liveWs !== ws) return; if (!hlDown) hlDown = Date.now(); setTimeout(liveConnect, 3000); };
   ws.onerror = () => ws.close();
 }
 setInterval(() => { if (liveWs && liveWs.readyState === WebSocket.OPEN) liveWs.send('{"method":"ping"}'); }, 30000);
