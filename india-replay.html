@@ -880,7 +880,7 @@ function buildControls() {
 function recompute() { if (!day) return; day.entries = entriesOf(); render(false); }
 let olderBusy = false;
 async function loadOlder() {  // add older days to the strip, keeping what you are looking at in place
-  if (olderBusy || !$('loading').hidden) return;  // not while a day is opening (its loading screen is up): that strip replaces this one
+  if (olderBusy || loadingNow) return;  // not while a day is opening (its loading screen is up): that strip replaces this one
   olderBusy = true;
   $('older').hidden = false;
   try {
@@ -935,7 +935,7 @@ function liveTick(s) {  // the newest candle of the charts showing market s, at 
   if (Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }
 }
 async function liveRebuild() {  // today again with the minutes closed since, the view kept on the newest candles
-  if (!day || olderBusy || !$('loading').hidden || day.key !== TODAY_KEY()) return;
+  if (!day || olderBusy || loadingNow || day.key !== TODAY_KEY()) return;
   const was = day.key, before = Object.values(panels).filter(q => q.mode !== 'tile').map(q => {
     const r = q.main.timeScale().getVisibleLogicalRange(), n = q.mainBars.length;
     return [q, r, n, !r || r.to >= n - 2];
@@ -959,7 +959,15 @@ NsbLive.on((kind, s) => {
   else if (kind === 'snapshot') liveSoonRebuild(0);
   else if (kind === 'bar' && liveMarkets().includes(s)) liveSoonRebuild(700);  // a minute closed: once the others' bars are in too
 });
-const loading = text => { if (text === null) { $('loading').hidden = true; return; } $('loading').hidden = false; $('loading-text').textContent = text; };
+// The loading screen covers the page only when the wait is long enough to notice (owner 25/10/2026: smooth switching;
+// a day or setup that is ready in a moment used to flash it); the page's first load shows it at once, from the HTML.
+let loadingNow = false, loadingTimer = 0;  // loadingNow: a load is under way, whether or not the screen is up yet
+const loading = text => {
+  clearTimeout(loadingTimer);
+  if (text === null) { loadingNow = false; $('loading').hidden = true; return; }
+  loadingNow = true; $('loading-text').textContent = text;
+  if ($('loading').hidden) loadingTimer = setTimeout(() => { if (loadingNow) $('loading').hidden = false; }, 400);
+};
 
 // ---- start ---------------------------------------------------------------------------------------------------
 NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } refreshText(); });

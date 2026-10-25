@@ -321,7 +321,7 @@ async function loadDay(key) {  // -> { key, source, coins: { coin: [bars (toBar 
   const missing = coins.filter(c => !out[c]);
   if (missing.length && d0 + DAY > hlFrom) {  // Hyperliquid still has (some of) this day
     const end = Math.min(d0 + DAY - 1, Date.now());
-    await Promise.all(missing.map(async c => { out[c] = (await candleRows(c, '1m', d0, end)).map(toBar).filter(b => b.t >= d0 && b.t < d0 + DAY); }));
+    await Promise.all(missing.map(async c => { out[c] = (await hlDay(c, d0, end)).filter(b => b.t < d0 + DAY); }));
     if (source === 'archive') source = 'archive+hl';
   }
   const day = { key, source, coins: out, complete: done };
@@ -764,6 +764,41 @@ async function refreshToday() {
 }
 setInterval(refreshToday, 60000);
 
+// ---- this browser's saved candles (owner 25/10/2026: faster loading and switching) ------------------------------
+// The Stocks tab keeps the last two days of every market's 1-minute candles in this browser (localStorage, the engine's
+// cache); these pages read them too, and save theirs back when you leave. So opening this tab, or switching between
+// XYZ100 and MNQ, asks Hyperliquid only for the minutes since, plus the last 3 hours again (a minute saved from the live
+// stream is replaced by Hyperliquid's own candle), instead of downloading the whole day each time.
+const CANDLE_CACHE = 'nsb.candles.v2.', CACHE_REFETCH = 180 * MIN;
+function cachedRows(c) {
+  try { const a = JSON.parse(localStorage.getItem(CANDLE_CACHE + c)); return Array.isArray(a) ? a.map(([t, o, h, l, cl, v, n]) => ({ t, o, h, l, c: cl, v, n })) : []; }
+  catch (e) { return []; }
+}
+async function hlDay(c, d0, end) {  // one coin's Hyperliquid minutes in [d0, end]: the saved ones and only what they lack
+  const all = cachedRows(c);
+  const have = all.length && all[0].t <= d0 ? all.filter(b => b.t >= d0 && b.t <= end) : [];  // usable only when it reaches back past the day's start
+  const from = have.length ? Math.max(d0, have[have.length - 1].t - CACHE_REFETCH) : d0;
+  const byT = new Map(have.map(b => [b.t, b]));
+  for (const b of (await candleRows(c, '1m', from, end)).map(toBar)) if (b.t >= d0 && b.t <= end) byT.set(b.t, b);
+  return [...byT.values()].sort((a, b) => a.t - b.t);
+}
+function saveCandles() {  // the closed minutes of the last two days back into the shared cache (merged with what is there)
+  const now = Math.floor(Date.now() / MIN) * MIN, oldest = now - 2 * DAY, coins = new Set();
+  for (const d of dayCache.values()) if (d.key >= dayKey(oldest)) for (const c of Object.keys(d.coins)) coins.add(c);
+  for (const c of coins) {
+    const byT = new Map(cachedRows(c).filter(b => b.t >= oldest).map(b => [b.t, b]));
+    for (const k of [dayKey(oldest), dayKey(oldest + DAY), dayKey(now)]) {
+      const d = dayCache.get(k);
+      if (d && d.coins[c]) for (const b of d.coins[c]) if (b.t >= oldest && b.t < now) byT.set(b.t, b);
+    }
+    const rows = [...byT.values()].sort((a, b) => a.t - b.t).map(b => [b.t, b.o, b.h, b.l, b.c, b.v, b.n]);
+    try { localStorage.setItem(CANDLE_CACHE + c, JSON.stringify(rows)); } catch (e) { /* full: Hyperliquid next time */ }
+  }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveCandles(); });
+window.addEventListener('pagehide', saveCandles);
+setInterval(saveCandles, 5 * MIN);
+
 // ---- live: Hyperliquid's candle stream (owner 25/10/2026: "real time", the chart was a minute or two behind) -------
 // Each trade moves today's newest candle at once; when a minute closes the day is rebuilt with it straight away (the
 // gate, the waves and the signals are worked out on closed minutes, as before). The minute refresh above stays as
@@ -872,7 +907,15 @@ function showNote() {
   $('dataNote').title = msg;
   $('dataNote').className = 'note' + (warn ? ' warn' : '');
 }
-const loading = text => { if (text === null) { $('loading').hidden = true; return; } $('loading').hidden = false; $('loading-text').textContent = text; };
+// The loading screen covers the page only when the wait is long enough to notice (owner 25/10/2026: smooth switching;
+// a day or setup that is ready in a moment used to flash it); the page's first load shows it at once, from the HTML.
+let loadingNow = false, loadingTimer = 0;  // loadingNow: a load is under way, whether or not the screen is up yet
+const loading = text => {
+  clearTimeout(loadingTimer);
+  if (text === null) { loadingNow = false; $('loading').hidden = true; return; }
+  loadingNow = true; $('loading-text').textContent = text;
+  if ($('loading').hidden) loadingTimer = setTimeout(() => { if (loadingNow) $('loading').hidden = false; }, 400);
+};
 
 // ---- the stock picker (shared with the other pages) ---------------------------------------------------------
 const SEL_KEY = 'nsb.div.stocks';
