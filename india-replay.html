@@ -87,7 +87,7 @@
   .board { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 78fr) minmax(0, 22fr); grid-template-rows: minmax(0, 1fr); }
   .panel { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .panel.big { grid-column: 1; grid-row: 1 / -1; }
-  .panel.half { grid-row: 1; }   /* two charts (Bank Nifty): side by side, equal by default (owner 24/10/2026) */
+  .panel.half { grid-row: 1; }   /* the charts side by side, equal by default (owner 24/10/2026 Bank Nifty's two, 26/10/2026 Nifty's three) */
   .panel.half + .panel.half { border-left: 1px solid var(--line-strong); }
   .panel.tile { grid-column: 2; border-left: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); }
   .panel.tile .phead { cursor: pointer; }   /* a click anywhere on a tile enlarges it; a drag on its chart scrolls (owner 24/10/2026) */
@@ -96,10 +96,6 @@
   .panel.tile .pane:not(:first-child), .panel.tile .tag, .panel.tile .warm, .panel.tile .pextra { display: none; }
   .panel.tile .phead > .gw { display: inline-flex; }
   .panel.tile .phead::after { content: "click to enlarge"; margin-left: auto; color: var(--faint); font-size: 10.5px; }
-  /* a tile has no time axis: the time of the candle under the crosshair sits at its foot, as on the big chart (owner 26/10/2026) */
-  .ttime { position: absolute; bottom: 3px; z-index: 6; display: none; padding: 2px 6px; border-radius: 2px; background: var(--line-strong);
-           color: var(--text); font: 11px/15px var(--font-num); white-space: nowrap; pointer-events: none; }
-  .panel.tile .ttime.on { display: block; }
   .panel.big .pname { display: none; }   /* the switch in its header shows the name */
   /* drag handles: between the charts, between the tiles, and between a price chart and its MACD panes (double-click: back to the default) */
   .split { position: absolute; z-index: 20; touch-action: none; }
@@ -192,7 +188,7 @@
       <h3>Trends</h3>
       <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown.</p>
       <h3>Charts</h3>
-      <p>Nifty: one chart is big, with its Entry (2m/3m) and Trend MACD panes; the others are small tiles on the right with their gate. All the charts end at the same time and show as many candles each: drag or zoom any of them and the others follow (GIFT NIFTY's night hours then simply scroll past). Click a tile, use the switch in the big chart's header, or press 1, 2 or 3 to make another chart big. Bank Nifty: the two charts side by side, scrolling together. Drag the thin lines between the charts, between the tiles, or between a price chart and its MACD panes to size them as you like (remembered; double-click a line for the default). Each chart and its MACD panes are green where every Trend wave switched on (5m, 7m, 9m, 11m, 15m) is above 0, red where every one is below (the gate is shown in words: in the tiles' headers and the step chips); GIFT NIFTY shows its whole session, 06:30 to 02:45 the next morning; the stock shows its sync points (dots) and entries (arrows). The chips in the big chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <p>The charts side by side, equal widths: Nifty's three (NIFTY 50, GIFT NIFTY, the stock), Bank Nifty's two; each with its Entry (2m/3m) and Trend MACD panes. All the charts end at the same time and show as many candles each: drag or zoom any of them and the others follow (GIFT NIFTY's night hours then simply scroll past). Drag the thin lines between the charts, or between a price chart and its MACD panes, to size them as you like (remembered; double-click a line for the default). Each chart and its MACD panes are green where every Trend wave switched on (5m, 7m, 9m, 11m, 15m) is above 0, red where every one is below (the gate is shown in words in the step chips); GIFT NIFTY shows its whole session, 06:30 to 02:45 the next morning; the stock shows its sync points (dots) and entries (arrows). The chips in the index chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
       <h3>Days</h3>
       <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
       <h3>Data</h3>
@@ -419,6 +415,7 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
 let panels = {};
 let pressedChart = null;  // the chart (or MACD pane) last pressed: a finger moves its crosshair
 let touched = false;  // the last press on any chart was a finger or pen: page-wide, as the click the browser still sends after a tap can land on another chart (the tap enlarged a tile and the tiles moved under the finger)
+const drawArmed = () => !!document.querySelector('.dr-rail [data-tool][aria-pressed="true"]');  // a drawing tool is picked (draw.js's rail)
 function options(showTime, isMain) {
   return {
     watermark: isMain ? { visible: true, text: '', color: 'rgba(232, 238, 246, 0.04)', fontSize: 36, fontStyle: '700' } : { visible: false },
@@ -451,7 +448,7 @@ class Panel {
           <span class="pextra" id="${key}-extra"></span>
         </div>
         <div class="stack${panes ? ' panes' : ''}">
-          <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div><div class="ttime" id="${key}-ttime"></div></div>
+          <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
           ${panes ? `<div class="pane" id="${key}-pentry"><div class="tag mix" id="${key}-tentry"></div></div>
                      <div class="pane" id="${key}-ptrend"><div class="tag mix" id="${key}-ttrend"></div></div>` : ''}
         </div>
@@ -469,7 +466,8 @@ class Panel {
     this.candles.attachPrimitive(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];  // time left in the newest candle (as on TradingView)
       return b && { close: b.close, end: bucketEnd(b.time, opt.tf, this.origin), up: b.close >= b.open }; }));
     this.drawing = NsbDraw.add({ id: market, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
-                                 tf: () => opt.tf, fmt: v => num(v, MARKETS[market].digits), active: () => this.mode !== 'tile' });
+                                 tf: () => opt.tf, fmt: v => num(v, MARKETS[market].digits),
+                                 active: () => this.mode !== 'tile' || drawArmed() });  // a tile draws only with a tool picked (owner 26/10/2026)
     this.macd = {};
     if (panes) for (const k of ['entry', 'trend']) this.macd[k] = new MacdPane({
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 3, options: options(false, false), origin: this.origin,
@@ -499,15 +497,16 @@ class Panel {
     $(key).addEventListener('pointerdown', e => {
       downAt = e.isPrimary ? [e.clientX, e.clientY] : null;  // a second finger (a pinch): no tap
       touched = e.pointerType === 'touch' || e.pointerType === 'pen'; driver = this;
+      this.drawPress = drawArmed();  // with a drawing tool picked, a press on a tile draws there instead of enlarging it
     }, true);
     for (const ev of ['wheel', 'touchstart']) $(key).addEventListener(ev, () => { driver = this; }, { capture: true, passive: true });
     const moved = e => downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5;
     // a finger or pen: the chart (LWC 4.2.3) takes a tap as its own and cancels its touchend, so no click comes; the tap is caught here
     $(key).addEventListener('pointerup', e => {
-      if ((e.pointerType === 'touch' || e.pointerType === 'pen') && e.isPrimary && downAt && !moved(e) && this.mode === 'tile') select(this.key);
+      if ((e.pointerType === 'touch' || e.pointerType === 'pen') && e.isPrimary && downAt && !moved(e) && this.mode === 'tile' && !this.drawPress) select(this.key);
     });
     $(key).addEventListener('click', e => {  // a mouse (after a finger or pen, a click that still comes was the tap above, on this chart or the one now under the finger)
-      if (this.mode === 'tile' && !touched && !moved(e) && !e.target.closest('#viewSel')) select(this.key);
+      if (this.mode === 'tile' && !touched && !moved(e) && !this.drawPress && !e.target.closest('#viewSel')) select(this.key);
     });
     const ps = document.createElement('div');  // the handle between the price chart and the MACD panes
     ps.className = 'split row'; ps.title = 'Drag to size the price chart and its MACD panes (double-click: default)';
@@ -515,24 +514,16 @@ class Panel {
     dragger(ps, 'row', e => { const r = $(key).querySelector('.stack').getBoundingClientRect(); setPriceShare((e.clientY - r.top) / r.height); },
             () => setPriceShare(DEFAULT_PRICE));
   }
-  setMode(mode) {  // 'big' or 'half': time axis and MACD panes; 'tile': the price chart only, one click to enlarge. All of them
-    // scroll and zoom, lined up with the others (syncOthers) (owner 24/10/2026: scrolling back on Nifty, GIFT
-    // NIFTY or Reliance moves all three; the tiles used to stay on the newest day)
+  setMode(mode) {  // 'big' or 'half': MACD panes; 'tile': the price chart only, one click to enlarge. All of them have the time
+    // axis (owner 26/10/2026: a tile shows the hovered time on it as the big chart does), and all scroll and zoom,
+    // lined up with the others (syncOthers) (owner 24/10/2026: scrolling back on Nifty, GIFT NIFTY or Reliance moves all
+    // three; the tiles used to stay on the newest day)
     this.mode = mode;
     for (const m of ['big', 'half', 'tile']) $(this.key).classList.toggle(m, m === mode);
     const full = mode !== 'tile';
     // (a tile leaves an up-down finger to the page, so a phone can still scroll past the charts)
     this.main.applyOptions({ handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: full }, handleScale: true,
-                             timeScale: { visible: full }, rightPriceScale: { minimumWidth: full ? 70 : 56 } });
-  }
-  hoverTime(t) {  // a tile: the time of candle t (seconds) under the crosshair, or hidden (owner 26/10/2026)
-    const el = $(`${this.key}-ttime`);
-    const x = this.mode === 'tile' && t !== undefined ? this.main.timeScale().timeToCoordinate(t) : null;
-    if (x === null) { el.classList.remove('on'); return; }
-    el.textContent = when(t * 1000);
-    el.classList.add('on');
-    const w = el.offsetWidth, plot = el.parentElement.clientWidth - this.main.priceScale('right').width();  // (a hidden time axis says width 0)
-    el.style.left = `${Math.max(0, Math.min(plot - w, x - w / 2))}px`;
+                             rightPriceScale: { minimumWidth: full ? 70 : 56 } });
   }
   waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }  // the colour at candle i
   remove() { this.drawing.remove(); this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
@@ -675,7 +666,7 @@ function hoverAll(src, t) {
     // so 2m candles start a minute apart and t itself is no candle of the other charts
     const own = t === undefined ? undefined : sec(bucketStart(t * 1000, opt.tf, p.origin));
     if (p !== src) for (const o of p.charts) { const v = own === undefined ? null : o.value(own); if (ok(v)) o.chart.setCrosshairPosition(v, own, o.series); else o.chart.clearCrosshairPosition(); }
-    p.tags(own); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN); p.hoverTime(own);
+    p.tags(own); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
   }
   showStrip(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
 }
@@ -690,13 +681,13 @@ function buildPanels() {
   panels.index = new Panel('pIndex', S.index, 'index', '');
   if (S.gift) panels.gift = new Panel('pGift', S.gift, 'gift', '');
   panels.stock = new Panel('pStock', S.stock, 'stock', '');
-  halves = ORDER().length === 2;
+  halves = SIDE_BY_SIDE || ORDER().length === 2;
   $('board').style.gridTemplateRows = halves ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)';
   bigKey = null;
   buildSplits();
   setPriceShare(pref('split.price', DEFAULT_PRICE), false);
   for (const p of ORDER()) p.main.timeScale().subscribeVisibleLogicalRangeChange(() => syncOthers(p));  // all scrolling together
-  if (halves) {  // two charts: side by side, both full
+  if (halves) {  // side by side, all full: Bank Nifty's two charts, Nifty's three
     for (const p of ORDER()) p.setMode('half');
     $('pIndex').querySelector('.phead').append($('steps'));
     return;
@@ -707,6 +698,7 @@ function buildPanels() {
   placeBig(ORDER().some(p => p.key === saved) ? saved : 'pIndex');
 }
 let halves = false;
+const SIDE_BY_SIDE = true;  // owner 26/10/2026: Nifty's three charts side by side too, equal, each with its MACD panes (false: one big chart + two tiles)
 // The chart the others follow: the big one (Bank Nifty: the index). On a day it has no candle (NIFTY on an NSE holiday,
 // GIFT NIFTY trading), the first chart that has one, so the day is fitted on its candles (the big one's fit shows the whole strip)
 const lead = () => { const l = halves ? panels.index : ORDER().find(p => p.mode === 'big') || panels.index; return !l.onDay() && ORDER().find(p => p.onDay()) || l; };
@@ -744,7 +736,8 @@ function showView(v) {  // the lead chart on this view, the others following (ag
 
 // ---- sizes: drag the handles; each layout remembers its own (double-click a handle: back to the default) ----
 const DEFAULT_PRICE = 0.62, clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const colKey = () => 'split.col.' + (halves ? 'halves' : opt.setup);
+const colKey = () => 'split.col.' + (halves ? (ORDER().length === 3 ? 'thirds' : 'halves') : opt.setup);
+const colDefault = () => halves ? ORDER().slice(1).map((_, i) => (i + 1) / ORDER().length) : [0.78];  // the edges between the columns
 function dragger(el, axis, onMove, onReset) {
   el.addEventListener('pointerdown', e => {
     e.preventDefault(); e.stopPropagation();
@@ -762,26 +755,36 @@ function dragger(el, axis, onMove, onReset) {
 }
 function buildSplits() {
   for (const el of $('board').querySelectorAll(':scope > .split')) el.remove();
-  const col = document.createElement('div');
-  col.className = 'split col'; col.title = 'Drag to size the charts (double-click: default)';
-  $('board').append(col);
-  dragger(col, 'col', e => { const r = $('board').getBoundingClientRect(); setCol((e.clientX - r.left) / r.width); }, () => setCol(halves ? 0.5 : 0.78));
+  for (const [i] of colDefault().entries()) {  // a handle on each edge between two columns
+    const col = document.createElement('div');
+    col.className = 'split col'; col.title = 'Drag to size the charts (double-click: default)';
+    $('board').append(col);
+    dragger(col, 'col', e => { const r = $('board').getBoundingClientRect(), f = edges.slice(); f[i] = (e.clientX - r.left) / r.width; setCol(f, i); },
+            () => setCol(colDefault()));
+  }
   if (!halves) {
     const row = document.createElement('div');
     row.className = 'split row'; row.title = 'Drag to size the two small charts (double-click: default)';
     $('board').append(row);
     dragger(row, 'row', e => { const r = $('board').getBoundingClientRect(); setRow((e.clientY - r.top) / r.height); }, () => setRow(0.5));
   }
-  setCol(pref(colKey(), halves ? 0.5 : 0.78), false);
+  const was = pref(colKey(), null);  // (two columns: saved as one number)
+  setCol(Array.isArray(was) ? was : was === null ? colDefault() : [was], -1, false);
   if (!halves) setRow(pref('split.row', 0.5), false);
 }
-function setCol(f, keep = true) {
-  f = clamp(f, 0.15, 0.85);
-  $('board').style.gridTemplateColumns = `minmax(0, ${f * 100}fr) minmax(0, ${(1 - f) * 100}fr)`;
-  $('board').querySelector(':scope > .split.col').style.left = `${f * 100}%`;
+let edges = [];  // the column edges, as fractions of the board's width
+function setCol(f, moved = -1, keep = true) {  // moved: the edge being dragged (-1: all); every column keeps 15% of the board
+  const n = colDefault().length;
+  f = f.length === n ? f.slice() : colDefault();
+  const fix = i => { f[i] = clamp(f[i], (i ? f[i - 1] : 0) + 0.15, (i < n - 1 ? f[i + 1] : 1) - 0.15); };
+  if (moved >= 0) fix(moved); else for (let i = 0; i < n; i++) fix(i);
+  edges = f;
+  const w = f.map((x, i) => x - (i ? f[i - 1] : 0)).concat(1 - f[n - 1]);
+  $('board').style.gridTemplateColumns = w.map(x => `minmax(0, ${x * 100}fr)`).join(' ');
+  for (const [i, el] of [...$('board').querySelectorAll(':scope > .split.col')].entries()) el.style.left = `${f[i] * 100}%`;
   const row = $('board').querySelector(':scope > .split.row');
-  if (row) { row.style.left = `${f * 100}%`; row.style.right = '0'; }
-  if (keep) save(colKey(), f);
+  if (row) { row.style.left = `${f[0] * 100}%`; row.style.right = '0'; }
+  if (keep) save(colKey(), n === 1 ? f[0] : f);
 }
 function setRow(g, keep = true) {
   g = clamp(g, 0.15, 0.85);
