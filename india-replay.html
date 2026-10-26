@@ -96,6 +96,10 @@
   .panel.tile .pane:not(:first-child), .panel.tile .tag, .panel.tile .warm, .panel.tile .pextra { display: none; }
   .panel.tile .phead > .gw { display: inline-flex; }
   .panel.tile .phead::after { content: "click to enlarge"; margin-left: auto; color: var(--faint); font-size: 10.5px; }
+  /* a tile has no time axis: the time of the candle under the crosshair sits at its foot, as on the big chart (owner 26/10/2026) */
+  .ttime { position: absolute; bottom: 3px; z-index: 6; display: none; padding: 2px 6px; border-radius: 2px; background: var(--line-strong);
+           color: var(--text); font: 11px/15px var(--font-num); white-space: nowrap; pointer-events: none; }
+  .panel.tile .ttime.on { display: block; }
   .panel.big .pname { display: none; }   /* the switch in its header shows the name */
   /* drag handles: between the charts, between the tiles, and between a price chart and its MACD panes (double-click: back to the default) */
   .split { position: absolute; z-index: 20; touch-action: none; }
@@ -447,7 +451,7 @@ class Panel {
           <span class="pextra" id="${key}-extra"></span>
         </div>
         <div class="stack${panes ? ' panes' : ''}">
-          <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
+          <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div><div class="ttime" id="${key}-ttime"></div></div>
           ${panes ? `<div class="pane" id="${key}-pentry"><div class="tag mix" id="${key}-tentry"></div></div>
                      <div class="pane" id="${key}-ptrend"><div class="tag mix" id="${key}-ttrend"></div></div>` : ''}
         </div>
@@ -520,6 +524,15 @@ class Panel {
     // (a tile leaves an up-down finger to the page, so a phone can still scroll past the charts)
     this.main.applyOptions({ handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: full }, handleScale: true,
                              timeScale: { visible: full }, rightPriceScale: { minimumWidth: full ? 70 : 56 } });
+  }
+  hoverTime(t) {  // a tile: the time of candle t (seconds) under the crosshair, or hidden (owner 26/10/2026)
+    const el = $(`${this.key}-ttime`);
+    const x = this.mode === 'tile' && t !== undefined ? this.main.timeScale().timeToCoordinate(t) : null;
+    if (x === null) { el.classList.remove('on'); return; }
+    el.textContent = when(t * 1000);
+    el.classList.add('on');
+    const w = el.offsetWidth, plot = el.parentElement.clientWidth - this.main.priceScale('right').width();  // (a hidden time axis says width 0)
+    el.style.left = `${Math.max(0, Math.min(plot - w, x - w / 2))}px`;
   }
   waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }  // the colour at candle i
   remove() { this.drawing.remove(); this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
@@ -662,7 +675,7 @@ function hoverAll(src, t) {
     // so 2m candles start a minute apart and t itself is no candle of the other charts
     const own = t === undefined ? undefined : sec(bucketStart(t * 1000, opt.tf, p.origin));
     if (p !== src) for (const o of p.charts) { const v = own === undefined ? null : o.value(own); if (ok(v)) o.chart.setCrosshairPosition(v, own, o.series); else o.chart.clearCrosshairPosition(); }
-    p.tags(own); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
+    p.tags(own); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN); p.hoverTime(own);
   }
   showStrip(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
 }
