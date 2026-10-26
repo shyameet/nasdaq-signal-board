@@ -678,13 +678,14 @@ function buildPanels() {
   for (const p of Object.values(panels)) p.remove();
   panels = {};
   const S = SETUPS[opt.setup];
+  ncols = S.gift ? 3 : 2;
+  halves = SIDE_BY_SIDE || ncols === 2;
+  $('board').style.gridTemplateRows = halves ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)';
+  bigKey = null;
+  buildSplits();  // the columns before the charts: a chart sized later keeps its bar spacing, so it would show fewer or more candles than the others
   panels.index = new Panel('pIndex', S.index, 'index', '');
   if (S.gift) panels.gift = new Panel('pGift', S.gift, 'gift', '');
   panels.stock = new Panel('pStock', S.stock, 'stock', '');
-  halves = SIDE_BY_SIDE || ORDER().length === 2;
-  $('board').style.gridTemplateRows = halves ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)';
-  bigKey = null;
-  buildSplits();
   setPriceShare(pref('split.price', DEFAULT_PRICE), false);
   for (const p of ORDER()) p.main.timeScale().subscribeVisibleLogicalRangeChange(() => syncOthers(p));  // all scrolling together
   if (halves) {  // side by side, all full: Bank Nifty's two charts, Nifty's three
@@ -697,7 +698,7 @@ function buildPanels() {
   const saved = pref('big.' + opt.setup, 'pIndex');
   placeBig(ORDER().some(p => p.key === saved) ? saved : 'pIndex');
 }
-let halves = false;
+let halves = false, ncols = 2;  // ncols: the setup's charts (Nifty 3, Bank Nifty 2)
 const SIDE_BY_SIDE = true;  // owner 26/10/2026: Nifty's three charts side by side too, equal, each with its MACD panes (false: one big chart + two tiles)
 // The chart the others follow: the big one (Bank Nifty: the index). On a day it has no candle (NIFTY on an NSE holiday,
 // GIFT NIFTY trading), the first chart that has one, so the day is fitted on its candles (the big one's fit shows the whole strip)
@@ -736,8 +737,8 @@ function showView(v) {  // the lead chart on this view, the others following (ag
 
 // ---- sizes: drag the handles; each layout remembers its own (double-click a handle: back to the default) ----
 const DEFAULT_PRICE = 0.62, clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const colKey = () => 'split.col.' + (halves ? (ORDER().length === 3 ? 'thirds' : 'halves') : opt.setup);
-const colDefault = () => halves ? ORDER().slice(1).map((_, i) => (i + 1) / ORDER().length) : [0.78];  // the edges between the columns
+const colKey = () => 'split.col.' + (halves ? (ncols === 3 ? 'thirds' : 'halves') : opt.setup);
+const colDefault = () => halves ? Array.from({ length: ncols - 1 }, (_, i) => (i + 1) / ncols) : [0.78];  // the edges between the columns
 function dragger(el, axis, onMove, onReset) {
   el.addEventListener('pointerdown', e => {
     e.preventDefault(); e.stopPropagation();
