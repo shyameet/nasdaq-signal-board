@@ -122,8 +122,10 @@
       const c = this.c, m = map(c), shapes = [], prices = [], times = [];
       this.m = m; this.shapes = shapes; this.prices = prices; this.times = times;  // new arrays: the chart re-reads the tags
       if (!m) return;
-      const priceTag = (v, bg) => { const y = m.y(v); if (y !== null) prices.push(axisTag(y, c.fmt(v), bg)); };
-      const timeTag = (t, bg) => times.push(axisTag(m.x(t), S.when(t), bg));
+      // a tag only while its line is on the chart: the chart pins an outside tag to the axis's end, where it reads as a line
+      // there (owner 26/10/2026: scrolled back, a far line's time showed at the right edge)
+      const priceTag = (v, bg) => { const y = m.y(v); if (y !== null && y >= 0 && y <= m.h) prices.push(axisTag(y, c.fmt(v), bg)); };
+      const timeTag = (t, bg) => { const x = m.x(t); if (x >= 0 && x <= m.w) times.push(axisTag(x, S.when(t), bg)); };
       const all = S.items.map(d => ({ d, sel: d.id === S.sel, hover: d.id === S.hover }));
       if (S.temp && S.tempChart === c) all.push({ d: S.temp });
       for (const it of all) {
