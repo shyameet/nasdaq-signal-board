@@ -81,6 +81,7 @@
   .chip .v { font-weight: 600; color: var(--muted); }
   .chip .v.bull { color: var(--up); } .chip .v.bear { color: var(--down); }
   .chip .d { display: none; }
+  #s2 { display: none; }   /* owner 26/10/2026: no step 2 (sync) chip; the steps still run as before */
 
   /* ---- the charts ---- */
   /* one big chart, the others as small tiles on the right (owner 24/10/2026); click a tile (or 1 / 2 / 3) to swap */
@@ -188,7 +189,7 @@
       <h3>Trends</h3>
       <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown.</p>
       <h3>Charts</h3>
-      <p>The charts side by side, equal widths: Nifty's three (NIFTY 50, GIFT NIFTY, the stock), Bank Nifty's two; each with its Entry (2m/3m) and Trend MACD panes. All the charts end at the same time and show as many candles each: drag or zoom any of them and the others follow (GIFT NIFTY's night hours then simply scroll past). Drag the thin lines between the charts, or between a price chart and its MACD panes, to size them as you like (remembered; double-click a line for the default). Each chart and its MACD panes are green where every Trend wave switched on (5m, 7m, 9m, 11m, 15m) is above 0, red where every one is below (the gate is shown in words in the step chips); GIFT NIFTY shows its whole session, 06:30 to 02:45 the next morning; the stock shows its sync points (dots) and entries (arrows). The chips in the index chart's header show steps 1, 2 and 3 (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <p>The charts side by side, equal widths: Nifty's three (NIFTY 50, GIFT NIFTY, the stock), Bank Nifty's two; each with its Entry (2m/3m) and Trend MACD panes. All the charts end at the same time and show as many candles each: drag or zoom any of them and the others follow (GIFT NIFTY's night hours then simply scroll past). Drag the thin lines between the charts, or between a price chart and its MACD panes, to size them as you like (remembered; double-click a line for the default). Each chart and its MACD panes are green where every Trend wave switched on (5m, 7m, 9m, 11m, 15m) is above 0, red where every one is below (the gate is shown in words in the step chips); GIFT NIFTY shows its whole session, 06:30 to 02:45 the next morning; the stock shows its entries (arrows). The chips in the index chart's header show steps 1 and 3, the trend and the entry (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
       <h3>Days</h3>
       <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
       <h3>Data</h3>
@@ -576,13 +577,9 @@ class Panel {
     this.e21.setData(out.map(p => ({ time: p.time, value: p.e21 })));
     this.e47.setData(out.map(p => ({ time: p.time, value: p.e47 })));
   }
-  setMarkers(upto) {  // the stock: sync points and entries
+  setMarkers(upto) {  // the stock: its entries (owner 26/10/2026: no "sync" dots)
     if (this.role !== 'stock') { this.candles.setMarkers([]); return; }
     const m = [], at = t => sec(bucketStart(t, opt.tf, this.origin));
-    for (const s of day.setupRun.syncs) {
-      if (s.t < day.d0 || s.t >= day.d1 || s.t >= upto) continue;
-      m.push({ time: at(s.t), position: s.dir === 'BULLISH' ? 'belowBar' : 'aboveBar', color: '#e8eef6', shape: 'circle', text: 'sync' });
-    }
     for (const e of day.entries) {
       if (e.t > upto) continue;
       const color = e.m === 2 ? '#fb7185' : '#22d3ee';
