@@ -7,8 +7,9 @@
 //
 // Also the live-status dot every page shows in its top bar (owner 25/10/2026: show it and reconnect): green Live,
 // amber Reconnecting, red Not live with the time of the last price; amber "Connected · no prices" when the stream answers
-// but no price came for 2 minutes (owner 27/10: its 5 s heartbeat alone kept the dot green with a feed down, or every
-// market shut). NsbStatus.add(name, fn) adds a feed; fn() returns
+// but no price of the page's own markets came for 2 minutes (owner 27/10: its 5 s heartbeat alone kept the dot green with
+// a feed down, or every market shut; and one feed's prices, MNQ's say, kept it green on a page whose feed was down).
+// NsbStatus.add(name, fn) adds a feed; fn() returns
 // { state: 'live' | 'quiet' | 'reconnecting' | 'down', last: ms of the last message, price: ms of the last price (optional) }.
 (function () {
   const MIN = 60000;
@@ -52,8 +53,10 @@
   // ---- the VPS stream ----
   const store = {};  // instrument -> { bars: closed 1-minute candles {t, o, h, l, c, v} oldest first, cur: the forming one }
   const listeners = [];
-  let ws = null, lastMsg = 0, lastPrice = 0, openedAt = 0, failingSince = 0, started = false;
+  const priceAt = {};  // instrument -> ms of its last price (a bar, form or tick: not the heartbeat)
+  let ws = null, lastMsg = 0, openedAt = 0, failingSince = 0, started = false;
   const S = s => store[s] || (store[s] = { bars: [], cur: null });
+  const forming = x => x.cur && (!x.bars.length || x.cur.t > x.bars[x.bars.length - 1].t) ? x.cur : null;  // cur, unless its minute has closed since
   const row = r => Array.isArray(r) ? { t: r[0], o: +r[1], h: +r[2], l: +r[3], c: +r[4], v: +r[5] || 0 }
     : r && ok(+r.t) ? { t: +r.t, o: +r.o, h: +r.h, l: +r.l, c: +r.c, v: +r.v || 0 } : null;
   function upsert(a, b) {
@@ -66,11 +69,13 @@
   const tell = (kind, s) => { for (const fn of listeners) try { fn(kind, s); } catch (e) { /* one page's bug stays its own */ } };
   function handle(m) {
     lastMsg = Date.now(); failingSince = 0;
-    if (m.type === 'bar' || m.type === 'form' || m.type === 'tick'
-        || (m.type === 'snapshot' && Object.values(m.forming || {}).some(Boolean))) lastPrice = lastMsg;  // a price, not the heartbeat
+    if ((m.type === 'bar' || m.type === 'form' || m.type === 'tick') && m.s) priceAt[m.s] = lastMsg;  // a price, not the heartbeat
     if (m.type === 'snapshot') {
       for (const [s, rows] of Object.entries(m.candles || {})) { const x = S(s); for (const r of rows || []) upsert(x.bars, row(r)); }
-      for (const [s, r] of Object.entries(m.forming || {})) { const b = row(r); if (b) S(s).cur = b; }
+      for (const [s, r] of Object.entries(m.forming || {})) {  // null clears a forming minute kept from before a reconnect (owner 27/10: its price stuck on the closed candle)
+        const b = row(r); S(s).cur = b;
+        if (b) priceAt[s] = lastMsg;
+      }
       tell('snapshot');
     } else if (m.type === 'bar' && m.s) {
       const x = S(m.s), b = row(m);
@@ -105,18 +110,19 @@
     if (ws && ws.readyState === WebSocket.OPEN && Date.now() - Math.max(lastMsg, openedAt) > 20000) ws.close();
   }, 5000);
   window.NsbLive = {
-    start(name = 'VPS live stream') {
+    start(name = 'VPS live stream', markets = null) {  // markets(): the instruments the page shows, for its dot (all of them when not given)
       if (started) return; started = true;
       connect();
       NsbStatus.add(name, () => {
         const fresh = ws && ws.readyState === WebSocket.OPEN && Date.now() - lastMsg < 15000;
-        return { state: fresh ? (Date.now() - lastPrice < 2 * MIN ? 'live' : 'quiet')  // Live only while prices come
-                       : failingSince && Date.now() - failingSince > 60000 ? 'down' : 'reconnecting', last: lastMsg, price: lastPrice };
+        const price = Math.max(0, ...(markets ? markets() : Object.keys(priceAt)).map(s => priceAt[s] || 0));
+        return { state: fresh ? (Date.now() - price < 2 * MIN ? 'live' : 'quiet')  // Live only while the page's prices come
+                       : failingSince && Date.now() - failingSince > 60000 ? 'down' : 'reconnecting', last: lastMsg, price };
       });
     },
     on(fn) { listeners.push(fn); },  // fn(kind: 'snapshot' | 'bar' | 'tick' (the forming minute moved), instrument)
-    bars(s) { const x = store[s]; return x ? x.bars.concat(x.cur && (!x.bars.length || x.cur.t > x.bars[x.bars.length - 1].t) ? [x.cur] : []) : []; },  // closed + forming
-    cur(s) { return store[s] ? store[s].cur : null; },
+    bars(s) { const x = store[s]; return x ? x.bars.concat(forming(x) ? [x.cur] : []) : []; },  // closed + forming
+    cur(s) { return store[s] ? forming(store[s]) : null; },
     has(s) { return !!(store[s] && (store[s].bars.length || store[s].cur)); },
   };
 })();

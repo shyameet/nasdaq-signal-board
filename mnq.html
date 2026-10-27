@@ -14,6 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
+<script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=2"></script>
@@ -473,7 +474,7 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const days = (await Promise.all(files.map(f => loadDay(f, want)))).filter(Boolean);
   const saved = (await Promise.all(files.map(loadFut))).flat(), byT = new Map(saved.map(b => [b.t, b]));
   const mnqCur = NsbLive.cur('MNQ');
-  for (const b of NsbLive.bars('MNQ')) if (b !== mnqCur) byT.set(b.t, { ...b, n: 1 });  // today: the VPS's live MNQ candles (its file is saved after the day), CLOSED minutes only (owner 27/10: liveTick draws the forming one, so the gate and the MACD never see a minute still forming)
+  for (const b of NsbLive.bars('MNQ')) if (b !== mnqCur) byT.set(b.t, { ...b, n: 1 });  // today: the VPS's live MNQ candles (its file is saved after the day), CLOSED minutes only (owner 27/10: the forming one is only drawn, by mnqForming and mnqTick, so the gate and the MACD never see a minute still forming)
   const fut = NsbRolls.adjust('MNQ', [...byT.values()].sort((a, b) => a.t - b.t));  // older contracts moved onto the one traded now
   if (seq !== builds) return false;
   const m = minutesOf(days, want);  // only the picked stocks: nothing else is drawn here
@@ -597,7 +598,7 @@ class Panel {
   get side() { return day[this.key]; }
   draw(full) {  // the whole day
     const side = this.side, upto = Infinity;
-    const tf = opt.tf, ones = side.price.filter(b => b.time < upto), o = side.origin;
+    const tf = opt.tf, ones = side.price.filter(b => b.time < upto).concat(this.key === 'right' ? mnqForming() : []), o = side.origin;  // MNQ: today's forming minute on top
     this.mainBars = aggregate(ones, tf, o);
     const st = side.run.stateAt;
     this.mainStates = this.mainBars.map(b => {  // the gate at the candle's last finished minute (so far)
@@ -662,7 +663,8 @@ class Panel {
     const gateAt = run => { for (let k = at; k >= at - 5 * MIN; k -= MIN) { const s = run.stateAt.get(k); if (s) return [s, k]; } return [null, null]; };
     const [st, k] = gateAt(side.run), [ost] = gateAt(other.run);
     $(`${this.key}-name`).textContent = side.name;
-    const bar = t === undefined && this.mainBars.length ? this.mainBars[this.mainBars.length - 1] : [...side.price].reverse().find(b => b.time <= at);  // as drawn: liveTick moves it
+    const newest = this.mainBars[this.mainBars.length - 1];
+    const bar = newest && (t === undefined || t >= newest.time) ? newest : [...side.price].reverse().find(b => b.time <= at);  // as drawn (liveTick moves it), or the one hovered
     $(`${this.key}-val`).textContent = bar ? num(bar.close, side.digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
     const ch = k !== null ? side.run.checksAt.get(k) : null;
@@ -734,8 +736,11 @@ function syncOther(src, force = false) {  // the other chart ends at the time sr
   syncing = false;
 }
 let hovering = false, pressedChart = null;  // pressedChart: the chart (or MACD pane) last pressed: a finger moves its crosshair
+let hoverAt = 0, finger = false;  // when the crosshair last moved, and if the last press was a finger
+document.addEventListener('pointerdown', e => { finger = e.pointerType !== 'mouse'; }, true);
+const hoverHeld = () => hovering && (!finger || Date.now() - hoverAt < 5000);  // live prices leave the readout under the crosshair alone (owner 27/10; a finger's for 5 s, as its crosshair stays)
 function hoverAll(src, t) {
-  hovering = t !== undefined;
+  hovering = t !== undefined; hoverAt = Date.now();
   document.body.classList.toggle('hovering', hovering);
   for (const p of Object.values(panels)) {
     if (p !== src) for (const o of p.charts) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
@@ -938,14 +943,19 @@ function liveTick() {  // the newest candle of each chart at the latest prices, 
     const s = p.store.get(sec(last.time));
     if (s) Object.assign(s, { close: last.close, high: last.high, low: last.low });
   }
-  if (Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }  // the headers' prices, a few times a second
+  if (!hoverHeld() && Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }  // the headers' prices, a few times a second
+}
+function mnqForming() {  // MNQ's forming minute from the VPS's stream, drawn on top of the right chart's closed ones (the day is built without it)
+  const cur = NsbLive.cur('MNQ'), own = day.right.price, last = own[own.length - 1];
+  if (!cur || day.key !== NsbCme.key(cur.t) || (last && cur.t <= last.time)) return [];
+  return [{ time: cur.t, open: cur.o, high: cur.h, low: cur.l, close: cur.c, volume: cur.v }];
 }
 function mnqTick(p) {  // MNQ's forming minute from the VPS's stream (live.js) on the right chart, by its own minute (not this browser's clock)
   const cur = NsbLive.cur('MNQ'), bars = p.mainBars, last = bars[bars.length - 1];
-  if (!cur || !last || !day || day.key !== NsbCme.key(cur.t)) return;
+  if (!cur || !day || day.key !== NsbCme.key(cur.t)) return;  // (no candle yet: the week's first minute)
   const start = bucketStart(cur.t, opt.tf, CME_OPEN);
-  if (last.time > start) return;
-  if (last.time === start) { last.close = cur.c; last.high = Math.max(last.high, cur.h); last.low = Math.min(last.low, cur.l); }
+  if (last && last.time > start) return;
+  if (last && last.time === start) { last.close = cur.c; last.high = Math.max(last.high, cur.h); last.low = Math.min(last.low, cur.l); }
   else bars.push({ time: start, open: cur.o, high: cur.h, low: cur.l, close: cur.c, volume: 0 });  // a new candle, until the rebuild draws it fully
   const b = bars[bars.length - 1];
   p.candles.update({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close });
@@ -968,7 +978,6 @@ async function liveRebuild() {  // a minute closed: today again with it, the vie
       const b = before[k], added = q.mainBars.length - b.n;
       if (b.r && b.atEnd && added > 0) q.main.timeScale().setVisibleLogicalRange({ from: b.r.from + added, to: b.r.to + added });
     }
-    liveTick();  // the forming MNQ minute again on top (the day is built without it)
   } catch (e) { /* the minute refresh tries again */ } finally { refreshing = false; }
 }
 const LIVE_COINS = () => ALL;
@@ -1098,7 +1107,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
     panels.left = new Panel('left'); panels.right = new Panel('right');
     await openDay(days[0]);  // today (owner 24/10/2026), updating every minute
     liveConnect(); everyMinute();  // and from then on, every trade
-    NsbLive.start('VPS live stream (MNQ)');
+    NsbLive.start('VPS live stream (MNQ)', () => ['MNQ']);
     let mnqSoon = 0;  // the snapshot (today's MNQ so far) or a closed MNQ minute: today again, straight away
     NsbLive.on((kind, s) => {
       if (kind === 'tick') { if (s === 'MNQ' && day && day.key === NsbCme.key(Date.now())) liveTick(); return; }

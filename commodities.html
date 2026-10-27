@@ -14,6 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
+<script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=2"></script>
@@ -412,7 +413,7 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   for (const m of markets) {
     const byT = new Map();
     for (const f of files) for (const b of f[m] || []) byT.set(b.t, b);
-    if (keys.includes(TODAY_KEY())) { const cur = NsbLive.cur(m); for (const b of NsbLive.bars(m)) if (b !== cur) byT.set(b.t, b); }  // today: the live stream's CLOSED candles (owner 27/10: the forming one is drawn by liveTick, so the gate, the steps and the signals never see a minute still forming)
+    if (keys.includes(TODAY_KEY())) { const cur = NsbLive.cur(m); for (const b of NsbLive.bars(m)) if (b !== cur) byT.set(b.t, b); }  // today: the live stream's CLOSED candles (owner 27/10: the forming one is only drawn, by liveForming and liveTick, so the gate, the steps and the signals never see a minute still forming)
     rows[m] = NsbRolls.adjust(m, [...byT.values()].sort((a, b) => a.t - b.t));  // older contracts moved onto the one traded now
   }
   const runs = Object.fromEntries(markets.map(m => [m, runMarket(m, rows[m])]));
@@ -537,7 +538,7 @@ class Panel {
   }
   draw() {
     const upto = Infinity, tf = opt.tf, o = this.origin;
-    const ones = day.price[this.market].filter(b => b.time < upto);
+    const ones = day.price[this.market].filter(b => b.time < upto).concat(liveForming(this.market));  // today: the forming minute on top
     this.mainBars = aggregate(ones, tf, o);
     this.mainStates = this.mainBars.map((b, i) => {
       for (let t = Math.min(bucketEnd(b.time, tf, o), upto) - MIN; t >= b.time; t -= MIN) { const s = this.shadeAt(t); if (s) return s; }
@@ -595,7 +596,8 @@ class Panel {
     const at = t !== undefined ? t : ownEnd - MIN;  // its own last candle
     let st = null, k = null;
     for (let x = at; x >= at - 15 * MIN; x -= MIN) { const s = run.stateAt.get(x); if (s) { st = s; k = x; break; } }
-    const bar = t === undefined && this.mainBars.length ? this.mainBars[this.mainBars.length - 1] : barAt(own, at);  // its newest candle as drawn: liveTick moves it
+    const newest = this.mainBars[this.mainBars.length - 1];
+    const bar = newest && (t === undefined || t >= newest.time) ? newest : barAt(own, at);  // its newest candle as drawn (liveTick moves it), or the one hovered
     $(`${this.key}-val`).textContent = bar ? num(bar.close, MARKETS[this.market].digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
     const ch = k !== null ? run.checksAt.get(k) : null;
@@ -658,7 +660,11 @@ function indexAt(bars, t) {
   while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) lo = mid; else hi = mid; }
   return lo + (t - bars[lo].time) / (bars[hi].time - bars[lo].time);
 }
+let hoverT, hoverAt = 0, finger = false;  // the time under the crosshair (undefined: none), when it was set, and if the last press was a finger
+document.addEventListener('pointerdown', e => { finger = e.pointerType !== 'mouse'; }, true);
+const hoverHeld = () => hoverT !== undefined && (!finger || Date.now() - hoverAt < 5000);  // live prices leave that readout alone (owner 27/10; a finger's for 5 s, as its crosshair stays)
 function hoverAll(src, t) {
+  hoverT = t; hoverAt = Date.now();
   for (const p of Object.values(panels)) {
     if (p !== src) for (const o of p.charts) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
     p.tags(t); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
@@ -898,6 +904,11 @@ function liveAddToday() {  // true when today was added (and opened, if you were
   if (wasNewest) openDay(k); else if (dayPick) dayPick.set(DAYS, day.key, k);  // a day you picked stays
   return true;
 }
+function liveForming(m) {  // market m's forming minute, drawn on top of today's closed ones (the day is built without it)
+  const cur = NsbLive.cur(m), own = day.price[m], last = own && own[own.length - 1];
+  if (!cur || !own || day.key !== TODAY_KEY() || cur.t < day.d0 || cur.t >= day.d1 || (last && cur.t <= last.time)) return [];
+  return [{ time: cur.t, open: cur.o, high: cur.h, low: cur.l, close: cur.c, volume: cur.v }];
+}
 function liveTick(s) {  // the newest candle of the charts showing market s, at its latest price, between rebuilds
   const cur = NsbLive.cur(s);
   if (!cur || !day || day.key !== TODAY_KEY()) return;
@@ -912,7 +923,7 @@ function liveTick(s) {  // the newest candle of the charts showing market s, at 
     const s0 = p.store.get(sec(b.time));
     if (s0) Object.assign(s0, { close: b.close, high: b.high, low: b.low }); else p.store.set(sec(b.time), { ...b, state: null });
   }
-  if (Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }
+  if (!hoverHeld() && Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }
 }
 async function liveRebuild() {  // today again with the minutes closed since, the view kept on the newest candles
   if (!day || olderBusy || loadingNow || day.key !== TODAY_KEY()) return;
@@ -926,7 +937,6 @@ async function liveRebuild() {  // today again with the minutes closed since, th
     try {
       render(false);
       for (const [q, r, n, atEnd] of before) { const added = q.mainBars.length - n; if (r && atEnd && added > 0) q.main.timeScale().setVisibleLogicalRange({ from: r.from + added, to: r.to + added }); }
-      for (const m of liveMarkets()) liveTick(m);  // the forming minute again on top (the day is built without it)
     } finally { syncing = false; }
   } catch (e) { /* the next minute tries again */ }
 }
@@ -963,7 +973,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
     NsbDraw.setup({ key: 'nsb.draw.comm.' + opt.setup, when });
     buildPanels();
     await openDay(DAYS[DAYS.length - 1]);
-    NsbLive.start(); everyMinute();  // and today, live
+    NsbLive.start('VPS live stream', liveMarkets); everyMinute();  // and today, live
   } catch (e) {
     loading(`Couldn't load the Commodities data (${e.message}). Reload the page to try again.`);
   }
