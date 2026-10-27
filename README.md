@@ -15,9 +15,9 @@ Each series gets a gate, checked every second on the bars still forming:
 | SHORT | all three below 0, and the EMA 21 below the EMA 47 |
 | NO TRADE | anything else |
 
-The **Stocks** tab runs the gate on the stocks you pick: the ten largest Nasdaq-100 stocks that trade on Hyperliquid by default, plus AVGO, TSM and INTC to add, any 1 to 13 of them. Each picked stock gets its own gate on its own candles, and the page's gate is LONG only when every picked stock is LONG, SHORT only when every one is SHORT, NO TRADE otherwise. The chart is the picked stocks combined with equal weights (1000 = the 10/05/2026 close; each minute 1000 x the average of the stocks' moves since then). Its candles: each minute's close as above, open = the previous close, volume = the stocks' dollar volume; coloured by the Trend waves (green where every 5m/7m/9m/11m/15m MACD switched on is above 0, red where every one is below), with the composite's 3m EMA 21/47, and the Entry (2m/3m) and Trend (5m/7m/9m/11m/15m) MACD panes.
+The **Nasdaq** tab runs the gate on the stocks you pick: the ten largest Nasdaq-100 stocks that trade on Hyperliquid by default, plus AVGO, TSM and INTC to add, any 1 to 13 of them. Each picked stock gets its own gate on its own candles, and the page's gate is LONG only when every picked stock is LONG, SHORT only when every one is SHORT, NO TRADE otherwise. The chart is the picked stocks combined with equal weights (1000 = the 10/05/2026 close; each minute 1000 x the average of the stocks' moves since then). Its candles: each minute's close as above, open = the previous close, volume = the stocks' dollar volume; coloured by the Trend waves (green where every 5m/7m/9m/11m/15m MACD switched on is above 0, red where every one is below), with the composite's 3m EMA 21/47, and the Entry (2m/3m) and Trend (5m/7m/9m/11m/15m) MACD panes.
 
-The **Nasdaq** tab shows that composite beside the Nasdaq-100 perp `xyz:XYZ100` (`replay.html`) or beside the CME MNQ future (`mnq.html`), picked in the tab's XYZ100 / MNQ switch. The **India** tab replays the Nifty and Bank Nifty setups on Dhan's saved 1-minute candles, and the **Commodities** tab the Crude (MCL with CRUDEOILM) and Nat Gas (NG with NATGASMINI) setups.
+It shows that composite beside the Nasdaq-100 perp `xyz:XYZ100` (`replay.html`) or beside the CME MNQ future (`mnq.html`), picked in the tab's XYZ100 / MNQ switch. The **India** tab replays the Nifty and Bank Nifty setups on Dhan's saved 1-minute candles, and the **Commodities** tab the Crude (MCL with CRUDEOILM) and Nat Gas (NG with NATGASMINI) setups.
 
 On every US chart a new day starts at the CME open, 17:00 Chicago: 03:30 IST, or 04:30 IST while Chicago is on winter time (first Sunday of November to the second Sunday of March).
 
@@ -28,12 +28,12 @@ Hyperliquid or TradingView.
 
 | File | What it is |
 |---|---|
-| `index.html` | the Stocks tab |
+| `index.html` | opens the Nasdaq tab (the Stocks tab was removed on 27/10/2026) |
 | `replay.html` | Nasdaq tab, XYZ100 section: one CME trading day at a time (from the CME open), your stocks' composite beside XYZ100, the gate, the 2m/3m entry signals with per-trend / gap / one-trend-per-day boxes; reads `data/1m/` and Hyperliquid's last ~3.5 days |
 | `mnq.html` | Nasdaq tab, MNQ section: the composite beside CME MNQ (`data/futures/1m/`), both with the gate, tinted where the two gates disagree |
 | `india-replay.html` | the India tab: one Indian trading day at a time from `data/india/1m/`; the Nifty setup (NIFTY 50 + GIFT NIFTY trend, then RELIANCE syncs as the odd man out, then its 2m/3m entry) and the Bank Nifty setup (NIFTY BANK, then HDFC BANK), candles aligned to each session's open as on TradingView |
 | `commodities.html` | the Commodities tab: MCL / NG (CME, NinjaTrader on the VPS) in step 1 with CRUDEOILM / NATGASMINI (MCX, Dhan) in steps 2 and 3, from `data/futures/1m/` |
-| `engine.js` | the signal calculation (and, on the Stocks tab, Hyperliquid's live stream) |
+| `engine.js` | the signal calculation |
 | `cme.js` | the CME trading day: where a US chart's day starts, whichever clock Chicago is on |
 | `macd.js` | the Trend and Entry MACD panes, their on/off switches and shading, and the day separators (every page) |
 | `draw.js` | the drawing tools (vertical and horizontal lines, measure), shared by a page's charts |
