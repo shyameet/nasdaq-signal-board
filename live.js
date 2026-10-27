@@ -1,12 +1,15 @@
 // Live prices for the tabs that don't come from Hyperliquid (owner 25/10/2026: "real time", no lag): the VPS's stream
 // of NIFTY, BANKNIFTY, GIFTNIFTY, RELIANCE, HDFCBANK (Dhan), CRUDEOILM, NATGASMINI (Dhan, MCX) and MNQ, MCL, NG
 // (NinjaTrader, CME). Its address is in data/live.json (the VPS rewrites it when its tunnel restarts). Messages, times
-// in ms UTC: "snapshot" (today's UTC 1-minute candles so far + the forming one), "tick" {s, p, x: exchange time},
+// in ms UTC: "snapshot" (today's UTC 1-minute candles so far + the forming one), "form" {s, t, o, h, l, c, v, x, r}
+// the forming minute, at most 4 a second (it replaced "tick" {s, p, x: exchange time} on 25/10; both are read),
 // "bar" {s, t, o, h, l, c, v} when a minute closes, "hb" every 5 s.
 //
 // Also the live-status dot every page shows in its top bar (owner 25/10/2026: show it and reconnect): green Live,
-// amber Reconnecting, red Not live with the time of the last price. NsbStatus.add(name, fn) adds a feed; fn() returns
-// { state: 'live' | 'reconnecting' | 'down', last: ms of the last message }.
+// amber Reconnecting, red Not live with the time of the last price; amber "Connected · no prices" when the stream answers
+// but no price came for 2 minutes (owner 27/10: its 5 s heartbeat alone kept the dot green with a feed down, or every
+// market shut). NsbStatus.add(name, fn) adds a feed; fn() returns
+// { state: 'live' | 'quiet' | 'reconnecting' | 'down', last: ms of the last message, price: ms of the last price (optional) }.
 (function () {
   const MIN = 60000;
   const ok = v => typeof v === 'number' && isFinite(v);
@@ -18,18 +21,19 @@
     .lv { display: inline-flex; align-items: center; gap: 6px; font: 600 11.5px/1 inherit; color: var(--muted, #8d99ab); white-space: nowrap; }
     .lv i { width: 8px; height: 8px; border-radius: 50%; background: #5c6879; }
     .lv.live i { background: #2bb68a; box-shadow: 0 0 0 3px rgba(43, 182, 138, .18); }
-    .lv.reconnecting i { background: #f2b33d; }
+    .lv.reconnecting i, .lv.quiet i { background: #f2b33d; }
     .lv.down { color: #f0555f; } .lv.down i { background: #f0555f; }`;
   const ago = ms => { const s = Math.round(ms / 1000); return s < 90 ? `${s} s` : s < 5400 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`; };
   function paint() {
     if (!dot || !feeds.length) return;
     const now = Date.now(), all = feeds.map(f => ({ name: f.name, ...f.fn() }));
-    const rank = { live: 0, reconnecting: 1, down: 2 }, worst = all.reduce((a, b) => rank[b.state] > rank[a.state] ? b : a);
+    const rank = { live: 0, quiet: 1, reconnecting: 2, down: 3 }, worst = all.reduce((a, b) => rank[b.state] > rank[a.state] ? b : a);
     dot.className = 'lv ' + worst.state;
-    dot.lastChild.textContent = worst.state === 'live' ? 'Live' : worst.state === 'reconnecting' ? 'Reconnecting…'
-      : `Not live${worst.last ? ` · last ${ago(now - worst.last)} ago` : ''}`;
-    dot.title = all.map(f => `${f.name}: ${f.state === 'live' ? 'live' : f.state === 'reconnecting' ? 'reconnecting' : 'not live'}`
-      + (f.last ? ` (last message ${ago(now - f.last)} ago)` : '')).join('\n');
+    dot.lastChild.textContent = worst.state === 'live' ? 'Live' : worst.state === 'quiet' ? 'Connected · no prices'
+      : worst.state === 'reconnecting' ? 'Reconnecting…' : `Not live${worst.last ? ` · last ${ago(now - worst.last)} ago` : ''}`;
+    dot.title = all.map(f => `${f.name}: ${f.state === 'live' ? 'live' : f.state === 'quiet' ? 'connected, no prices'
+      : f.state === 'reconnecting' ? 'reconnecting' : 'not live'}`
+      + (f.last ? ` (last message ${ago(now - f.last)} ago${f.price ? `, last price ${ago(now - f.price)} ago` : ''})` : '')).join('\n');
   }
   function mount() {
     const bar = document.querySelector('.topbar');
@@ -48,7 +52,7 @@
   // ---- the VPS stream ----
   const store = {};  // instrument -> { bars: closed 1-minute candles {t, o, h, l, c, v} oldest first, cur: the forming one }
   const listeners = [];
-  let ws = null, lastMsg = 0, openedAt = 0, failingSince = 0, started = false;
+  let ws = null, lastMsg = 0, lastPrice = 0, openedAt = 0, failingSince = 0, started = false;
   const S = s => store[s] || (store[s] = { bars: [], cur: null });
   const row = r => Array.isArray(r) ? { t: r[0], o: +r[1], h: +r[2], l: +r[3], c: +r[4], v: +r[5] || 0 }
     : r && ok(+r.t) ? { t: +r.t, o: +r.o, h: +r.h, l: +r.l, c: +r.c, v: +r.v || 0 } : null;
@@ -62,6 +66,8 @@
   const tell = (kind, s) => { for (const fn of listeners) try { fn(kind, s); } catch (e) { /* one page's bug stays its own */ } };
   function handle(m) {
     lastMsg = Date.now(); failingSince = 0;
+    if (m.type === 'bar' || m.type === 'form' || m.type === 'tick'
+        || (m.type === 'snapshot' && Object.values(m.forming || {}).some(Boolean))) lastPrice = lastMsg;  // a price, not the heartbeat
     if (m.type === 'snapshot') {
       for (const [s, rows] of Object.entries(m.candles || {})) { const x = S(s); for (const r of rows || []) upsert(x.bars, row(r)); }
       for (const [s, r] of Object.entries(m.forming || {})) { const b = row(r); if (b) S(s).cur = b; }
@@ -78,6 +84,11 @@
       if (!x.cur || x.cur.t !== t) x.cur = { t, o: p, h: p, l: p, c: p, v: 0 };
       else { x.cur.c = p; x.cur.h = Math.max(x.cur.h, p); x.cur.l = Math.min(x.cur.l, p); }
       tell('tick', m.s);
+    } else if (m.type === 'form' && m.s) {  // the forming minute as the stream has it (since 25/10, in place of "tick")
+      const x = S(m.s), b = row(m), last = x.bars[x.bars.length - 1];
+      if (!b || !ok(b.c) || (last && b.t <= last.t)) return;  // a minute already closed
+      x.cur = b;
+      tell('tick', m.s);  // the pages move their newest candle on 'tick'
     }
   }
   async function connect() {
@@ -99,10 +110,11 @@
       connect();
       NsbStatus.add(name, () => {
         const fresh = ws && ws.readyState === WebSocket.OPEN && Date.now() - lastMsg < 15000;
-        return { state: fresh ? 'live' : failingSince && Date.now() - failingSince > 60000 ? 'down' : 'reconnecting', last: lastMsg };
+        return { state: fresh ? (Date.now() - lastPrice < 2 * MIN ? 'live' : 'quiet')  // Live only while prices come
+                       : failingSince && Date.now() - failingSince > 60000 ? 'down' : 'reconnecting', last: lastMsg, price: lastPrice };
       });
     },
-    on(fn) { listeners.push(fn); },  // fn(kind: 'snapshot' | 'bar' | 'tick', instrument)
+    on(fn) { listeners.push(fn); },  // fn(kind: 'snapshot' | 'bar' | 'tick' (the forming minute moved), instrument)
     bars(s) { const x = store[s]; return x ? x.bars.concat(x.cur && (!x.bars.length || x.cur.t > x.bars[x.bars.length - 1].t) ? [x.cur] : []) : []; },  // closed + forming
     cur(s) { return store[s] ? store[s].cur : null; },
     has(s) { return !!(store[s] && (store[s].bars.length || store[s].cur)); },
