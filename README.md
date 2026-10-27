@@ -21,7 +21,7 @@ It shows that composite beside the Nasdaq-100 perp `xyz:XYZ100` (`replay.html`) 
 
 On every US chart a new day starts at the CME open, 17:00 Chicago: 03:30 IST, or 04:30 IST while Chicago is on winter time (first Sunday of November to the second Sunday of March).
 
-Everything runs in your browser. Closed days come from the VPS's daily archives in `data/`, today from Hyperliquid's public API and its live candle stream. There is no server and no account; drawings and settings stay in your browser.
+Everything runs in your browser. Closed days come from the VPS's daily archives in `data/`, today from Hyperliquid's public API and its live candle stream. There is no account; drawings and settings stay in your browser. The live prices of MNQ, India and Commodities come from the VPS's stream (`live.js`), which asks once for the board's shared password when one is set there and remembers it in your browser (the key button beside the live dot changes or forgets it); the saved days need no password.
 
 For information only, not investment advice. An independent project, not affiliated with Nasdaq, Inc., CME Group,
 Hyperliquid or TradingView.
@@ -40,11 +40,12 @@ Hyperliquid or TradingView.
 | `daypick.js` | the calendar that picks a day |
 | `rolls.js` | the futures' contract switches (Commodities, MNQ): older candles moved by the gap so the chart runs on smoothly, a mark at each switch, and a warning on the switch day and the trading day before it |
 | `labels.js` | the Labels switch (a short explanation on each control) |
+| `live.js` | today's live candles of MNQ, MCL, NG, the India markets and the MCX minis from the VPS's stream, the live dot every page shows, and the password box for live prices |
 | `basket.json` | the stocks on offer (the default 10 and the extra 3) and their reference prices |
 | `data/1m/` | Hyperliquid 1-minute candles of the board's markets, one file per UTC day, from the VPS's daily archive (from 18 Oct 2026, that day only from its evening) |
 | `data/india/1m/` | Dhan 1-minute candles of NIFTY, BANKNIFTY, GIFTNIFTY, RELIANCE and HDFCBANK, one file per Indian trading day, from 15 Oct 2026 |
 | `data/futures/1m/` | 1-minute candles of MNQ, MCL and NG (NinjaTrader's front month) and CRUDEOILM, NATGASMINI (Dhan, the near month, moving to the next on its expiry day), one file per UTC day, from 15 Oct 2026, with the contract behind each stretch; `rolls.json`: each contract switch, the price gap between the two contracts, and the next switch |
-| `data/live.json` | the address of the VPS's live stream of these markets (for live charts; no page reads it yet) |
+| `data/live.json` | the address of the VPS's live stream of these markets (`live.js` reads it; the VPS rewrites it when its tunnel restarts) |
 | `divergence.html` | the old Divergence page's address, which now opens the Nasdaq tab's MNQ section |
 | `lightweight-charts.js` | TradingView Lightweight Charts™ 4.2.3 |
 | `brand/` | the official Indra Quant lockup, emblem and icons (copied as is from the brand kit, `rdx-quant-lab/branding/`), the app manifest and the link-preview pictures |
