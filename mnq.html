@@ -472,7 +472,8 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const files = filesOf([...shownKeys, warmKey].filter(Boolean));
   const days = (await Promise.all(files.map(f => loadDay(f, want)))).filter(Boolean);
   const saved = (await Promise.all(files.map(loadFut))).flat(), byT = new Map(saved.map(b => [b.t, b]));
-  for (const b of NsbLive.bars('MNQ')) byT.set(b.t, { ...b, n: 1 });  // today: the VPS's live MNQ candles (its file is saved after the day)
+  const mnqCur = NsbLive.cur('MNQ');
+  for (const b of NsbLive.bars('MNQ')) if (b !== mnqCur) byT.set(b.t, { ...b, n: 1 });  // today: the VPS's live MNQ candles (its file is saved after the day), CLOSED minutes only (owner 27/10: liveTick draws the forming one, so the gate and the MACD never see a minute still forming)
   const fut = NsbRolls.adjust('MNQ', [...byT.values()].sort((a, b) => a.t - b.t));  // older contracts moved onto the one traded now
   if (seq !== builds) return false;
   const m = minutesOf(days, want);  // only the picked stocks: nothing else is drawn here
@@ -927,6 +928,7 @@ function lastClose(c, t) {  // a market's latest close at or before minute t, fr
 function liveTick() {  // the newest candle of each chart at the latest prices, between rebuilds
   const T = thisMinute();
   for (const p of Object.values(panels)) {
+    if (p.key === 'right') { mnqTick(p); continue; }
     const bars = p.mainBars, last = bars[bars.length - 1];
     if (!last || last.time !== bucketStart(T, opt.tf, p.key === 'right' ? CME_OPEN : 0)) continue;  // its newest candle is not the one forming now (a rebuild is due)
     const one = LIVE_ONE(p, T);  // { c, h, l } of the forming minute on this chart, or null
@@ -937,6 +939,18 @@ function liveTick() {  // the newest candle of each chart at the latest prices, 
     if (s) Object.assign(s, { close: last.close, high: last.high, low: last.low });
   }
   if (Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }  // the headers' prices, a few times a second
+}
+function mnqTick(p) {  // MNQ's forming minute from the VPS's stream (live.js) on the right chart, by its own minute (not this browser's clock)
+  const cur = NsbLive.cur('MNQ'), bars = p.mainBars, last = bars[bars.length - 1];
+  if (!cur || !last || !day || day.key !== NsbCme.key(cur.t)) return;
+  const start = bucketStart(cur.t, opt.tf, CME_OPEN);
+  if (last.time > start) return;
+  if (last.time === start) { last.close = cur.c; last.high = Math.max(last.high, cur.h); last.low = Math.min(last.low, cur.l); }
+  else bars.push({ time: start, open: cur.o, high: cur.h, low: cur.l, close: cur.c, volume: 0 });  // a new candle, until the rebuild draws it fully
+  const b = bars[bars.length - 1];
+  p.candles.update({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close });
+  const s = p.store.get(sec(b.time));
+  if (s) Object.assign(s, { close: b.close, high: b.high, low: b.low }); else p.store.set(sec(b.time), { ...b, state: null });
 }
 async function liveRebuild() {  // a minute closed: today again with it, the view kept on the newest candles
   if (refreshing || olderBusy || opening || !day) return;  // another build is on: it has the minute too
@@ -954,6 +968,7 @@ async function liveRebuild() {  // a minute closed: today again with it, the vie
       const b = before[k], added = q.mainBars.length - b.n;
       if (b.r && b.atEnd && added > 0) q.main.timeScale().setVisibleLogicalRange({ from: b.r.from + added, to: b.r.to + added });
     }
+    liveTick();  // the forming MNQ minute again on top (the day is built without it)
   } catch (e) { /* the minute refresh tries again */ } finally { refreshing = false; }
 }
 const LIVE_COINS = () => ALL;

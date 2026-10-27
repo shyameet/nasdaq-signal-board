@@ -390,7 +390,7 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   for (const m of markets) {
     const byT = new Map();
     for (const f of files) for (const b of f[m] || []) byT.set(b.t, b);
-    if (keys.includes(TODAY_KEY())) for (const b of NsbLive.bars(m)) byT.set(b.t, b);  // today: the live stream's candles
+    if (keys.includes(TODAY_KEY())) { const cur = NsbLive.cur(m); for (const b of NsbLive.bars(m)) if (b !== cur) byT.set(b.t, b); }  // today: the live stream's CLOSED candles (owner 27/10: the forming one is drawn by liveTick, so the gate, the steps and the signals never see a minute still forming)
     rows[m] = [...byT.values()].sort((a, b) => a.t - b.t);
   }
   const runs = Object.fromEntries(markets.map(m => [m, runMarket(m, rows[m])]));
@@ -960,6 +960,7 @@ async function liveRebuild() {  // today again with the minutes closed since, th
     try {
       render(false);
       for (const [q, r, n, atEnd] of before) { const added = q.mainBars.length - n; if (r && atEnd && added > 0) q.main.timeScale().setVisibleLogicalRange({ from: r.from + added, to: r.to + added }); }
+      for (const m of liveMarkets()) liveTick(m);  // the forming minute again on top (the day is built without it)
     } finally { syncing = false; }
   } catch (e) { /* the next minute tries again */ }
 }
