@@ -3,12 +3,14 @@
 // data/futures/1m/rolls.json, which the VPS's daily job writes:
 //   { rolls: { sym: [{ t: the new contract's first candle (UTC s), day, from, to, gap: new - old price (null: not measured
 //                      yet), gap_t }] },
-//     next: { sym: { day: the trading day the chart moves to `to`, from, to, expiry (MCX) } } }
+//     next: { sym: { day: the trading day the chart moves to `to`, from, to, expiry (MCX),
+//                    t, gap, gap_t (MCX: measured before the switch, so the live candles of that day are smoothed too) } } }
 // Smoothed by back-adjusting: every candle before a switch moves by its gap, so the line runs on through it and the newest
 // candles are the contract traded now, at its own prices. A switch whose gap is not measured yet is marked, not moved.
 //   await NsbRolls.load();                        // once at the start (again to refresh); no file: no switches
 //   rows = NsbRolls.adjust('MCL', rows);          // rows { t (ms), o, h, l, c, ... } oldest first -> moved copies
-//   NsbRolls.marks('MCL', from, to)               // the switches in [from, to) ms: [{ t, text }]
+//   NsbRolls.marks('MCL', from, to)               // the switches in [from, to) ms: [{ t, text }] (after adjust: it knows
+//                                                 // whether the candles have reached the next switch)
 //   NsbRolls.warning(['MCL', 'CRUDEOILM'], key)   // the warning for trading day `key` ('' when none)
 (function () {
   let data = { rolls: {}, next: {} };
@@ -38,9 +40,21 @@
     return data;
   }
   const listed = sym => (Array.isArray(data.rolls[sym]) ? data.rolls[sym] : []).filter(r => r && fin(r.t));
+  // the next switch too, once the candles have reached it, when its t and gap are measured before it (owner 25/10/2026:
+  // live candles on the switch day are smoothed from its first minute), until the daily job saves it in rolls (the same
+  // day or the same two contracts: counted once)
+  const reached = {};  // sym -> true when the candles adjust() was last given reach next[sym].t (marks() follows it)
+  const ahead = sym => {
+    const n = data.next[sym];
+    if (!reached[sym] || !n || !fin(n.t) || !fin(n.gap)) return [];
+    return listed(sym).some(r => r.day === n.day || (r.from === n.from && r.to === n.to)) ? [] : [n];  // not saved yet
+  };
+  const withNext = sym => listed(sym).concat(ahead(sym));
 
   function adjust(sym, rows) {
-    const rs = listed(sym).filter(r => fin(r.gap) && r.gap !== 0).sort((a, b) => b.t - a.t);  // newest first
+    const n = data.next[sym];
+    reached[sym] = !!(n && fin(n.t) && rows.length && rows[rows.length - 1].t >= n.t * 1000);  // the newest candle at or after it
+    const rs = withNext(sym).filter(r => fin(r.gap) && r.gap !== 0).sort((a, b) => b.t - a.t);  // newest first
     if (!rs.length) return rows;
     const out = new Array(rows.length);
     let k = 0, add = 0;  // walking back from the newest candle: each switch passed adds its gap
@@ -53,7 +67,7 @@
   }
 
   function marks(sym, from, to) {
-    return listed(sym).filter(r => r.t * 1000 >= from && r.t * 1000 < to)
+    return withNext(sym).filter(r => r.t * 1000 >= from && r.t * 1000 < to)
       .map(r => ({ t: r.t * 1000, text: `${month(r.from)} → ${month(r.to)}${fin(r.gap) ? '' : ' (not smoothed yet)'}` }));
   }
 
