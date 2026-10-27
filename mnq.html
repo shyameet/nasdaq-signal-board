@@ -662,7 +662,7 @@ class Panel {
     const gateAt = run => { for (let k = at; k >= at - 5 * MIN; k -= MIN) { const s = run.stateAt.get(k); if (s) return [s, k]; } return [null, null]; };
     const [st, k] = gateAt(side.run), [ost] = gateAt(other.run);
     $(`${this.key}-name`).textContent = side.name;
-    const bar = [...side.price].reverse().find(b => b.time <= at);
+    const bar = t === undefined && this.mainBars.length ? this.mainBars[this.mainBars.length - 1] : [...side.price].reverse().find(b => b.time <= at);  // as drawn: liveTick moves it
     $(`${this.key}-val`).textContent = bar ? num(bar.close, side.digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
     const ch = k !== null ? side.run.checksAt.get(k) : null;

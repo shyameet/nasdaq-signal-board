@@ -594,7 +594,7 @@ class Panel {
     const at = t !== undefined ? t : ownEnd - MIN;  // its own last candle
     let st = null, k = null;
     for (let x = at; x >= at - 15 * MIN; x -= MIN) { const s = run.stateAt.get(x); if (s) { st = s; k = x; break; } }
-    const bar = barAt(own, at);
+    const bar = t === undefined && this.mainBars.length ? this.mainBars[this.mainBars.length - 1] : barAt(own, at);  // its newest candle as drawn: liveTick moves it
     $(`${this.key}-val`).textContent = bar ? num(bar.close, MARKETS[this.market].digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
     const ch = k !== null ? run.checksAt.get(k) : null;
