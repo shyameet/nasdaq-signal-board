@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nasdaq · XYZ100 · Indra Quant Signal Board</title>
-<meta name="description" content="Replay past days: your stocks' composite beside the Nasdaq-100 perp, with the gate, the 2m/3m entry signals and the MACD panes.">
+<meta name="description" content="Replay past days: your stocks' composite beside the Nasdaq-100 perp, with the RDX WIP gate, its entry signals E1-E4 and the Entry and Trend panes.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -17,8 +17,8 @@
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=9"></script>
-<script src="engine.js?v=11"></script>
+<script src="macd.js?v=10"></script>
+<script src="engine.js?v=12"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=6"></script>
@@ -30,8 +30,8 @@
   .tf-sel:hover { border-color: var(--line-strong); }   /* the official Indra Quant lockup (logo + wordmark), as is */
   .brand .board-name { font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
   /* The Replay page: one trading day at a time (from the CME open). Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
-     has the same indicators as the Signals page (gate zones, 3m EMA 21/47, Entry and Trend MACD panes) plus its 2m and
-     3m entry signals: the scalper's MACD crossing 0 on a closed candle the way its own gate points. */
+     has the same indicators (gate zones, the 5m EMA 8/21/47, the Entry MACD and Trend waves panes) plus RDX WIP's four
+     entry signals (owner 28/10/2026, Rahul's RDX WIP Trend), E1 and E2 the way its own gate points. */
   :root {
     color-scheme: dark;
     --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
@@ -191,8 +191,10 @@
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
   <div class="grp">
-    <button class="btn" id="sc2" type="button" aria-pressed="true" title="Show the 2m scalper's signals">2m</button>
-    <button class="btn" id="sc3" type="button" aria-pressed="true" title="Show the 3m scalper's signals">3m</button>
+    <button class="btn" id="e1" type="button" aria-pressed="true" title="E1: the 2m MACD crossing 0 the gate's way (one trade at a time; × marks its exit)">E1</button>
+    <button class="btn" id="e2" type="button" aria-pressed="true" title="E2: the 1m MACD crossing 0 the gate's way (one trade at a time; × marks its exit)">E2</button>
+    <button class="btn" id="e3" type="button" aria-pressed="true" title="E3: the 5m EMA 8 crossing back over the 21, with the 9m and 11m waves agreeing">E3</button>
+    <button class="btn" id="e4" type="button" aria-pressed="true" title="E4: the 3m EMA 8 crossing back over the 21, with the 9m and 11m waves agreeing">E4</button>
   </div>
   <div class="grp" title="Signals kept per trend"><span class="lbl">Per trend</span><div class="seg" id="perTrend" role="group" aria-label="Signals per trend"></div></div>
   <div class="grp">
@@ -215,11 +217,11 @@
     <summary title="How it works">?</summary>
     <div class="how-body">
       <h3>What you see</h3>
-      <p>One trading day at a time, from the CME open to the next (17:00 Chicago: 03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time; times are shown in your timezone). Left: your stocks' composite (Stocks button; the same pick as the other pages, applied to every past day). Right: the Nasdaq-100 perp, XYZ100. Both get exactly the same treatment: candles, the gate's zones, the 3m EMA 21 and EMA 47, the Entry (2m/3m) and Trend MACD panes. Each indicator is warmed up on the day before, so it reads what it would have read live.</p>
+      <p>One trading day at a time, from the CME open to the next (17:00 Chicago: 03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time; times are shown in your timezone). Left: your stocks' composite (Stocks button; the same pick as the other pages, applied to every past day). Right: the Nasdaq-100 perp, XYZ100. Both get exactly the same treatment: candles, the gate's zones, the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), the Entry pane (the 1m and 2m MACD) and the Trend pane (the 5m, 9m and 11m waves). Each indicator is warmed up on the day before, so it reads what it would have read live.</p>
       <h3>The gate</h3>
-      <p>LONG when the 5m, 9m and 11m MACD are all above 0 and the 3m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
+      <p>RDX WIP's trend (Rahul's RDX WIP Trend): LONG when the 5m, 9m and 11m waves are all up (on each of them, EMA 8 − EMA 47 and EMA 21 − EMA 47 both above 0) and the 5m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. It is read on candle close: a 5m, 9m or 11m candle counts from the minute it closes. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
       <h3>Signals</h3>
-      <p>A 2m (or 3m) signal is that scalper's MACD line crossing 0 on a closed candle the same way the chart's gate points at that candle's close: crossing up while the gate is LONG, down while it is SHORT. Crosses against the gate are ignored. <b>Per trend</b> keeps only the first 1 or 2 signals of each gate trend (or all). A trend is one run of the gate in one direction; <b>Gap</b> lets the gate sit at NO TRADE for that many minutes without ending the trend (Off: any NO TRADE ends it). <b>1 trend/day</b> keeps only signals in the direction of the day's first gate trend. Only signals are shown: no exits or results.</p>
+      <p>RDX WIP's four entries, as on Rahul's RDX WIP Trend. <b>E1</b>: the 2m MACD (12, 26) crosses 0 on a closed candle the way the chart's gate points: up while it is LONG, down while it is SHORT. <b>E2</b>: the same on the 1m MACD. E1 and E2 each take one trade at a time: it ends (×) when its MACD is back through 0 against it, or at 16:58 New York; a cross while one is open is skipped. <b>E3</b>: the 9m and 11m waves both up, the 5m EMA 21 above the 47, and the 5m EMA 8 crossing back above the 21 (all the other way for a short); it can come while the gate still shows NO TRADE after a pullback. <b>E4</b>: E3 on the 3m. E3 and E4 have no exit. <b>Per trend</b> keeps only the first 1 or 2 E1/E2 signals of each gate trend (or all). A trend is one run of the gate in one direction; <b>Gap</b> lets the gate sit at NO TRADE for that many minutes without ending the trend (Off: any NO TRADE ends it). <b>1 trend/day</b> keeps only E1/E2 signals in the direction of the day's first gate trend. E3 and E4 are always all shown. No results are shown.</p>
       <h3>Days</h3>
       <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The signals cover everything loaded.</p>
       <h3>Data</h3>
@@ -234,14 +236,14 @@
 <script>
 'use strict';
 const DAY = 86400000, MIN = 60000;
-const { TrendSignal, SHOWN, contiguous, toBar, flat, candleRows, BENCH } = NdxEngine.internals;
+const { TrendSignal, SHOWN, contiguous, toBar, flat, candleRows, BENCH, wipSignals, wipMarker } = NdxEngine.internals;
 NdxEngine.internals.keep(Infinity);  // every loaded day runs through one TrendSignal: keep all of it (else past 5,500 bars / 7,700 minutes the strip's oldest stretch is trimmed away)
 const { MacdPane, Bands, DayLines } = NsbMacd;
 const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: 'rgba(232, 238, 246, 0.85)', label: '#283240',
-            bg: '#0a0d12', ema21: '#f2b33d', ema47: '#5b8cff' };
+            bg: '#0a0d12' };
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
 const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
-const RULES = [['3m EMA21 vs EMA47', '3m EMA'], ['5m MACD vs 0', '5m'], ['9m MACD vs 0', '9m'], ['11m MACD vs 0', '11m']];
+const RULES = [['5m waves', '5m'], ['9m waves', '9m'], ['11m waves', '11m'], ['5m EMA21 vs EMA47', '5m 21/47']];  // the RDX WIP gate's conditions
 const TFS = [1, 2, 3, 5], GAPS = [0, 1, 3, 5, 10, 15, 30], PER_TREND = [['1', 1], ['2', 2], ['∞', Infinity]];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const $ = id => document.getElementById(id);
@@ -263,7 +265,7 @@ const save = (k, v) => { try { localStorage.setItem('nsb.replay.' + k, JSON.stri
 // ---- settings (remembered in this browser) ----------------------------------------------------------------
 const opt = {
   tf: TFS.includes(pref('tf', 1)) ? pref('tf', 1) : 1,
-  sc2: pref('sc2', true), sc3: pref('sc3', true),
+  e1: pref('e1', true), e2: pref('e2', true), e3: pref('e3', true), e4: pref('e4', true),  // RDX WIP's entries shown
   perTrend: pref('perTrend', 'inf'),          // '1', '2' or 'inf'
   gap: GAPS.includes(pref('gap', 0)) ? pref('gap', 0) : 0,
   oneTrend: pref('oneTrend', false),
@@ -347,7 +349,7 @@ function runSeries(coef, minutes) {  // minutes: { coin: contiguous bars over th
     while (at[c] < a.length && a[at[c]].t < t) at[c]++;
     if (at[c] < a.length && a[at[c]].t === t) sig.onMemberBar(c, t, a[at[c]].c, a[at[c]].v);
   }
-  return { sig, stateAt: new Map(sig.history), checksAt, bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) };
+  return { sig, stateAt: new Map(sig.history), checksAt, trace: sig.trace, bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) };
 }
 
 // The trends of a series: each minute the gate is LONG or SHORT gets a trend number; a NO TRADE stretch longer than
@@ -364,23 +366,11 @@ function trendsOf(stateAt, gap) {
   }
   return id;
 }
-// The entry signals of a series: the 2m or 3m MACD crossing 0 on a closed candle the way the gate points at its close.
-function crosses(run, m) {
-  const out = [], bars = run.bars[m] || [];
-  for (let i = 1; i < bars.length; i++) {
-    const a = bars[i - 1].macd, b = bars[i].macd;
-    if (!ok(a) || !ok(b)) continue;
-    const dir = a <= 0 && b > 0 ? 'BULLISH' : a >= 0 && b < 0 ? 'BEARISH' : null;
-    if (!dir) continue;
-    const close = bucketEnd(bars[i].time, m), gate = run.stateAt.get(close - MIN);
-    if (gate === dir) out.push({ t: close, m, dir, macd: b });
-  }
-  return out;
-}
-function signalsOf(run, d0, d1) {  // the strip's signals after the boxes: scalpers shown, per trend, one trend per day
-  const want = [opt.sc2 && 2, opt.sc3 && 3].filter(Boolean);
-  const all = want.flatMap(m => crosses(run, m)).sort((a, b) => a.t - b.t || a.m - b.m);
-  const trend = trendsOf(run.stateAt, opt.gap), used = new Map(), limit = perTrendLimit();
+// The entry signals of a series: RDX WIP's four (engine.js wipSignals), E1 and E2 the way its own gate points at the
+// minute's close, E3 and E4 on its own waves.
+function signalsOf(run, d0, d1) {  // the strip's signals: the entries shown; E1/E2 per trend and one trend per day
+  const tr = run.trace, all = wipSignals(tr, { trend: i => tr[i].state });
+  const trend = trendsOf(run.stateAt, opt.gap), used = new Map(), limit = perTrendLimit(), dropped = new Set();
   const dayDir = new Map();  // each trading day's first gate trend: the first minute of the day the gate is LONG or SHORT
   for (const t of [...run.stateAt.keys()].sort((a, b) => a - b)) {
     const s = run.stateAt.get(t), k = NsbCme.dayNo(t);
@@ -388,11 +378,13 @@ function signalsOf(run, d0, d1) {  // the strip's signals after the boxes: scalp
   }
   const out = [];
   for (const s of all) {  // counted over the warm-up day too, so a trend running past the day's start keeps its count
-    const k = NsbCme.dayNo(s.t - MIN);
-    if (opt.oneTrend && s.t > d0 && s.t <= d1 && s.dir !== dayDir.get(k)) continue;
-    const id = trend.get(s.t - MIN), n = used.get(id) || 0;
-    if (n >= limit) continue;
-    used.set(id, n + 1);
+    if (!opt['e' + s.e]) continue;
+    if (s.exit) { if (dropped.has(s.of)) continue; }  // an exit goes with its entry
+    else if (s.e <= 2) {
+      const k = NsbCme.dayNo(s.t - MIN), id = trend.get(s.t - MIN), n = used.get(id) || 0;
+      if ((opt.oneTrend && s.t > d0 && s.t <= d1 && s.dir !== dayDir.get(k)) || n >= limit) { dropped.add(s); continue; }
+      used.set(id, n + 1);
+    }
     if (s.t > d0 && s.t <= d1) out.push(s);
   }
   return out;
@@ -493,8 +485,8 @@ class Panel {
     this.main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.88, bottom: 0 }, visible: false });
     this.candles = this.main.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
     this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.14 } });
-    const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
-    this.e21 = emaLine(C.ema21); this.e47 = emaLine(C.ema47);
+    const emaLine = () => this.main.addLineSeries({ color: NsbMacd.STACK.mixed, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+    this.e8 = emaLine(); this.e21 = emaLine(); this.e47 = emaLine();  // the 5m EMA 8 / 21 / 47, each point colored by their stack
     this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
     this.candles.attachPrimitive(this.zones);
     this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30, 'cme'));  // where each trading day begins (the CME open), with its date
@@ -561,25 +553,15 @@ class Panel {
     this.main.timeScale().setVisibleLogicalRange({ from: i - 1, to: n + 2 });
     return true;
   }
-  setEmas() {  // the 3m EMA 21 and 47 as of each candle's close (never ahead of it)
-    const src = (this.src[3] || []).filter(b => ok(b.ema47)), out = [];
-    let k = -1;
-    for (let i = 0; i < this.mainBars.length; i++) {
-      const end = bucketEnd(this.mainBars[i].time, opt.tf);
-      while (k + 1 < src.length && bucketEnd(src[k + 1].time, 3) <= end) k++;
-      if (k >= 0) out.push({ time: sec(this.mainBars[i].time), e21: src[k].ema21, e47: src[k].ema47 });
-    }
-    this.emaPts = out;
-    this.e21.setData(out.map(p => ({ time: p.time, value: p.e21 })));
-    this.e47.setData(out.map(p => ({ time: p.time, value: p.e47 })));
+  setEmas() {  // the 5m EMA 8, 21 and 47 as of each candle's close (never ahead of it), colored by their stack
+    const out = this.emaPts = NsbMacd.emaPoints(this.mainBars, opt.tf, this.src);
+    for (const k of ['e8', 'e21', 'e47']) this[k].setData(out.map(p => ({ time: p.time, value: p[k], color: p.color })));
   }
-  setMarkers(upto) {  // the signals so far, on the candle where the scalper's candle closed
+  setMarkers(upto) {  // the signals so far (E1-E4, and × where an E1/E2 trade ends), on the candle holding their minute
     const m = [];
     for (const s of this.side.signals) {
       if (s.t > upto) continue;
-      const t = sec(bucketStart(s.t - MIN, opt.tf));
-      m.push(s.dir === 'BULLISH' ? { time: t, position: 'belowBar', color: s.m === 2 ? '#fb7185' : '#22d3ee', shape: 'arrowUp', text: `${s.m}m` }
-                                 : { time: t, position: 'aboveBar', color: s.m === 2 ? '#fb7185' : '#22d3ee', shape: 'arrowDown', text: `${s.m}m` });
+      m.push(wipMarker(s, sec(bucketStart(s.k, opt.tf))));
     }
     m.sort((a, b) => a.time - b.time);
     this.candles.setMarkers(m);
@@ -594,7 +576,7 @@ class Panel {
     $(`${this.key}-val`).textContent = bar ? num(bar.close, side.digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
     const ch = k !== null ? side.run.checksAt.get(k) : null;
-    $(`${this.key}-conds`).innerHTML = ch ? RULES.map(([key, name]) => `<span class="${ch[key] > 0 ? 'up' : 'down'}">${name} ${ch[key] > 0 ? '▲' : '▼'}</span>`).join('') : '';
+    $(`${this.key}-conds`).innerHTML = ch ? NsbMacd.chips(RULES, ch) : '';
     $(`${this.key}-oname`).textContent = other.name;
     $(`${this.key}-ogate`).className = 'gw ' + kind(ost); $(`${this.key}-ogate`).textContent = ost ? WORD[ost] : '—';
     const firstState = this.firstState;
@@ -609,7 +591,7 @@ class Panel {
       $(`${this.key}-tmain`).innerHTML = `<b>${this.side.name}</b><span>${opt.tf}m</span>${t !== undefined ? `<span>${when(b.time)}</span>` : ''}`
         + `<span>O <b>${num(b.open, this.side.digits)}</b> H <b>${num(b.high, this.side.digits)}</b> L <b>${num(b.low, this.side.digits)}</b> C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close, this.side.digits)}</b></span>`
         + (b.state ? `<span class="${kind(b.state) === 'bull' ? 'up' : kind(b.state) === 'bear' ? 'down' : ''}">GATE ${WORD[b.state]}</span>` : '')
-        + (e ? `<span class="t-ema"><span class="sw" style="background:${C.ema21}"></span>EMA 21 <b>${num(e.e21, this.side.digits)}</b><span class="sw" style="background:${C.ema47}"></span>EMA 47 <b>${num(e.e47, this.side.digits)}</b></span>` : '');
+        + (e ? NsbMacd.emaTag(e, v => num(v, this.side.digits)) : '');
     }
     for (const [k, p] of Object.entries(this.macd)) { p.name = this.side.name; p.tag(t); }
   }
@@ -693,7 +675,8 @@ function buildControls() {
   $('gapSel').innerHTML = GAPS.map(g => `<option value="${g}"${g === opt.gap ? ' selected' : ''}>Gap ${g ? g + ' min' : 'off'}</option>`).join('');
   $('gapSel').onchange = () => { opt.gap = +$('gapSel').value; save('gap', opt.gap); recompute(); };
   const toggle = (id, key) => { $(id).setAttribute('aria-pressed', String(opt[key])); $(id).onclick = () => { opt[key] = !opt[key]; save(key, opt[key]); $(id).setAttribute('aria-pressed', String(opt[key])); recompute(); }; };
-  toggle('sc2', 'sc2'); toggle('sc3', 'sc3'); toggle('oneTrend', 'oneTrend');
+  for (const e of ['e1', 'e2', 'e3', 'e4']) toggle(e, e);
+  toggle('oneTrend', 'oneTrend');
   dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Trading day (from the CME open, 17:00 Chicago: 03:30 IST, 04:30 IST in its winter time)' });
 }
 function recompute() { if (!day) return; computeSignals(); render(false); }

@@ -18,8 +18,8 @@
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=3"></script>
-<script src="macd.js?v=9"></script>
-<script src="engine.js?v=11"></script>
+<script src="macd.js?v=10"></script>
+<script src="engine.js?v=12"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=6"></script>
@@ -33,8 +33,8 @@
   /* The MNQ page (owner 24/10/2026): the Replay page with the real MNQ future on the right instead of XYZ100, and the
      Divergence page's marks (MNQ alone / stocks first / other) on both charts instead of the 2m/3m signals.
      The Replay page's notes: one trading day at a time (from the CME open). Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
-     has the same indicators as the Signals page (gate zones, 3m EMA 21/47, Entry and Trend MACD panes) plus its 2m and
-     3m entry signals: the scalper's MACD crossing 0 on a closed candle the way its own gate points. */
+     has the same indicators (the RDX WIP gate, the 5m EMA 8/21/47, the Entry MACD and Trend waves panes; owner
+     28/10/2026, Rahul's RDX WIP Trend). */
   :root {
     color-scheme: dark;
     --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
@@ -218,9 +218,9 @@
     <summary title="How it works">?</summary>
     <div class="how-body">
       <h3>What you see</h3>
-      <p>Left: your stocks' composite from Hyperliquid (Stocks button; the same pick as the other pages, each stock counting equally, its gate LONG or SHORT only when every picked stock agrees). Right: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS). Both get the same gate, EMAs and Entry/Trend MACD panes. The price charts are tinted where the two gates disagree: <b style="color:#ff8a3d">MNQ alone</b> (MNQ's gate is LONG, your stocks' isn't), <b style="color:#2bb68a">Stocks first</b> (your stocks' gate is LONG, MNQ's not yet), and grey for any other difference; an arrow marks where an MNQ-alone or stocks-first stretch begins. The badge in the top bar says where they stand right now (on a past day, at MNQ's last candle of it). MNQ's bars start at its session open (17:00 Chicago), as on TradingView.</p>
+      <p>Left: your stocks' composite from Hyperliquid (Stocks button; the same pick as the other pages, each stock counting equally, its gate LONG or SHORT only when every picked stock agrees). Right: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS). Both get the same gate, the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), the Entry pane (the 1m and 2m MACD) and the Trend pane (the 5m, 9m and 11m waves). The price charts are tinted where the two gates disagree: <b style="color:#ff8a3d">MNQ alone</b> (MNQ's gate is LONG, your stocks' isn't), <b style="color:#2bb68a">Stocks first</b> (your stocks' gate is LONG, MNQ's not yet), and grey for any other difference; an arrow marks where an MNQ-alone or stocks-first stretch begins. The badge in the top bar says where they stand right now (on a past day, at MNQ's last candle of it). MNQ's bars start at its session open (17:00 Chicago), as on TradingView.</p>
       <h3>The gate</h3>
-      <p>LONG when the 5m, 9m and 11m MACD are all above 0 and the 3m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
+      <p>RDX WIP's trend (Rahul's RDX WIP Trend): LONG when the 5m, 9m and 11m waves are all up (on each of them, EMA 8 − EMA 47 and EMA 21 − EMA 47 both above 0) and the 5m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. It is read on candle close: a 5m, 9m or 11m candle counts from the minute it closes. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
       <h3>Days</h3>
       <p>A day is a CME trading day: it starts at the CME open, 17:00 Chicago (03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time), on both charts. Saturday and Sunday trading days have no CME session: the MNQ chart says <b>CME closed – weekend</b> (the stocks still trade). The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The marks cover everything loaded.</p>
       <h3>Data</h3>
@@ -243,7 +243,7 @@ const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', li
             bg: '#0a0d12', ema21: '#f2b33d', ema47: '#5b8cff' };
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
 const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
-const RULES = [['3m EMA21 vs EMA47', '3m EMA'], ['5m MACD vs 0', '5m'], ['9m MACD vs 0', '9m'], ['11m MACD vs 0', '11m']];
+const RULES = [['5m waves', '5m'], ['9m waves', '9m'], ['11m waves', '11m'], ['5m EMA21 vs EMA47', '5m 21/47']];  // the RDX WIP gate's conditions
 const TFS = [1, 2, 3, 5], GAPS = [0, 1, 3, 5, 10, 15, 30], PER_TREND = [['1', 1], ['2', 2], ['∞', Infinity]];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const $ = id => document.getElementById(id);
@@ -557,7 +557,7 @@ class Panel {
     this.candles = this.main.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
     this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.14 } });
     const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
-    this.e21 = emaLine(C.ema21); this.e47 = emaLine(C.ema47);
+    this.e8 = emaLine(NsbMacd.STACK.mixed); this.e21 = emaLine(NsbMacd.STACK.mixed); this.e47 = emaLine(NsbMacd.STACK.mixed);  // the 5m EMA 8 / 21 / 47, each point colored by their stack
     this.zones = new Bands(() => this.main, () => this.mainBars.length, i => (PATTERN[this.kinds[i]] || {}).band || null);  // where the gates disagree
     this.candles.attachPrimitive(this.zones);
     this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30, 'cme'));  // where each trading day begins (the CME open), with its date
@@ -629,17 +629,9 @@ class Panel {
     this.main.timeScale().setVisibleLogicalRange({ from: i - 1, to: n + 2 });
     return true;
   }
-  setEmas() {  // the 3m EMA 21 and 47 as of each candle's close (never ahead of it)
-    const src = (this.src[3] || []).filter(b => ok(b.ema47)), out = [];
-    let k = -1;
-    for (let i = 0; i < this.mainBars.length; i++) {
-      const end = bucketEnd(this.mainBars[i].time, opt.tf, this.side.origin);
-      while (k + 1 < src.length && bucketEnd(src[k + 1].time, 3, this.side.origin) <= end) k++;
-      if (k >= 0) out.push({ time: sec(this.mainBars[i].time), e21: src[k].ema21, e47: src[k].ema47 });
-    }
-    this.emaPts = out;
-    this.e21.setData(out.map(p => ({ time: p.time, value: p.e21 })));
-    this.e47.setData(out.map(p => ({ time: p.time, value: p.e47 })));
+  setEmas() {  // the 5m EMA 8, 21 and 47 as of each candle's close (never ahead of it), colored by their stack
+    const out = this.emaPts = NsbMacd.emaPoints(this.mainBars, opt.tf, this.src, this.side.origin);
+    for (const k of ['e8', 'e21', 'e47']) this[k].setData(out.map(p => ({ time: p.time, value: p[k], color: p.color })));
   }
   setMarkers() {  // a mark where an MNQ alone or a stocks-first stretch begins (as on the Divergence page), and MNQ's contract switches
     const m = [];
@@ -668,7 +660,7 @@ class Panel {
     $(`${this.key}-val`).textContent = bar ? num(bar.close, side.digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
     const ch = k !== null ? side.run.checksAt.get(k) : null;
-    $(`${this.key}-conds`).innerHTML = ch ? RULES.map(([key, name]) => `<span class="${ch[key] > 0 ? 'up' : 'down'}">${name} ${ch[key] > 0 ? '▲' : '▼'}</span>`).join('') : '';
+    $(`${this.key}-conds`).innerHTML = ch ? NsbMacd.chips(RULES, ch) : '';
     $(`${this.key}-oname`).textContent = other.name;
     $(`${this.key}-ogate`).className = 'gw ' + kind(ost); $(`${this.key}-ogate`).textContent = ost ? WORD[ost] : '—';
     const from = mnq && side.price.length ? side.price[0].time : day.d0;  // MNQ: from its first candle in the strip, not the strip's start (a weekend or its break may come first)
@@ -685,7 +677,7 @@ class Panel {
       $(`${this.key}-tmain`).innerHTML = `<b>${this.side.name}</b><span>${opt.tf}m</span>${t !== undefined ? `<span>${when(b.time)}</span>` : ''}`
         + `<span>O <b>${num(b.open, this.side.digits)}</b> H <b>${num(b.high, this.side.digits)}</b> L <b>${num(b.low, this.side.digits)}</b> C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close, this.side.digits)}</b></span>`
         + (b.state ? `<span class="${kind(b.state) === 'bull' ? 'up' : kind(b.state) === 'bear' ? 'down' : ''}">GATE ${WORD[b.state]}</span>` : '')
-        + (e ? `<span class="t-ema"><span class="sw" style="background:${C.ema21}"></span>EMA 21 <b>${num(e.e21, this.side.digits)}</b><span class="sw" style="background:${C.ema47}"></span>EMA 47 <b>${num(e.e47, this.side.digits)}</b></span>` : '');
+        + (e ? NsbMacd.emaTag(e, v => num(v, this.side.digits)) : '');
     }
     for (const [k, p] of Object.entries(this.macd)) { p.name = this.side.name; p.tag(t); }
   }

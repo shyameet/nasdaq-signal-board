@@ -1,11 +1,14 @@
 /* Indra Quant Signal Board: the in-browser engine.
 
    The gate, computed in the viewer's browser from Hyperliquid's public API, so the page needs no server of its own
-   and can be hosted as plain files. For each series (the 10 stocks combined, and the index itself):
-     LONG (state BULLISH)      5m, 9m and 11m MACD all above 0, and the 3m EMA 21 above the EMA 47
-     SHORT (state BEARISH)     all three below 0, and the EMA 21 below the EMA 47
+   and can be hosted as plain files. For each series (the 10 stocks combined, and the index itself), the RDX WIP trend
+   (owner 28/10/2026: Rahul's RDX WIP Trend v1.1, "we are not gonna change anything of our own"):
+     LONG (state BULLISH)      the 5m, 9m and 11m waves all up (on each, EMA 8 - EMA 47 and EMA 21 - EMA 47 both above
+                               0), and the 5m EMA 21 above the EMA 47
+     SHORT (state BEARISH)     all three waves down (both below 0), and the 5m EMA 21 below the EMA 47
      NO TRADE (state NEUTRAL)  anything else
-   checked every second on the bars still forming. With two or more stocks picked, the stocks' gate is LONG only when
+   checked at each minute's close on the bars CLOSED by then (owner 28/10/2026: "candle close"; until then the MACD gate
+   read the bars still forming). With two or more stocks picked, the stocks' gate is LONG only when
    every picked stock's own gate is LONG (each on its own candles), SHORT only when every one is SHORT, NO TRADE
    otherwise; the composite's own conditions are still worked out and shown, but don't decide it. The page's gate (option `gate`): 'stocks', the stocks' own gate
    (the Signals page), or 'both' (the default, Divergence): LONG only when both series are LONG and SHORT only when both
@@ -40,9 +43,9 @@ const RECHECK = 3 * 60000, RECHECK_SPAN = 20;  // every 3 minutes, the last 20 c
 const REFETCH = 180;     // minutes always fetched again on a reload or a reconnect
 const KEEP_BARS = 5000, KEEP_MINUTES = 7200;
 const KEEP = { bars: KEEP_BARS, minutes: KEEP_MINUTES };  // raised when older days are added from our archive (extendBack)
-const TIMEFRAMES = { 3: 'ema', 5: 'macd', 9: 'macd', 11: 'macd' };  // the gate: minutes -> what runs on it
-// what the page draws, beyond the gate: MACD on 1m, 2m, 7m and 15m, and on 3m beside the EMAs (none of them in the gate)
-const SHOWN = { ...TIMEFRAMES, 1: 'macd', 2: 'macd', 3: 'both', 7: 'macd', 15: 'macd' };
+const TIMEFRAMES = { 5: 'ema', 9: 'ema', 11: 'ema' };  // the gate: minutes -> what runs on it (EMA 8, 21 and 47: the waves)
+// what the pages also need, beyond the gate: the 1m and 2m MACD (entries E2 and E1) and the 3m waves (entry E4)
+const SHOWN = { ...TIMEFRAMES, 1: 'macd', 2: 'macd', 3: 'ema' };
 const CACHE = 'nsb.candles.v2.';  // v1 caches can hold flat bars from a stuck stream: they are not read, and start() removes them
 const OLD_CACHE = 'nsb.candles.v1.';  // ~1.65M characters left in Safari's 5 MB, which every shyameet.github.io page shares: v2 failed to save
 
@@ -131,11 +134,27 @@ class Timeframe {  // bars of one size: closed bars with their indicators, plus 
   }
 }
 
+// ---- the RDX WIP trend (owner 28/10/2026, Rahul's RDX WIP Trend v1.1) ----------------------------------------------
+const ok = v => v !== null && v !== undefined && isFinite(v);
+// one timeframe's waves (his RDX MTF EMA Waves B and C): +1 when EMA 8 - EMA 47 and EMA 21 - EMA 47 are both above 0,
+// -1 when both are below, 0 when mixed (the Trend pane's yellow); NaN before its EMAs exist
+function waveRow(b) {
+  if (!b || !ok(b.ema8) || !ok(b.ema21) || !ok(b.ema47)) return NaN;
+  const p = b.ema8 - b.ema47, q = b.ema21 - b.ema47;
+  return p > 0 && q > 0 ? 1 : p < 0 && q < 0 ? -1 : 0;
+}
+// the gate's four conditions from each timeframe's last CLOSED bar: LONG when all are above 0, SHORT when all below
+const gateChecks = b => ({
+  '5m waves': waveRow(b[5]), '9m waves': waveRow(b[9]), '11m waves': waveRow(b[11]),
+  '5m EMA21 vs EMA47': b[5] && ok(b[5].ema21) && ok(b[5].ema47) ? b[5].ema21 - b[5].ema47 : NaN,
+});
+
 class TrendSignal {  // members' 1-minute closes combined (sum of coef * close), the timeframes, and the signal
   constructor(coef, timeframes = TIMEFRAMES, origin = 0) {
     this.coef = coef; this.coins = Object.keys(coef);
     // two or more members: each one's own gate, from its own closes; the series' gate is where they all agree
     this.parts = this.coins.length > 1 ? Object.fromEntries(this.coins.map(c => [c, new TrendSignal({ [c]: 1 }, TIMEFRAMES, origin)])) : null;
+    if (this.parts) for (const p of Object.values(this.parts)) p.trace = null;  // only their gates count
     this.prices = null;
     this.tfs = {};
     for (const m of Object.keys(timeframes).map(Number).sort((a, b) => a - b)) this.tfs[m] = new Timeframe(m, timeframes[m], origin);
@@ -143,6 +162,7 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     this.extremes = new Map();   // live highs/lows sampled within each minute
     this.seenAtEnd = new Map();  // the last live value sampled in each recent minute
     this.history = [];           // [minute, signal state at that minute's close]
+    this.trace = [];             // { t: minute, b: { minutes: its last closed bar }, state } at each minute's close (wipSignals)
   }
   onMemberBar(coin, start, close, volume = 0) {  // volume: the member's 1-minute volume, in its own units
     if (this.parts) this.parts[coin].onMemberBar(coin, start, close, volume);  // first: the composite closes the minute last
@@ -168,14 +188,24 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
       high = Math.max(high, hi); low = Math.min(low, lo);
     }
     for (const m of [...this.extremes.keys()]) if (m < start) this.extremes.delete(m);
-    if (this.ready) {  // evaluated before the minute is added: exactly what the live check showed at that moment
-      const ev = this.evaluate(close), own = ev.state;
-      this.closedChecks = ev.checks;  // the four conditions as of this close (the live board shows these, owner 25/10)
-      this.history.push([start, this.parts ? this.partsState(start) : own]);
-      if (this.history.length > KEEP.minutes + 500) this.history.splice(0, 500);
-    }
     this.lastMinute = start; this.lastClose = close;
     for (const tf of Object.values(this.tfs)) tf.addMinute(start, open, high, low, close, volume);
+    // the gate at this minute's close, from the bars closed by then: a higher-timeframe bar counts from the minute that
+    // closes it (owner 28/10/2026: "candle close", as Rahul's RDX WIP Trend reads its timeframes)
+    let state = null;
+    if (this.ready) {
+      const ev = this.evaluate(close);
+      this.closedChecks = ev.checks;  // the four conditions as of this close (the live board shows these, owner 25/10)
+      state = this.parts ? this.partsState(start) : ev.state;
+      this.history.push([start, state]);
+      if (this.history.length > KEEP.minutes + 500) this.history.splice(0, 500);
+    }
+    if (this.trace) {
+      const b = {};
+      for (const [m, tf] of Object.entries(this.tfs)) b[m] = tf.bars[tf.bars.length - 1] || null;
+      this.trace.push({ t: start, b, state });
+      if (this.trace.length > KEEP.minutes + 500) this.trace.splice(0, 500);
+    }
   }
   partsState(start) {  // the members' gates at the close of minute `start` (each has already closed it): all agree, or NO TRADE
     let state = null;
@@ -199,7 +229,7 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     for (const m of [...this.seenAtEnd.keys()]) if (m < minute - 600000) this.seenAtEnd.delete(m);
     if (this.parts && this.prices) for (const [c, p] of Object.entries(this.parts)) p.sample(now, this.prices[c]);
   }
-  get ready() {  // enough closed bars everywhere for the MACD (26 + 9) and the EMA 47 to have settled
+  get ready() {  // enough closed bars everywhere for the MACD (26 + 9) and the EMA 47 to have started
     return Object.values(this.tfs).every(tf => tf.bars.length >= Math.max(tf.macd ? 35 : 0, tf.ema47 ? 47 : 0))
       && (!this.parts || Object.values(this.parts).every(p => p.ready));
   }
@@ -216,15 +246,13 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     }
     return runs;
   }
-  evaluate(value, now) {  // the gate with `value` as the close of every forming bar
-    const f = {};
-    for (const [m, tf] of Object.entries(this.tfs)) f[m] = tf.forming(value, now, k => this.seenAtEnd.get(k));
-    const checks = {
-      '3m EMA21 vs EMA47': f[3].ema21 - f[3].ema47,
-      '5m MACD vs 0': f[5].macd,
-      '9m MACD vs 0': f[9].macd,
-      '11m MACD vs 0': f[11].macd,
-    };
+  evaluate(value, now) {  // the gate from the bars closed so far; live (now given), also the bars forming at `value`
+    const f = {}, last = {};
+    for (const [m, tf] of Object.entries(this.tfs)) {
+      last[m] = tf.bars[tf.bars.length - 1];
+      if (now != null) f[m] = tf.forming(value, now, k => this.seenAtEnd.get(k));
+    }
+    const checks = gateChecks(last);
     const v = Object.values(checks);
     let state = v.every(x => x > 0) ? 'BULLISH' : v.every(x => x < 0) ? 'BEARISH' : 'NEUTRAL';
     if (this.parts && now != null && this.prices) {  // live: every member's own gate on its own price
@@ -260,6 +288,65 @@ function combinedStart(h1, h2, state, fallback) {  // when the combined gate's c
   }
   return start;
 }
+
+// ---- RDX WIP's four entries (owner 28/10/2026: Rahul's RDX WIP Trend v1.1, all four on the board) --------------------
+// On one market's minutes (TrendSignal.trace), each read at the minute's close:
+//   E1  the 2m MACD(12,26) crosses its zero line the trend's way (at the close of its 2m bar)
+//   E2  the same on the 1m MACD
+//       One trade at a time each; a trade ends when its MACD is back through zero against it, or at a flat minute. A
+//       cross while a trade is open, or on the minute one ends, is skipped. No entry on a flat minute.
+//   E3  the 9m and 11m waves both up, the 5m EMA 21 above the 47, and the 5m EMA 8 crossing back above the 21 (the 5m
+//       8/47 wave back over the 21/47); SHORT the mirror. Entries only: no exit was given.
+//   E4  E3 on the 3m (its own EMA 21 vs 47 and 8 vs 21)
+// trend(i): the trend E1/E2 need at trace minute i ('BULLISH' / 'BEARISH'; anything else: none). side(i, dir): what
+// else E3/E4 need there (true on the Nasdaq pages; India and Commodities: step 1). isFlat(t): a minute with no entries
+// that ends any E1/E2 trade (16:58 and 16:59 New York, or a market's last minute of the session).
+// -> [{ e: 1-4, dir, k: minute, t: its close (ms), exit: true on an E1/E2 exit, of: the exit's entry }], in time order
+const WIP = {  // each entry's colours on his indicator: BUY, SELL, exit
+  1: { tf: 2, name: '2m MACD', buy: '#00C853', sell: '#FF1744', exit: '#B0BEC5' },
+  2: { tf: 1, name: '1m MACD', buy: '#00E5FF', sell: '#FF9100', exit: '#80DEEA' },
+  3: { tf: 5, name: '5m wave', buy: '#2979FF', sell: '#E040FB' },
+  4: { tf: 3, name: '3m wave', buy: '#FFFFFF', sell: '#FF80AB' },
+};
+const nyFlat = t => { const m = (t - NsbCme.day0(t)) / MIN; return m === 1378 || m === 1379; };  // 16:58 and 16:59 New York (the CME day opens 18:00 New York)
+function wipSignals(trace, { trend, side = () => true, isFlat = nyFlat }) {
+  const out = [], cross = (x, prev) => !ok(x) || !ok(prev) ? null : x > 0 && prev <= 0 ? 'BULLISH' : x < 0 && prev >= 0 ? 'BEARISH' : null;
+  for (const e of [1, 2]) {  // the MACD entries, one trade at a time each
+    const tf = WIP[e].tf;
+    let pos = null, prev = null;
+    trace.forEach((x, i) => {
+      const m = x.b[tf] ? x.b[tf].macd : null, fl = isFlat(x.t);
+      let ended = false;
+      if (pos && i > pos.i && ((ok(m) && m * (pos.dir === 'BULLISH' ? 1 : -1) < 0) || fl)) {
+        out.push({ e, dir: pos.dir, k: x.t, t: x.t + MIN, exit: true, of: pos.sig });
+        pos = null; ended = true;
+      }
+      const dir = cross(m, prev);
+      if (dir && !pos && !ended && !fl && trend(i) === dir) {
+        const sig = { e, dir, k: x.t, t: x.t + MIN };
+        out.push(sig); pos = { dir, i, sig };
+      }
+      prev = m;
+    });
+  }
+  for (const e of [3, 4]) {  // the waves' 8 back over their 21, with the 9m and 11m waves agreeing
+    const tf = WIP[e].tf;
+    let prev = null;
+    trace.forEach((x, i) => {
+      const b = x.b[tf], g = b && ok(b.ema8) && ok(b.ema21) ? b.ema8 - b.ema21 : null, dir = cross(g, prev);
+      prev = g;
+      if (!dir || isFlat(x.t) || !ok(b.ema47)) return;
+      const up = dir === 'BULLISH', r9 = waveRow(x.b[9]), r11 = waveRow(x.b[11]);
+      if ((up ? r9 === 1 && r11 === 1 && b.ema21 > b.ema47 : r9 === -1 && r11 === -1 && b.ema21 < b.ema47) && side(i, dir))
+        out.push({ e, dir, k: x.t, t: x.t + MIN });
+    });
+  }
+  return out.sort((a, b) => a.k - b.k || a.e - b.e);
+}
+const wipMarker = (s, time) => s.exit  // a chart marker for one of them (an exit: a small dot with ×, above the candle)
+  ? { time, position: 'aboveBar', color: WIP[s.e].exit, shape: 'circle', size: 0.5, text: '×' }
+  : s.dir === 'BULLISH' ? { time, position: 'belowBar', color: WIP[s.e].buy, shape: 'arrowUp', text: `E${s.e}` }
+  : { time, position: 'aboveBar', color: WIP[s.e].sell, shape: 'arrowDown', text: `E${s.e}` };
 
 // ---- Hyperliquid ------------------------------------------------------------------------------
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -695,5 +782,6 @@ window.NdxEngine = Engine;
 // through one TrendSignal, so they keep everything; the live board raises it as older days are added (extendBack).
 const keep = n => { KEEP.minutes = Math.max(KEEP.minutes, n); KEEP.bars = Math.max(KEEP.bars, n); };
 window.NdxEngine.internals = { keep, bucket, Ema, Macd, Timeframe, TrendSignal, Tracker, referenceCloseMs, combine,
-                              SHOWN, contiguous, toBar, flat, candleRows, BENCH };  // for checking against Python
+                              SHOWN, contiguous, toBar, flat, candleRows, BENCH,  // for checking against Python
+                              WIP, waveRow, wipSignals, wipMarker, nyFlat };
 })();
