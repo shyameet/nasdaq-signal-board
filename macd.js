@@ -53,8 +53,10 @@ try {
   if (saved && typeof saved === 'object') for (const k in show) if (typeof saved[k] === 'boolean') show[k] = saved[k];
 } catch (e) {}
 const listeners = [];
+let showVer = 0;  // bumped by every switch: trendState keeps its answer per point and per version
 function toggle(k) {
   show[k] = !show[k];
+  showVer += 1;
   try { localStorage.setItem(KEY, JSON.stringify(show)); } catch (e) {}
   for (const fn of listeners) fn(k);
 }
@@ -97,11 +99,14 @@ function matchAt(a, b, lines) {  // the stocks' and the index's points at one ca
 // itself (owner 28/10/2026: the 5m, 9m and 11m waves all up, which has the 5m EMA 21 above the 47). The price chart and
 // both panes use it, on every page; the gate itself is shown in words.
 function trendState(pt) {
+  if (!pt) return null;
+  if (pt.stVer === showVer) return pt.st;  // worked out once per point (28/10/2026: the shading asked again on every frame)
+  pt.stVer = showVer;
   const on = PANES.trend.lines.filter(m => show[m]);
-  if (!pt || !on.length) return null;
+  if (!on.length) return pt.st = null;
   let up = 0, down = 0;
-  for (const m of on) { const v = pt.v[m]; if (!ok(v)) return null; if (v > 0) up += 1; else if (v < 0) down += 1; }
-  return up === on.length ? 'BULLISH' : down === on.length ? 'BEARISH' : null;
+  for (const m of on) { const v = pt.v[m]; if (!ok(v)) return pt.st = null; if (v > 0) up += 1; else if (v < 0) down += 1; }
+  return pt.st = up === on.length ? 'BULLISH' : down === on.length ? 'BEARISH' : null;
 }
 
 // ---- the price chart's 5m EMA 8 / 21 / 47, and the gate's conditions (owner 28/10/2026, Rahul's RDX WIP Trend) ---------
@@ -141,14 +146,17 @@ class Bands {  // colored bands behind a chart's series, one per run of candles:
   detached() { this.requestUpdate = null; }
   paneViews() { return this.views; }
   update() { if (this.requestUpdate) this.requestUpdate(); }
-  updateAllViews() {
+  updateAllViews() {  // the candles on screen only (28/10/2026: every candle of the strip on every frame lagged)
     const n = this.count(), ts = this.chart().timeScale(), bands = [];
-    const x0 = n ? ts.logicalToCoordinate(0) : null, x1 = n ? ts.logicalToCoordinate(1) : null;
-    if (x0 !== null && x1 !== null) {
-      const step = x1 - x0, st = Array.from({ length: n }, (_, i) => this.state(i));
-      for (let i = 0, j; i < n; i = j + 1) {
-        for (j = i; j + 1 < n && st[j + 1] === st[i];) j++;
-        if (st[i]) bands.push([x0 + (i - 0.5) * step, x0 + (j + 0.5) * step, st[i]]);
+    const x0 = n ? ts.logicalToCoordinate(0) : null, x1 = n ? ts.logicalToCoordinate(1) : null, r = n ? ts.getVisibleLogicalRange() : null;
+    if (x0 !== null && x1 !== null && r) {
+      const step = x1 - x0, lo = Math.max(0, Math.floor(r.from) - 1), hi = Math.min(n - 1, Math.ceil(r.to) + 1);
+      let i = lo, s = lo <= hi ? this.state(lo) : null;
+      for (let j = lo + 1; j <= hi + 1; j++) {  // runs of one state: [first, last] candle
+        const t = j <= hi ? this.state(j) : undefined;
+        if (t === s) continue;
+        if (s) bands.push([x0 + (i - 0.5) * step, x0 + (j - 0.5) * step, s]);
+        i = j; s = t;
       }
     }
     this.bands = bands;
@@ -177,12 +185,13 @@ class DayLines {  // a dashed line where a new day begins, with its date along t
   paneViews() { return this.views; }
   updateAllViews() {
     const bars = this.bars(), ts = this.chart().timeScale(), out = [];
-    const x0 = bars.length > 1 ? ts.logicalToCoordinate(0) : null, x1 = bars.length > 1 ? ts.logicalToCoordinate(1) : null;
-    if (x0 !== null && x1 !== null) {
+    const x0 = bars.length > 1 ? ts.logicalToCoordinate(0) : null, x1 = bars.length > 1 ? ts.logicalToCoordinate(1) : null, r = ts.getVisibleLogicalRange();
+    if (x0 !== null && x1 !== null && r) {
       const step = x1 - x0, o = this.origin, cme = o === 'cme';
       const day = cme ? NsbCme.dayNo : o ? t => Math.floor((t - o) / 86400000) : t => { const d = new Date(t); return d.getFullYear() * 512 + d.getMonth() * 32 + d.getDate(); };
-      let prev = day(bars[0].time);
-      for (let i = 1; i < bars.length; i++) {
+      const lo = Math.min(bars.length - 1, Math.max(0, Math.floor(r.from) - 1)), hi = Math.min(bars.length - 1, Math.ceil(r.to) + 1);  // the candles on screen
+      let prev = day(bars[lo].time);
+      for (let i = lo + 1; i <= hi; i++) {
         const k = day(bars[i].time);
         if (k === prev) continue;
         prev = k;

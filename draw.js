@@ -56,7 +56,8 @@
     const x0 = ts.logicalToCoordinate(0), x1 = ts.logicalToCoordinate(1);
     if (x0 === null || x1 === null || x1 === x0) return null;
     const step = x1 - x0, tf = c.tf();
-    return { w: ts.width(), h: c.el.clientHeight - ts.height(), bars, tf,
+    // h read only when asked: clientHeight makes the browser lay the page out again, and this runs on every frame (28/10/2026)
+    return { w: ts.width(), get h() { return c.el.clientHeight - ts.height(); }, bars, tf,
              x: t => x0 + indexAt(bars, tf, t) * step, y: v => ok(v) ? c.series.priceToCoordinate(v) : null,
              index: x => (x - x0) / step, price: y => c.series.coordinateToPrice(y) };
   }

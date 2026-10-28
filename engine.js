@@ -88,7 +88,8 @@ class Timeframe {  // bars of one size: closed bars with their indicators, plus 
     this.partial = null;  // the bar being filled by finished minutes
   }
   addMinute(start, open, high, low, close, volume = 0) {
-    const [bStart, bEnd] = bucket(start, this.minutes, this.origin);
+    if (!(start >= this.bs && start < this.be)) [this.bs, this.be] = bucket(start, this.minutes, this.origin);  // a new bar's span, once per bar
+    const bStart = this.bs, bEnd = this.be;
     if (this.partial && this.partial.time !== bStart) this.close();  // its last minute never arrived
     if (!this.partial) this.partial = { time: bStart, open, high, low, close, volume };
     else { const p = this.partial; p.high = Math.max(p.high, high); p.low = Math.min(p.low, low); p.close = close; p.volume += volume; }
@@ -158,6 +159,7 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     this.prices = null;
     this.tfs = {};
     for (const m of Object.keys(timeframes).map(Number).sort((a, b) => a - b)) this.tfs[m] = new Timeframe(m, timeframes[m], origin);
+    this.tfList = Object.entries(this.tfs); this.partList = this.parts ? Object.values(this.parts) : null;  // walked every minute
     this.pending = new Map(); this.lastMinute = null; this.lastClose = null;
     this.extremes = new Map();   // live highs/lows sampled within each minute
     this.seenAtEnd = new Map();  // the last live value sampled in each recent minute
@@ -167,6 +169,7 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
   onMemberBar(coin, start, close, volume = 0) {  // volume: the member's 1-minute volume, in its own units
     if (this.parts) this.parts[coin].onMemberBar(coin, start, close, volume);  // first: the composite closes the minute last
     if (this.lastMinute !== null && start <= this.lastMinute) return;
+    if (this.coins.length === 1) { this.finishMinute(start, this.coef[coin] * close, volume * close); return; }  // one market: nobody to wait for
     let slot = this.pending.get(start);
     if (!slot) this.pending.set(start, slot = new Map());
     slot.set(coin, [close, volume]);
@@ -182,14 +185,16 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
   finishMinute(start, close, volume = 0) {
     const open = this.lastClose !== null ? this.lastClose : close;
     let high = Math.max(open, close), low = Math.min(open, close);
-    if (this.extremes.has(start)) {  // live minutes also know the in-between highs and lows
-      const [hi, lo] = this.extremes.get(start);
-      this.extremes.delete(start);
-      high = Math.max(high, hi); low = Math.min(low, lo);
+    if (this.extremes.size) {
+      if (this.extremes.has(start)) {  // live minutes also know the in-between highs and lows
+        const [hi, lo] = this.extremes.get(start);
+        this.extremes.delete(start);
+        high = Math.max(high, hi); low = Math.min(low, lo);
+      }
+      for (const m of [...this.extremes.keys()]) if (m < start) this.extremes.delete(m);
     }
-    for (const m of [...this.extremes.keys()]) if (m < start) this.extremes.delete(m);
     this.lastMinute = start; this.lastClose = close;
-    for (const tf of Object.values(this.tfs)) tf.addMinute(start, open, high, low, close, volume);
+    for (const [, tf] of this.tfList) tf.addMinute(start, open, high, low, close, volume);
     // the gate at this minute's close, from the bars closed by then: a higher-timeframe bar counts from the minute that
     // closes it (owner 28/10/2026: "candle close", as Rahul's RDX WIP Trend reads its timeframes)
     let state = null;
@@ -202,14 +207,14 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     }
     if (this.trace) {
       const b = {};
-      for (const [m, tf] of Object.entries(this.tfs)) b[m] = tf.bars[tf.bars.length - 1] || null;
+      for (const [m, tf] of this.tfList) b[m] = tf.bars[tf.bars.length - 1] || null;
       this.trace.push({ t: start, b, state });
       if (this.trace.length > KEEP.minutes + 500) this.trace.splice(0, 500);
     }
   }
   partsState(start) {  // the members' gates at the close of minute `start` (each has already closed it): all agree, or NO TRADE
     let state = null;
-    for (const p of Object.values(this.parts)) {
+    for (const p of this.partList) {
       let s = 'NEUTRAL';  // live, a member can already be a minute or two further on
       for (let i = p.history.length - 1; i >= 0 && p.history[i][0] >= start; i--) if (p.history[i][0] === start) { s = p.history[i][1]; break; }
       state = state === null ? s : combine(state, s);
@@ -229,9 +234,10 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     for (const m of [...this.seenAtEnd.keys()]) if (m < minute - 600000) this.seenAtEnd.delete(m);
     if (this.parts && this.prices) for (const [c, p] of Object.entries(this.parts)) p.sample(now, this.prices[c]);
   }
-  get ready() {  // enough closed bars everywhere for the MACD (26 + 9) and the EMA 47 to have started
-    return Object.values(this.tfs).every(tf => tf.bars.length >= Math.max(tf.macd ? 35 : 0, tf.ema47 ? 47 : 0))
-      && (!this.parts || Object.values(this.parts).every(p => p.ready));
+  get ready() {  // enough closed bars everywhere for the MACD (26 + 9) and the EMA 47 to have started; once so, for good
+    if (this.isReady) return true;  // (bars are only added, and trimmed far above these counts)
+    return this.isReady = this.tfList.every(([, tf]) => tf.bars.length >= Math.max(tf.macd ? 35 : 0, tf.ema47 ? 47 : 0))
+      && (!this.parts || this.partList.every(p => p.ready));
   }
   started(state, fallback) {  // when the current run of `state` began
     let start = fallback;
@@ -247,13 +253,10 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     return runs;
   }
   evaluate(value, now) {  // the gate from the bars closed so far; live (now given), also the bars forming at `value`
-    const f = {}, last = {};
-    for (const [m, tf] of Object.entries(this.tfs)) {
-      last[m] = tf.bars[tf.bars.length - 1];
-      if (now != null) f[m] = tf.forming(value, now, k => this.seenAtEnd.get(k));
-    }
-    const checks = gateChecks(last);
-    const v = Object.values(checks);
+    const f = {}, t = this.tfs, end = tf => tf.bars[tf.bars.length - 1];
+    if (now != null) for (const [m, tf] of this.tfList) f[m] = tf.forming(value, now, k => this.seenAtEnd.get(k));
+    const checks = gateChecks({ 5: end(t[5]), 9: end(t[9]), 11: end(t[11]) });
+    const v = [checks['5m waves'], checks['9m waves'], checks['11m waves'], checks['5m EMA21 vs EMA47']];
     let state = v.every(x => x > 0) ? 'BULLISH' : v.every(x => x < 0) ? 'BEARISH' : 'NEUTRAL';
     if (this.parts && now != null && this.prices) {  // live: every member's own gate on its own price
       state = null;
