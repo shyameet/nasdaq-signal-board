@@ -62,6 +62,10 @@
              x: t => x0 + indexAt(bars, tf, t) * step, y: v => ok(v) ? c.series.priceToCoordinate(v) : null,
              index: x => (x - x0) / step, price: y => c.series.coordinateToPrice(y) };
   }
+  function atClose(c, m, x) {  // the candle under x and its close (owner 29/10/2026: the cross sits on the candle's close by itself)
+    const i = Math.max(0, Math.min(m.bars.length - 1, Math.round(m.index(x)))), b = m.bars[i];
+    return b ? point(c, b.time, b.close) : null;
+  }
   function at(c, m, x, y, smooth) {  // the point under (x, y) on chart c, its time on the nearest candle (smooth: exactly under the mouse)
     const p = m.price(y), i = m.index(x);
     return ok(p) ? point(c, timeAt(m.bars, m.tf, smooth ? i : Math.round(i)), p) : null;
@@ -76,7 +80,9 @@
     return y2 === null ? null : { x1: m.x(d.a.t), y1, x2: m.x(d.b.t), y2 };
   }
   // A measure belongs to the chart it was drawn on (owner 25/10/2026: "separate, independent"); the lines show on all
-  const shows = (c, d) => d.type !== 'measure' || d.src === c.id;
+  // A line or cross shows while the chart it was drawn on is on the page (owner 29/10/2026: switching the India stock left
+  // the old stock's lines on the new one): lines drawn on the index stay, the old stock's come back with it
+  const shows = (c, d) => d.type === 'measure' ? d.src === c.id : !d.src || charts.some(x => x.id === d.src);
   function hit(c, m, x, y) {  // the drawing under (x, y), and the part grabbed: a measure's corner ('a', 'b', 'ab', 'ba') or the 'body'
     const sel = S.items.find(d => d.id === S.sel), near = (px, py) => Math.hypot(px - x, py - y) <= 8;
     for (const d of [sel, ...S.items.slice().reverse()]) {
@@ -260,7 +266,7 @@
       S.sel = d.id;
       S.gesture = { ...start, kind: 'drag', item: d, part: h.part, orig: copy(d), before: JSON.stringify(S.items), from: { i: m.index(x), p: m.price(y) } };
     } else {
-      const pt = at(c, m, x, y, tool === 'measure');
+      const pt = tool === 'cross' ? atClose(c, m, x) : at(c, m, x, y, tool === 'measure');
       if (!pt) return;
       if (tool === 'measure') {  // drag from one point to the other, or click one, move, click the other
         S.temp = { type: 'measure', src: c.id, a: pt, b: { ...pt } }; S.tempChart = c;
@@ -281,10 +287,9 @@
     if (d.type === 'vline') {
       const di = Math.round(m.index(x) - g.from.i);
       d.a = { ...o.a, t: timeAt(m.bars, m.tf, Math.round(indexAt(m.bars, m.tf, o.a.t)) + di) };
-    } else if (d.type === 'cross') {
-      const di = Math.round(m.index(x) - g.from.i), was = priceOn(c, o.a, o.src), dp = m.price(y) - g.from.p;
-      if (!ok(was) || !ok(dp)) return;
-      d.src = c.id; d.a = point(c, timeAt(m.bars, m.tf, Math.round(indexAt(m.bars, m.tf, o.a.t)) + di), was + dp);  // kept as drawn on this chart
+    } else if (d.type === 'cross') {  // moved along the candles, always on the close of the one under the mouse
+      const pt = atClose(c, m, x);
+      if (pt) { d.src = c.id; d.a = pt; }  // kept as drawn on this chart
     } else if (d.type === 'measure') {  // on its own chart: a corner, or the whole box, smoothly with the mouse
       const pt = at(c, m, x, y, true);
       if (!pt) return;
