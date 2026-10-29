@@ -1,6 +1,6 @@
 /* Indra Quant Signal Board: the MACD panes under a price chart, and the day separators, shared by both pages.
 
-   Two panes (owner 28/10/2026, Rahul's RDX WIP): Entry (the 1m and 2m MACD 12/26: entries E2 and E1) above Trend (the
+   Two panes (owner 28/10/2026, Rahul's RDX WIP): Entry (the 1m and 2m MACD 12/26: entries E2 and E1; the 3m MACD since 29/10, shown only) above Trend (the
    5m, 9m and 11m waves, EMA 8 - EMA 47 and EMA 21 - EMA 47 on each: the gate's waves; until 28/10 the 5m to 15m MACD
    with signal lines). Every line is drawn on the price chart's own candles, at its value as of each candle's close
    (never ahead of it; the forming candle live), so a pane lines up bar for bar with the chart above it and scrolls with
@@ -22,7 +22,7 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const PANES = {
-  entry: { title: 'Entry', lines: ['m1', 'm2'] },
+  entry: { title: 'Entry', lines: ['m1', 'm2', 'm3'] },
   trend: { title: 'Trend', lines: ['w5a', 'w5b', 'w9a', 'w9b', 'w11a', 'w11b'] },
 };
 // Every line drawn: the timeframe it is read on, its label, its value from that timeframe's bar, and two colors of its
@@ -31,6 +31,7 @@ const PANES = {
 const LINE = {
   m1: { tf: 1, label: '1m', v: b => b.macd, pair: ['#facc15', '#8b5cf6'], tip: '1m MACD (12, 26): entry E2 is its cross of 0' },   // yellow / violet
   m2: { tf: 2, label: '2m', v: b => b.macd, pair: ['#fb7185', '#22c55e'], tip: '2m MACD (12, 26): entry E1 is its cross of 0' },   // rose / green
+  m3: { tf: 3, label: '3m', v: b => b.macd, pair: ['#38bdf8', '#fb923c'], tip: '3m MACD (12, 26): shown only, no entry uses it' },   // sky / orange (owner 29/10)
   w5a: { tf: 5, label: '5m 8/47', v: b => b.ema8 - b.ema47, pair: ['#00E676', '#FF5252'] },
   w5b: { tf: 5, label: '5m 21/47', v: b => b.ema21 - b.ema47, pair: ['#00B8D4', '#FF9100'] },
   w9a: { tf: 9, label: '9m 8/47', v: b => b.ema8 - b.ema47, pair: ['#2979FF', '#FFEA00'] },

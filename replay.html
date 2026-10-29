@@ -17,8 +17,8 @@
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=11"></script>
-<script src="engine.js?v=13"></script>
+<script src="macd.js?v=12"></script>
+<script src="engine.js?v=14"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=7"></script>
@@ -217,7 +217,7 @@
     <summary title="How it works">?</summary>
     <div class="how-body">
       <h3>What you see</h3>
-      <p>One trading day at a time, from the CME open to the next (17:00 Chicago: 03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time; times are shown in your timezone). Left: your stocks' composite (Stocks button; the same pick as the other pages, applied to every past day). Right: the Nasdaq-100 perp, XYZ100. Both get exactly the same treatment: candles, the gate's zones, the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), the Entry pane (the 1m and 2m MACD) and the Trend pane (the 5m, 9m and 11m waves). Each indicator is warmed up on the day before, so it reads what it would have read live.</p>
+      <p>One trading day at a time, from the CME open to the next (17:00 Chicago: 03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time; times are shown in your timezone). Left: your stocks' composite (Stocks button; the same pick as the other pages, applied to every past day). Right: the Nasdaq-100 perp, XYZ100. Both get exactly the same treatment: candles, the gate's zones, the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), the Entry pane (the 1m, 2m and 3m MACD) and the Trend pane (the 5m, 9m and 11m waves). Each indicator is warmed up on the day before, so it reads what it would have read live.</p>
       <h3>The gate</h3>
       <p>RDX WIP's trend (Rahul's RDX WIP Trend): LONG when the 5m, 9m and 11m waves are all up (on each of them, EMA 8 − EMA 47 and EMA 21 − EMA 47 both above 0) and the 5m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. It is read on candle close: a 5m, 9m or 11m candle counts from the minute it closes. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
       <h3>Signals</h3>

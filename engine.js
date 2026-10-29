@@ -44,8 +44,9 @@ const REFETCH = 180;     // minutes always fetched again on a reload or a reconn
 const KEEP_BARS = 5000, KEEP_MINUTES = 7200;
 const KEEP = { bars: KEEP_BARS, minutes: KEEP_MINUTES };  // raised when older days are added from our archive (extendBack)
 const TIMEFRAMES = { 5: 'ema', 9: 'ema', 11: 'ema' };  // the gate: minutes -> what runs on it (EMA 8, 21 and 47: the waves)
-// what the pages also need, beyond the gate: the 1m and 2m MACD (entries E2 and E1) and the 3m waves (entry E4)
-const SHOWN = { ...TIMEFRAMES, 1: 'macd', 2: 'macd', 3: 'ema' };
+// what the pages also need, beyond the gate: the 1m and 2m MACD (entries E2 and E1), the 3m waves (entry E4) and the 3m
+// MACD (Entry pane only, owner 29/10/2026)
+const SHOWN = { ...TIMEFRAMES, 1: 'macd', 2: 'macd', 3: 'both' };
 const CACHE = 'nsb.candles.v2.';  // v1 caches can hold flat bars from a stuck stream: they are not read, and start() removes them
 const OLD_CACHE = 'nsb.candles.v1.';  // ~1.65M characters left in Safari's 5 MB, which every shyameet.github.io page shares: v2 failed to save
 

@@ -18,8 +18,8 @@
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=3"></script>
-<script src="macd.js?v=11"></script>
-<script src="engine.js?v=13"></script>
+<script src="macd.js?v=12"></script>
+<script src="engine.js?v=14"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=7"></script>
@@ -218,7 +218,7 @@
     <summary title="How it works">?</summary>
     <div class="how-body">
       <h3>What you see</h3>
-      <p>Left: your stocks' composite from Hyperliquid (Stocks button; the same pick as the other pages, each stock counting equally, its gate LONG or SHORT only when every picked stock agrees). Right: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS). Both get the same gate, the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), the Entry pane (the 1m and 2m MACD) and the Trend pane (the 5m, 9m and 11m waves). The price charts are tinted where the two gates disagree: <b style="color:#ff8a3d">MNQ alone</b> (MNQ's gate is LONG, your stocks' isn't), <b style="color:#2bb68a">Stocks first</b> (your stocks' gate is LONG, MNQ's not yet), and grey for any other difference; an arrow marks where an MNQ-alone or stocks-first stretch begins. The badge in the top bar says where they stand right now (on a past day, at MNQ's last candle of it). MNQ's bars start at its session open (17:00 Chicago), as on TradingView.</p>
+      <p>Left: your stocks' composite from Hyperliquid (Stocks button; the same pick as the other pages, each stock counting equally, its gate LONG or SHORT only when every picked stock agrees). Right: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS). Both get the same gate, the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), the Entry pane (the 1m, 2m and 3m MACD) and the Trend pane (the 5m, 9m and 11m waves). The price charts are tinted where the two gates disagree: <b style="color:#ff8a3d">MNQ alone</b> (MNQ's gate is LONG, your stocks' isn't), <b style="color:#2bb68a">Stocks first</b> (your stocks' gate is LONG, MNQ's not yet), and grey for any other difference; an arrow marks where an MNQ-alone or stocks-first stretch begins. The badge in the top bar says where they stand right now (on a past day, at MNQ's last candle of it). MNQ's bars start at its session open (17:00 Chicago), as on TradingView.</p>
       <h3>The gate</h3>
       <p>RDX WIP's trend (Rahul's RDX WIP Trend): LONG when the 5m, 9m and 11m waves are all up (on each of them, EMA 8 − EMA 47 and EMA 21 − EMA 47 both above 0) and the 5m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. It is read on candle close: a 5m, 9m or 11m candle counts from the minute it closes. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
       <h3>Days</h3>
