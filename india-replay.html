@@ -21,7 +21,7 @@
 <script src="engine.js?v=14"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
-<script src="draw.js?v=7"></script>
+<script src="draw.js?v=6"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
   /* the candle size: one dropdown (owner 24/10/2026) */
@@ -173,6 +173,7 @@
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
   <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html" aria-current="page">India</a><a href="commodities.html">Commodities</a></nav>
   <div class="grp" title="Setup"><div class="seg words" id="setupSel" role="group" aria-label="Setup"></div></div>
+  <div class="grp"><select class="tf-sel" id="stockSel" aria-label="Stock traded" title="The stock traded (steps 2 and 3)"></select></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
   <div class="grp">
@@ -187,6 +188,7 @@
       <h3>The setups</h3>
       <p><b>Nifty</b>: step 1, NIFTY 50 and GIFT NIFTY show the same gate (both LONG or both SHORT). Step 2, RELIANCE's gate turns to that side after step 1 has started; if RELIANCE is already on that side when step 1 starts, it doesn't count until it leaves that side and comes back (it has to be the odd man out). If it drops out again while the trend holds, it can sync again. Step 3, the entries, RDX WIP's four on RELIANCE (Rahul's RDX WIP Trend): <b>E1</b>, its 2m MACD (12, 26) crossing 0 that way on a closed candle, and <b>E2</b>, the same on its 1m MACD, while steps 1 and 2 hold, each one trade at a time (× where it ends: its MACD back through 0 against it, 16:58 New York, or its last candle of the day (15:14, where Dhan's stock candles stop)); <b>E3</b>, its 9m and 11m waves that way, its 5m EMA 21 on that side of the 47 and its 5m EMA 8 crossing back over the 21, and <b>E4</b>, the same on its 3m, while step 1 holds (as on Rahul's chart, they don't wait for step 2). Times shown are the candle's close.</p>
       <p><b>Bank Nifty</b>: the same, with NIFTY BANK alone in step 1 and HDFC BANK in steps 2 and 3.</p>
+      <p><b>The stock</b> in steps 2 and 3 is picked in the list beside the setup, among the index's five biggest by weight (NSE, 30 Sep 2026): Nifty HDFC BANK, ICICI BANK, RELIANCE, BHARTI AIRTEL, L&amp;T; Bank Nifty HDFC BANK, ICICI BANK, KOTAK BANK, AXIS BANK, SBI. Step 1 stays the same. A stock shows "no data yet" until the VPS records it.</p>
       <h3>The gate</h3>
       <p>For each market on its own candles, RDX WIP's trend (Rahul's RDX WIP Trend): LONG when the 5m, 9m and 11m waves are all up (on each of them, EMA 8 − EMA 47 and EMA 21 − EMA 47 both above 0) and the 5m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. It is read on candle close: a 5m, 9m or 11m candle counts from the minute it closes. Exactly the Nasdaq pages' gate. Each indicator is warmed up on the saved days before, so it reads what it would have read live.</p>
       <h3>Trends</h3>
@@ -230,10 +232,24 @@ const MARKETS = {
   GIFTNIFTY: { name: 'GIFT NIFTY', origin: GIFT_OPEN, digits: 1, macdDigits: 2 },
   RELIANCE: { name: 'RELIANCE', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
   HDFCBANK: { name: 'HDFC BANK', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  ICICIBANK: { name: 'ICICI BANK', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  BHARTIARTL: { name: 'BHARTI AIRTEL', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  LT: { name: 'L&T', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  KOTAKBANK: { name: 'KOTAK BANK', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  AXISBANK: { name: 'AXIS BANK', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  SBIN: { name: 'SBI', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
 };
+// The stock traded (steps 2 and 3), picked in the top bar among the index's five biggest by weight (owner 29/10/2026;
+// NSE factsheets of 30 Sep 2026: NIFTY 50 HDFC Bank 10.38%, ICICI 9.05, Reliance 7.58, Airtel 5.10, L&T 4.20; NIFTY BANK
+// HDFC Bank 18.61, ICICI 14.18, Kotak 10.20, Axis 10.06, SBI 9.93). The index side (step 1) stays as it was. A stock can
+// be picked once the VPS has its candles (`HAVE`); until then the setup's first stock is used.
+const STOCKS = { nifty: ['HDFCBANK', 'ICICIBANK', 'RELIANCE', 'BHARTIARTL', 'LT'], bank: ['HDFCBANK', 'ICICIBANK', 'KOTAKBANK', 'AXISBANK', 'SBIN'] };
+const FIRST = { nifty: 'RELIANCE', bank: 'HDFCBANK' };
+let HAVE = new Set(Object.values(FIRST));
+const pickedStock = k => { const s = pref('stock.' + k, FIRST[k]); return STOCKS[k].includes(s) && HAVE.has(s) ? s : FIRST[k]; };
 const SETUPS = {
-  nifty: { label: 'Nifty', index: 'NIFTY', gift: 'GIFTNIFTY', stock: 'RELIANCE' },
-  bank: { label: 'Bank Nifty', index: 'BANKNIFTY', gift: null, stock: 'HDFCBANK' },
+  nifty: { label: 'Nifty', index: 'NIFTY', gift: 'GIFTNIFTY', get stock() { return pickedStock('nifty'); } },
+  bank: { label: 'Bank Nifty', index: 'BANKNIFTY', gift: null, get stock() { return pickedStock('bank'); } },
 };
 const WARM_DAYS = 3;  // saved days before the oldest one shown, for the indicators to settle
 const SHOW_DAYS = 3, MORE_DAYS = 3;  // days shown when a day is picked (it is the newest); days added each time you scroll to the left edge
@@ -377,7 +393,7 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   try { files = await Promise.all(keys.map(loadFile)); } catch (e) { err = e; }
   if (seq !== builds) return false;  // stale: dropped, even its error
   if (err) throw err;
-  const S = SETUPS[opt.setup], markets = [S.index, S.gift, S.stock].filter(Boolean);
+  const S = { ...SETUPS[opt.setup] }, markets = [S.index, S.gift, S.stock].filter(Boolean);
   const rows = {};
   for (const m of markets) {
     const byT = new Map();
@@ -864,7 +880,9 @@ function seg(el, items, current, onPick) {
   for (const b of el.children) b.onclick = () => { onPick(b.dataset.v); for (const x of el.children) x.setAttribute('aria-pressed', String(x === b)); };
 }
 function buildControls() {
-  seg($('setupSel'), Object.entries(SETUPS).map(([k, s]) => [s.label, k]), opt.setup, async v => { opt.setup = v; save('setup', v); buildPanels(); await openDay(day.key); });
+  seg($('setupSel'), Object.entries(SETUPS).map(([k, s]) => [s.label, k]), opt.setup, async v => { opt.setup = v; save('setup', v); fillStocks(); buildPanels(); await openDay(day.key); });
+  fillStocks();
+  $('stockSel').onchange = async () => { save('stock.' + opt.setup, $('stockSel').value); stockTitles(); buildPanels(); await openDay(day.key); };
   $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === opt.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
   $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
   const toggle = (id, key) => { $(id).setAttribute('aria-pressed', String(opt[key])); $(id).onclick = () => { opt[key] = !opt[key]; save(key, opt[key]); $(id).setAttribute('aria-pressed', String(opt[key])); recompute(); }; };
@@ -875,6 +893,22 @@ function buildControls() {
     const n = Number(e.key);
     if (!halves && n >= 1 && n <= ORDER().length && !e.ctrlKey && !e.metaKey && !e.altKey) select(ORDER()[n - 1].key);
   });
+}
+function fillStocks() {  // the setup's five stocks; one without candles yet says so and can't be picked
+  const cur = SETUPS[opt.setup].stock;
+  $('stockSel').innerHTML = STOCKS[opt.setup].map(s => `<option value="${s}"${s === cur ? ' selected' : ''}${HAVE.has(s) ? '' : ' disabled'}>${MARKETS[s].name}${HAVE.has(s) ? '' : ' · no data yet'}</option>`).join('');
+  stockTitles();
+}
+function stockTitles() {  // the entry buttons name the stock they trade
+  const name = MARKETS[SETUPS[opt.setup].stock].name;
+  for (const [id, text] of [['e1', "2m MACD crossing 0 the trend's way while steps 1 and 2 hold (one trade at a time; × marks its exit)"],
+                            ['e2', "1m MACD crossing 0 the trend's way while steps 1 and 2 hold (one trade at a time; × marks its exit)"],
+                            ['e3', "5m EMA 8 crossing back over the 21, its 9m and 11m waves agreeing, while step 1 holds"],
+                            ['e4', "3m EMA 8 crossing back over the 21, its 9m and 11m waves agreeing, while step 1 holds"]]) $(id).title = `${id.toUpperCase()}: ${name}'s ${text}`;
+}
+async function findStocks() {  // the stocks with candles: in the newest saved day, or in the live stream today
+  try { const f = await loadFile(DAYS[DAYS.length - 1]); for (const s of Object.keys(f)) if (MARKETS[s]) HAVE.add(s); } catch (e) {}
+  for (const s of Object.keys(MARKETS)) if (NsbLive.has(s)) HAVE.add(s);
 }
 function recompute() { if (!day) return; day.entries = entriesOf(); render(false); }
 let olderBusy = false;
@@ -960,7 +994,7 @@ function everyMinute() {  // 2 s past each minute: its bars are in
 }
 NsbLive.on((kind, s) => {
   if (kind === 'tick') liveTick(s);
-  else if (kind === 'snapshot') liveSoonRebuild(0);
+  else if (kind === 'snapshot') { const n = HAVE.size; findStocks().then(() => { if (HAVE.size !== n) fillStocks(); }); liveSoonRebuild(0); }
   else if (kind === 'bar' && liveMarkets().includes(s)) liveSoonRebuild(700);  // a minute closed: once the others' bars are in too
 });
 // The loading screen covers the page only when the wait is long enough to notice (owner 25/10/2026: smooth switching;
@@ -982,6 +1016,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
     DAYS = (Array.isArray(j) ? j : j.dates || []).map(String).sort();
     SAVED = new Set(DAYS);
     if (!DAYS.length) throw new Error('no saved days yet');
+    await findStocks();
     buildControls();
     NsbDraw.setup({ key: 'nsb.draw.india.' + opt.setup, when });
     buildPanels();

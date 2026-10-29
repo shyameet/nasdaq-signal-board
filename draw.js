@@ -1,5 +1,6 @@
 // Drawing tools on every chart page (owner 24/10/2026: "few tools like vertical line and horizontal line and measuring
-// tool, that's it", in a sidebar that opens and closes for more space). A line drawn on one chart shows on every price
+// tool, that's it", in a sidebar that opens and closes for more space; 29/10: and a cross, both lines through one point
+// with its time and price). A line or cross drawn on one chart shows on every price
 // chart of the page (a measure stays on its own chart, owner 25/10), like TradingView's synced layouts: a time copies as it is; a price keeps the same % distance from
 // that chart's own price at the drawing's time, because the charts beside each other are different instruments at
 // different prices. Saved in this browser, per page. Also: while the chart is dragged, the crosshair keeps following
@@ -68,6 +69,7 @@
   function shape(c, m, d) {  // drawing d on chart c's screen
     if (d.type === 'vline') return { x: m.x(d.a.t) };
     const y1 = m.y(priceOn(c, d.a, d.src));
+    if (d.type === 'cross') return { x: m.x(d.a.t), y: y1 };  // (y null: its price is off this chart; the time line still shows)
     if (y1 === null) return null;
     if (d.type === 'hline') return { y: y1 };
     const y2 = m.y(priceOn(c, d.b, d.src));
@@ -88,7 +90,8 @@
           if (near(s.x2, s.y1)) return { item: d, part: 'ba' };
         }
         if (x >= Math.min(s.x1, s.x2) - 4 && x <= Math.max(s.x1, s.x2) + 4 && y >= Math.min(s.y1, s.y2) - 4 && y <= Math.max(s.y1, s.y2) + 4) return { item: d, part: 'body' };
-      } else if (d.type === 'hline' ? Math.abs(s.y - y) <= 5 : Math.abs(s.x - x) <= 5) return { item: d, part: 'body' };
+      } else if (d.type === 'cross') { if (Math.abs(s.x - x) <= 5 || (s.y !== null && Math.abs(s.y - y) <= 5)) return { item: d, part: 'body' }; }
+      else if (d.type === 'hline' ? Math.abs(s.y - y) <= 5 : Math.abs(s.x - x) <= 5) return { item: d, part: 'body' };
     }
     return null;
   }
@@ -115,7 +118,7 @@
       else {
         const m = map(this.c), h = m && hit(this.c, m, x, y), d = h && h.item, id = d ? d.id : null;
         if (id !== S.hover) { S.hover = id; queueMicrotask(redraw); }
-        if (d) cursor = h.part !== 'body' ? 'move' : d.type === 'hline' ? 'ns-resize' : d.type === 'vline' ? 'ew-resize' : 'grab';
+        if (d) cursor = h.part !== 'body' || d.type === 'cross' ? 'move' : d.type === 'hline' ? 'ns-resize' : d.type === 'vline' ? 'ew-resize' : 'grab';
       }
       return cursor && { cursorStyle: cursor, externalId: 'drawing', zOrder: 'top' };
     }
@@ -130,13 +133,14 @@
       const all = S.items.map(d => ({ d, sel: d.id === S.sel, hover: d.id === S.hover }));
       if (S.temp && S.tempChart === c) all.push({ d: S.temp });
       for (const it of all) {
-        if (c.pane && it.d.type !== 'vline') continue;  // a pane under a chart shows its vertical lines only
+        if (c.pane && it.d.type !== 'vline' && it.d.type !== 'cross') continue;  // a pane under a chart shows the vertical lines only (a cross's too)
         if (!shows(c, it.d)) continue;
         const s = shape(c, m, it.d), d = it.d;
         if (!s) continue;
         shapes.push({ ...it, s });
         if (d.type === 'hline') priceTag(priceOn(c, d.a, d.src));
         else if (d.type === 'vline') { if (!c.pane) timeTag(d.a.t); }
+        else if (d.type === 'cross') { if (!c.pane) { timeTag(d.a.t); if (s.y !== null) priceTag(priceOn(c, d.a, d.src)); } }  // its time and its price
         else if (it.sel || it.hover || d === S.temp) { priceTag(d.a.p, MEAS_TAG); priceTag(d.b.p, MEAS_TAG); timeTag(d.a.t, MEAS_TAG); timeTag(d.b.t, MEAS_TAG); }
       }
     }
@@ -173,6 +177,10 @@
             const w = px(bold ? 2 : 1.5), x = crisp(s.x, hr, w);
             g.lineWidth = w; seg(x, 0, x, H);
             if (sel && !c.pane) handle(s.x, H / vr / 2);
+          } else if (d.type === 'cross') {  // the vertical line through the whole chart, the horizontal one (not in a pane)
+            const w = px(bold ? 2 : 1.5), x = crisp(s.x, hr, w);
+            g.lineWidth = w; seg(x, 0, x, H);
+            if (!c.pane && s.y !== null) { const y = crisp(s.y, vr, w); seg(0, y, W, y); if (sel) handle(s.x, s.y); }
           } else {  // measure: the change in price and %, and how many candles and how long (whitish, owner 25/10)
             const pa = d.a.p, pb = d.b.p, dp = pb - pa, up = dp >= 0, col = MEAS;
             const l = Math.min(s.x1, s.x2), r = Math.max(s.x1, s.x2), t = Math.min(s.y1, s.y2), b = Math.max(s.y1, s.y2);
@@ -209,7 +217,7 @@
   // other tab saved since this tab last read or wrote them (`known`: the ids it had then; one missing from this tab
   // now was deleted here, so it stays deleted), and each tab picks up the other's saves as they happen (storage event).
   let known = new Set();
-  const valid = d => d && d.a && ok(d.a.t) && (d.type === 'vline' || (d.type === 'hline' && ok(d.a.p) && ok(d.a.r))
+  const valid = d => d && d.a && ok(d.a.t) && (d.type === 'vline' || ((d.type === 'hline' || d.type === 'cross') && ok(d.a.p) && ok(d.a.r))
     || (d.type === 'measure' && ok(d.a.p) && ok(d.a.r) && d.b && ok(d.b.t) && ok(d.b.p) && ok(d.b.r)));
   function stored() {
     try { const a = JSON.parse(localStorage.getItem(S.key) || '[]'); return Array.isArray(a) ? a.filter(valid) : []; } catch (e) { return []; }
@@ -273,6 +281,10 @@
     if (d.type === 'vline') {
       const di = Math.round(m.index(x) - g.from.i);
       d.a = { ...o.a, t: timeAt(m.bars, m.tf, Math.round(indexAt(m.bars, m.tf, o.a.t)) + di) };
+    } else if (d.type === 'cross') {
+      const di = Math.round(m.index(x) - g.from.i), was = priceOn(c, o.a, o.src), dp = m.price(y) - g.from.p;
+      if (!ok(was) || !ok(dp)) return;
+      d.src = c.id; d.a = point(c, timeAt(m.bars, m.tf, Math.round(indexAt(m.bars, m.tf, o.a.t)) + di), was + dp);  // kept as drawn on this chart
     } else if (d.type === 'measure') {  // on its own chart: a corner, or the whole box, smoothly with the mouse
       const pt = at(c, m, x, y, true);
       if (!pt) return;
@@ -355,6 +367,7 @@
   const ICON = {
     vline: '<svg viewBox="0 0 20 20"><path d="M10 2.5v15"/><circle class="fill" cx="10" cy="10" r="1.9"/></svg>',
     hline: '<svg viewBox="0 0 20 20"><path d="M2.5 10h15"/><circle class="fill" cx="10" cy="10" r="1.9"/></svg>',
+    cross: '<svg viewBox="0 0 20 20"><path d="M10 2.5v15M2.5 10h15"/><circle class="fill" cx="10" cy="10" r="1.9"/></svg>',
     measure: '<svg viewBox="0 0 20 20"><path d="M2.9 13.1l10.2-10.2 4 4-10.2 10.2z"/><path d="M5.6 10.4l1.5 1.5M7.8 8.2l1 1M10 6l1.5 1.5"/></svg>',
     del: '<svg viewBox="0 0 20 20"><path d="M4 6h12M8.5 6V4h3v2M5.8 6l.8 10.5h6.8l.8-10.5"/></svg>',
     clear: '<svg viewBox="0 0 20 20"><path d="M11.4 3.7l4.9 4.9-7.6 7.6H5.4l-2-2a1.2 1.2 0 0 1 0-1.7z"/><path d="M7.6 7.5l4.9 4.9M9 16.2h7.5"/></svg>',
@@ -401,6 +414,7 @@
     rail.innerHTML =
       btn('', ICON.vline, 'Vertical line: click a time', 'data-tool="vline"') +
       btn('', ICON.hline, 'Horizontal line: click a price', 'data-tool="hline"') +
+      btn('', ICON.cross, 'Cross: a vertical and a horizontal line through one point, with its time and price', 'data-tool="cross"') +
       btn('', ICON.measure, 'Measure price, % and time: drag, or click two points (Shift+drag measures anytime)', 'data-tool="measure"') +
       '<span class="dr-sep" aria-hidden="true"></span>' +
       btn('dr-del', ICON.del, 'Delete the selected drawing (Del)') +
