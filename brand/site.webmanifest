@@ -2,7 +2,6 @@
   "name": "Indra Quant Signal Board",
   "short_name": "Signal Board",
   "description": "Nasdaq-100 and Indian market trend signals by Indra Quant.",
-  "id": "./?app=2",
   "start_url": "../",
   "scope": "../",
   "display": "fullscreen",
