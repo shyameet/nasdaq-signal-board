@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Commodities · Indra Quant Signal Board</title>
-<meta name="description" content="Crude oil and natural gas: the CME future (MCL, NG) sets the trend, the MCX mini (CRUDEOILM, NATGASMINI) joins it, then the RDX WIP entries E1-E4 on the MCX mini.">
+<meta name="description" content="Crude oil, natural gas, gold, silver and copper: the CME future (MCL, NG, MGC, SIL, MHG) sets the trend, the MCX contract (CRUDEOILM, NATGASMINI, GOLDM, SILVERM, COPPER) joins it, then the RDX WIP entries E1-E4 on the MCX contract.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -196,6 +196,7 @@
       <h3>The setups</h3>
       <p><b>Crude</b>: step 1, MCL's gate (CME micro WTI) is LONG or SHORT. Step 2, CRUDEOILM's gate (MCX mini) turns to that side after step 1 has started; if it is already on that side when step 1 starts, it doesn't count until it leaves that side and comes back. If it drops out again while the trend holds, it can sync again. Step 3, the entries, RDX WIP's four on CRUDEOILM (Rahul's RDX WIP Trend): <b>E1</b>, its 2m MACD (12, 26) crossing 0 that way on a closed candle, and <b>E2</b>, the same on its 1m MACD, while steps 1 and 2 hold, each one trade at a time (× where it ends: its MACD back through 0 against it, 16:58 New York, or its last candle of the MCX session); <b>E3</b>, its 9m and 11m waves that way, its 5m EMA 21 on that side of the 47 and its 5m EMA 8 crossing back over the 21, and <b>E4</b>, the same on its 3m, while step 1 holds (as on Rahul's chart, they don't wait for step 2). Times shown are the candle's close, IST.</p>
       <p><b>Nat Gas</b>: the same, with NG (CME natural gas) in step 1 and NATGASMINI (MCX) in steps 2 and 3.</p>
+      <p><b>Gold</b>, <b>Silver</b>, <b>Copper</b>: the same again, with MGC, SIL and MHG (CME micros) in step 1 and GOLDM (MCX gold mini), SILVERM (MCX silver mini) and COPPER (MCX) in steps 2 and 3. A setup shows greyed out until the VPS records both of its markets.</p>
       <h3>The gate</h3>
       <p>For each market on its own candles, RDX WIP's trend (Rahul's RDX WIP Trend): LONG when the 5m, 9m and 11m waves are all up (on each of them, EMA 8 − EMA 47 and EMA 21 − EMA 47 both above 0) and the 5m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. It is read on candle close: a 5m, 9m or 11m candle counts from the minute it closes. Exactly the Nasdaq pages' gate. Each indicator is warmed up on the saved days before, so it reads what it would have read live.</p>
       <h3>Trends</h3>
@@ -241,11 +242,25 @@ const MARKETS = {
   NG: { name: 'NG', origin: 'cme', digits: 3, macdDigits: 4 },     // CME Henry Hub natural gas
   CRUDEOILM: { name: 'CRUDEOILM', origin: MCX_OPEN, digits: 0, macdDigits: 2 },   // MCX crude oil mini
   NATGASMINI: { name: 'NATGASMINI', origin: MCX_OPEN, digits: 1, macdDigits: 3 },  // MCX natural gas mini
+  // owner 30/10/2026: gold, silver and copper, the same way (CME micro sets the trend, the MCX contract is traded)
+  MGC: { name: 'MGC', origin: 'cme', digits: 1, macdDigits: 2 },        // CME micro gold
+  SIL: { name: 'SIL', origin: 'cme', digits: 3, macdDigits: 3 },        // CME micro silver
+  MHG: { name: 'MHG', origin: 'cme', digits: 4, macdDigits: 4 },        // CME micro copper
+  GOLDM: { name: 'GOLDM', origin: MCX_OPEN, digits: 0, macdDigits: 1 },     // MCX gold mini (100 g)
+  SILVERM: { name: 'SILVERM', origin: MCX_OPEN, digits: 0, macdDigits: 1 },  // MCX silver mini (5 kg)
+  COPPER: { name: 'COPPER', origin: MCX_OPEN, digits: 2, macdDigits: 2 },    // MCX copper
 };
 const SETUPS = {
   crude: { label: 'Crude', index: 'MCL', gift: null, stock: 'CRUDEOILM' },
   gas: { label: 'Nat Gas', index: 'NG', gift: null, stock: 'NATGASMINI' },
+  gold: { label: 'Gold', index: 'MGC', gift: null, stock: 'GOLDM' },
+  silver: { label: 'Silver', index: 'SIL', gift: null, stock: 'SILVERM' },
+  copper: { label: 'Copper', index: 'MHG', gift: null, stock: 'COPPER' },
 };
+// The setups whose two markets have candles (in the newest saved day, or in the live stream today); the others show
+// greyed out ("no data yet") until the VPS records them, and a remembered one without data falls back to Crude
+let HAVE = new Set(['MCL', 'NG', 'CRUDEOILM', 'NATGASMINI']);
+const ready = k => HAVE.has(SETUPS[k].index) && HAVE.has(SETUPS[k].stock);
 const WARM_DAYS = 3;  // saved days before the oldest one shown, for the indicators to settle
 const SHOW_DAYS = 3, MORE_DAYS = 3;  // days shown when a day is picked (it is the newest); days added each time you scroll to the left edge
 const $ = id => document.getElementById(id);
@@ -827,7 +842,9 @@ function seg(el, items, current, onPick) {
   for (const b of el.children) b.onclick = () => { onPick(b.dataset.v); for (const x of el.children) x.setAttribute('aria-pressed', String(x === b)); };
 }
 function buildControls() {
-  seg($('setupSel'), Object.entries(SETUPS).map(([k, s]) => [s.label, k]), opt.setup, async v => { opt.setup = v; save('setup', v); buildPanels(); await openDay(day.key); });
+  if (!ready(opt.setup)) opt.setup = 'crude';
+  seg($('setupSel'), Object.entries(SETUPS).map(([k, s]) => [s.label, k]), opt.setup, async v => { opt.setup = v; save('setup', v); setupTitles(); buildPanels(); await openDay(day.key); });
+  setupTitles();
   $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === opt.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
   $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
   const toggle = (id, key) => { $(id).setAttribute('aria-pressed', String(opt[key])); $(id).onclick = () => { opt[key] = !opt[key]; save(key, opt[key]); $(id).setAttribute('aria-pressed', String(opt[key])); recompute(); }; };
@@ -838,6 +855,22 @@ function buildControls() {
     const n = Number(e.key);
     if (!halves && n >= 1 && n <= ORDER().length && !e.ctrlKey && !e.metaKey && !e.altKey) select(ORDER()[n - 1].key);
   });
+}
+function setupTitles() {  // greys out the setups without data yet; the entry buttons name the MCX contract they trade
+  for (const b of $('setupSel').children) {
+    const k = b.dataset.v, S = SETUPS[k], on = ready(k);
+    b.disabled = !on; b.style.opacity = on ? '' : '.4'; b.style.cursor = on ? '' : 'default';
+    b.title = on ? `${S.label}: ${S.index} (CME) sets the trend, ${S.stock} (MCX) is traded` : `${S.label}: no data yet (the VPS doesn't record ${[S.index, S.stock].filter(m => !HAVE.has(m)).join(' and ')} yet)`;
+  }
+  const name = SETUPS[opt.setup].stock;
+  for (const [id, text] of [['e1', "2m MACD crossing 0 the trend's way while steps 1 and 2 hold (one trade at a time; × marks its exit)"],
+                            ['e2', "1m MACD crossing 0 the trend's way while steps 1 and 2 hold (one trade at a time; × marks its exit)"],
+                            ['e3', "5m EMA 8 crossing back over the 21, its 9m and 11m waves agreeing, while step 1 holds"],
+                            ['e4', "3m EMA 8 crossing back over the 21, its 9m and 11m waves agreeing, while step 1 holds"]]) $(id).title = `${id.toUpperCase()}: ${name}'s ${text}`;
+}
+async function findMarkets() {  // the markets with candles: in the newest saved file, or in the live stream today
+  try { const f = await loadFile([...FILES].sort().pop()); for (const m of Object.keys(f)) if (MARKETS[m]) HAVE.add(m); } catch (e) {}
+  for (const m of Object.keys(MARKETS)) if (NsbLive.has(m)) HAVE.add(m);
 }
 function recompute() { if (!day) return; day.entries = entriesOf(); render(false); }
 let olderBusy = false;
@@ -925,7 +958,7 @@ function everyMinute() {  // 2 s past each minute: its bars are in
 }
 NsbLive.on((kind, s) => {
   if (kind === 'tick') liveTick(s);
-  else if (kind === 'snapshot') liveSoonRebuild(0);
+  else if (kind === 'snapshot') { const n = HAVE.size; findMarkets().then(() => { if (HAVE.size !== n) setupTitles(); }); liveSoonRebuild(0); }  // a metal that turns up in the stream
   else if (kind === 'bar' && liveMarkets().includes(s)) liveSoonRebuild(700);  // a minute closed: once the others' bars are in too
 });
 // The loading screen covers the page only when the wait is long enough to notice (owner 25/10/2026: smooth switching;
@@ -947,6 +980,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pan
     FILES = new Set((Array.isArray(j) ? j : j.dates || []).map(String));
     DAYS = tradingDays(FILES);
     if (!DAYS.length) throw new Error('no saved days yet');
+    await findMarkets();
     buildControls();
     NsbDraw.setup({ key: 'nsb.draw.comm.' + opt.setup, when });
     buildPanels();
