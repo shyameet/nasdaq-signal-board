@@ -179,6 +179,18 @@
     .panel.tile { grid-column: 1; height: 34vh; min-height: 220px; border-left: 0; }
     .steps { margin-left: 0; flex-wrap: wrap; }
   }
+  /* ---- tablet width (owner 30/10/2026: the stocks pick, ?, Live and Labels sat alone on a second row): below 1500 px
+     the bar tightens so everything fits on one row; it only wraps when there is truly no room. Wide screens unchanged */
+  @media (max-width: 1499px) {
+    .topbar { gap: 4px 6px; padding-left: 8px; padding-right: 8px; }
+    .topbar .grp { padding-left: 6px; gap: 3px; }
+    .topbar .brand .iq-lock { content: url(brand/iq_emblem.svg); height: 24px; }   /* the emblem alone */
+    .topbar .tabs a { padding: 4px 7px; }
+    .topbar .btn, .topbar .lb-btn { padding-left: 7px; padding-right: 7px; }
+    .topbar .grp > .lbl { display: none; }   /* "Per trend": its tooltip still says it */
+    .topbar .spacer { flex: 1 1 0; min-width: 0; }
+    .lv.live > span { display: none; }       /* Live: the green dot says it (other states keep their words) */
+  }
 </style>
 </head>
 <body>
