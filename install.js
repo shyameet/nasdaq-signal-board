@@ -4,7 +4,16 @@
 (function () {
   const touch = matchMedia('(pointer: coarse)').matches;
   const inApp = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
-  if (!touch || inApp) return;
+  if (!touch) return;
+  // Owner 30/10: an app installed before the fullscreen setting still opens with the status bar until Chrome updates
+  // it, so inside the installed app the first tap goes fullscreen (browsers allow it only on a tap). Android hides the
+  // bottom bar with it; leaving the page, switching apps or swiping out ends it and the next tap brings it back
+  if (matchMedia('(display-mode: standalone)').matches && document.documentElement.requestFullscreen) {
+    addEventListener('pointerup', () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+    }, true);
+  }
+  if (inApp) return;
   let ask = null, btn = null;
   function show() {
     const bar = document.querySelector('.topbar');
