@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nasdaq · MNQ · Indra Quant Signal Board</title>
 <meta name="description" content="Your Nasdaq stocks beside the real MNQ future: both gates, and the marks where they disagree.">
 <meta name="theme-color" content="#0a0d12">
@@ -44,6 +44,9 @@
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
+  /* installed app on a tablet (fullscreen, owner 30/10/2026): the page reaches the screen's top edge; it keeps clear of a
+     camera cut-out only where there is one (0 everywhere else, and in a desktop browser) */
+  body { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   body { margin: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text);
          font: 13px/1.4 var(--font-ui); -webkit-font-smoothing: antialiased; }
   button, select { font: inherit; color: inherit; }

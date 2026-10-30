@@ -4,7 +4,11 @@
   "description": "Nasdaq-100 and Indian market trend signals by Indra Quant.",
   "start_url": "../",
   "scope": "../",
-  "display": "standalone",
+  "display": "fullscreen",
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
   "background_color": "#0a0d12",
   "theme_color": "#0a0d12",
   "icons": [
