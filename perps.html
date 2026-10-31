@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
+<script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="macd.js?v=12"></script>
 <script src="engine.js?v=14"></script>
@@ -31,7 +32,8 @@
   /* The Perps page (owner 31/10/2026): one market at a time (the stock perps, or the crypto coins), one Indian calendar
      day at a time, with the Nasdaq tab's indicators (gate zones, the 5m EMA 8/21/47, the Entry MACD and Trend waves
      panes) plus a Swing pane: the same waves on the 1-hour, 4-hour and daily candles, shown only. No signal arrows or
-     signal buttons (owner 31/10: "no need for this E1 E2 E3 E4 Per trend ... Labels"). Watching only. */
+     signal buttons (owner 31/10: "no need for this E1 E2 E3 E4 Per trend ... Labels"; the Labels button came back the
+     same day). The Swing pane is for the stocks only (owner 31/10: no swing trading on crypto). Watching only. */
   :root {
     color-scheme: dark;
     --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
@@ -58,6 +60,7 @@
   .tabs a { padding: 4px 9px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 500; }
   .tabs a:hover { color: var(--text); }
   .tabs a[aria-current="page"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .spacer { flex: 1; }
   .topbar .grp { display: inline-flex; align-items: center; padding: 0 0 0 8px; border-left: 1px solid var(--line); gap: 4px; }
   .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
            background: var(--surface); color: var(--muted); font-size: 12px; }
@@ -83,6 +86,7 @@
   .conds b { font-weight: 600; }
   .warm { color: var(--warn); font-size: 11px; }
   .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 52fr 14fr 17fr 17fr; }
+  .stack.no-swing { grid-template-rows: 58fr 16fr 26fr; }   /* crypto: no Swing pane, the Nasdaq tab's sizes */
   .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }
   .tag { position: absolute; top: 4px; left: 10px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 90px);
          padding: 3px 8px; border-radius: 6px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 11.5px; color: var(--muted);
@@ -111,6 +115,8 @@
     .topbar .grp { padding-left: 6px; gap: 3px; }
     .topbar .brand .iq-lock { content: url(brand/iq_emblem.svg); height: 24px; }
     .topbar .tabs a { padding: 4px 7px; }
+    .topbar .lb-btn { padding-left: 7px; padding-right: 7px; }
+    .topbar .spacer { flex: 1 1 0; min-width: 0; }
     .pco { display: none; }
   }
 </style>
@@ -123,6 +129,7 @@
     <select class="tf-sel" id="stockSel" aria-label="Market" title="The market shown"></select></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
+  <div class="spacer"></div>
 </header>
 <main class="board" id="board"></main>
 <div id="older" class="older" hidden>Loading older days…</div>
@@ -320,7 +327,8 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const d0 = Ist.open(shownKeys[shownKeys.length - 1]), lastD0 = Ist.open(key), d1 = Ist.open(Ist.next(key));
   if (!quiet) loading(`Loading ${tk(coin)} · ${key}…`);
   const files = filesOf([...shownKeys, warmKey].filter(Boolean));
-  const [days, swing] = await Promise.all([Promise.all(files.map(k => loadDay(k, coin))), loadSwing(coin)]);
+  const hasSwing = !LISTS.crypto.includes(coin);  // the Swing pane: stocks only (owner 31/10: no swing trading on crypto)
+  const [days, swing] = await Promise.all([Promise.all(files.map(k => loadDay(k, coin))), hasSwing ? loadSwing(coin) : { bars: {} }]);
   if (seq !== builds) return false;
   const m = minutesOf(days);
   const run = runSeries({ [coin]: 1 }, { [coin]: m });
@@ -328,7 +336,7 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const price = m.filter(inDay).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }));
   const px = price.length ? price[price.length - 1].close : 100;
   day = { key, d0, d1, lastD0, shown: shownKeys.length, more: !!warmKey,
-          stock: { name: tk(coin), coin, run, price, swing: swing.bars,  // a coin under $1 (DOGE) needs more decimals
+          stock: { name: tk(coin), coin, run, price, hasSwing, swing: swing.bars,  // a coin under $1 (DOGE) needs more decimals
                    digits: px >= 10 ? 2 : px >= 1 ? 4 : 5, macdDigits: px >= 100 ? 2 : px >= 10 ? 3 : px >= 1 ? 4 : 6 } };
   day.end = (price.length ? price[price.length - 1].time : d0) + MIN;
   if (!quiet) loading(null);
@@ -365,7 +373,7 @@ class Panel {
           <span class="conds" id="${key}-conds"></span>
           <span class="warm" id="${key}-warm"></span>
         </div>
-        <div class="stack">
+        <div class="stack" id="${key}-stack">
           <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
           <div class="pane" id="${key}-pentry"><div class="tag mix" id="${key}-tentry"></div></div>
           <div class="pane" id="${key}-ptrend"><div class="tag mix" id="${key}-ttrend"></div></div>
@@ -414,6 +422,8 @@ class Panel {
   get side() { return day[this.key]; }
   draw() {
     const side = this.side, tf = opt.tf;
+    $(`${this.key}-stack`).classList.toggle('no-swing', !side.hasSwing);
+    $(`${this.key}-pswing`).hidden = !side.hasSwing;
     this.mainBars = aggregate(side.price, tf);
     const st = side.run.stateAt;
     this.mainStates = this.mainBars.map(b => {  // the gate at the candle's last finished minute
