@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Perps · Indra Quant Signal Board</title>
+<meta name="description" content="The stock perps MyFundedPerps lists and ten crypto coins, one at a time on Hyperliquid's own prices, with the RDX WIP gate, the Entry, Trend and Swing panes.">
+<meta name="theme-color" content="#0a0d12">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="manifest" href="brand/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="lightweight-charts.js"></script>
+<script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
+<script src="cme.js?v=1"></script>
+<script src="macd.js?v=12"></script>
+<script src="engine.js?v=14"></script>
+<script src="daypick.js?v=3"></script>
+<script src="draw.js?v=8"></script>
+<script src="install.js?v=2"></script>
+<style>
+  .iq-lock { height: 26px; width: auto; display: block; flex: none; }
+  .tf-sel { padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text);
+            font: 500 12px var(--font-num); cursor: pointer; }
+  .tf-sel:hover { border-color: var(--line-strong); }
+  #stockSel { width: 10.5em; }   /* the list opens with the full names; closed, the header shows the company */
+  #kindSeg button { font-family: var(--font-ui); }
+  /* The Perps page (owner 31/10/2026): one market at a time (the stock perps, or the crypto coins), one Indian calendar
+     day at a time, with the Nasdaq tab's indicators (gate zones, the 5m EMA 8/21/47, the Entry MACD and Trend waves
+     panes) plus a Swing pane: the same waves on the 1-hour, 4-hour and daily candles, shown only. No signal arrows or
+     signal buttons (owner 31/10: "no need for this E1 E2 E3 E4 Per trend ... Labels"). Watching only. */
+  :root {
+    color-scheme: dark;
+    --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
+    --text: #e8eef6; --muted: #8d99ab; --faint: #5c6879; --up: #2bb68a; --down: #f0555f; --accent: #5b8cff; --warn: #f2b33d;
+    --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+  body { margin: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text);
+         font: 13px/1.4 var(--font-ui); -webkit-font-smoothing: antialiased; }
+  button, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+  .up { color: var(--up); } .down { color: var(--down); }
+
+  /* ---- top bar ---- */
+  .topbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; padding: 5px 10px;
+            background: var(--surface); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .topbar .brand .iq-lock { height: 24px; }
+  .tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .tabs a { padding: 4px 9px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 500; }
+  .tabs a:hover { color: var(--text); }
+  .tabs a[aria-current="page"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .topbar .grp { display: inline-flex; align-items: center; padding: 0 0 0 8px; border-left: 1px solid var(--line); gap: 4px; }
+  .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
+           background: var(--surface); color: var(--muted); font-size: 12px; }
+  .older[hidden] { display: none; }
+  .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .seg button { padding: 3px 7px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
+                font-family: var(--font-num); font-size: 12px; }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+
+  /* ---- the chart ---- */
+  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+  .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .phead { flex: none; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 10px; padding: 6px 10px; border-bottom: 1px solid var(--line); min-width: 0; overflow: hidden; white-space: nowrap; }
+  .pname { font-size: 14px; font-weight: 700; line-height: 20px; letter-spacing: .01em; }
+  .pco { color: var(--muted); font-size: 12px; }
+  .pval { font: 600 14px/20px var(--font-num); margin-left: -2px; }
+  .gw { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 6px; background: var(--tile);
+        color: var(--muted); font-weight: 700; font-size: 11.5px; letter-spacing: .08em; }
+  .gw.bull { background: var(--up); color: #04150f; } .gw.bear { background: var(--down); color: #1e0507; }
+  .gk { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .conds { display: inline-flex; gap: 8px; font: 11.5px var(--font-num); color: var(--muted); }
+  .conds b { font-weight: 600; }
+  .warm { color: var(--warn); font-size: 11px; }
+  .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 52fr 14fr 17fr 17fr; }
+  .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }
+  .tag { position: absolute; top: 4px; left: 10px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 90px);
+         padding: 3px 8px; border-radius: 6px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 11.5px; color: var(--muted);
+         white-space: nowrap; overflow: hidden; }
+  .tag b { color: var(--text); font-weight: 600; }
+  .tag.main { flex-wrap: wrap; row-gap: 2px; white-space: normal; font-family: var(--font-num); }
+  .tag.main b { font-family: var(--font-ui); }
+  .tag .sw { width: 11px; height: 3px; border-radius: 2px; display: inline-block; vertical-align: middle; }
+  .tag .t-ema { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-ui); }
+
+  #loading { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center;
+             gap: 18px; background: var(--bg); color: var(--muted); }
+  #loading[hidden] { display: none; }
+  #loading img { width: 64px; height: 64px; }
+  #loading div { display: flex; align-items: center; gap: 10px; }
+  #loading div::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-strong);
+                         border-top-color: var(--accent); animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 1100px) {
+    html, body { height: auto; }
+    .panel { height: 92vh; min-height: 600px; }
+  }
+  /* tablet width: as on the other tabs, the bar tightens so everything fits on one row */
+  @media (max-width: 1499px) {
+    .topbar { gap: 4px 6px; padding-left: 8px; padding-right: 8px; }
+    .topbar .grp { padding-left: 6px; gap: 3px; }
+    .topbar .brand .iq-lock { content: url(brand/iq_emblem.svg); height: 24px; }
+    .topbar .tabs a { padding: 4px 7px; }
+    .pco { display: none; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
+  <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" aria-current="page" title="Stock and crypto perps">Perps</a></nav>
+  <div class="grp"><div class="seg" id="kindSeg" role="group" aria-label="Stocks or crypto"></div>
+    <select class="tf-sel" id="stockSel" aria-label="Market" title="The market shown"></select></div>
+  <div class="grp"><div id="dayPick"></div></div>
+  <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
+</header>
+<main class="board" id="board"></main>
+<div id="older" class="older" hidden>Loading older days…</div>
+<div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
+<script>
+'use strict';
+const DAY = 86400000, MIN = 60000, HOUR = 3600000, IST = 19800000;  // India: UTC+5:30 all year
+const { Ema, TrendSignal, SHOWN, contiguous, toBar, flat, candleRows } = NdxEngine.internals;
+NdxEngine.internals.keep(Infinity);  // every loaded day runs through one TrendSignal: keep all of it
+const { MacdPane, DayLines, LINE, PANES } = NsbMacd;
+const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: 'rgba(232, 238, 246, 0.85)', label: '#283240',
+            bg: '#0a0d12' };
+const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
+const SWING_ZONE = { BULLISH: 'rgba(43, 182, 138, 0.13)', BEARISH: 'rgba(240, 85, 95, 0.12)' };
+const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
+const RULES = [['5m waves', '5m'], ['9m waves', '9m'], ['11m waves', '11m'], ['5m EMA21 vs EMA47', '5m 21/47']];  // the RDX WIP gate's conditions
+const TFS = [1, 2, 3, 5];
+const KINDS = [['Stocks', 'stocks'], ['Crypto', 'crypto']], FIRST = { stocks: 'xyz:NVDA', crypto: 'BTC' };  // the two lists, and who opens each
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const $ = id => document.getElementById(id);
+const two = n => String(n).padStart(2, '0');
+const sec = ms => Math.floor(ms / 1000);
+const ok = v => v !== null && v !== undefined && isFinite(v);
+const num = (v, d = 2) => ok(v) ? v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
+const hhmm = ms => { const d = new Date(ms); return `${two(d.getHours())}:${two(d.getMinutes())}`; };
+const when = ms => new Date(ms).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+const dayKey = ms => new Date(ms).toISOString().slice(0, 10);          // UTC day (how candles are fetched and archived)
+const dayStart = key => Date.parse(key + 'T00:00:00Z');
+const kind = st => st === 'BULLISH' ? 'bull' : st === 'BEARISH' ? 'bear' : '';
+const bucketStart = (t, m) => { const d0 = t - (t % DAY), s = m * MIN; return d0 + Math.floor((t - d0) / s) * s; };
+const bucketEnd = (t, m) => Math.min(bucketStart(t, m) + m * MIN, t - (t % DAY) + DAY);
+const pref = (k, fallback) => { try { const v = localStorage.getItem('nsb.perps.' + k); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } };
+const save = (k, v) => { try { localStorage.setItem('nsb.perps.' + k, JSON.stringify(v)); } catch (e) {} };
+
+// ---- the Indian calendar day (owner 31/10/2026: the strip's days run 00:00 to 24:00 India time) --------------------
+// Day "YYYY-MM-DD" begins at 18:30 UTC the day before; it takes its candles from that UTC day's evening and its own UTC day.
+const iso = n => new Date(n * DAY).toISOString().slice(0, 10), no = k => Math.round(Date.parse(k + 'T00:00:00Z') / DAY);
+const Ist = { dayNo: t => Math.floor((t + IST) / DAY), key: t => iso(Math.floor((t + IST) / DAY)), open: k => no(k) * DAY - IST,
+              next: k => iso(no(k) + 1), prev: k => iso(no(k) - 1) };
+class IstDayLines extends DayLines {  // the day lines at midnight India time, dated by the Indian date
+  updateAllViews() {
+    const bars = this.bars(), ts = this.chart().timeScale(), out = [];
+    const x0 = bars.length > 1 ? ts.logicalToCoordinate(0) : null, x1 = bars.length > 1 ? ts.logicalToCoordinate(1) : null, r = ts.getVisibleLogicalRange();
+    if (x0 !== null && x1 !== null && r) {
+      const step = x1 - x0, lo = Math.min(bars.length - 1, Math.max(0, Math.floor(r.from) - 1)), hi = Math.min(bars.length - 1, Math.ceil(r.to) + 1);
+      let prev = Ist.dayNo(bars[lo].time);
+      for (let i = lo + 1; i <= hi; i++) {
+        const k = Ist.dayNo(bars[i].time);
+        if (k === prev) continue;
+        prev = k;
+        const d = new Date(k * DAY);
+        out.push([x0 + (i - 0.5) * step, `${WEEKDAY[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}`]);
+      }
+    }
+    this.lines = out;
+  }
+}
+
+// ---- the Swing pane (owner 31/10/2026: shown only) -------------------------------------------------------------
+// The Trend pane's waves on the 1-hour, 4-hour and daily candles, in the Trend pane's colours (1h like the 5m, 4h like
+// the 9m, 1D like the 11m). Its line switches are kept with the other panes' ones.
+const SWING = [['s1a', 60, '1h 8/47', 'w5a'], ['s1b', 60, '1h 21/47', 'w5b'], ['s4a', 240, '4h 8/47', 'w9a'], ['s4b', 240, '4h 21/47', 'w9b'],
+               ['sDa', 1440, '1D 8/47', 'w11a'], ['sDb', 1440, '1D 21/47', 'w11b']];
+const SWING_TF = [[60, '1h'], [240, '4h'], [1440, '1d']];
+{
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('nsb.macd.show')) || {}; } catch (e) {}
+  for (const [k, tf, label, like] of SWING) {
+    const fast = label.endsWith('8/47');
+    LINE[k] = { tf, label, v: fast ? b => b.ema8 - b.ema47 : b => b.ema21 - b.ema47, pair: LINE[like].pair,
+                tip: `${label.split(' ')[0]} EMA ${fast ? 8 : 21} − EMA 47 (left color above 0, right color below): shown only, the gate doesn't use it` };
+    if (typeof NsbMacd.show[k] !== 'boolean') NsbMacd.show[k] = typeof saved[k] === 'boolean' ? saved[k] : true;
+  }
+  PANES.swing = { title: 'Swing', lines: SWING.map(s => s[0]) };
+}
+function swingState(pt) {  // green where every Swing line switched on is above 0, red where every one is below
+  const on = PANES.swing.lines.filter(m => NsbMacd.show[m]);
+  if (!pt || !on.length) return null;
+  let up = 0, down = 0;
+  for (const m of on) { const v = pt.v[m]; if (!ok(v)) return null; if (v > 0) up += 1; else if (v < 0) down += 1; }
+  return up === on.length ? 'BULLISH' : down === on.length ? 'BEARISH' : null;
+}
+// A stock's 1h, 4h and daily candles with their EMA 8, 21 and 47 (the engine's EMA), closed candles only. Asked again
+// once a new hour has begun (a 1h candle has closed since).
+const swingCache = new Map();
+async function loadSwing(coin) {
+  const now = Date.now(), have = swingCache.get(coin);
+  if (have && Math.floor(have.at / HOUR) === Math.floor(now / HOUR)) return have;
+  try {
+    const bars = {};
+    await Promise.all(SWING_TF.map(async ([m, iv]) => {
+      const rows = (await candleRows(coin, iv, m === 60 ? now - 4990 * HOUR : 0, now)).map(toBar).sort((a, b) => a.t - b.t);
+      const e8 = new Ema(8), e21 = new Ema(21), e47 = new Ema(47), out = [];
+      for (const r of rows) {
+        if (r.t + m * MIN > now) break;  // still forming
+        const b = { time: r.t, open: r.o, high: r.h, low: r.l, close: r.c }, x = [e8.update(r.c), e21.update(r.c), e47.update(r.c)];
+        // the waves from the 47th candle on, as the gate waits for 47 bars (a stock listed lately has no daily wave yet)
+        if (out.length >= 46) Object.assign(b, { ema8: x[0], ema21: x[1], ema47: x[2] });
+        out.push(b);
+      }
+      bars[m] = out;
+    }));
+    const s = { at: now, bars };
+    swingCache.set(coin, s);
+    return s;
+  } catch (e) { return have || { at: 0, bars: {} }; }  // not reachable: the last one (tried again next build)
+}
+
+// ---- settings (remembered in this browser) ----------------------------------------------------------------
+const opt = {
+  tf: TFS.includes(pref('tf', 1)) ? pref('tf', 1) : 1,
+};
+
+// ---- data: one UTC day of 1-minute candles per market ----------------------------------------------------------
+// From our daily archive (data/perps/1m/YYYY-MM-DD/<coin>.json, written by the VPS) when it has the day, else straight
+// from Hyperliquid, which keeps about the last 3.5 days of 1-minute candles.
+let MEMBERS = {}, LISTS = {}, ALL = [], KIND = 'stocks', COIN = null, archiveDays = new Set(), hlFrom = Infinity;
+const dayCache = new Map();  // UTC day -> { coin: { bars, source, complete } }
+const tk = c => MEMBERS[c] ? MEMBERS[c].ticker : c.replace(/^xyz:/, '');
+const fileOf = c => c.replace(/^xyz:/, '');  // the archive's name for it: Hyperliquid's own
+async function archiveIndex() {
+  try {
+    const r = await fetch('data/perps/1m/index.json', { cache: 'no-cache' });
+    if (!r.ok) return new Set();
+    const j = await r.json();
+    return new Set((j.dates || []).map(String));
+  } catch (e) { return new Set(); }
+}
+const hlEarliest = () => Date.now() - 4990 * MIN;  // a minute Hyperliquid surely still serves at 1m (it keeps the last 5000)
+const filesOf = keys => [...new Set(keys.flatMap(k => [Ist.prev(k), k]))].sort();  // the UTC days the Indian days take candles from
+const ended = key => Date.now() >= dayStart(key) + DAY + MIN;  // UTC day over, with a minute's grace
+async function hlDay(c, d0, end) {
+  return (await candleRows(c, '1m', d0, end)).map(toBar).filter(b => b.t >= d0 && b.t <= end).sort((a, b) => a.t - b.t);
+}
+async function topUp(keys, coin) {  // the cached, unfinished UTC days among keys: only the minutes since the last candle
+  await Promise.all(keys.map(k => [k, dayCache.get(k) && dayCache.get(k)[coin]]).filter(([, e]) => e && !e.complete).map(async ([k, e]) => {
+    const f0 = dayStart(k), now = Date.now(), done = ended(k), a = e.bars, from = a.length ? a[a.length - 1].t : f0;
+    const rows = (await candleRows(coin, '1m', from, Math.min(now, f0 + DAY - 1))).map(toBar).filter(b => b.t >= f0 && b.t < f0 + DAY);
+    for (const b of rows) { if (a.length && a[a.length - 1].t === b.t) a[a.length - 1] = b; else if (!a.length || b.t > a[a.length - 1].t) a.push(b); }
+    if (done) e.complete = true;
+  }));
+}
+async function loadDay(key, coin) {  // -> { bars (toBar objects), source, complete } of one stock on one UTC day
+  let d = dayCache.get(key);
+  if (d && d[coin]) { if (!d[coin].complete && ended(key)) await topUp([key], coin); return d[coin]; }
+  if (dayStart(key) > Date.now()) return { bars: [], source: 'hl', complete: false };  // not begun yet (not cached: it will)
+  const d0 = dayStart(key), done = ended(key);
+  let bars = null, source = 'hl';
+  if (archiveDays.has(key) && key !== dayKey(Date.now())) {
+    try {
+      const r = await fetch(`data/perps/1m/${key}/${fileOf(coin)}.json`, { cache: 'no-cache' });
+      if (r.ok) { bars = (await r.json()).map(([t, o, h, l, cl, v, n]) => toBar({ t, o, h, l, c: cl, v, n })); source = 'archive'; }
+    } catch (e) { /* falls back to Hyperliquid below */ }
+  }
+  if (!bars && d0 + DAY > hlFrom) bars = (await hlDay(coin, d0, Math.min(d0 + DAY - 1, Date.now()))).filter(b => b.t < d0 + DAY);
+  const e = { bars: bars || [], source, complete: done };
+  if (!dayCache.has(key)) dayCache.set(key, {});
+  dayCache.get(key)[coin] = e;
+  return e;
+}
+
+// ---- one series, minute by minute, exactly as the live engine runs it (as on the Nasdaq tab) -----------------------
+function runSeries(coef, minutes) {
+  const sig = new TrendSignal(coef, SHOWN), coins = Object.keys(coef), checksAt = new Map();
+  let captured = null;
+  const evaluate = sig.evaluate.bind(sig), finish = sig.finishMinute.bind(sig);
+  sig.evaluate = (v, now) => { const ev = evaluate(v, now); captured = ev; return ev; };
+  sig.finishMinute = (start, close, vol) => { captured = null; finish(start, close, vol); if (captured) checksAt.set(start, captured.checks); };
+  const at = Object.fromEntries(coins.map(c => [c, 0]));
+  const first = Math.min(...coins.map(c => minutes[c] && minutes[c].length ? minutes[c][0].t : Infinity));
+  const last = Math.max(...coins.map(c => minutes[c] && minutes[c].length ? minutes[c][minutes[c].length - 1].t : -Infinity));
+  for (let t = first; t <= last; t += MIN) for (const c of coins) {
+    const a = minutes[c] || [];
+    while (at[c] < a.length && a[at[c]].t < t) at[c]++;
+    if (at[c] < a.length && a[at[c]].t === t) sig.onMemberBar(c, t, a[at[c]].c, a[at[c]].v);
+  }
+  return { sig, stateAt: new Map(sig.history), checksAt, trace: sig.trace, bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) };
+}
+
+// ---- building a day ----------------------------------------------------------------------------------------
+let day = null;
+function minutesOf(days) {  // the stock's bars over the loaded days, one per minute (no gaps after its first)
+  const a = contiguous(days.flatMap(d => d.bars).sort((x, y) => x.t - y.t));
+  if (days.some(d => !d.complete)) {  // today: quiet since its last trade, it stays at that price up to this minute
+    const now = Math.floor(Date.now() / MIN) * MIN, last = a[a.length - 1];
+    if (last) for (let t = last.t + MIN; t <= now; t += MIN) a.push(flat(t, last.c));
+  }
+  return a;
+}
+let builds = 0;
+async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
+  const seq = ++builds, coin = COIN;
+  const list = dayList.length ? dayList : listDays(), i = Math.max(0, list.indexOf(key));
+  const shownKeys = list.slice(i, i + shown), warmKey = list[i + shown];
+  const d0 = Ist.open(shownKeys[shownKeys.length - 1]), lastD0 = Ist.open(key), d1 = Ist.open(Ist.next(key));
+  if (!quiet) loading(`Loading ${tk(coin)} · ${key}…`);
+  const files = filesOf([...shownKeys, warmKey].filter(Boolean));
+  const [days, swing] = await Promise.all([Promise.all(files.map(k => loadDay(k, coin))), loadSwing(coin)]);
+  if (seq !== builds) return false;
+  const m = minutesOf(days);
+  const run = runSeries({ [coin]: 1 }, { [coin]: m });
+  const inDay = b => b.t >= d0 && b.t < d1;
+  const price = m.filter(inDay).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }));
+  const px = price.length ? price[price.length - 1].close : 100;
+  day = { key, d0, d1, lastD0, shown: shownKeys.length, more: !!warmKey,
+          stock: { name: tk(coin), coin, run, price, swing: swing.bars,  // a coin under $1 (DOGE) needs more decimals
+                   digits: px >= 10 ? 2 : px >= 1 ? 4 : 5, macdDigits: px >= 100 ? 2 : px >= 10 ? 3 : px >= 1 ? 4 : 6 } };
+  day.end = (price.length ? price[price.length - 1].time : d0) + MIN;
+  if (!quiet) loading(null);
+  return true;
+}
+
+// ---- the chart -----------------------------------------------------------------------------------------------
+const panels = {};
+function options(showTime, isMain, name) {
+  return {
+    watermark: isMain ? { visible: true, text: name, color: 'rgba(232, 238, 246, 0.04)', fontSize: 40, fontStyle: '700' } : { visible: false },
+    autoSize: true, handleScroll: isMain, handleScale: isMain,
+    layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },
+    grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
+    rightPriceScale: { borderColor: C.line, minimumWidth: 64 },
+    timeScale: { visible: showTime, borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.05,
+      tickMarkFormatter: (t, type) => { const d = new Date(t * 1000); return type < 3 ? `${d.getDate()} ${MON[d.getMonth()]}` : `${two(d.getHours())}:${two(d.getMinutes())}`; } },
+    localization: { timeFormatter: t => when(t * 1000) },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label },
+      horzLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label } },
+  };
+}
+const PANE_KINDS = ['entry', 'trend', 'swing'];
+class Panel {
+  constructor(key) {
+    this.key = key; this.mainBars = []; this.mainStates = []; this.src = {}; this.store = new Map(); this.emaPts = [];
+    $('board').insertAdjacentHTML('beforeend', `
+      <section class="panel" id="${key}">
+        <div class="phead">
+          <span class="pname" id="${key}-name">—</span><span class="pco" id="${key}-co"></span><span class="pval" id="${key}-val">—</span>
+          <span class="gk">Gate</span><span class="gw" id="${key}-gate">—</span>
+          <span class="conds" id="${key}-conds"></span>
+          <span class="warm" id="${key}-warm"></span>
+        </div>
+        <div class="stack">
+          <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
+          <div class="pane" id="${key}-pentry"><div class="tag mix" id="${key}-tentry"></div></div>
+          <div class="pane" id="${key}-ptrend"><div class="tag mix" id="${key}-ttrend"></div></div>
+          <div class="pane" id="${key}-pswing"><div class="tag mix" id="${key}-tswing"></div></div>
+        </div>
+      </section>`);
+    this.main = LightweightCharts.createChart($(`${key}-pmain`), options(true, true, ''));
+    this.vol = this.main.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
+    this.main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.88, bottom: 0 }, visible: false });
+    this.candles = this.main.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
+    this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.14 } });
+    const emaLine = () => this.main.addLineSeries({ color: NsbMacd.STACK.mixed, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+    this.e8 = emaLine(); this.e21 = emaLine(); this.e47 = emaLine();
+    this.zones = new NsbMacd.Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
+    this.candles.attachPrimitive(this.zones);
+    this.candles.attachPrimitive(new IstDayLines(() => this.main, () => this.mainBars, 30, -IST));  // where each Indian day begins, with its date
+    this.candles.attachPrimitive(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];
+      return b && { close: b.close, end: bucketEnd(b.time, opt.tf), up: b.close >= b.open }; }));
+    this.drawing = NsbDraw.add({ id: key, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
+                  tf: () => opt.tf, fmt: v => num(v, day && day[key] ? day[key].digits : 2) });
+    this.macd = {};
+    for (const k of PANE_KINDS) this.macd[k] = new MacdPane({
+      el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 2, options: options(false, false, ''), days: -IST,
+      bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src,
+      shade: k === 'swing' ? i => swingState(this.macd.swing.pts[i]) : i => this.waveAt(i),
+    });
+    for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);
+    this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
+      for (const p of Object.values(this.macd)) p.sync(r);
+      if (r && r.from < 8 && day && day.more) loadOlder();  // at the left edge: older days
+    });
+    const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
+                 ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
+    this.charts = all;
+    for (const self of all) self.chart.chartElement().addEventListener('pointerdown', () => { pressedChart = self.chart; }, true);
+    for (const self of all) self.chart.subscribeCrosshairMove(p => {
+      if (p.sourceEvent) pressedChart = self.chart;
+      else if (self.chart !== pressedChart) return;
+      const t = p.time;
+      for (const o of all) if (o !== self) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
+      hoverAll(t);
+    });
+    for (const k of ['pmain', 'pentry', 'ptrend', 'pswing']) $(`${key}-${k}`).addEventListener('mouseleave', () => hoverAll(undefined));
+  }
+  waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }
+  get side() { return day[this.key]; }
+  draw() {
+    const side = this.side, tf = opt.tf;
+    this.mainBars = aggregate(side.price, tf);
+    const st = side.run.stateAt;
+    this.mainStates = this.mainBars.map(b => {  // the gate at the candle's last finished minute
+      for (let t = bucketEnd(b.time, tf) - MIN; t >= b.time; t -= MIN) { const s = st.get(t); if (s) return s; }
+      return null;
+    });
+    this.firstState = Infinity;
+    for (const x of st.keys()) if (x >= day.d0 && x < day.d1 && x < this.firstState) this.firstState = x;
+    // the panes and EMAs: only bars closed by the strip's end (the UTC files run past it); the Swing pane's candles too
+    const closed = (bars, m) => bars.filter(b => bucketEnd(b.time, m) <= day.d1);
+    this.src = Object.fromEntries([...Object.entries(side.run.bars), ...Object.entries(side.swing)].map(([m, bars]) => [m, closed(bars, +m)]));
+    this.candles.applyOptions({ priceFormat: { type: 'price', precision: side.digits, minMove: 10 ** -side.digits } });
+    this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
+    this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
+    this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
+    this.setEmas();
+    for (const p of Object.values(this.macd)) { p.digits = side.macdDigits; p.update(); p.showLines(); }
+    this.main.applyOptions({ watermark: { text: `${side.name} · ${tf}m` } });
+    if (this.zones.requestUpdate) this.zones.requestUpdate();
+    for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
+  }
+  fit() {  // the newest day of the strip (the older ones are to the left)
+    const n = this.mainBars.length, i = this.mainBars.findIndex(b => b.time >= day.lastD0);
+    if (i < 0) return false;
+    this.main.timeScale().setVisibleLogicalRange({ from: i - 1, to: n + 2 });
+    return true;
+  }
+  setEmas() {
+    const out = this.emaPts = NsbMacd.emaPoints(this.mainBars, opt.tf, this.src);
+    for (const k of ['e8', 'e21', 'e47']) this[k].setData(out.map(p => ({ time: p.time, value: p[k], color: p.color })));
+  }
+  head(t) {  // the header at time t (ms, a minute) or at the day's end
+    const side = this.side, at = t !== undefined ? t : day.end - MIN;
+    let st = null, k = null;
+    for (let x = at; x >= at - 5 * MIN; x -= MIN) { const s = side.run.stateAt.get(x); if (s) { st = s; k = x; break; } }
+    $(`${this.key}-name`).textContent = side.name;
+    $(`${this.key}-co`).textContent = MEMBERS[side.coin] ? MEMBERS[side.coin].company : '';
+    const bar = [...side.price].reverse().find(b => b.time <= at);
+    $(`${this.key}-val`).textContent = bar ? num(bar.close, side.digits) : '—';
+    $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
+    const ch = k !== null ? side.run.checksAt.get(k) : null;
+    $(`${this.key}-conds`).innerHTML = ch ? NsbMacd.chips(RULES, ch) : '';
+    const f = this.firstState;
+    $(`${this.key}-warm`).textContent = f > day.d0 + MIN && f < Infinity ? `warming up until ${hhmm(f)}` : f === Infinity ? 'not enough data for the indicators' : '';
+  }
+  tags(t) {  // the chart labels (t: candle time in seconds, or the newest candle)
+    const b = t !== undefined ? this.store.get(t) : this.mainBars.length ? { ...this.mainBars[this.mainBars.length - 1], state: this.mainStates[this.mainStates.length - 1] } : null;
+    if (b) {
+      let e = null;
+      for (const p of this.emaPts) if (p.time <= sec(b.time)) e = p; else break;
+      $(`${this.key}-tmain`).innerHTML = `<b>${this.side.name}</b><span>${opt.tf}m</span>${t !== undefined ? `<span>${when(b.time)}</span>` : ''}`
+        + `<span>O <b>${num(b.open, this.side.digits)}</b> H <b>${num(b.high, this.side.digits)}</b> L <b>${num(b.low, this.side.digits)}</b> C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close, this.side.digits)}</b></span>`
+        + (b.state ? `<span class="${kind(b.state) === 'bull' ? 'up' : kind(b.state) === 'bear' ? 'down' : ''}">GATE ${WORD[b.state]}</span>` : '')
+        + (e ? NsbMacd.emaTag(e, v => num(v, this.side.digits)) : '');
+    }
+    for (const p of Object.values(this.macd)) { p.name = this.side.name; p.tag(t); }
+  }
+}
+function aggregate(bars, m) {
+  const out = [];
+  for (const b of bars) {
+    const s = bucketStart(b.time, m), last = out[out.length - 1];
+    if (!last || last.time !== s) out.push({ time: s, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 });
+    else { last.high = Math.max(last.high, b.high); last.low = Math.min(last.low, b.low); last.close = b.close; last.volume += b.volume || 0; }
+  }
+  return out;
+}
+function timeAt(bars, x) {  // candle position (fractional, may lie past either end) -> time
+  const n = bars.length, tf = opt.tf * MIN;
+  if (x <= 0) return bars[0].time + x * tf;
+  if (x >= n - 1) return bars[n - 1].time + (x - n + 1) * tf;
+  const i = Math.floor(x);
+  return bars[i].time + (x - i) * (bars[i + 1].time - bars[i].time);
+}
+function indexAt(bars, t) {  // the reverse
+  const n = bars.length, tf = opt.tf * MIN;
+  if (t <= bars[0].time) return (t - bars[0].time) / tf;
+  if (t >= bars[n - 1].time) return n - 1 + (t - bars[n - 1].time) / tf;
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) lo = mid; else hi = mid; }
+  return lo + (t - bars[lo].time) / (bars[hi].time - bars[lo].time);
+}
+let hovering = false, pressedChart = null;
+function hoverAll(t) {
+  hovering = t !== undefined;
+  document.body.classList.toggle('hovering', hovering);
+  for (const p of Object.values(panels)) { p.tags(t); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN); }
+}
+
+// ---- drawing ------------------------------------------------------------------------------------------------
+function render(full) {
+  for (const p of Object.values(panels)) p.draw();
+  if (full) {  // and again once the chart has its final size
+    const fit = () => { for (const p of Object.values(panels)) p.fit(); };
+    fit(); requestAnimationFrame(() => requestAnimationFrame(fit)); setTimeout(fit, 150);
+  }
+  refreshText();
+}
+function refreshText() { for (const p of Object.values(panels)) { p.tags(); p.head(); } }
+// ---- controls ----------------------------------------------------------------------------------------------
+function seg(el, items, current, onPick) {
+  el.innerHTML = items.map(([label, val]) => `<button type="button" data-v="${val}" aria-pressed="${String(val) === String(current)}">${label}</button>`).join('');
+  for (const b of el.children) b.onclick = () => { onPick(b.dataset.v); for (const x of el.children) x.setAttribute('aria-pressed', String(x === b)); };
+}
+const picked = k => { const c = pref(k === 'stocks' ? 'stock' : 'crypto', null); return LISTS[k].includes(c) ? c : LISTS[k].includes(FIRST[k]) ? FIRST[k] : LISTS[k][0]; };
+function fillList() {
+  $('stockSel').innerHTML = ALL.map(c => `<option value="${c}"${c === COIN ? ' selected' : ''}>${tk(c)} · ${MEMBERS[c].company}</option>`).join('');
+}
+function buildControls() {
+  seg($('kindSeg'), KINDS, KIND, pickKind);
+  fillList();
+  $('stockSel').onchange = () => showMarket($('stockSel').value, KIND);
+  $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === opt.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
+  $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
+  dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Day (India: 00:00 to 24:00 IST)' });
+}
+async function pickKind(k) {  // Stocks / Crypto: that list, at the market last shown from it
+  if (k === KIND) return;
+  if (!await showMarket(picked(k), k)) seg($('kindSeg'), KINDS, KIND, pickKind);  // not loaded: the switch back as it was
+}
+async function showMarket(next, kind) {  // another market: its own drawings, its live candles, the same day
+  const was = COIN, wasKind = KIND;
+  if (next === was) return true;
+  const use = (c, k) => { COIN = c; KIND = k; ALL = LISTS[k]; NsbDraw.use('nsb.draw.perps.' + fileOf(c)); fillList(); };
+  use(next, kind);
+  liveSwap(was, next);
+  if (await openDay(day.key) === false) {  // not loaded: back to the market the chart still shows
+    use(was, wasKind); liveSwap(next, was);
+    return false;
+  }
+  save(kind === 'stocks' ? 'stock' : 'crypto', next); save('kind', kind);
+  return true;
+}
+function listDays() {  // newest first: the Indian days of the archived UTC days and of the days Hyperliquid still has
+  const files = new Set(archiveDays), live = Ist.key(Date.now());
+  for (let t = Date.now(); dayStart(dayKey(t)) + DAY > hlFrom; t -= DAY) files.add(dayKey(t));
+  const keys = new Set([...files].filter(k => files.has(Ist.prev(k))).concat(live));  // Indian day k takes UTC days k-1 (evening) and k
+  return [...keys].filter(k => Ist.open(k) <= Date.now()).sort().reverse();
+}
+// ---- today: new candles from Hyperliquid every minute, keeping your zoom ---------------------------------------
+let refreshing = false, dayPick = null, dayList = [], olderBusy = false, opening = 0;
+const SHOW_DAYS = 3, MORE_DAYS = 2;
+async function loadOlder() {  // add older days to the strip, keeping what you are looking at in place
+  if (olderBusy || refreshing || opening) return;
+  olderBusy = true;
+  $('older').hidden = false;
+  try {
+    if (!await buildDay(day.key, day.shown + MORE_DAYS, true)) return;
+    const keep = Object.values(panels).filter(q => q.mainBars.length).map(q => {
+      const r = q.main.timeScale().getVisibleLogicalRange();
+      return [q, r ? [timeAt(q.mainBars, r.from), timeAt(q.mainBars, r.to)] : null];
+    });
+    render(false);
+    for (const [q, span] of keep) if (span && q.mainBars.length) q.main.timeScale().setVisibleLogicalRange({ from: indexAt(q.mainBars, span[0]), to: indexAt(q.mainBars, span[1]) });
+  } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
+}
+function keepView(fn) {  // rebuild, keeping the newest candles in view if you were looking at them
+  const before = Object.fromEntries(Object.entries(panels).map(([k, q]) => {
+    const r = q.main.timeScale().getVisibleLogicalRange(), n = q.mainBars.length;
+    return [k, { r, n, atEnd: !r || r.to >= n - 2 }];
+  }));
+  fn();
+  for (const [k, q] of Object.entries(panels)) {
+    const b = before[k], added = q.mainBars.length - b.n;
+    if (b.r && b.atEnd && added > 0) q.main.timeScale().setVisibleLogicalRange({ from: b.r.from + added, to: b.r.to + added });
+  }
+}
+async function refreshToday() {
+  if (refreshing || olderBusy || opening || !day || document.visibilityState !== 'visible') return;
+  const today = Ist.key(Date.now()), was = day.key;
+  refreshing = true;
+  try {
+    if (!dayList.includes(today)) {  // past midnight India time: a new day in the calendar
+      const a = await archiveIndex();
+      if (a.size) archiveDays = a;
+      hlFrom = hlEarliest();
+      const list = listDays();
+      if (opening) return;
+      if (day.key !== was) { dayList = list; dayPick.set(dayList, day.key, today); return; }
+      if (Ist.prev(today) === was) {  // you were on today: follow it
+        await topUp(filesOf([today]), COIN);
+        if (day.key !== was || opening) return;
+        const old = dayList;
+        dayList = list;
+        if (await openDay(today) === false) dayList = old;
+        return;
+      }
+      dayList = list;
+      dayPick.set(dayList, was, today);
+    }
+    if (day.key !== today) return;
+    await topUp(filesOf([today]), COIN);
+    if (day.key !== was || opening) return;
+    if (!await buildDay(today, day.shown, true)) return;
+    keepView(() => render(false));
+  } catch (e) { /* tried again next minute */ } finally { refreshing = false; }
+}
+setInterval(refreshToday, 60000);
+document.addEventListener('visibilitychange', refreshToday);
+
+// ---- live: Hyperliquid's candle stream, the market shown only ---------------------------------------------------
+let liveWs = null, liveTimer = 0, liveTextAt = 0;
+const thisMinute = () => Math.floor(Date.now() / MIN) * MIN;
+const sub = (method, coin) => JSON.stringify({ method, subscription: { type: 'candle', coin, interval: '1m' } });
+function liveConnect() {
+  const ws = liveWs = new WebSocket('wss://api.hyperliquid.xyz/ws');
+  ws.onopen = () => ws.send(sub('subscribe', COIN));
+  ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (x) { return; } if (m.channel === 'candle' && m.data) liveCandle(m.data); };
+  ws.onclose = () => { if (liveWs !== ws) return; setTimeout(liveConnect, 3000); };
+  ws.onerror = () => ws.close();
+}
+function liveSwap(from, to) {  // the stream follows the market shown
+  if (!liveWs || liveWs.readyState !== WebSocket.OPEN) return;  // (a socket still opening subscribes COIN itself)
+  liveWs.send(sub('unsubscribe', from)); liveWs.send(sub('subscribe', to));
+}
+setInterval(() => { if (liveWs && liveWs.readyState === WebSocket.OPEN) liveWs.send('{"method":"ping"}'); }, 30000);
+function liveCandle(r) {
+  const b = toBar(r), d = dayCache.get(dayKey(b.t)), e = d && d[r.s];
+  if (!e || e.complete) return;  // a day not loaded (the next build fetches it whole)
+  const a = e.bars;
+  if (a.length && a[a.length - 1].t === b.t) a[a.length - 1] = b; else if (!a.length || b.t > a[a.length - 1].t) a.push(b); else return;
+  if (r.s !== COIN || !day || day.key !== Ist.key(Date.now())) return;  // looking at an older day: nothing on screen moves
+  if (b.t === thisMinute()) liveTick();
+}
+function everyMinute() {  // 1.5 s past each minute: the minute just closed joins the chart
+  clearTimeout(liveTimer);
+  liveTimer = setTimeout(() => { liveRebuild(); everyMinute(); }, MIN - Date.now() % MIN + 1500);
+}
+function liveTick() {  // the newest candle at the latest price, between rebuilds
+  const T = thisMinute();
+  for (const p of Object.values(panels)) {
+    const bars = p.mainBars, last = bars[bars.length - 1];
+    if (!last || last.time !== bucketStart(T, opt.tf)) continue;
+    const d = dayCache.get(dayKey(T)), a = d && d[COIN] && d[COIN].bars, one = a && a[a.length - 1];
+    if (!one || one.t !== T) continue;
+    last.close = one.c; last.high = Math.max(last.high, one.h); last.low = Math.min(last.low, one.l);
+    p.candles.update({ time: sec(last.time), open: last.open, high: last.high, low: last.low, close: last.close });
+    const s = p.store.get(sec(last.time));
+    if (s) Object.assign(s, { close: last.close, high: last.high, low: last.low });
+  }
+  if (Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }
+}
+async function liveRebuild() {  // a minute closed: today again with it
+  if (refreshing || olderBusy || opening || !day) return;
+  const today = Ist.key(Date.now()), was = day.key, coin = COIN;
+  if (was !== today || !dayList.includes(today)) return;
+  refreshing = true;
+  try {
+    if (!await buildDay(today, day.shown, true) || day.key !== was || COIN !== coin) return;
+    keepView(() => render(false));
+  } catch (e) { /* the minute refresh tries again */ } finally { refreshing = false; }
+}
+async function openDay(key) {  // the calendar, the market list, today's follow: a failed load says why for a moment, the day shown stays
+  opening++;
+  const run = buildDay(key), seq = builds;
+  try {
+    if (!await run) return;
+    dayPick.set(dayList, key, Ist.key(Date.now()));
+    render(true);
+    return true;
+  } catch (e) {
+    if (!day) throw e;
+    if (seq !== builds) return;
+    const msg = `Couldn't load ${key} (${e.message})`;
+    loading(msg);
+    setTimeout(() => { if ($('loading-text').textContent === msg) loading(null); }, 3000);
+    return false;
+  } finally { opening--; }
+}
+let loadingNow = false, loadingTimer = 0;
+const loading = text => {
+  clearTimeout(loadingTimer);
+  if (text === null) { loadingNow = false; $('loading').hidden = true; return; }
+  loadingNow = true; $('loading-text').textContent = text;
+  if ($('loading').hidden) loadingTimer = setTimeout(() => { if (loadingNow) $('loading').hidden = false; }, 400);
+};
+
+// ---- start ---------------------------------------------------------------------------------------------------
+NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } refreshText(); });
+(async () => {
+  try {
+    loading('Loading the list of days…');
+    const j = await (await fetch('perps.json', { cache: 'no-cache' })).json();
+    MEMBERS = { ...j.members, ...j.crypto };
+    LISTS = { stocks: Object.keys(j.members), crypto: Object.keys(j.crypto || {}) };
+    KIND = pref('kind', 'stocks') === 'crypto' && LISTS.crypto.length ? 'crypto' : 'stocks';
+    ALL = LISTS[KIND];
+    COIN = picked(KIND);
+    [archiveDays, hlFrom] = [await archiveIndex(), hlEarliest()];
+    dayList = listDays();
+    buildControls();
+    NsbDraw.setup({ key: 'nsb.draw.perps.' + fileOf(COIN), when });
+    panels.stock = new Panel('stock');
+    await openDay(dayList[0]);  // today, updating every minute
+    liveConnect(); everyMinute();
+  } catch (e) {
+    loading(`Couldn't load the Perps data (${e.message}). Reload the page to try again.`);
+  }
+})();
+</script>
+</body>
+</html>
