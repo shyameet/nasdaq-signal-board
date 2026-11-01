@@ -58,9 +58,26 @@ let showVer = 0;  // bumped by every switch: trendState keeps its answer per poi
 function toggle(k) {
   show[k] = !show[k];
   showVer += 1;
-  try { localStorage.setItem(KEY, JSON.stringify(show)); } catch (e) {}
+  // saved over what is stored, not instead of it (31/10/2026: a page saved only the lines it knows, so a switch on any
+  // other tab turned the Perps tab's Swing lines back on)
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+  try { localStorage.setItem(KEY, JSON.stringify({ ...(saved && typeof saved === 'object' ? saved : {}), ...show })); } catch (e) {}
   for (const fn of listeners) fn(k);
 }
+// another window of the board switched a line: switch it here too (31/10/2026: the installed app and a Chrome tab each
+// kept their own copy, and the last one to switch overwrote the other's choices)
+window.addEventListener('storage', e => {
+  if (e.key !== KEY) return;
+  let saved = null;
+  try { saved = JSON.parse(e.newValue); } catch (x) {}
+  if (!saved || typeof saved !== 'object') return;
+  let changed = false;
+  for (const k in show) if (typeof saved[k] === 'boolean' && saved[k] !== show[k]) { show[k] = saved[k]; changed = true; }
+  if (!changed) return;
+  showVer += 1;
+  for (const fn of listeners) try { fn(null); } catch (x) { /* a page still loading has nothing drawn yet: its first draw reads show */ }
+});
 
 // ---- each line at every candle's close ------------------------------------------------------------------
 // bars: the price chart's candles (ms times), tf their size, src: { minutes: closed bars with their indicators } ->
@@ -313,8 +330,10 @@ class MacdPane {
     return 0;
   }
   tag(t) {  // the label: the pane's name, then one switch per line (its value while hovering)
-    const q = t === undefined ? this.pts[this.pts.length - 1] : this.store.get(t);
+    // (a candle no longer drawn, after a new candle size under a held crosshair: the values last shown, so the switches still repaint)
+    const q = (t === undefined ? this.pts[this.pts.length - 1] : this.store.get(t)) || this.lastQ;
     if (!q) return;
+    this.lastQ = q;
     const v = q.v, d = this.digits;
     const item = m => {
       const pass = v[m] > 0;  // the dot: above or below zero, as the gate tests
@@ -323,9 +342,12 @@ class MacdPane {
         + `<span class="t-dot ${ok(v[m]) ? (pass ? 'pass' : 'fail') : ''}"></span>`
         + `<span class="t-v">${this.sigs[m] ? `${sgn(v[m], d)} / ${sgn(q.sg[m], d)}` : sgn(v[m], d)}</span></span>`;
     };
-    this.tagEl.innerHTML = `<span class="t-name"><b>${PANES[this.kind].title}</b></span>` + this.lines.map(item).join('')  // no market name (owner 24/10/2026)
+    const html = `<span class="t-name"><b>${PANES[this.kind].title}</b></span>` + this.lines.map(item).join('')  // no market name (owner 24/10/2026)
       + (Object.keys(this.sigs).length ? `<span class="t-mm${show.sig ? '' : ' off'}" data-k="sig" title="Every line's signal line (dashed, in its color). Click to ${show.sig ? 'hide' : 'show'} them">`
                   + `<span class="sw dash"></span><span class="t-of">signals</span></span>` : '');
+    // written only when it changed (31/10/2026: the live prices wrote the same label again every second or so, rebuilding
+    // the chip under the pointer)
+    if (html !== this.html) this.tagEl.innerHTML = this.html = html;
   }
 }
 
@@ -334,9 +356,13 @@ const css = document.createElement('style');
 css.textContent = `
   .tag.mix { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 5px; white-space: normal; max-width: calc(100% - 80px);
              padding: 2px 4px; font: 11px var(--font-ui); }
-  .tag.mix .t-name { color: var(--muted); padding: 0 4px 0 2px; white-space: nowrap; }
+  .tag.mix .t-name { color: var(--muted); padding: 0 4px 0 2px; white-space: nowrap; position: relative; pointer-events: auto;
+                     user-select: none; -webkit-user-select: none; }
+  /* the name and the switches take the pointer across the gaps between them too (31/10/2026: through a gap the chart under the
+     label took the pointer, its values changed and the next switch moved); the rest of the label still passes it to the chart */
+  .tag.mix .t-name::before, .tag.mix .t-mm::before { content: ''; position: absolute; top: -2px; bottom: -2px; left: -3px; right: -3px; }
   .tag.mix .t-name b { color: var(--text); font-weight: 600; }
-  .tag.mix .t-mm { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 5px; white-space: nowrap;
+  .tag.mix .t-mm { position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 5px; white-space: nowrap;
                    box-shadow: inset 0 0 0 1px var(--line-strong); pointer-events: auto; cursor: pointer;
                    user-select: none; -webkit-user-select: none; touch-action: manipulation; }
   .tag.mix .t-mm:hover { background: rgba(255, 255, 255, .06); }
@@ -350,7 +376,7 @@ css.textContent = `
   .tag.mix .t-of { color: var(--muted); }
   .tag.mix .t-mm.off { opacity: .45; box-shadow: inset 0 0 0 1px var(--line); }
   .tag.mix .t-mm.off .sw { background: transparent !important; box-shadow: inset 0 0 0 1px var(--faint); }
-  .tag.mix .t-mm.off .t-v, .tag.mix .t-mm.off .t-dot { display: none; }
+  .tag.mix .t-mm.off .t-v, .tag.mix .t-mm.off .t-dot { visibility: hidden; }  /* kept in place: switching a line off moves no chip (31/10/2026) */
   .conds .mixed { color: #FFD600; }
 `;
 document.head.appendChild(css);
@@ -378,5 +404,29 @@ class Countdown {
   }
 }
 
-window.NsbMacd = { PANES, LINES, LINE, STACK, stackColor, emaPoints, emaTag, chips, MacdPane, DayLines, Bands, Countdown, show, toggle, onToggle: fn => listeners.push(fn), points, matchAt, trendState };
+// the lines' values in the pane labels (body.hovering, above), shown while a mouse's crosshair is up: switched a moment
+// later, and never while the pointer is on a label's switches (31/10/2026: a crosshair coming up just before the pointer
+// reached a switch widened every chip, so the click hit the one beside it). They come up once the mouse slows down (a
+// mouse on its way across a chart to a switch leaves them off), and after a finger's tap on a switch they stay as they
+// are until its next press off the labels (a touch laptop: the tapped chip keeps :hover only for a while)
+let valuesOn = false, valuesTimer = 0, stillX = 0, stillY = 0, stillAt = 0, tapOnChip = false;
+document.addEventListener('mousemove', e => {  // where and when the mouse last moved more than 12 px
+  if (Math.hypot(e.clientX - stillX, e.clientY - stillY) > 12) { stillX = e.clientX; stillY = e.clientY; stillAt = performance.now(); }
+}, { capture: true, passive: true });
+document.addEventListener('pointerdown', e => { tapOnChip = e.pointerType !== 'mouse' && !!(e.target.closest && e.target.closest('.tag.mix')); }, true);
+document.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') tapOnChip = false; }, { capture: true, passive: true });  // the mouse again
+function showValues(on) {
+  valuesOn = on;
+  if (document.body.classList.contains('hovering') === on) { clearTimeout(valuesTimer); valuesTimer = 0; }
+  else if (!valuesTimer) valuesTimer = setTimeout(applyValues, 120);
+}
+function applyValues() {
+  const wait = tapOnChip || document.querySelector('.tag.mix:hover') ? 150  // once it leaves them
+    : valuesOn ? 120 - (performance.now() - stillAt) : 0;
+  if (wait > 0) { valuesTimer = setTimeout(applyValues, Math.max(wait, 20)); return; }
+  valuesTimer = 0;
+  document.body.classList.toggle('hovering', valuesOn);
+}
+
+window.NsbMacd = { PANES, LINES, LINE, STACK, stackColor, emaPoints, emaTag, chips, MacdPane, DayLines, Bands, Countdown, show, toggle, onToggle: fn => listeners.push(fn), points, matchAt, trendState, showValues };
 })();

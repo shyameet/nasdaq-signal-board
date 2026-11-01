@@ -18,7 +18,7 @@
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=3"></script>
-<script src="macd.js?v=12"></script>
+<script src="macd.js?v=16"></script>
 <script src="engine.js?v=14"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
@@ -589,6 +589,7 @@ class Panel {
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
     for (const ev of ['pointerdown', 'wheel', 'touchstart']) $(key).addEventListener(ev, () => { driver = this; }, { capture: true, passive: true });
     this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
+      if (chartFingers.size) scrollAt = Date.now();  // (before the chart's re-check of the crosshair, in the same call)
       for (const p of Object.values(this.macd)) p.sync(r);
       syncOther(this);
       if (r && r.from < 8 && !syncing && day && day.more) loadOlder();  // at the left edge: older days
@@ -598,22 +599,63 @@ class Panel {
                  ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
     this.charts = all;
     for (const self of all) self.chart.chartElement().addEventListener('pointerdown', () => { pressedChart = self.chart; }, true);
+    let leaving = 0;
     for (const self of all) self.chart.subscribeCrosshairMove(p => {
       // a mouse's moves carry their event; a finger's (iPad) may not, so the chart last pressed or moved over counts too
       // (the chart's own re-checks, after a zoom or new data, come without one). The positions set on the other charts
       // below fire no move of their own
+      // (31/10/2026) a mouse left the chart (the chart's own leave). Onto its label's switches: the hover and the label's
+      // layout stay until the pointer leaves the pane (below). Anywhere else the hover ends a moment later, unless a switch
+      // or a chart has the pointer by then: on its way to a switch (the strip under a chart, a time axis) it narrowed every
+      // switch just before the pointer got there, so the click landed on the next one or on none. A mouse's only: a tapped
+      // chip keeps :hover
+      if (p.time === undefined && !p.sourceEvent && !finger) {
+        if (self.chart !== pressedChart || document.querySelector('.tag.mix:hover')) return;
+        const at = hoverAt;
+        clearTimeout(leaving);
+        leaving = setTimeout(() => {
+          if (hoverAt !== at || document.querySelector('.tag.mix:hover')) return;
+          for (const o of all) if (o !== self) o.chart.clearCrosshairPosition();
+          hoverAll(this, undefined);
+        }, 120);
+        return;
+      }
       if (p.sourceEvent) pressedChart = self.chart;
       else if (self.chart !== pressedChart) return;
       const t = p.time;
       for (const o of all) if (o !== self) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
-      hoverAll(this, t);
+      hoverAll(this, t, !!p.sourceEvent);
     });
-    for (const k of ['pmain', 'pentry', 'ptrend']) $(`${key}-${k}`).addEventListener('mouseleave', () => hoverAll(this, undefined));
+    // the hover ends when the pointer leaves a pane, this panel's crosshairs too (null: left from a chip, the chart's own leave
+    // never came and they stayed drawn) - but not when it goes straight onto a chip of the next pane (31/10/2026)
+    for (const k of ['pmain', 'pentry', 'ptrend']) $(`${key}-${k}`).addEventListener('mouseleave', e => {
+      if (!(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(`#${key} .tag.mix`))) hoverAll(null, undefined);
+    });
+    // the price chart and its panes keep one price-scale width, the widest of them (31/10/2026: MNQ's prices take 74 px and
+    // the panes 64, so a candle sat up to 10 px further right on the panes and the crosshair and day lines broke where they
+    // meet). A chart's width shows in its visible range (new data, a scroll or zoom can change it); it is read once the charts
+    // have laid out (two frames), then the panes are lined up with the price chart again
+    this.scaleW = 64;
+    const level = () => requestAnimationFrame(() => requestAnimationFrame(() => {
+      const w = Math.max(64, ...all.map(o => o.chart.priceScale('right').width()));
+      if (w !== this.scaleW) {
+        this.scaleW = w;
+        for (const o of all) o.chart.applyOptions({ rightPriceScale: { minimumWidth: w } });
+        for (const p of Object.values(this.macd)) p.tagEl.style.maxWidth = w > 64 ? `calc(100% - ${w + 16}px)` : '';  // the labels clear of the wider scale
+      }
+      const r = this.main.timeScale().getVisibleLogicalRange();
+      for (const p of Object.values(this.macd)) {
+        const q = p.chart.timeScale().getVisibleLogicalRange();
+        if (r && (!q || Math.abs(q.from - r.from) > 0.01 || Math.abs(q.to - r.to) > 0.01)) p.sync(r);  // (already there: no echo back)
+      }
+    }));
+    for (const o of all) o.chart.timeScale().subscribeVisibleLogicalRangeChange(level);
   }
   waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }  // the colour at candle i
   get side() { return day[this.key]; }
   draw(full) {  // the whole day
     const side = this.side, upto = Infinity;
+    if (full && this.scaleW !== 64) { this.scaleW = 64; for (const o of this.charts) o.chart.applyOptions({ rightPriceScale: { minimumWidth: 64 } }); for (const p of Object.values(this.macd)) p.tagEl.style.maxWidth = ''; }  // another day, candle size or pick: each chart finds its own width again (the widest is shared above)
     const tf = opt.tf, ones = side.price.filter(b => b.time < upto).concat(this.key === 'right' ? mnqForming() : []), o = side.origin;  // MNQ: today's forming minute on top
     this.mainBars = aggregate(ones, tf, o);
     const st = side.run.stateAt;
@@ -744,17 +786,60 @@ function syncOther(src, force = false) {  // the other chart ends at the time sr
   syncing = false;
 }
 let hovering = false, pressedChart = null;  // pressedChart: the chart (or MACD pane) last pressed: a finger moves its crosshair
-let hoverAt = 0, finger = false;  // when the crosshair last moved, and if the last press was a finger
-document.addEventListener('pointerdown', e => { finger = e.pointerType !== 'mouse'; }, true);
-const hoverHeld = () => hovering && (!finger || Date.now() - hoverAt < 5000);  // live prices leave the readout under the crosshair alone (owner 27/10; a finger's for 5 s, as its crosshair stays)
-function hoverAll(src, t) {
-  hovering = t !== undefined; hoverAt = Date.now();
-  document.body.classList.toggle('hovering', hovering);
+let hoverAt = 0, hoverT, finger = false;  // when the crosshair last moved and to which candle, and if the last press was a finger
+// a finger's readout is held while the finger that moved the crosshair is down, and for 5 s after it lifts (a hovering pen's
+// for 5 s after it last moved); the chart's own re-checks after new data are no move (31/10/2026: on a live chart they kept
+// it held for good, and any touch brought it back)
+const chartFingers = new Map();  // the fingers down on a chart's plot -> their pointer type
+let fingerHeld = false, fingerAt = 0, fingerUp = 0, penHover = 0, scrollAt = 0;  // a finger down moved the crosshair; when the hold last renewed; when a finger last left a chart; when a pen last hovered one; when a finger's pan or pinch last moved a price chart
+const inPlot = (e, o) => { const r = o.chart.chartElement().getBoundingClientRect();  // on the chart, off its price and time axes
+  return e.clientX >= r.left && e.clientX < r.right - o.chart.priceScale('right').width() && e.clientY >= r.top && e.clientY < r.bottom - o.chart.timeScale().height(); };
+document.addEventListener('pointerdown', e => {
+  finger = e.pointerType !== 'mouse';
+  if (!finger) return;
+  if (e.isPrimary) {  // the only one of its kind down (a lost lift heals here)
+    for (const [id, type] of chartFingers) if (type === e.pointerType) chartFingers.delete(id);
+    if (!chartFingers.size) fingerHeld = false;
+  }
+  if (allCharts().some(o => o.chart.chartElement().contains(e.target) && inPlot(e, o))) chartFingers.set(e.pointerId, e.pointerType);
+}, true);
+document.addEventListener('pointermove', e => {
+  if (!finger || !(e.pointerType === 'mouse' || (e.pointerType === 'pen' && !e.buttons))) return;
+  if (!allCharts().some(o => o.chart.chartElement().contains(e.target))) return;
+  if (e.pointerType === 'mouse') finger = false;  // the mouse on a chart after a tap (a touch laptop): the mouse's again
+  else penHover = Date.now();  // a pen hovering over a chart moves its crosshair as a mouse does
+}, true);
+for (const k of ['pointerup', 'pointercancel']) document.addEventListener(k, e => {
+  if (!chartFingers.delete(e.pointerId)) return;
+  fingerUp = Date.now();
+  if (fingerHeld && !chartFingers.size) { fingerHeld = false; fingerAt = fingerUp; }
+}, true);
+const hoverHeld = () => hovering && (!finger || fingerHeld || Date.now() - fingerAt < 5000);  // live prices leave the readout under the crosshair alone (owner 27/10; a finger's for 5 s, as its crosshair stays)
+function hoverAll(src, t, moved) {  // moved: the crosshair's own move (its event), not a re-check
+  const was = hoverT;
+  hovering = t !== undefined; hoverT = t; hoverAt = Date.now();
+  if (!finger) fingerAt = hoverAt;  // a mouse's readout keeps 5 s after a finger's tap off the charts (a touch laptop)
+  else if (hovering && (moved || t !== was || hoverAt - scrollAt < 50) && (chartFingers.size || hoverAt - fingerUp < 300 || hoverAt - penHover < 300)) {
+    fingerAt = hoverAt; fingerHeld = chartFingers.size > 0;  // a finger's move (or its lift's), or a hovering pen's
+  }
+  const shown = hoverHeld() ? t : undefined;
+  NsbMacd.showValues(hovering && !finger);  // the lines' values in the pane labels: a mouse's only (31/10/2026: after a finger's pan they stayed on, and the wider switches slid under the next tap)
   for (const p of Object.values(panels)) {
     if (p !== src) for (const o of p.charts) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
-    p.tags(t); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN);
+    p.tags(shown); p.head(shown === undefined ? undefined : shown * 1000 + opt.tf * MIN - MIN);
   }
 }
+// a mouse drag of a chart let go off the charts ends the hover (31/10/2026: the chart kept the dragged crosshair, and the
+// readout stayed on that candle while the price moved on)
+let dragging = false;
+const allCharts = () => Object.values(panels).flatMap(p => p.charts || []);
+document.addEventListener('pointerdown', e => { dragging = e.pointerType === 'mouse' && allCharts().some(o => o.chart.chartElement().contains(e.target)); }, true);
+document.addEventListener('pointerup', e => {
+  const was = dragging; dragging = false;
+  if (!was || !hovering) return;
+  const onPlot = allCharts().some(o => inPlot(e, o));
+  if (!onPlot) hoverAll(null, undefined);
+}, true);
 
 // ---- drawing ------------------------------------------------------------------------------------------------
 function fitAll() {  // both charts on the picked day; one with no candle on it (MNQ at a weekend) follows the other
@@ -771,7 +856,7 @@ function render(full) {
     fitAll();
     requestAnimationFrame(() => requestAnimationFrame(fitAll)); setTimeout(fitAll, 150);
   }
-  refreshText();
+  refreshText(full);
 }
 function showBadge() {  // right now (a past day: at MNQ's last candle of it): the latest minute where both gates exist
   const end = mnqEnd();
@@ -783,9 +868,12 @@ function showBadge() {  // right now (a past day: at MNQ's last candle of it): t
   el.textContent = k ? PATTERN[k].word : 'IN SYNC';
   el.title = k ? PATTERN[k].note : `Both gates say ${WORD[gateNear(day.left.run, t)]}.`;
 }
-function refreshText() {
+// the newest candle's readout, or the held crosshair's, unless the day or candle size just changed (31/10/2026: a switch
+// click or the minute's rebuild put the newest candle's values beside an older candle's crosshair, and the chips moved)
+function refreshText(fresh) {
   showBadge();
-  for (const p of Object.values(panels)) { p.tags(); p.head(); }
+  const t = !fresh && hoverHeld() ? hoverT : undefined;
+  for (const p of Object.values(panels)) { p.tags(t); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN); }
 }
 // ---- controls ----------------------------------------------------------------------------------------------
 function seg(el, items, current, onPick) {

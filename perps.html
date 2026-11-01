@@ -17,7 +17,7 @@
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=12"></script>
+<script src="macd.js?v=16"></script>
 <script src="engine.js?v=14"></script>
 <script src="daypick.js?v=3"></script>
 <script src="draw.js?v=8"></script>
@@ -96,6 +96,7 @@
   .tag.main b { font-family: var(--font-ui); }
   .tag .sw { width: 11px; height: 3px; border-radius: 2px; display: inline-block; vertical-align: middle; }
   .tag .t-ema { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-ui); }
+  .pane .tag.mix { max-width: calc(100% - 90px); }  /* clear of the panes' price scale, now as wide as the price chart's (31/10/2026) */
 
   #loading { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center;
              gap: 18px; background: var(--bg); color: var(--muted); }
@@ -266,9 +267,13 @@ async function hlDay(c, d0, end) {
 }
 async function topUp(keys, coin) {  // the cached, unfinished UTC days among keys: only the minutes since the last candle
   await Promise.all(keys.map(k => [k, dayCache.get(k) && dayCache.get(k)[coin]]).filter(([, e]) => e && !e.complete).map(async ([k, e]) => {
-    const f0 = dayStart(k), now = Date.now(), done = ended(k), a = e.bars, from = a.length ? a[a.length - 1].t : f0;
+    const f0 = dayStart(k), now = Date.now(), done = ended(k), a = e.bars, had = a[a.length - 1], from = had ? had.t : f0;
     const rows = (await candleRows(coin, '1m', from, Math.min(now, f0 + DAY - 1))).map(toBar).filter(b => b.t >= f0 && b.t < f0 + DAY);
-    for (const b of rows) { if (a.length && a[a.length - 1].t === b.t) a[a.length - 1] = b; else if (!a.length || b.t > a[a.length - 1].t) a.push(b); }
+    // merged by time (31/10/2026: a live candle that came in meanwhile is newer than the rows, and the append-only merge
+    // dropped them): the rows win, except at the minute of a live candle that came in during the fetch
+    const live = a[a.length - 1] !== had && a[a.length - 1], by = new Map(a.map(b => [b.t, b]));
+    for (const b of rows) if (!live || b.t !== live.t) by.set(b.t, b);
+    a.splice(0, a.length, ...[...by.values()].sort((x, y) => x.t - y.t));
     if (done) e.complete = true;
   }));
 }
@@ -277,15 +282,21 @@ async function loadDay(key, coin) {  // -> { bars (toBar objects), source, compl
   if (d && d[coin]) { if (!d[coin].complete && ended(key)) await topUp([key], coin); return d[coin]; }
   if (dayStart(key) > Date.now()) return { bars: [], source: 'hl', complete: false };  // not begun yet (not cached: it will)
   const d0 = dayStart(key), done = ended(key);
-  let bars = null, source = 'hl';
+  let bars = null, source = 'hl', failed = false;
   if (archiveDays.has(key) && key !== dayKey(Date.now())) {
-    try {
-      const r = await fetch(`data/perps/1m/${key}/${fileOf(coin)}.json`, { cache: 'no-cache' });
-      if (r.ok) { bars = (await r.json()).map(([t, o, h, l, cl, v, n]) => toBar({ t, o, h, l, c: cl, v, n })); source = 'archive'; }
-    } catch (e) { /* falls back to Hyperliquid below */ }
+    for (let attempt = 0; attempt < 2; attempt++) {  // a 5xx or no answer: once more 0.7 s later (31/10/2026: GitHub Pages answered a day's file 503 once)
+      if (attempt) await new Promise(r => setTimeout(r, 700));
+      try {
+        const r = await fetch(`data/perps/1m/${key}/${fileOf(coin)}.json`, { cache: 'no-cache' });
+        failed = r.status >= 500;
+        if (r.ok) { bars = (await r.json()).map(([t, o, h, l, cl, v, n]) => toBar({ t, o, h, l, c: cl, v, n })); source = 'archive'; }
+      } catch (e) { failed = true; /* falls back to Hyperliquid below */ }
+      if (!failed) break;
+    }
   }
   if (!bars && d0 + DAY > hlFrom) bars = (await hlDay(coin, d0, Math.min(d0 + DAY - 1, Date.now()))).filter(b => b.t < d0 + DAY);
   const e = { bars: bars || [], source, complete: done };
+  if (failed) return e;  // not kept: the next open asks the archive again
   if (!dayCache.has(key)) dayCache.set(key, {});
   dayCache.get(key)[coin] = e;
   return e;
@@ -320,6 +331,7 @@ function minutesOf(days) {  // the stock's bars over the loaded days, one per mi
   return a;
 }
 let builds = 0;
+const DIGITS = new Map();  // coin -> [price, MACD] decimals, chosen at its first build (31/10/2026: from each rebuild's last close they flipped near 1, 10 and 100)
 async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const seq = ++builds, coin = COIN;
   const list = dayList.length ? dayList : listDays(), i = Math.max(0, list.indexOf(key));
@@ -335,9 +347,10 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const inDay = b => b.t >= d0 && b.t < d1;
   const price = m.filter(inDay).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }));
   const px = price.length ? price[price.length - 1].close : 100;
+  const [digits, macdDigits] = DIGITS.get(coin) || [px >= 10 ? 2 : px >= 1 ? 4 : 5, px >= 100 ? 2 : px >= 10 ? 3 : px >= 1 ? 4 : 6];  // a coin under $1 (DOGE) needs more decimals
+  if (price.length && !DIGITS.has(coin)) DIGITS.set(coin, [digits, macdDigits]);
   day = { key, d0, d1, lastD0, shown: shownKeys.length, more: !!warmKey,
-          stock: { name: tk(coin), coin, run, price, hasSwing, swing: swing.bars,  // a coin under $1 (DOGE) needs more decimals
-                   digits: px >= 10 ? 2 : px >= 1 ? 4 : 5, macdDigits: px >= 100 ? 2 : px >= 10 ? 3 : px >= 1 ? 4 : 6 } };
+          stock: { name: tk(coin), coin, run, price, hasSwing, swing: swing.bars, digits, macdDigits } };
   day.end = (price.length ? price[price.length - 1].time : d0) + MIN;
   if (!quiet) loading(null);
   return true;
@@ -401,22 +414,49 @@ class Panel {
       shade: k === 'swing' ? i => swingState(this.macd.swing.pts[i]) : i => this.waveAt(i),
     });
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);
+    this.panes = Object.values(this.macd);  // the panes on screen (draw: crypto has no Swing pane)
     this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
+      if (chartFingers.size) scrollAt = Date.now();  // (before the chart's re-check of the crosshair, in the same call)
       for (const p of Object.values(this.macd)) p.sync(r);
+      this.align();
       if (r && r.from < 8 && day && day.more) loadOlder();  // at the left edge: older days
     });
     const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
-                 ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
+                 ...Object.values(this.macd).map(p => ({ pane: p, chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
     this.charts = all;
+    for (const p of Object.values(this.macd)) p.chart.timeScale().subscribeVisibleLogicalRangeChange(() => this.align());  // a pane's price scale grew with its labels (the panes have no time axis, so no size change of their own)
     for (const self of all) self.chart.chartElement().addEventListener('pointerdown', () => { pressedChart = self.chart; }, true);
+    let leaving = 0;
     for (const self of all) self.chart.subscribeCrosshairMove(p => {
+      // (31/10/2026) a mouse left the chart (the chart's own leave). Onto its label's switches: the hover, and the label's
+      // layout, stay until it leaves the pane (below). Anywhere else the hover ends a moment later, unless a switch or a
+      // chart has the pointer by then: on its way to a switch, through the strip under a chart or across a time axis, it
+      // took the chips' values away just before the pointer got there, so the chip aimed at slid off under it. A mouse's
+      // only: a tapped chip keeps :hover, and a finger's chips show no values anyway
+      if (p.time === undefined && !p.sourceEvent && !finger) {
+        if (self.chart !== pressedChart || document.querySelector('.tag.mix:hover')) return;
+        const at = hoverAt;
+        clearTimeout(leaving);
+        leaving = setTimeout(() => {
+          if (hoverAt !== at || document.querySelector('.tag.mix:hover')) return;
+          for (const o of all) if (o !== self) o.chart.clearCrosshairPosition();
+          hoverAll(undefined);
+        }, 120);
+        return;
+      }
       if (p.sourceEvent) pressedChart = self.chart;
       else if (self.chart !== pressedChart) return;
       const t = p.time;
-      for (const o of all) if (o !== self) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
-      hoverAll(t);
+      for (const o of all) if (o !== self && (!o.pane || this.panes.includes(o.pane))) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
+      hoverAll(t, !!p.sourceEvent);
     });
-    for (const k of ['pmain', 'pentry', 'ptrend', 'pswing']) $(`${key}-${k}`).addEventListener('mouseleave', () => hoverAll(undefined));
+    // the hover ends when the pointer leaves a pane, crosshairs and all (31/10/2026: left from a chip, the chart's own leave
+    // never came and they stayed drawn) - but not when it goes straight onto a chip of the next pane
+    for (const k of ['pmain', 'pentry', 'ptrend', 'pswing']) $(`${key}-${k}`).addEventListener('mouseleave', e => {
+      if (e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(`#${key} .tag.mix`)) return;
+      for (const o of all) o.chart.clearCrosshairPosition();
+      hoverAll(undefined);
+    });
   }
   waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }
   get side() { return day[this.key]; }
@@ -424,6 +464,11 @@ class Panel {
     const side = this.side, tf = opt.tf;
     $(`${this.key}-stack`).classList.toggle('no-swing', !side.hasSwing);
     $(`${this.key}-pswing`).hidden = !side.hasSwing;
+    this.panes = Object.values(this.macd).filter(p => p.kind !== 'swing' || side.hasSwing);
+    if (this.coin !== side.coin) {  // another market: the price scales back to their own widths first, so they can narrow again (align)
+      this.coin = side.coin;
+      for (const o of this.charts) o.chart.applyOptions({ rightPriceScale: { minimumWidth: 64 } });
+    }
     this.mainBars = aggregate(side.price, tf);
     const st = side.run.stateAt;
     this.mainStates = this.mainBars.map(b => {  // the gate at the candle's last finished minute
@@ -444,12 +489,29 @@ class Panel {
     this.main.applyOptions({ watermark: { text: `${side.name} · ${tf}m` } });
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
+    this.align();
   }
   fit() {  // the newest day of the strip (the older ones are to the left)
     const n = this.mainBars.length, i = this.mainBars.findIndex(b => b.time >= day.lastD0);
     if (i < 0) return false;
-    this.main.timeScale().setVisibleLogicalRange({ from: i - 1, to: n + 2 });
+    const r = { from: i - 1, to: n + 2 };
+    this.main.timeScale().setVisibleLogicalRange(r);
+    // the panes too, with the range set (31/10/2026: LWC applies it a frame later, and a range already there fires no
+    // change, so a Swing pane hidden on crypto through a resize came back on Stocks out of line)
+    for (const p of Object.values(this.macd)) p.sync(r);
     return true;
+  }
+  align() {  // one price-scale width on the price chart and its panes on screen, so their candles line up in time
+    // (31/10/2026: BTC's prices need 74 px against the panes' 64, 9-10 px apart at the newest candle). Read a frame
+    // later, once the charts have laid out: widths read straight after a draw are the old ones
+    if (this.aligning || !day) return;
+    this.aligning = requestAnimationFrame(() => {
+      this.aligning = 0;
+      const charts = [this.main, ...this.panes.map(p => p.chart)], w = charts.map(c => c.priceScale('right').width()), most = Math.max(...w);
+      if (w.every(x => x === most)) return;
+      for (const c of charts) c.applyOptions({ rightPriceScale: { minimumWidth: most } });
+      requestAnimationFrame(() => { const r = this.main.timeScale().getVisibleLogicalRange(); for (const p of Object.values(this.macd)) p.sync(r); });  // a new width moved the panes' candles
+    });
   }
   setEmas() {
     const out = this.emaPts = NsbMacd.emaPoints(this.mainBars, opt.tf, this.src);
@@ -461,7 +523,8 @@ class Panel {
     for (let x = at; x >= at - 5 * MIN; x -= MIN) { const s = side.run.stateAt.get(x); if (s) { st = s; k = x; break; } }
     $(`${this.key}-name`).textContent = side.name;
     $(`${this.key}-co`).textContent = MEMBERS[side.coin] ? MEMBERS[side.coin].company : '';
-    const bar = [...side.price].reverse().find(b => b.time <= at);
+    const newest = this.mainBars[this.mainBars.length - 1];
+    const bar = newest && (t === undefined || t >= newest.time) ? newest : barAt(side.price, at);  // as drawn (liveTick moves it), or the one hovered
     $(`${this.key}-val`).textContent = bar ? num(bar.close, side.digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
     const ch = k !== null ? side.run.checksAt.get(k) : null;
@@ -479,7 +542,7 @@ class Panel {
         + (b.state ? `<span class="${kind(b.state) === 'bull' ? 'up' : kind(b.state) === 'bear' ? 'down' : ''}">GATE ${WORD[b.state]}</span>` : '')
         + (e ? NsbMacd.emaTag(e, v => num(v, this.side.digits)) : '');
     }
-    for (const p of Object.values(this.macd)) { p.name = this.side.name; p.tag(t); }
+    for (const p of this.panes) { p.name = this.side.name; p.tag(t); }
   }
 }
 function aggregate(bars, m) {
@@ -490,6 +553,11 @@ function aggregate(bars, m) {
     else { last.high = Math.max(last.high, b.high); last.low = Math.min(last.low, b.low); last.close = b.close; last.volume += b.volume || 0; }
   }
   return out;
+}
+function barAt(bars, t) {  // the last bar at or before t (bars oldest first), or null
+  let lo = 0, hi = bars.length - 1, hit = null;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) { hit = bars[mid]; lo = mid + 1; } else hi = mid - 1; }
+  return hit;
 }
 function timeAt(bars, x) {  // candle position (fractional, may lie past either end) -> time
   const n = bars.length, tf = opt.tf * MIN;
@@ -507,11 +575,59 @@ function indexAt(bars, t) {  // the reverse
   return lo + (t - bars[lo].time) / (bars[hi].time - bars[lo].time);
 }
 let hovering = false, pressedChart = null;
-function hoverAll(t) {
-  hovering = t !== undefined;
-  document.body.classList.toggle('hovering', hovering);
-  for (const p of Object.values(panels)) { p.tags(t); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN); }
+let hoverAt = 0, hoverT, finger = false;  // when the crosshair last moved and to which candle, and if the last press was a finger
+// a finger's readout is held while the finger that moved the crosshair is down, and for 5 s after it lifts (a hovering pen's
+// for 5 s after it last moved); the chart's own re-checks after new data are no move (31/10/2026: on a live chart they kept
+// it held for good, and any touch brought it back)
+const chartFingers = new Map();  // the fingers down on a chart's plot -> their pointer type
+let fingerHeld = false, fingerAt = 0, fingerUp = 0, penHover = 0, scrollAt = 0;  // a finger down moved the crosshair; when the hold last renewed; when a finger last left a chart; when a pen last hovered one; when a finger's pan or pinch last moved a price chart
+const inPlot = (e, o) => { const r = o.chart.chartElement().getBoundingClientRect();  // on the chart, off its price and time axes
+  return e.clientX >= r.left && e.clientX < r.right - o.chart.priceScale('right').width() && e.clientY >= r.top && e.clientY < r.bottom - o.chart.timeScale().height(); };
+document.addEventListener('pointerdown', e => {
+  finger = e.pointerType !== 'mouse';
+  if (!finger) return;
+  if (e.isPrimary) {  // the only one of its kind down (a lost lift heals here)
+    for (const [id, type] of chartFingers) if (type === e.pointerType) chartFingers.delete(id);
+    if (!chartFingers.size) fingerHeld = false;
+  }
+  if (allCharts().some(o => o.chart.chartElement().contains(e.target) && inPlot(e, o))) chartFingers.set(e.pointerId, e.pointerType);
+}, true);
+document.addEventListener('pointermove', e => {
+  if (!finger || !(e.pointerType === 'mouse' || (e.pointerType === 'pen' && !e.buttons))) return;
+  if (!allCharts().some(o => o.chart.chartElement().contains(e.target))) return;
+  if (e.pointerType === 'mouse') finger = false;  // the mouse on a chart after a tap (a touch laptop): the mouse's again
+  else penHover = Date.now();  // a pen hovering over a chart moves its crosshair as a mouse does
+}, true);
+for (const k of ['pointerup', 'pointercancel']) document.addEventListener(k, e => {
+  if (!chartFingers.delete(e.pointerId)) return;
+  fingerUp = Date.now();
+  if (fingerHeld && !chartFingers.size) { fingerHeld = false; fingerAt = fingerUp; }
+}, true);
+const hoverHeld = () => hovering && (!finger || fingerHeld || Date.now() - fingerAt < 5000);  // live prices leave the readout under the crosshair alone (as on the MNQ tab; a finger's for 5 s, as its crosshair stays)
+function hoverAll(t, moved) {  // moved: the crosshair's own move (its event), not a re-check
+  const was = hoverT;
+  hovering = t !== undefined; hoverT = t; hoverAt = Date.now();
+  if (!finger) fingerAt = hoverAt;  // a mouse's readout keeps 5 s after a finger's tap off the charts (a touch laptop)
+  else if (hovering && (moved || t !== was || hoverAt - scrollAt < 50) && (chartFingers.size || hoverAt - fingerUp < 300 || hoverAt - penHover < 300)) {
+    fingerAt = hoverAt; fingerHeld = chartFingers.size > 0;  // a finger's move (or its lift's), or a hovering pen's
+  }
+  const shown = hoverHeld() ? t : undefined;
+  // the chips' values: under a mouse only (31/10/2026: a finger's crosshair stays after a pan, and the chips, wider with
+  // their values, slid under the next tap)
+  NsbMacd.showValues(hovering && !finger);
+  for (const p of Object.values(panels)) { p.tags(shown); p.head(shown === undefined ? undefined : shown * 1000 + opt.tf * MIN - MIN); }
 }
+// a mouse drag of a chart let go off the charts ends the hover (31/10/2026: the chart kept the dragged crosshair, and the
+// readout stayed on that candle while the price moved on)
+let dragging = false;
+const allCharts = () => Object.values(panels).flatMap(p => p.charts || []);
+document.addEventListener('pointerdown', e => { dragging = e.pointerType === 'mouse' && allCharts().some(o => o.chart.chartElement().contains(e.target)); }, true);
+document.addEventListener('pointerup', e => {
+  const was = dragging; dragging = false;
+  if (!was || !hovering) return;
+  const onPlot = allCharts().some(o => inPlot(e, o));
+  if (!onPlot) { for (const o of allCharts()) o.chart.clearCrosshairPosition(); hoverAll(undefined); }
+}, true);
 
 // ---- drawing ------------------------------------------------------------------------------------------------
 function render(full) {
@@ -520,9 +636,14 @@ function render(full) {
     const fit = () => { for (const p of Object.values(panels)) p.fit(); };
     fit(); requestAnimationFrame(() => requestAnimationFrame(fit)); setTimeout(fit, 150);
   }
-  refreshText();
+  refreshText(full);
 }
-function refreshText() { for (const p of Object.values(panels)) { p.tags(); p.head(); } }
+// the newest candle's readout, or the held crosshair's, unless the day or candle size just changed (31/10/2026: a switch
+// click or the minute's rebuild put the newest candle's values beside an older candle's crosshair, and the chips moved)
+function refreshText(fresh) {
+  const t = !fresh && hoverHeld() ? hoverT : undefined;
+  for (const p of Object.values(panels)) { p.tags(t); p.head(t === undefined ? undefined : t * 1000 + opt.tf * MIN - MIN); }
+}
 // ---- controls ----------------------------------------------------------------------------------------------
 function seg(el, items, current, onPick) {
   el.innerHTML = items.map(([label, val]) => `<button type="button" data-v="${val}" aria-pressed="${String(val) === String(current)}">${label}</button>`).join('');
@@ -548,6 +669,9 @@ async function showMarket(next, kind) {  // another market: its own drawings, it
   const was = COIN, wasKind = KIND;
   if (next === was) return true;
   const use = (c, k) => { COIN = c; KIND = k; ALL = LISTS[k]; NsbDraw.use('nsb.draw.perps.' + fileOf(c)); fillList(); };
+  // its unfinished days stopped when you left it (the stream follows the market shown only): fetched whole again
+  // (31/10/2026: the minutes away were a flat line, never filled in)
+  for (const d of dayCache.values()) if (d[next] && !d[next].complete) delete d[next];
   use(next, kind);
   liveSwap(was, next);
   if (await openDay(day.key) === false) {  // not loaded: back to the market the chart still shows
@@ -654,17 +778,19 @@ function everyMinute() {  // 1.5 s past each minute: the minute just closed join
 }
 function liveTick() {  // the newest candle at the latest price, between rebuilds
   const T = thisMinute();
+  let newestHeld = false;
   for (const p of Object.values(panels)) {
     const bars = p.mainBars, last = bars[bars.length - 1];
+    if (last && hoverT === sec(last.time)) newestHeld = true;
     if (!last || last.time !== bucketStart(T, opt.tf)) continue;
     const d = dayCache.get(dayKey(T)), a = d && d[COIN] && d[COIN].bars, one = a && a[a.length - 1];
     if (!one || one.t !== T) continue;
     last.close = one.c; last.high = Math.max(last.high, one.h); last.low = Math.min(last.low, one.l);
-    p.candles.update({ time: sec(last.time), open: last.open, high: last.high, low: last.low, close: last.close });
-    const s = p.store.get(sec(last.time));
+    const s = p.store.get(sec(last.time));  // first: the chart's re-check in update() writes the label from it
     if (s) Object.assign(s, { close: last.close, high: last.high, low: last.low });
+    p.candles.update({ time: sec(last.time), open: last.open, high: last.high, low: last.low, close: last.close });
   }
-  if (Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }
+  if ((!hoverHeld() || newestHeld) && Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }  // (31/10/2026: under the crosshair it flipped to the newest candle and back; the newest one held moves with the price)
 }
 async function liveRebuild() {  // a minute closed: today again with it
   if (refreshing || olderBusy || opening || !day) return;
