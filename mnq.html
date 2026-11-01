@@ -18,8 +18,9 @@
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=3"></script>
-<script src="macd.js?v=16"></script>
+<script src="macd.js?v=17"></script>
 <script src="engine.js?v=14"></script>
+<script src="swing.js?v=1"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=8"></script>
@@ -130,7 +131,7 @@
   .other { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; }
   .other .gw { padding: 1px 7px; font-size: 10.5px; }
   .warm { color: var(--warn); font-size: 11px; }
-  .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 58fr 16fr 26fr; }
+  .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 52fr 14fr 17fr 17fr; }   /* price, Entry, Trend, Swing (as on the Compare tab) */
   .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }
   .tag { position: absolute; top: 4px; left: 10px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 90px);
          padding: 3px 8px; border-radius: 6px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 11.5px; color: var(--muted);
@@ -213,7 +214,7 @@
 <body>
 <header class="topbar">
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
-  <nav class="tabs" aria-label="Pages"><a href="replay.html" aria-current="page">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a></nav>
+  <nav class="tabs" aria-label="Pages"><a href="replay.html" aria-current="page">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a></nav>
   <div class="grp" title="Section"><div class="seg" role="group" aria-label="Section"><button type="button" aria-pressed="false" onclick="location.href='replay.html'" title="Your stocks beside XYZ100">XYZ100</button><button type="button" aria-pressed="true" title="Your stocks beside MNQ">MNQ</button></div></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
@@ -276,6 +277,7 @@ const kind = st => st === 'BULLISH' ? 'bull' : st === 'BEARISH' ? 'bear' : '';
 // bars restart each day at `o` ms after 00:00 UTC: 0 for the stock perps (24/7); 'cme' for MNQ, its session open 17:00
 // Chicago on whichever clock Chicago is on (22:00 UTC in summer time, 23:00 UTC from 1 Nov; cme.js), as on TradingView
 const CME_OPEN = 'cme';
+const SWING_MNQ = { id: 'MNQ', origin: CME_OPEN, roll: 'MNQ' };  // MNQ's Swing candles (swing.js): its file, moved onto the contract traded now
 const day0Of = (t, o) => o === 'cme' ? NsbCme.day0(t) : t - ((t - o) % DAY + DAY) % DAY;
 const dayEndOf = (t, o) => o === 'cme' ? NsbCme.dayEnd(t) : day0Of(t, o) + DAY;
 const bucketStart = (t, m, o = 0) => { const d0 = day0Of(t, o), s = m * MIN; return d0 + Math.floor((t - d0) / s) * s; };
@@ -486,6 +488,10 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const shownKeys = list.slice(i, i + shown), warmKey = list[i + shown];
   const d0 = NsbCme.open(shownKeys[shownKeys.length - 1]), lastD0 = NsbCme.open(key), d1 = NsbCme.open(NsbCme.next(key));
   if (!quiet) loading(`Loading ${key}…`);
+  // the Swing pane's long candles (swing.js), as on the Compare tab: your stocks' composite from its members' files, and
+  // MNQ's file; fetched meanwhile
+  const coef = composite(), swingL = { members: Object.fromEntries(want.map(c => ['hl_' + c.replace(/:/g, '_'), coef[c]])), origin: 0 };
+  const ahead = Promise.all([NsbSwing.series(swingL, []), NsbSwing.series(SWING_MNQ, [])]).catch(() => null);
   const files = filesOf([...shownKeys, warmKey].filter(Boolean));
   const days = (await Promise.all(files.map(f => loadDay(f, want)))).filter(Boolean);
   const saved = (await Promise.all(files.map(loadFut))).flat(), byT = new Map(saved.map(b => [b.t, b]));
@@ -502,9 +508,14 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
     .map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 }));
   const src = days.map(d => d.source).join(' + ');
   const lacking = ACTIVE.filter(c => !m[c].some(inDay));  // picked stocks with no candles on this day (not archived yet)
+  // the Swing candles, current up to the last closed minute: the composite's own 1-minute candles, and MNQ's (roll-adjusted)
+  await ahead;
+  const now = Date.now(), ones = (runL.bars[1] || []).filter(b => b.time + MIN <= now).map(b => ({ t: b.time, o: b.open, h: b.high, l: b.low, c: b.close, v: b.volume || 0 }));
+  const [swL, swR] = await Promise.all([NsbSwing.series(swingL, ones), NsbSwing.series(SWING_MNQ, fut)]);
+  if (seq !== builds) return false;  // a newer build started meanwhile: its result stands
   day = { key, d0, d1, lastD0, shown: shownKeys.length, more: !!warmKey, prevLoaded: !!warmKey || list.length > i + shownKeys.length, source: src, lacking,
-          left: { name: leftName(), run: runL, price: priceL, digits: 2, macdDigits: 3, origin: 0 },
-          right: { name: 'MNQ', run: runR, price: priceR, digits: 2, macdDigits: 2, origin: CME_OPEN } };
+          left: { name: leftName(), run: runL, price: priceL, digits: 2, macdDigits: 3, origin: 0, swing: swL },
+          right: { name: 'MNQ', run: runR, price: priceR, digits: 2, macdDigits: 2, origin: CME_OPEN, swing: swR } };
   computeSignals();
   const lastT = Math.max(priceL.length ? priceL[priceL.length - 1].time : 0, priceR.length ? priceR[priceR.length - 1].time : 0);
   day.end = lastT + MIN;
@@ -532,6 +543,7 @@ const hasDay = key => archiveDays.has(key) || dayStart(key) + DAY > hlFrom;
 
 // ---- the charts --------------------------------------------------------------------------------------------
 const panels = {};
+const PANE_KINDS = ['entry', 'trend', 'swing'];
 function options(showTime, isMain, name) {
   return {
     watermark: isMain ? { visible: true, text: name, color: 'rgba(232, 238, 246, 0.04)', fontSize: 40, fontStyle: '700' } : { visible: false },
@@ -565,6 +577,7 @@ class Panel {
           <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
           <div class="pane" id="${key}-pentry"><div class="tag mix" id="${key}-tentry"></div></div>
           <div class="pane" id="${key}-ptrend"><div class="tag mix" id="${key}-ttrend"></div></div>
+          <div class="pane" id="${key}-pswing"><div class="tag mix" id="${key}-tswing"></div></div>
         </div>
       </section>`);
     this.main = LightweightCharts.createChart($(`${key}-pmain`), options(true, true, ''));
@@ -582,9 +595,10 @@ class Panel {
     this.drawing = NsbDraw.add({ id: key, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
                   tf: () => opt.tf, fmt: v => num(v, day && day[key] ? day[key].digits : 2) });
     this.macd = {};
-    for (const k of ['entry', 'trend']) this.macd[k] = new MacdPane({
+    for (const k of PANE_KINDS) this.macd[k] = new MacdPane({
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 2, options: options(false, false, ''), origin, days: 'cme',
-      bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.waveAt(i),
+      bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src,
+      shade: k === 'swing' ? i => NsbSwing.state(this.macd.swing.pts[i]) : i => this.waveAt(i),  // Swing: its own lines switched on
     });
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
     for (const ev of ['pointerdown', 'wheel', 'touchstart']) $(key).addEventListener(ev, () => { driver = this; }, { capture: true, passive: true });
@@ -628,7 +642,7 @@ class Panel {
     });
     // the hover ends when the pointer leaves a pane, this panel's crosshairs too (null: left from a chip, the chart's own leave
     // never came and they stayed drawn) - but not when it goes straight onto a chip of the next pane (31/10/2026)
-    for (const k of ['pmain', 'pentry', 'ptrend']) $(`${key}-${k}`).addEventListener('mouseleave', e => {
+    for (const k of ['pmain', 'pentry', 'ptrend', 'pswing']) $(`${key}-${k}`).addEventListener('mouseleave', e => {
       if (!(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(`#${key} .tag.mix`))) hoverAll(null, undefined);
     });
     // the price chart and its panes keep one price-scale width, the widest of them (31/10/2026: MNQ's prices take 74 px and
@@ -669,8 +683,13 @@ class Panel {
       for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { if (gateNear(day.left.run, t) && gateNear(day.right.run, t)) return kindAt(t); }
       return null;
     });
-    // MACD panes and EMAs: only bars closed by then, and by the strip's end (the UTC files run past it, and the last candle takes the newest bar)
-    this.src = Object.fromEntries(Object.entries(side.run.bars).map(([m, bars]) => [m, bars.filter(b => bucketEnd(b.time, +m, o) <= Math.min(upto, day.d1))]));
+    // MACD panes and EMAs: only bars closed by then, and by the strip's end (the UTC files run past it, and the last candle takes the newest bar).
+    // The Swing candles close at their own end; on today's strip the newest of each (still forming, from the closed minutes)
+    // is kept for the newest candle (as on the Compare tab)
+    const live = day.d1 > Date.now();
+    this.src = Object.fromEntries([
+      ...Object.entries(side.run.bars).map(([m, bars]) => [m, bars.filter(b => bucketEnd(b.time, +m, o) <= Math.min(upto, day.d1))]),
+      ...Object.entries(side.swing).map(([m, bars]) => [m, live ? bars : bars.filter(b => b.end <= day.d1)])]);
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
     this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
     this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));

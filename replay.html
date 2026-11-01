@@ -17,8 +17,9 @@
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=16"></script>
+<script src="macd.js?v=17"></script>
 <script src="engine.js?v=14"></script>
+<script src="swing.js?v=1"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=8"></script>
@@ -119,7 +120,7 @@
   .other { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; }
   .other .gw { padding: 1px 7px; font-size: 10.5px; }
   .warm { color: var(--warn); font-size: 11px; }
-  .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 58fr 16fr 26fr; }
+  .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 52fr 14fr 17fr 17fr; }   /* price, Entry, Trend, Swing (as on the Perps tab) */
   .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }
   .tag { position: absolute; top: 4px; left: 10px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 90px);
          padding: 3px 8px; border-radius: 6px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 11.5px; color: var(--muted);
@@ -202,7 +203,7 @@
 <body>
 <header class="topbar">
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
-  <nav class="tabs" aria-label="Pages"><a href="replay.html" aria-current="page">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a></nav>
+  <nav class="tabs" aria-label="Pages"><a href="replay.html" aria-current="page">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a></nav>
   <div class="grp" title="Section"><div class="seg" role="group" aria-label="Section"><button type="button" aria-pressed="true" title="Your stocks beside XYZ100">XYZ100</button><button type="button" aria-pressed="false" onclick="location.href='mnq.html'" title="Your stocks beside MNQ">MNQ</button></div></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
@@ -436,10 +437,22 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const d0 = NsbCme.open(shownKeys[shownKeys.length - 1]), lastD0 = NsbCme.open(key), d1 = NsbCme.open(NsbCme.next(key));
   if (!quiet) loading(`Loading ${key}…`);
   const files = filesOf([...shownKeys, warmKey].filter(Boolean));
+  // the Swing pane's long candles (swing.js, as on the Compare tab): your stocks' composite from its members' files, XYZ100's
+  // own (its weeks and months from the Nasdaq-100's days before it listed), fetched while the days load
+  const spec = { left: { members: Object.fromEntries(Object.entries(composite()).map(([c, k]) => ['hl_' + c.replace(/:/g, '_'), k])), origin: 0 },
+                 right: { id: 'hl_' + BENCH.replace(/:/g, '_'), hl: BENCH, origin: 0, under: 'us_NDX' } };
+  const ahead = Promise.all([spec.left, spec.right].map(s => NsbSwing.series(s, []).catch(() => null)));
   const days = (await Promise.all(files.map(loadDay))).filter(Boolean);
   if (seq !== builds) return false;
   const m = minutesOf(days, [...ALL, BENCH]);
   const runL = runSeries(composite(), m), runR = runSeries({ [BENCH]: 1 }, m);
+  // and today's hours, days, weeks and months from the closed minutes since (the composite's own 1-minute candles, XYZ100's)
+  await ahead;
+  const closedRows = bars => { const now = Date.now(); return bars.filter(b => b.t + MIN <= now); };
+  const [swingL, swingR] = await Promise.all([
+    NsbSwing.series(spec.left, closedRows((runL.bars[1] || []).map(b => ({ t: b.time, o: b.open, h: b.high, l: b.low, c: b.close, v: b.volume || 0 })))),
+    NsbSwing.series(spec.right, closedRows(m[BENCH]))]);
+  if (seq !== builds) return false;
   const inDay = b => b.t >= d0 && b.t < d1;  // the strip
   // the right chart's candles are XYZ100's own 1-minute candles; the left's are the composite's
   const priceR = m[BENCH].filter(inDay).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }));
@@ -448,8 +461,8 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const src = days.map(d => d.source).join(' + ');
   const lacking = ACTIVE.filter(c => !m[c].some(inDay));  // picked stocks with no candles on this day (not archived yet)
   day = { key, d0, d1, lastD0, shown: shownKeys.length, more: !!warmKey, prevLoaded: !!warmKey || list.length > i + shownKeys.length, source: src, lacking,
-          left: { name: leftName(), run: runL, price: priceL, digits: 2, macdDigits: 3 },
-          right: { name: 'XYZ100', run: runR, price: priceR, digits: 1, macdDigits: 2 } };
+          left: { name: leftName(), run: runL, price: priceL, digits: 2, macdDigits: 3, swing: swingL },
+          right: { name: 'XYZ100', run: runR, price: priceR, digits: 1, macdDigits: 2, swing: swingR } };
   computeSignals();
   const lastT = Math.max(priceL.length ? priceL[priceL.length - 1].time : 0, priceR.length ? priceR[priceR.length - 1].time : 0);
   day.end = lastT + MIN;
@@ -494,6 +507,7 @@ class Panel {
           <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
           <div class="pane" id="${key}-pentry"><div class="tag mix" id="${key}-tentry"></div></div>
           <div class="pane" id="${key}-ptrend"><div class="tag mix" id="${key}-ttrend"></div></div>
+          <div class="pane" id="${key}-pswing"><div class="tag mix" id="${key}-tswing"></div></div>
         </div>
       </section>`);
     this.main = LightweightCharts.createChart($(`${key}-pmain`), options(true, true, ''));
@@ -511,9 +525,10 @@ class Panel {
     this.drawing = NsbDraw.add({ id: key, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
                   tf: () => opt.tf, fmt: v => num(v, day && day[key] ? day[key].digits : 2) });
     this.macd = {};
-    for (const k of ['entry', 'trend']) this.macd[k] = new MacdPane({
+    for (const k of ['entry', 'trend', 'swing']) this.macd[k] = new MacdPane({
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 2, options: options(false, false, ''), days: 'cme',
-      bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src, shade: i => this.waveAt(i),
+      bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src,
+      shade: k === 'swing' ? i => NsbSwing.state(this.macd.swing.pts[i]) : i => this.waveAt(i),  // the Swing pane by its own lines
     });
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
     this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
@@ -555,7 +570,7 @@ class Panel {
     });
     // the hover ends when the pointer leaves a pane, this panel's crosshairs too (null: left from a chip, the chart's own leave
     // never came and they stayed drawn) - but not when it goes straight onto a chip of the next pane (31/10/2026)
-    for (const k of ['pmain', 'pentry', 'ptrend']) $(`${key}-${k}`).addEventListener('mouseleave', e => {
+    for (const k of ['pmain', 'pentry', 'ptrend', 'pswing']) $(`${key}-${k}`).addEventListener('mouseleave', e => {
       if (!(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(`#${key} .tag.mix`))) hoverAll(null, undefined);
     });
     // the price chart and its panes keep one price-scale width, the widest of them (31/10/2026: XYZ100's prices take 74 px and
@@ -592,8 +607,12 @@ class Panel {
     });
     this.firstState = Infinity;  // its first gate minute in the strip (not after it), once per draw: head() runs on every crosshair move, and a long strip has too many to spread
     for (const x of st.keys()) if (x >= day.d0 && x < day.d1 && x < this.firstState) this.firstState = x;
-    // MACD panes and EMAs: only bars closed by then, and by the strip's end (the UTC files run past it, and the last candle takes the newest bar)
-    this.src = Object.fromEntries(Object.entries(side.run.bars).map(([m, bars]) => [m, bars.filter(b => bucketEnd(b.time, +m) <= Math.min(upto, day.d1))]));
+    // MACD panes and EMAs: only bars closed by then, and by the strip's end (the UTC files run past it, and the last candle takes the newest bar).
+    // The Swing candles close at their own end; on today's strip the newest of each (still forming, from the closed minutes) is kept for the newest candle
+    const live = day.d1 > Date.now();
+    this.src = Object.fromEntries([
+      ...Object.entries(side.run.bars).map(([m, bars]) => [m, bars.filter(b => bucketEnd(b.time, +m) <= Math.min(upto, day.d1))]),
+      ...Object.entries(side.swing).map(([m, bars]) => [m, live ? bars : bars.filter(b => b.end <= day.d1)])]);
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
     this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
     this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
