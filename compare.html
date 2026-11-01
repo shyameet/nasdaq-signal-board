@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Compare · Indra Quant Signal Board</title>
-<meta name="description" content="One chart or two, side by side: any market of the board, each with its own day and candle size, with the RDX WIP gate and the Entry, Trend and Swing panes.">
+<meta name="description" content="Two charts side by side, any market of the board on each, live, with the RDX WIP gate and the Entry, Trend and Swing panes.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -18,22 +18,19 @@
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=3"></script>
-<script src="macd.js?v=17"></script>
+<script src="macd.js?v=18"></script>
 <script src="engine.js?v=14"></script>
-<script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
-<script src="swing.js?v=1"></script>
+<script src="swing.js?v=2"></script>
 <script src="draw.js?v=8"></script>
 <script src="install.js?v=2"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
-  .tf-sel { padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text);
-            font: 500 12px var(--font-num); cursor: pointer; }
-  .tf-sel:hover { border-color: var(--line-strong); }
-  /* The Compare page (owner 1/11/2026): one chart or two side by side, each on its own market (the board's own markets
-     only: owner 1/11, "we don't need the picker thing for now" for every Hyperliquid market and every NSE stock), its own
-     day and its own candle size, with the same header, price chart, Entry, Trend and Swing panes as the Perps tab. Each
-     market keeps its own tab's day and data. Watching only. */
+  /* The Compare page (owner 1/11/2026): two charts side by side, each on its own market (the board's own markets only:
+     owner 1/11, "we don't need the picker thing for now" for every Hyperliquid market and every NSE stock), each on its
+     market's newest day in 1-minute candles, live (owner 1/11: "no need for single chart option ... time candles option or
+     even date, dont keep it complex"; older days by scrolling left), with the same header, price chart, Entry, Trend and
+     Swing panes as the Perps tab. Each market keeps its own tab's day and data. Watching only. */
   :root {
     color-scheme: dark;
     --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
@@ -74,12 +71,11 @@
          font-size: 12px; white-space: nowrap; }
   .btn:hover:not(:disabled) { border-color: var(--line-strong); background: var(--tile); }
 
-  /* ---- the charts: one, or two side by side ---- */
-  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
-  .board.two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  /* ---- the charts: two side by side ---- */
+  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .panel { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .panel + .panel { border-left: 1px solid var(--line-strong); }
-  /* each chart's own header: its market, day and candle size, then the Perps tab's readout */
+  /* each chart's own header: its market, then the Perps tab's readout */
   .phead { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 5px 10px; border-bottom: 1px solid var(--line); min-width: 0; }
   .pctl { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
   .pname { font-size: 14px; font-weight: 700; line-height: 20px; letter-spacing: .01em; white-space: nowrap; }
@@ -132,7 +128,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   @media (max-width: 1100px) {
     html, body { height: auto; }
-    .board.two { grid-template-columns: minmax(0, 1fr); }
+    .board { grid-template-columns: minmax(0, 1fr); }
     .panel { height: 92vh; min-height: 600px; }
     .panel + .panel { border-left: 0; border-top: 1px solid var(--line-strong); }
   }
@@ -152,8 +148,7 @@
 <body>
 <header class="topbar">
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
-  <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" aria-current="page" title="One chart or two, any market of the board">Compare</a></nav>
-  <div class="grp"><div class="seg" id="nSeg" role="group" aria-label="One or two charts"></div></div>
+  <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" aria-current="page" title="Two charts, any market of the board">Compare</a></nav>
   <div class="spacer"></div>
 </header>
 <main class="board" id="board"></main>
@@ -170,7 +165,6 @@ const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', li
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
 const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
 const RULES = [['5m waves', '5m'], ['9m waves', '9m'], ['11m waves', '11m'], ['5m EMA21 vs EMA47', '5m 21/47']];  // the RDX WIP gate's conditions
-const TFS = [1, 2, 3, 5];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], WKD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const $ = id => document.getElementById(id);
 const two = n => String(n).padStart(2, '0');
@@ -526,18 +520,17 @@ function options(showTime, isMain) {
 }
 const PANE_KINDS = ['entry', 'trend', 'swing'];
 class Panel {
-  // key 'a' or 'b'. Each chart has its own market, day, candle size and build sequence (a build for one chart never
-  // cancels the other's); the charts themselves are made for each market (mount), on its grid, day lines and decimals.
+  // key 'a' or 'b'. Each chart has its own market and build sequence (a build for one chart never cancels the other's),
+  // on its market's newest day in 1-minute candles; the charts themselves are made for each market (mount), on its grid,
+  // day lines and decimals.
   constructor(key) {
     this.key = key; this.inst = null; this.day = null; this.dayList = []; this.builds = 0; this.opening = 0; this.refreshing = false; this.olderBusy = false;
     this.mainBars = []; this.mainStates = []; this.src = {}; this.store = new Map(); this.emaPts = []; this.charts = []; this.macd = {}; this.panes = [];
-    this.tf = TFS.includes(pref('tf.' + key, 1)) ? pref('tf.' + key, 1) : 1;
+    this.tf = 1;  // 1-minute candles (owner 1/11/2026: no candle size choice)
     $('board').insertAdjacentHTML('beforeend', `
       <section class="panel" id="${key}">
         <div class="phead">
-          <span class="pctl"><input class="ip-in" id="${key}-q" type="text" autocomplete="off" spellcheck="false" aria-label="Market" title="The market shown: type to search" placeholder="Search markets">
-            <span id="${key}-day"></span>
-            <select class="tf-sel" id="${key}-tfs" aria-label="Candle size" title="Candle size"></select></span>
+          <span class="pctl"><input class="ip-in" id="${key}-q" type="text" autocomplete="off" spellcheck="false" aria-label="Market" title="The market shown: type to search" placeholder="Search markets"></span>
           <span class="pname" id="${key}-name">—</span><span class="pval" id="${key}-val">—</span>
           <span class="gate"><span class="gk">Gate</span><span class="gw" id="${key}-gate">—</span></span>
           <span class="conds" id="${key}-conds"></span>
@@ -546,31 +539,25 @@ class Panel {
         <div class="stack" id="${key}-stack"></div>
         <div class="ploading" id="${key}-loading" hidden><div id="${key}-loading-text">Loading…</div></div>
       </section>`);
-    $(`${key}-tfs`).innerHTML = TFS.map(m => `<option value="${m}"${m === this.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
-    $(`${key}-tfs`).onchange = () => { this.tf = +$(`${key}-tfs`).value; save('tf.' + key, this.tf); if (this.day && this.main) this.render(true); };
-    this.dayPick = DayPick($(`${key}-day`), { onPick: k => this.openDay(k), title: 'Day' });
-    this.dayPop = document.body.lastElementChild;  // its calendar (daypick.js adds it to the page last): placed by placePop once open
-    $(`${key}-day`).querySelector('.dp-btn').addEventListener('click', () => this.placeDay());
     for (const ev of ['pointerdown', 'wheel', 'touchstart']) $(key).addEventListener(ev, () => { driver = this; }, { capture: true, passive: true });
     this.picker = new Picker(this);
   }
   // ---- the market ----
-  async show(inst) {  // another market: the same day if it has it, else its newest; a failed load keeps the one shown
+  async show(inst) {  // another market, on its newest day; a failed load keeps the one shown
     // (none shown yet: the market that failed stays in the box, and picking it again tries again)
-    const was = this.inst, wasList = this.dayList, at = this.day ? this.day.key : null;
+    const was = this.inst, wasList = this.dayList;
     if (was && was.id === inst.id && this.day) return true;
     // its unfinished days stopped while nobody showed it (the stream follows the markets shown): fetched whole again
     if (inst.kind === 'hl' && !panelList().some(p => p.shows(inst.coin))) for (const d of dayCache.values()) if (d[inst.coin] && !d[inst.coin].complete) delete d[inst.coin];
     this.inst = inst; this.dayList = daysOf(inst);
     if (isVps(inst)) startVps();
     liveSync();
-    const opened = await this.openDay(at && this.dayList.includes(at) ? at : this.dayList[0]);
+    const opened = await this.openDay(this.dayList[0]);
     if (opened === false) { if (this.day) { this.inst = was; this.dayList = wasList; liveSync(); } this.picker.reset(); return false; }
     if (opened) save(this.key, inst.id);
     this.picker.reset();
     return true;
   }
-  placeDay() { if (this.dayPop && !this.dayPop.hidden) placePop(this.dayPop, $(`${this.key}-day`).querySelector('.dp-btn'), 6, false); }
   shows(coin) { const i = this.inst; return !!i && (i.kind === 'hl' ? i.coin === coin : i.kind === 'comp' && ACTIVE.includes(coin)); }
   onToday() { return !!this.day && this.day.d1 > Date.now() && this.day.lastD0 <= Date.now(); }
   async build(key, shown, quiet) {  // false: a newer build of this chart started meanwhile, it stands
@@ -581,17 +568,16 @@ class Panel {
       if (seq !== this.builds || inst !== this.inst) return false;
       side.end = (side.price.length ? side.price[side.price.length - 1].time : side.d0) + MIN;
       this.day = side;
-      if (isVps(inst)) { const l = daysOf(inst); if (l.join() !== this.dayList.join()) { this.dayList = l; this.dayPick.set(l, this.day.key, CAL[inst.cal].key(Date.now())); } }  // days found empty meanwhile
+      if (isVps(inst)) { const l = daysOf(inst); if (l.join() !== this.dayList.join()) this.dayList = l; }  // days found empty meanwhile
       return true;
     } finally { if (!quiet && seq === this.builds) this.loading(null); }
   }
-  async openDay(key) {  // the calendar, the market list, today's follow: a failed load says why for a moment, the day shown stays
+  async openDay(key) {  // the market list, a new day's follow: a failed load says why for a moment, the day shown stays
     this.opening++;
     const run = this.build(key), seq = this.builds;
     try {
       if (!await run) return;
       if (this.mounted !== this.inst.id) this.mount();
-      this.dayPick.set(this.dayList, key, CAL[this.inst.cal].key(Date.now()));
       this.render(true);
       return true;
     } catch (e) {
@@ -843,21 +829,19 @@ class Panel {
       if (span && this.mainBars.length) { syncing = true; try { this.main.timeScale().setVisibleLogicalRange({ from: indexAt(this.mainBars, this.tf, span[0]), to: indexAt(this.mainBars, this.tf, span[1]) }); } finally { syncing = false; } }
     } catch (e) { /* the next scroll tries again */ } finally { this.olderBusy = false; $('older').hidden = !panelList().some(p => p.olderBusy); }
   }
-  // Each minute (and a closed minute of the stream): a new day joins the calendar (followed when you were on the newest),
-  // and today is rebuilt with the minutes closed since, the view kept on the newest candles
+  // Each minute (and a closed minute of the stream): a new day is followed, and today is rebuilt with the minutes closed
+  // since, the view kept on the newest candles
   async minute() {
     if (this.busy() || !this.day || !this.inst || document.visibilityState !== 'visible') return;
-    const inst = this.inst, cal = CAL[inst.cal], today = cal.key(Date.now()), was = this.day.key;
+    const inst = this.inst, was = this.day.key;
     this.refreshing = true;
     try {
       let list = daysOf(inst);
       if (list[0] !== this.dayList[0]) {  // a new day: the archives and Hyperliquid's reach have moved on too
         if (!isVps(inst)) { await readArchives(); list = daysOf(inst); }
         if (this.opening || inst !== this.inst || this.day.key !== was) return;
-        const newest = was === this.dayList[0];
         this.dayList = list;
-        if (newest && list[0] !== was) { this.refreshing = false; await this.openDay(list[0]); return; }  // you were on the newest day: follow it
-        this.dayPick.set(list, was, today);
+        if (list[0] !== was) { this.refreshing = false; await this.openDay(list[0]); return; }  // the newest day: followed
       }
       if (!this.onToday()) return;
       if (inst.kind === 'hl' || inst.kind === 'comp') {  // Hyperliquid: the minutes the stream may have missed
@@ -922,7 +906,10 @@ function syncOther(src, force = false) {
   if (!other || !other.main || !src.mainBars.length || !other.mainBars.length) return;
   const r = src.main.timeScale().getVisibleLogicalRange();
   if (!r) return;
-  const end = indexAt(other.mainBars, other.tf, timeAt(src.mainBars, src.tf, r.to)), to = { from: end - (r.to - r.from), to: end };
+  // never past its own newest candle, nor before its first (1/11/2026: a crypto Sunday beside MNQ's Friday left MNQ blank)
+  const n = other.mainBars.length, span = r.to - r.from;
+  const end = Math.max(Math.min(indexAt(other.mainBars, other.tf, timeAt(src.mainBars, src.tf, r.to)), n - 1 + 4), Math.min(span - 1, n - 1 + 4));
+  const to = { from: end - span, to: end };
   const now = other.main.timeScale().getVisibleLogicalRange();
   if (now && Math.abs(now.from - to.from) < 0.01 && Math.abs(now.to - to.to) < 0.01) return;  // already there: no echo back
   syncing = true;
@@ -1020,7 +1007,7 @@ function placePop(pop, anchor, gap, fit) {  // fit: the list may shrink to the r
 }
 function placePops(e) {  // (not for a scroll inside the list itself)
   if (e && e.target && e.target.closest && e.target.closest('.ip-pop, .dp-pop')) return;
-  for (const p of panelList()) { p.picker.place(); p.placeDay(); }
+  for (const p of panelList()) p.picker.place();
 }
 window.addEventListener('scroll', placePops, { passive: true, capture: true });
 window.addEventListener('resize', placePops);
@@ -1088,20 +1075,7 @@ class Picker {
   }
 }
 
-// ---- one chart or two (owner 1/11/2026: a switch in the top bar, remembered) -----------------------------------------
-let N = pref('n', 2) === 1 ? 1 : 2;
-function seg(el, items, current, onPick) {
-  el.innerHTML = items.map(([label, val]) => `<button type="button" data-v="${val}" aria-pressed="${String(val) === String(current)}">${label}</button>`).join('');
-  for (const b of el.children) b.onclick = () => { onPick(b.dataset.v); for (const x of el.children) x.setAttribute('aria-pressed', String(x === b)); };
-}
-function setN(n) {
-  if (n === N && (n === 2) === !!panels.b) return;
-  N = n; save('n', n);
-  $('board').classList.toggle('two', n === 2);
-  if (n === 1 && panels.b) { panels.b.remove(); delete panels.b; driver = null; liveSync(); }
-  if (n === 2 && !panels.b) { panels.b = new Panel('b'); startPanel(panels.b); }
-  for (const p of panelList()) if (p.main) p.render(true);  // the charts' new widths
-}
+// ---- the two charts' markets: the last ones picked, else the Nasdaq tab's pair ----------------------------------------
 function startPanel(p) { return p.show(instOf(pref(p.key, DEFAULTS[p.key])) || instOf(DEFAULTS[p.key])); }
 
 // ---- live: Hyperliquid's candle stream, one subscription per Hyperliquid market shown ---------------------------------
@@ -1192,15 +1166,13 @@ NsbMacd.onToggle(() => { for (const p of panelList()) { for (const pane of Objec
     BASKET = b; PERPS = { members: j.members || {}, crypto: j.crypto || {} };
     readPick();
     await Promise.all([readArchives(), readFut(), readInd(), NsbRolls.load()]);
-    seg($('nSeg'), [['One chart', 1], ['Two charts', 2]], N, v => setN(+v));
     // drawings: draw.js keeps one set of drawings per page at a time (NsbDraw.use switches the whole page), so the two charts
     // can't each keep their own: one set for the Compare page. Each price chart is added under its market (as on India and
     // Commodities), so a line keeps its price on the market it was drawn on, shows at the same % on the other chart, and
     // goes away with that market (back when a chart shows it again)
     NsbDraw.setup({ key: 'nsb.draw.compare', when });
-    $('board').classList.toggle('two', N === 2);
     panels.a = new Panel('a');
-    if (N === 2) panels.b = new Panel('b');
+    panels.b = new Panel('b');
     loading(null);
     liveConnect(); everyMinute();
     await Promise.all(panelList().map(startPanel));

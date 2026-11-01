@@ -17,9 +17,9 @@
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=2" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=17"></script>
+<script src="macd.js?v=18"></script>
 <script src="engine.js?v=14"></script>
-<script src="swing.js?v=1"></script>
+<script src="swing.js?v=2"></script>
 <script src="daypick.js?v=3"></script>
 <script src="draw.js?v=8"></script>
 <script src="install.js?v=2"></script>
@@ -190,11 +190,12 @@ class IstDayLines extends DayLines {  // the day lines at midnight India time, d
 }
 
 // ---- the Swing pane (owner 31/10/2026: shown only; 1/11/2026: on every market, crypto too) ---------------------------
-// Its lines (1h, 4h, 1D, 1W, 1M), their switches (kept with the other panes' ones), its shading and its candles: swing.js.
-// The candles: the VPS's nightly long candles (data/swing/hl_<coin>.json; none: Hyperliquid's own), then candles from this
-// page's closed minutes, so today's hour, day, week and month stay current. A stock perp's weeks and months begin with the
-// real stock's days (data/swing/us_<ticker>.json); crypto has none.
-const swingOf = c => ({ id: 'hl_' + c.replace(/:/g, '_'), hl: c, origin: 0, under: LISTS.stocks.includes(c) ? 'us_' + MEMBERS[c].ticker : null });
+// Its lines (1h, 4h, 1D; and 1W, 1M on the stocks only, owner 1/11/2026), their switches (kept with the other panes' ones),
+// its shading and its candles: swing.js. The candles: the VPS's nightly long candles (data/swing/hl_<coin>.json; none:
+// Hyperliquid's own), then candles from this page's closed minutes, so today's hour, day, week and month stay current. A
+// stock perp's weeks and months begin with the real stock's days (data/swing/us_<ticker>.json).
+const swingOf = c => LISTS.stocks.includes(c) ? { id: 'hl_' + c.replace(/:/g, '_'), hl: c, origin: 0, under: 'us_' + MEMBERS[c].ticker, wm: true }
+                                              : { id: 'hl_' + c.replace(/:/g, '_'), hl: c, origin: 0 };
 const closedRows = bars => { const now = Date.now(); return bars.filter(b => b.t + MIN <= now); };
 
 // ---- settings (remembered in this browser) ----------------------------------------------------------------
@@ -426,6 +427,7 @@ class Panel {
     if (this.coin !== side.coin) {  // another market: the price scales back to their own widths first, so they can narrow again (align)
       this.coin = side.coin;
       for (const o of this.charts) o.chart.applyOptions({ rightPriceScale: { minimumWidth: 64 } });
+      this.macd.swing.setLines(LISTS.stocks.includes(side.coin) ? NsbSwing.ALL : NsbSwing.LINES);  // 1W and 1M: the stocks only (owner 1/11)
     }
     this.mainBars = aggregate(side.price, tf);
     const st = side.run.stateAt;

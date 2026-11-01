@@ -260,19 +260,34 @@ class DayLines {  // a dashed line where a new day begins, with its date along t
 class MacdPane {
   constructor(opts) {
     Object.assign(this, opts);
-    this.lines = PANES[this.kind].lines;
+    // the lines drawn: the pane's own set, or a page's choice of them (setLines; 1/11/2026: the Swing pane's 1W and 1M on
+    // the Perps tab's stocks only, PANES.swing.all)
+    this.lines = this.lines || PANES[this.kind].lines;
     this.pts = []; this.stockPts = []; this.store = new Map();
     const fine = { type: 'price', precision: this.digits, minMove: 10 ** -this.digits };
     const chart = this.chart = LightweightCharts.createChart(this.el, this.options);
     chart.applyOptions({ crosshair: { horzLine: { visible: false, labelVisible: false } } });  // no horizontal hover line in the panes, only the vertical one (owner 24/10)
+    // A line with a scale of its own (LINE[m].scale: the Swing pane's 1W and 1M, whose size flattened the others, 1/11/2026)
+    // is drawn on that scale; while one is drawn every scale keeps 0 in the middle, so the zero line stays every line's
+    const sym = orig => {
+      const r = orig();
+      if (!this.split || !r || !r.priceRange) return r;
+      const a = Math.max(Math.abs(r.priceRange.minValue), Math.abs(r.priceRange.maxValue)) || 1;
+      return { ...r, priceRange: { minValue: -a, maxValue: a } };
+    };
     const line = (color, extra) => chart.addLineSeries({ color, lineWidth: 2, priceFormat: fine, priceLineVisible: false,
-                                                         crosshairMarkerVisible: false, ...extra });
+                                                         crosshairMarkerVisible: false, autoscaleInfoProvider: sym, ...extra });
     // the zero line as a series of its own (0 at every candle): always shown whichever lines are off, and it carries
     // the shading and day lines, which a hidden series would take with it
     this.zero = line('#6b778a', { lineWidth: 1, lastValueVisible: false });
     this.series = {};
-    this.shade2 = shades(this.lines);
-    for (const m of this.lines) this.series[m] = line(this.shade2[m][0], { lineWidth: m === 'm1' ? 1 : 2 });
+    this.shade2 = shades(PANES[this.kind].all || PANES[this.kind].lines);
+    this.addLine = m => {
+      if (LINE[m].scale) chart.priceScale(LINE[m].scale).applyOptions({ scaleMargins: { top: 0.2, bottom: 0.06 } });
+      return line(this.shade2[m][0], { lineWidth: m === 'm1' ? 1 : 2, ...(LINE[m].scale ? { priceScaleId: LINE[m].scale } : {}) });
+    };
+    for (const m of this.lines) this.series[m] = this.addLine(m);
+    this.split = this.lines.some(m => LINE[m].scale);
     this.sigs = {};  // each line's signal line, if it has one: dashed, in the line's color (none since 28/10/2026)
     for (const m of this.lines) if (LINE[m].sig)
       this.sigs[m] = line(faded(LINE[m].pair[0], 0.55), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
@@ -291,6 +306,14 @@ class MacdPane {
     this.showLines();
   }
   pair() { return this.match ? this.match() : [this.stockPts, this.pts]; }
+  setLines(list) {  // another choice of the pane's lines (a market with or without some): drawn whole at the next update()
+    if (list.join() === this.lines.join()) return;
+    for (const m of list) if (!this.series[m]) this.series[m] = this.addLine(m);
+    for (const m in this.series) if (!list.includes(m)) { this.series[m].setData([]); this.series[m].applyOptions({ visible: false }); }
+    this.lines = list; this.split = list.some(m => LINE[m].scale);
+    this.pts = []; this.store.clear(); this.lastQ = null; this.html = null;
+    this.showLines();
+  }
   showLines() {
     for (const m of this.lines) this.series[m].applyOptions({ visible: show[m] });
     for (const m in this.sigs) this.sigs[m].applyOptions({ visible: show[m] && show.sig });  // a hidden line takes its signal with it
@@ -357,20 +380,22 @@ class MacdPane {
 // the panes' labels look the same on both pages (the page styles .tag itself: its place and background)
 const css = document.createElement('style');
 css.textContent = `
-  .tag.mix { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 5px; white-space: normal; max-width: calc(100% - 80px);
-             padding: 2px 4px; font: 11px var(--font-ui); }
-  .tag.mix .t-name { color: var(--muted); padding: 0 4px 0 2px; white-space: nowrap; position: relative; pointer-events: auto;
+  /* tighter since 1/11/2026 (owner: "the space is very jumbled up"): a pane's six switches stay on one row on two or three
+     charts side by side, their values too */
+  .tag.mix { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 2px; white-space: normal; max-width: calc(100% - 80px);
+             padding: 2px 4px; font: 10.5px var(--font-ui); }
+  .tag.mix .t-name { color: var(--muted); padding: 0 3px 0 1px; white-space: nowrap; position: relative; pointer-events: auto;
                      user-select: none; -webkit-user-select: none; }
   /* the name and the switches take the pointer across the gaps between them too (31/10/2026: through a gap the chart under the
      label took the pointer, its values changed and the next switch moved); the rest of the label still passes it to the chart */
   .tag.mix .t-name::before, .tag.mix .t-mm::before { content: ''; position: absolute; top: -2px; bottom: -2px; left: -3px; right: -3px; }
   .tag.mix .t-name b { color: var(--text); font-weight: 600; }
-  .tag.mix .t-mm { position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 5px; white-space: nowrap;
+  .tag.mix .t-mm { position: relative; display: inline-flex; align-items: center; gap: 3px; padding: 1px 4px; border-radius: 5px; white-space: nowrap;
                    box-shadow: inset 0 0 0 1px var(--line-strong); pointer-events: auto; cursor: pointer;
                    user-select: none; -webkit-user-select: none; touch-action: manipulation; }
   .tag.mix .t-mm:hover { background: rgba(255, 255, 255, .06); }
-  .tag.mix .t-mm b { color: var(--text); font: 600 11px var(--font-num); }
-  .tag.mix .t-mm .sw { width: 11px; height: 3px; border-radius: 2px; display: inline-block; }
+  .tag.mix .t-mm b { color: var(--text); font: 600 10.5px var(--font-num); letter-spacing: -.01em; }
+  .tag.mix .t-mm .sw { width: 9px; height: 3px; border-radius: 2px; display: inline-block; }
   .tag.mix .t-mm .sw.dash { background: none !important; border-top: 2px dashed var(--muted); height: 0; }
   .tag.mix .t-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); display: inline-block; }
   .tag.mix .t-dot.pass { background: var(--up); } .tag.mix .t-dot.fail { background: var(--down); }

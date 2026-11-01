@@ -1,8 +1,10 @@
 /* Indra Quant Signal Board: the Swing pane's lines and candles, shared by the pages that show it.
 
    The Swing pane (owner 31/10/2026 on the Perps tab; 1/11/2026: on every tab and every chart, crypto too): the Trend
-   pane's waves, EMA 8 − EMA 47 and EMA 21 − EMA 47, on the 1-hour, 4-hour and daily candles, and on the weekly and
-   monthly ones (owner 1/11: asked about them; WM below switches the four of them off together until he confirms them).
+   pane's waves, EMA 8 − EMA 47 and EMA 21 − EMA 47, on the 1-hour, 4-hour and daily candles; the weekly and monthly ones
+   only on the Perps tab's stocks (owner 1/11: "keep the weekly thing monthly thing for stocks tab only"): PANES.swing.lines
+   is the 1h/4h/1D set every pane draws, PANES.swing.all adds 1W and 1M (a pane's setLines, a spec's `wm`). 1W and 1M have
+   a scale of their own in the pane (LINE[k].scale), so their size doesn't flatten the others.
    Shown only: no signal, and the gate doesn't use them. Every candle carries its own close time (`end`), which macd.js
    reads, so a week or a month never shows before it has closed.
      NsbSwing.state(pt)               the pane's shading at one of its points
@@ -16,7 +18,7 @@ if (window.NsbSwing) return;  // registered once, whichever page loads it
 const { LINE, PANES, show } = NsbMacd;
 const { Ema, candleRows, toBar } = NdxEngine.internals;
 const DAY = 86400000, MIN = 60000, HOUR = 3600000;
-const WM = true;  // the 1W and 1M lines (owner 1/11/2026, not confirmed yet): false takes all four off, on every page
+const WM = true;  // the 1W and 1M lines (owner 1/11/2026: the Perps tab's stocks only): false takes all four off, on every page
 
 // ---- the lines -------------------------------------------------------------------------------------------------
 // key, candle minutes, label, its two colors: 1h in the 5m's, 4h in the 9m's, 1D in the 11m's (as on the Perps tab since
@@ -30,19 +32,19 @@ const SWING = [['s1a', 60, '1h 8/47', 'w5a'], ['s1b', 60, '1h 21/47', 'w5b'], ['
   try { saved = JSON.parse(localStorage.getItem('nsb.macd.show')) || {}; } catch (e) {}
   for (const [k, tf, label, pair] of SWING) {
     const fast = label.endsWith('8/47');
-    LINE[k] = { tf, label, v: fast ? b => b.ema8 - b.ema47 : b => b.ema21 - b.ema47, pair,
+    LINE[k] = { tf, label, v: fast ? b => b.ema8 - b.ema47 : b => b.ema21 - b.ema47, pair, ...(tf >= 10080 ? { scale: 'wm' } : {}),
                 tip: `${label.split(' ')[0]} EMA ${fast ? 8 : 21} − EMA 47 (left color above 0, right color below): shown only, the gate doesn't use it` };
     if (typeof show[k] !== 'boolean') show[k] = typeof saved[k] === 'boolean' ? saved[k] : true;  // the switches kept with the other panes' ones
   }
-  PANES.swing = { title: 'Swing', lines: SWING.map(s => s[0]) };
+  PANES.swing = { title: 'Swing', lines: SWING.filter(s => s[1] <= 1440).map(s => s[0]), all: SWING.map(s => s[0]) };
 }
 const ok = v => v !== null && v !== undefined && isFinite(v);
-// green where every Swing line switched on that has a value is above 0, red where every one is below, none otherwise
-// (1/11/2026: a line with no value yet, a month on a young market, no longer wipes the others' shading)
+// green where every Swing line drawn and switched on that has a value is above 0, red where every one is below, none
+// otherwise (1/11/2026: a line with no value yet, a month on a young market, no longer wipes the others' shading)
 function state(pt) {
   if (!pt) return null;
   let up = 0, down = 0, n = 0;
-  for (const m of PANES.swing.lines) {
+  for (const m of PANES.swing.all) {
     const v = pt.v[m];
     if (!show[m] || !ok(v)) continue;
     n += 1;
@@ -196,7 +198,7 @@ async function series(spec, minutes = []) {
   const b1440 = build(h1440, 1440, origin).concat(build(after(h1440, 1440), 1440, origin));
   const b240 = build(b60.map(b => ({ t: b.time, o: b.open, h: b.high, l: b.low, c: b.close, v: b.volume })), 240, origin);
   const out = { 60: withEmas(b60), 240: withEmas(b240), 1440: withEmas(b1440) };
-  if (!WM) return out;
+  if (!WM || !spec.wm) return out;  // weeks and months only where they're drawn (the Perps tab's stocks)
   let days = b1440.map(b => ({ key: dayKeyOf(b.time, origin), time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume }));
   // The stock perps and XYZ100 (listed on Hyperliquid in Oct 2025 - May 2026: too few weeks and months for an EMA 47):
   // the weeks and months take the real stock's (or the Nasdaq-100's) daily candles up to the day before the perp's own
@@ -212,5 +214,5 @@ async function series(spec, minutes = []) {
   return out;
 }
 
-window.NsbSwing = { WM, LINES: PANES.swing.lines, state, file, hl, series, build, periods, withEmas, dayKeyOf, bucketStart, bucketEnd };
+window.NsbSwing = { WM, LINES: PANES.swing.lines, ALL: PANES.swing.all, state, file, hl, series, build, periods, withEmas, dayKeyOf, bucketStart, bucketEnd };
 })();
