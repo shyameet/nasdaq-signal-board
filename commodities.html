@@ -216,6 +216,7 @@
       <p><b>Gold</b>, <b>Silver</b>, <b>Copper</b>: the same again, with MGC, SIL and MHG (CME micros) in step 1 and GOLDM (MCX gold mini), SILVERM (MCX silver mini) and COPPER (MCX) in steps 2 and 3. A setup shows greyed out until the VPS records both of its markets.</p>
       <h3>The gate</h3>
       <p>For each market on its own candles, RDX WIP's trend (Rahul's RDX WIP Trend): LONG when the 5m, 9m and 11m waves are all up (on each of them, EMA 8 − EMA 47 and EMA 21 − EMA 47 both above 0) and the 5m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. It is read on candle close: a 5m, 9m or 11m candle counts from the minute it closes. Exactly the Nasdaq pages' gate. Each indicator is warmed up on the saved days before, so it reads what it would have read live.</p>
+      <p>The <b>Swing</b> pane: the same waves on long candles, EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 1-hour, 4-hour and daily candles of each market's own hours and days (its history from our nightly files, today from its live minutes). Shown only: the gate and the entries don't use it. Its background is green where every line switched on is above 0, red where every one is below.</p>
       <h3>Trends</h3>
       <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown.</p>
       <h3>Charts</h3>
@@ -512,9 +513,13 @@ class Panel {
     const emaLine = () => this.main.addLineSeries({ color: NsbMacd.STACK.mixed, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e8 = emaLine(); this.e21 = emaLine(); this.e47 = emaLine();  // the 5m EMA 8 / 21 / 47, each point colored by their stack
     this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
-    this.candles.attachPrimitive(this.zones);
-    this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30, this.origin));  // where each day begins, with its date (at the market's open)
-    this.candles.attachPrimitive(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];  // time left in the newest candle (as on TradingView)
+    // what is attached to the candles is detached again before the chart goes (remove(); 1/11/2026: a removed chart's
+    // countdown went on ticking and threw "Object is disposed" every second after a stock or setup switch)
+    this.prims = [];
+    const attach = x => { this.prims.push(x); this.candles.attachPrimitive(x); };
+    attach(this.zones);
+    attach(new DayLines(() => this.main, () => this.mainBars, 30, this.origin));  // where each day begins, with its date (at the market's open)
+    attach(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];  // time left in the newest candle (as on TradingView)
       return b && { close: b.close, end: bucketEnd(b.time, opt.tf, this.origin), up: b.close >= b.open }; }));
     this.drawing = NsbDraw.add({ id: market, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
                                  tf: () => opt.tf, fmt: v => num(v, MARKETS[market].digits), active: () => this.mode !== 'tile' });
@@ -532,6 +537,18 @@ class Panel {
     const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
                  ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
     this.charts = all;
+    // the price chart and its panes keep one price-scale width, the widest of them (as on the MNQ tab since 31/10/2026; 1/11:
+    // the Swing pane's values, NIFTY's 1630.078, took 80 px against the price chart's 74, so its candles sat further right).
+    // Read once the charts have laid out (two frames); never on a chart already removed
+    this.scaleW = 0;
+    const level = () => requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (this.gone || this.mode === 'tile' || !Object.keys(this.macd).length) return;
+      const w = Math.max(70, ...all.map(o => o.chart.priceScale('right').width()));
+      if (w !== this.scaleW) { this.scaleW = w; for (const o of all) o.chart.applyOptions({ rightPriceScale: { minimumWidth: w } }); }
+      const r = this.main.timeScale().getVisibleLogicalRange();
+      for (const p of Object.values(this.macd)) p.sync(r);
+    }));
+    for (const o of all) o.chart.timeScale().subscribeVisibleLogicalRangeChange(level);
     for (const self of all) self.chart.chartElement().addEventListener('pointerdown', () => { pressedChart = self.chart; }, true);
     for (const self of all) self.chart.subscribeCrosshairMove(p => {
       // a mouse's moves carry their event; a finger's (iPad) may not, so the chart last pressed or moved over counts too
@@ -554,12 +571,13 @@ class Panel {
   }
   setMode(mode) {  // 'big' or 'half': scroll, zoom, time axis and MACD panes; 'tile': the whole day at a glance, one click to enlarge
     this.mode = mode;
+    this.scaleW = 0;  // the price scales are set again below: lined up again at the next draw
     for (const m of ['big', 'half', 'tile']) $(this.key).classList.toggle(m, m === mode);
     const full = mode !== 'tile';
     this.main.applyOptions({ handleScroll: full, handleScale: full, timeScale: { visible: full }, rightPriceScale: { minimumWidth: full ? 70 : 56 } });
   }
   waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }  // the colour at candle i
-  remove() { this.drawing.remove(); this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
+  remove() { this.gone = true; for (const x of this.prims) try { this.candles.detachPrimitive(x); } catch (e) {} this.drawing.remove(); this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
   shadeAt(t) {  // the state a candle is shaded by, at minute t
     if (this.role === 'gift') return day.runs[this.market].stateAt.get(t) || null;
     const s = day.setupRun.at.get(t);
@@ -615,6 +633,7 @@ class Panel {
     this.candles.setMarkers(m);
   }
   head(t) {  // the header at minute t (hovering), or at the market's last candle
+    if (!day || !day.price[this.market] || !day.runs[this.market]) return;  // a setup switch: its day not built yet (1/11/2026)
     const run = day.runs[this.market], own = day.price[this.market], ownEnd = own.length ? own[own.length - 1].time + MIN : day.end;
     const at = t !== undefined ? t : ownEnd - MIN;  // its own last candle
     let st = null, k = null;
