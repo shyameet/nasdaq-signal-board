@@ -1,0 +1,1213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Compare · Indra Quant Signal Board</title>
+<meta name="description" content="One chart or two, side by side: any market of the board, each with its own day and candle size, with the RDX WIP gate and the Entry, Trend and Swing panes.">
+<meta name="theme-color" content="#0a0d12">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="manifest" href="brand/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="lightweight-charts.js"></script>
+<script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
+<script src="labels.js?v=2" defer></script>
+<script src="cme.js?v=1"></script>
+<script src="rolls.js?v=3"></script>
+<script src="macd.js?v=17"></script>
+<script src="engine.js?v=14"></script>
+<script src="daypick.js?v=3"></script>
+<script src="live.js?v=3"></script>
+<script src="swing.js?v=1"></script>
+<script src="draw.js?v=8"></script>
+<script src="install.js?v=2"></script>
+<style>
+  .iq-lock { height: 26px; width: auto; display: block; flex: none; }
+  .tf-sel { padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text);
+            font: 500 12px var(--font-num); cursor: pointer; }
+  .tf-sel:hover { border-color: var(--line-strong); }
+  /* The Compare page (owner 1/11/2026): one chart or two side by side, each on its own market (the board's own markets
+     only: owner 1/11, "we don't need the picker thing for now" for every Hyperliquid market and every NSE stock), its own
+     day and its own candle size, with the same header, price chart, Entry, Trend and Swing panes as the Perps tab. Each
+     market keeps its own tab's day and data. Watching only. */
+  :root {
+    color-scheme: dark;
+    --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
+    --text: #e8eef6; --muted: #8d99ab; --faint: #5c6879; --up: #2bb68a; --down: #f0555f; --accent: #5b8cff; --warn: #f2b33d;
+    --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+  body { margin: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text);
+         font: 13px/1.4 var(--font-ui); -webkit-font-smoothing: antialiased; }
+  button, select, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+  .up { color: var(--up); } .down { color: var(--down); }
+
+  /* ---- top bar ---- */
+  .topbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; padding: 5px 10px;
+            background: var(--surface); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .topbar .brand .iq-lock { height: 24px; }
+  .tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .tabs a { padding: 4px 9px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 500; }
+  .tabs a:hover { color: var(--text); }
+  .tabs a[aria-current="page"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .spacer { flex: 1; }
+  .topbar .grp { display: inline-flex; align-items: center; padding: 0 0 0 8px; border-left: 1px solid var(--line); gap: 4px; }
+  .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
+           background: var(--surface); color: var(--muted); font-size: 12px; }
+  .older[hidden] { display: none; }
+  .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .seg button { padding: 3px 7px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
+                font-family: var(--font-ui); font-size: 12px; white-space: nowrap; }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .btn { padding: 3px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text); cursor: pointer;
+         font-size: 12px; white-space: nowrap; }
+  .btn:hover:not(:disabled) { border-color: var(--line-strong); background: var(--tile); }
+
+  /* ---- the charts: one, or two side by side ---- */
+  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+  .board.two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .panel { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .panel + .panel { border-left: 1px solid var(--line-strong); }
+  /* each chart's own header: its market, day and candle size, then the Perps tab's readout */
+  .phead { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 5px 10px; border-bottom: 1px solid var(--line); min-width: 0; }
+  .pctl { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+  .pname { font-size: 14px; font-weight: 700; line-height: 20px; letter-spacing: .01em; white-space: nowrap; }
+  .pval { font: 600 14px/20px var(--font-num); margin-left: -2px; white-space: nowrap; }
+  .gw { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 6px; background: var(--tile);
+        color: var(--muted); font-weight: 700; font-size: 11.5px; letter-spacing: .08em; white-space: nowrap; }
+  .gw.bull { background: var(--up); color: #04150f; } .gw.bear { background: var(--down); color: #1e0507; }
+  .gk { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .gate { display: inline-flex; align-items: center; gap: inherit; white-space: nowrap; }   /* the gate word never wraps away from its label */
+  .conds { display: inline-flex; gap: 8px; font: 11.5px var(--font-num); color: var(--muted); white-space: nowrap; }
+  .conds b { font-weight: 600; }
+  .warm { color: var(--warn); font-size: 11px; }
+  .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 52fr 14fr 17fr 17fr; }   /* price, Entry, Trend, Swing (as on the Perps tab) */
+  .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }
+  .tag { position: absolute; top: 4px; left: 10px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 90px);
+         padding: 3px 8px; border-radius: 6px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 11.5px; color: var(--muted);
+         white-space: nowrap; overflow: hidden; }
+  .tag b { color: var(--text); font-weight: 600; }
+  .tag.main { flex-wrap: wrap; row-gap: 2px; white-space: normal; font-family: var(--font-num); }
+  .tag.main b { font-family: var(--font-ui); }
+  .tag .sw { width: 11px; height: 3px; border-radius: 2px; display: inline-block; vertical-align: middle; }
+  .tag .t-ema { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-ui); }
+  .pane .tag.mix { max-width: calc(100% - 90px); }
+
+  /* the market search (a box over every market; the list opens under it) */
+  .ip-in { width: 11em; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text);
+           font: 600 12px var(--font-ui); }
+  .ip-in:hover { border-color: var(--line-strong); }
+  .ip-in::placeholder { color: var(--faint); font-weight: 400; }
+  .ip-pop { position: fixed; z-index: 60; overflow-y: auto; padding: 6px; border: 1px solid var(--line-strong); border-radius: 10px;
+            background: var(--surface); box-shadow: 0 16px 48px rgba(0, 0, 0, .55); font: 12px var(--font-ui); }
+  .ip-pop[hidden] { display: none; }
+  .ip-g { padding: 6px 8px 3px; color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .ip-it { display: flex; width: 100%; align-items: baseline; gap: 8px; padding: 5px 8px; border: 0; border-radius: 6px; background: transparent;
+           color: var(--text); cursor: pointer; text-align: left; }
+  .ip-it b { font: 600 12px var(--font-num); white-space: nowrap; }
+  .ip-it span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .ip-it:hover, .ip-it.hi { background: var(--tile); }
+  .ip-it.on b { color: var(--accent); }
+  .ip-none { padding: 8px; color: var(--muted); }
+
+  #loading, .ploading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--bg); color: var(--muted); }
+  #loading { position: fixed; inset: 0; z-index: 50; }
+  .ploading { position: absolute; inset: 0; z-index: 30; background: rgba(10, 13, 18, .88); }
+  #loading[hidden], .ploading[hidden] { display: none; }
+  #loading img { width: 64px; height: 64px; }
+  #loading div, .ploading div { display: flex; align-items: center; gap: 10px; }
+  #loading div::before, .ploading div::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-strong);
+                         border-top-color: var(--accent); animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 1100px) {
+    html, body { height: auto; }
+    .board.two { grid-template-columns: minmax(0, 1fr); }
+    .panel { height: 92vh; min-height: 600px; }
+    .panel + .panel { border-left: 0; border-top: 1px solid var(--line-strong); }
+  }
+  /* tablet width: as on the other tabs, the bar tightens so everything fits on one row */
+  @media (max-width: 1499px) {
+    .topbar { gap: 4px 6px; padding-left: 8px; padding-right: 8px; }
+    .topbar .grp { padding-left: 6px; gap: 3px; }
+    .topbar .brand .iq-lock { content: url(brand/iq_emblem.svg); height: 24px; }
+    .topbar .tabs a { padding: 4px 7px; }
+    .topbar .btn, .topbar .lb-btn { padding-left: 7px; padding-right: 7px; }
+    .topbar .spacer { flex: 1 1 0; min-width: 0; }
+    .lv.live > span { display: none; }
+    .phead { gap: 4px 8px; padding-left: 8px; padding-right: 8px; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
+  <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" aria-current="page" title="One chart or two, any market">Compare</a></nav>
+  <div class="grp"><div class="seg" id="nSeg" role="group" aria-label="One or two charts"></div></div>
+  <div class="spacer"></div>
+</header>
+<main class="board" id="board"></main>
+<div id="older" class="older" hidden>Loading older days…</div>
+<div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
+<script>
+'use strict';
+const DAY = 86400000, MIN = 60000, HOUR = 3600000, IST = 19800000;  // India: UTC+5:30 all year
+const { TrendSignal, SHOWN, contiguous, toBar, flat, candleRows, BENCH } = NdxEngine.internals;
+NdxEngine.internals.keep(Infinity);  // every loaded day runs through one TrendSignal: keep all of it
+const { MacdPane, DayLines, Bands } = NsbMacd;
+const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: 'rgba(232, 238, 246, 0.85)', label: '#283240',
+            bg: '#0a0d12' };
+const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
+const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
+const RULES = [['5m waves', '5m'], ['9m waves', '9m'], ['11m waves', '11m'], ['5m EMA21 vs EMA47', '5m 21/47']];  // the RDX WIP gate's conditions
+const TFS = [1, 2, 3, 5];
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], WKD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const $ = id => document.getElementById(id);
+const two = n => String(n).padStart(2, '0');
+const sec = ms => Math.floor(ms / 1000);
+const ok = v => v !== null && v !== undefined && isFinite(v);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const num = (v, d = 2) => ok(v) ? v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
+// times in IST (owner 1/11/2026: "Axis/readout times in IST"), as on the India and Commodities tabs
+const hhmm = ms => { const d = new Date(ms + IST); return `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`; };
+const when = ms => { const d = new Date(ms + IST); return `${WKD[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${hhmm(ms)}`; };
+const dayKey = ms => new Date(ms).toISOString().slice(0, 10);          // UTC day (how candles are fetched and archived)
+const dayStart = key => Date.parse(key + 'T00:00:00Z');
+const kind = st => st === 'BULLISH' ? 'bull' : st === 'BEARISH' ? 'bear' : '';
+const iso = n => new Date(n * DAY).toISOString().slice(0, 10), no = k => Math.round(Date.parse(k + 'T00:00:00Z') / DAY);
+const nextKey = k => iso(no(k) + 1), prevKey = k => iso(no(k) - 1);
+// bars restart each day at the market's origin: ms after 00:00 UTC (0 for Hyperliquid, its session open for NSE, GIFT
+// and MCX), or 'cme', the CME open (cme.js), as on each market's own tab
+const day0Of = (t, o) => o === 'cme' ? NsbCme.day0(t) : t - ((t - o) % DAY + DAY) % DAY;
+const dayEndOf = (t, o) => o === 'cme' ? NsbCme.dayEnd(t) : day0Of(t, o) + DAY;
+const bucketStart = (t, m, o = 0) => { const d0 = day0Of(t, o), s = m * MIN; return d0 + Math.floor((t - d0) / s) * s; };
+const bucketEnd = (t, m, o = 0) => Math.min(bucketStart(t, m, o) + m * MIN, dayEndOf(t, o));
+const pref = (k, fallback) => { try { const v = localStorage.getItem('nsb.compare.' + k); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } };
+const save = (k, v) => { try { localStorage.setItem('nsb.compare.' + k, JSON.stringify(v)); } catch (e) {} };
+
+// ---- each market's day: its own tab's (owner 1/11/2026) ------------------------------------------------------------
+// ist: the Perps tab's Indian calendar day, 00:00 to 24:00 IST (Hyperliquid markets); cme: the CME trading day from
+// 17:00 Chicago (the Nasdaq tab's composite and XYZ100, the CME futures, and MCX as on the Commodities tab); india: the
+// India tab's day, 06:30 IST (GIFT NIFTY's open) to 06:30 the next morning
+const CAL = {
+  ist: { key: t => iso(Math.floor((t + IST) / DAY)), open: k => no(k) * DAY - IST, title: 'Day (India: 00:00 to 24:00 IST)' },
+  cme: { key: t => NsbCme.key(t), open: k => NsbCme.open(k), title: 'Trading day (from the CME open, 17:00 Chicago: 03:30 IST, 04:30 IST in its winter time)' },
+  india: { key: t => iso(Math.floor((t + IST - 6.5 * HOUR) / DAY)), open: k => no(k) * DAY - IST + 6.5 * HOUR, title: 'Day (IST)' },
+};
+const weekday = k => { const w = new Date(k + 'T00:00:00Z').getUTCDay(); return w >= 1 && w <= 5; };
+class IstDayLines extends DayLines {  // the day lines at midnight India time, dated by the Indian date (as on the Perps tab)
+  updateAllViews() {
+    const bars = this.bars(), ts = this.chart().timeScale(), out = [], dayNo = t => Math.floor((t + IST) / DAY);
+    const x0 = bars.length > 1 ? ts.logicalToCoordinate(0) : null, x1 = bars.length > 1 ? ts.logicalToCoordinate(1) : null, r = ts.getVisibleLogicalRange();
+    if (x0 !== null && x1 !== null && r) {
+      const step = x1 - x0, lo = Math.min(bars.length - 1, Math.max(0, Math.floor(r.from) - 1)), hi = Math.min(bars.length - 1, Math.ceil(r.to) + 1);
+      let prev = dayNo(bars[lo].time);
+      for (let i = lo + 1; i <= hi; i++) {
+        const k = dayNo(bars[i].time);
+        if (k === prev) continue;
+        prev = k;
+        const d = new Date(k * DAY);
+        out.push([x0 + (i - 0.5) * step, `${WKD[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}`]);
+      }
+    }
+    this.lines = out;
+  }
+}
+
+// ---- the markets -------------------------------------------------------------------------------------------------
+// The board's own (the VPS's files and live stream), with their tabs' decimals: CME futures (data/futures/1m, NinjaTrader),
+// MCX (the same files, Dhan), India (data/india/1m, Dhan)
+const NSE_OPEN = 3 * HOUR + 45 * MIN, GIFT_OPEN = HOUR, MCX_OPEN = 3 * HOUR + 30 * MIN;
+const VPS = {
+  MNQ: { name: 'MNQ', sub: 'CME micro Nasdaq-100', kind: 'fut', origin: 'cme', digits: 2, macdDigits: 2 },
+  MCL: { name: 'MCL', sub: 'CME micro WTI crude', kind: 'fut', origin: 'cme', digits: 2, macdDigits: 3 },
+  NG: { name: 'NG', sub: 'CME natural gas', kind: 'fut', origin: 'cme', digits: 3, macdDigits: 4 },
+  MGC: { name: 'MGC', sub: 'CME micro gold', kind: 'fut', origin: 'cme', digits: 1, macdDigits: 2 },
+  SIL: { name: 'SIL', sub: 'CME micro silver', kind: 'fut', origin: 'cme', digits: 3, macdDigits: 3 },
+  MHG: { name: 'MHG', sub: 'CME micro copper', kind: 'fut', origin: 'cme', digits: 4, macdDigits: 4 },
+  CRUDEOILM: { name: 'CRUDEOILM', sub: 'MCX crude oil mini', kind: 'fut', origin: MCX_OPEN, digits: 0, macdDigits: 2 },
+  NATGASMINI: { name: 'NATGASMINI', sub: 'MCX natural gas mini', kind: 'fut', origin: MCX_OPEN, digits: 1, macdDigits: 3 },
+  GOLDM: { name: 'GOLDM', sub: 'MCX gold mini', kind: 'fut', origin: MCX_OPEN, digits: 0, macdDigits: 1 },
+  SILVERM: { name: 'SILVERM', sub: 'MCX silver mini', kind: 'fut', origin: MCX_OPEN, digits: 0, macdDigits: 1 },
+  COPPER: { name: 'COPPER', sub: 'MCX copper', kind: 'fut', origin: MCX_OPEN, digits: 2, macdDigits: 2 },
+  NIFTY: { name: 'NIFTY 50', sub: 'NSE index', kind: 'india', origin: NSE_OPEN, digits: 2, macdDigits: 2 },
+  BANKNIFTY: { name: 'NIFTY BANK', sub: 'NSE index', kind: 'india', origin: NSE_OPEN, digits: 2, macdDigits: 2 },
+  GIFTNIFTY: { name: 'GIFT NIFTY', sub: 'NSE IX', kind: 'india', origin: GIFT_OPEN, digits: 1, macdDigits: 2 },
+  RELIANCE: { name: 'RELIANCE', sub: 'Reliance Industries', kind: 'india', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  HDFCBANK: { name: 'HDFC BANK', sub: 'HDFC Bank', kind: 'india', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  ICICIBANK: { name: 'ICICI BANK', sub: 'ICICI Bank', kind: 'india', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  BHARTIARTL: { name: 'BHARTI AIRTEL', sub: 'Bharti Airtel', kind: 'india', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  LT: { name: 'L&T', sub: 'Larsen & Toubro', kind: 'india', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  KOTAKBANK: { name: 'KOTAK BANK', sub: 'Kotak Mahindra Bank', kind: 'india', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  AXISBANK: { name: 'AXIS BANK', sub: 'Axis Bank', kind: 'india', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+  SBIN: { name: 'SBI', sub: 'State Bank of India', kind: 'india', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
+};
+const DEFAULTS = { a: 'hl:' + BENCH, b: 'MNQ' };  // a first visit: the Nasdaq tab's pair, XYZ100 and MNQ
+let BASKET = null, PERPS = { members: {}, crypto: {} }, ACTIVE = [];
+const tk = c => c.replace(/^xyz:/, '');
+const hlName = c => PERPS.members[c] ? PERPS.members[c].ticker : /^xyz:/.test(c) || !c.includes(':') ? tk(c) : c;  // xyz's and the main dex's by name; another dex's with its dex
+// the Nasdaq tab's composite: your stocks (the pick every tab shares), each counting equally
+const SEL_KEY = 'nsb.div.stocks';
+const ALL = () => Object.keys(BASKET.members);
+const DEFAULT = () => (BASKET.default ? ALL().filter(c => BASKET.default.includes(c)) : ALL());
+function readPick() {
+  let a = null;
+  try { a = JSON.parse(localStorage.getItem(SEL_KEY)); } catch (e) {}
+  const pick = Array.isArray(a) ? ALL().filter(c => a.includes(c)) : [];
+  ACTIVE = pick.length ? pick : DEFAULT();
+}
+const custom = () => ACTIVE.join() !== DEFAULT().join();
+const leftName = () => custom() ? (ACTIVE.length <= 3 ? ACTIVE.map(tk).join('+') : `Basket ${ACTIVE.length}`) : 'NDX10';
+const composite = () => Object.fromEntries(ACTIVE.map(c => [c, BASKET.base / ACTIVE.length / BASKET.members[c].ref_price]));
+// One market: everything a chart needs to know about it. kind 'hl' (a Hyperliquid market of the board's: the Nasdaq tab's
+// stocks and XYZ100, the Perps tab's stocks and crypto; any other is refused, a saved one too), 'comp' (your stocks), 'fut'
+// (CME and MCX futures) or 'india'; its day (CAL), its candles' origin, where its day lines go, its Swing candles
+// (swing.js), and how many days are shown, warmed up on and added at the left edge (its tab's).
+function instOf(id) {
+  if (!id) return null;
+  if (id === 'comp') return { id, kind: 'comp', label: 'Your stocks', get name() { return leftName(); }, sub: '', origin: 0, cal: 'cme', lines: 'cme', paneDays: 'cme',
+                              home: { show: 3, warm: 1, more: 2 }, arch: 'nasdaq', digits: 2, macdDigits: 3 };
+  if (VPS[id]) {
+    const v = VPS[id], cme = v.origin === 'cme';
+    return { id, sym: id, kind: v.kind, label: v.name, name: v.name, sub: v.sub, origin: v.origin, cal: v.kind === 'india' ? 'india' : 'cme', lines: v.origin, paneDays: v.origin,
+             home: v.kind === 'india' || id !== 'MNQ' ? { show: 3, warm: 3, more: 3 } : { show: 3, warm: 1, more: 2 },  // the India and Commodities tabs; MNQ the Nasdaq tab's
+             digits: v.digits, macdDigits: v.macdDigits,
+             swing: { id, origin: v.origin, roll: v.kind === 'fut' ? id : null } };
+  }
+  if (!/^hl:./.test(id)) return null;
+  const coin = id.slice(3), bench = coin === BENCH, ticker = PERPS.members[coin] ? PERPS.members[coin].ticker : null;
+  if (!bench && !(BASKET && BASKET.members[coin]) && !PERPS.members[coin] && !PERPS.crypto[coin]) return null;
+  return { id, coin, kind: 'hl', label: hlName(coin), name: hlName(coin), sub: (PERPS.members[coin] || PERPS.crypto[coin] || {}).company || (BASKET && BASKET.members[coin] || {}).company || '',
+           origin: 0, cal: bench ? 'cme' : 'ist', lines: bench ? 'cme' : 'ist', paneDays: bench ? 'cme' : -IST, home: { show: 3, warm: 1, more: 2 },
+           arch: bench ? 'nasdaq' : perpsCoins.has(coin) ? 'perps' : nasdaqCoins().has(coin) ? 'nasdaq' : null,
+           swing: { id: 'hl_' + coin.replace(/:/g, '_'), hl: coin, origin: 0, under: bench ? 'us_NDX' : ticker ? 'us_' + ticker : null } };
+}
+const isVps = inst => inst && (inst.kind === 'fut' || inst.kind === 'india');
+
+// ---- data: Hyperliquid markets, one UTC day of 1-minute candles each (the Perps and Nasdaq tabs' loaders) -------------
+// From our daily archives when they have the day (data/perps/1m: the 39 Perps markets, one file each; data/1m: XYZ100
+// and the Nasdaq tab's 13 stocks, one file a day), else straight from Hyperliquid, which keeps about the last 3.5 days.
+let perpsDays = new Set(), perpsCoins = new Set(), nasdaqDays = new Set(), hlFrom = Infinity;
+const nasdaqCoins = () => new Set([BENCH, ...(BASKET ? ALL() : [])]);
+const dayCache = new Map();  // UTC day -> { coin: { bars, source, complete } }
+const nasdaqFiles = new Map();  // UTC day -> its data/1m file's markets (one download for all of them)
+async function readArchives() {
+  const get = async url => { try { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? await r.json() : null; } catch (e) { return null; } };
+  const [p, n] = await Promise.all([get('data/perps/1m/index.json'), get('data/1m/index.json')]);
+  if (p) { perpsDays = new Set((p.dates || []).map(String)); perpsCoins = new Set((p.coins || []).map(String)); }  // (unreadable: the last ones stand)
+  if (n) nasdaqDays = new Set((Array.isArray(n) ? n : n.dates || []).map(String));
+  hlFrom = Date.now() - 4990 * MIN;  // a minute Hyperliquid surely still serves at 1m (it keeps the last 5000)
+}
+const ended = key => Date.now() >= dayStart(key) + DAY + MIN;  // UTC day over, with a minute's grace
+async function hlDay(c, d0, end) {
+  return (await candleRows(c, '1m', d0, end)).map(toBar).filter(b => b.t >= d0 && b.t <= end).sort((a, b) => a.t - b.t);
+}
+async function topUp(keys, coin) {  // the cached, unfinished UTC days among keys: only the minutes since the last candle
+  await Promise.all(keys.map(k => [k, dayCache.get(k) && dayCache.get(k)[coin]]).filter(([, e]) => e && !e.complete).map(async ([k, e]) => {
+    const f0 = dayStart(k), now = Date.now(), done = ended(k), a = e.bars, had = a[a.length - 1], from = had ? had.t : f0;
+    const rows = (await candleRows(coin, '1m', from, Math.min(now, f0 + DAY - 1))).map(toBar).filter(b => b.t >= f0 && b.t < f0 + DAY);
+    const live = a[a.length - 1] !== had && a[a.length - 1], by = new Map(a.map(b => [b.t, b]));  // a live candle that came in meanwhile wins at its minute (Perps 31/10)
+    for (const b of rows) if (!live || b.t !== live.t) by.set(b.t, b);
+    a.splice(0, a.length, ...[...by.values()].sort((x, y) => x.t - y.t));
+    if (done) e.complete = true;
+  }));
+}
+function nasdaqFile(key) {
+  if (!nasdaqFiles.has(key)) nasdaqFiles.set(key, fetch(`data/1m/${key}.json`, { cache: 'no-cache' })
+    .then(r => { if (!r.ok) throw new Error(`${key}: ${r.status}`); return r.json(); }).then(j => j.coins || {})
+    .catch(e => { nasdaqFiles.delete(key); throw e; }));
+  return nasdaqFiles.get(key);
+}
+// -> { bars (toBar objects), source, complete } of one market on one UTC day. arch: the archive to read first ('perps',
+// 'nasdaq' or none). An archived day whose file does not come is no empty day (owner 1/11/2026): Hyperliquid's own
+// candles when it still has them, else the load fails and the day shown stays.
+async function loadDay(key, coin, arch) {
+  const d = dayCache.get(key);
+  if (d && d[coin]) { if (!d[coin].complete && ended(key)) await topUp([key], coin); return d[coin]; }
+  if (dayStart(key) > Date.now()) return { bars: [], source: 'hl', complete: false };  // not begun yet (not cached: it will)
+  const d0 = dayStart(key), done = ended(key), today = key === dayKey(Date.now());
+  let bars = null, source = 'hl', failed = false;
+  if (!today && arch === 'perps' && perpsDays.has(key) && perpsCoins.has(coin)) {
+    for (let attempt = 0; attempt < 2; attempt++) {  // a 5xx or no answer: once more 0.7 s later (as the Perps tab)
+      if (attempt) await new Promise(r => setTimeout(r, 700));
+      try {
+        const r = await fetch(`data/perps/1m/${key}/${tk(coin)}.json`, { cache: 'no-cache' });
+        failed = !r.ok;
+        if (r.ok) { bars = (await r.json()).map(([t, o, h, l, cl, v, n]) => toBar({ t, o, h, l, c: cl, v, n })); source = 'archive'; }
+        if (r.ok || r.status < 500) break;
+      } catch (e) { failed = true; }
+    }
+  } else if (!today && arch === 'nasdaq' && nasdaqDays.has(key)) {
+    try {
+      const coins = await nasdaqFile(key);
+      if (coins[coin]) { bars = coins[coin].map(([t, o, h, l, cl, v, n]) => toBar({ t, o, h, l, c: cl, v, n })); source = 'archive'; }
+    } catch (e) { failed = true; }
+  }
+  if (!bars && d0 + DAY > hlFrom) { bars = (await hlDay(coin, d0, Math.min(d0 + DAY - 1, Date.now()))).filter(b => b.t < d0 + DAY); failed = false; }
+  if (failed) throw new Error(`${tk(coin)} ${key}: the archive did not answer`);
+  const e = { bars: bars || [], source, complete: done };
+  if (!dayCache.has(key)) dayCache.set(key, {});
+  dayCache.get(key)[coin] = e;
+  return e;
+}
+// a Hyperliquid market's days: those whose UTC days its archive or Hyperliquid has (day k takes UTC days k-1 and k),
+// and today; newest first
+function hlDays(inst) {
+  const files = new Set(inst.arch === 'perps' ? perpsDays : inst.arch === 'nasdaq' ? nasdaqDays : []), cal = CAL[inst.cal], now = Date.now();
+  for (let t = now; dayStart(dayKey(t)) + DAY > hlFrom; t -= DAY) files.add(dayKey(t));
+  const keys = new Set([...files].filter(k => files.has(prevKey(k))).concat(cal.key(now)));
+  return [...keys].filter(k => cal.open(k) <= now).sort().reverse();
+}
+function minutesOf(days) {  // one market's bars over the loaded days, one per minute (no gaps after its first)
+  const a = contiguous(days.flatMap(d => d.bars).sort((x, y) => x.t - y.t));
+  if (days.some(d => !d.complete)) {  // today: quiet since its last trade, it stays at that price up to this minute
+    const now = Math.floor(Date.now() / MIN) * MIN, last = a[a.length - 1];
+    if (last) for (let t = last.t + MIN; t <= now; t += MIN) a.push(flat(t, last.c));
+  }
+  return a;
+}
+
+// ---- data: the board's own markets (the VPS's saved days and live stream; the Commodities and India tabs' loaders) ----
+let FUT_FILES = new Set(), futRead = 0, IND_DAYS = new Set();
+const futCache = new Map(), indCache = new Map();
+async function readFut() {
+  try { const j = await (await fetch('data/futures/1m/index.json', { cache: 'no-cache' })).json(); FUT_FILES = new Set((Array.isArray(j) ? j : j.dates || []).map(String)); futRead = Date.now(); } catch (e) {}
+}
+async function readInd() {
+  try { const j = await (await fetch('data/india/1m/index.json', { cache: 'no-cache' })).json(); IND_DAYS = new Set((Array.isArray(j) ? j : j.dates || []).map(String)); } catch (e) {}
+}
+function loadFut(key) {  // -> { sym: [{ t (ms), o, h, l, c, v }] } of one UTC day
+  if (!futCache.has(key)) futCache.set(key, fetch(`data/futures/1m/${key}.json`, { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(`${key}: ${r.status}`); return r.json(); })
+    .then(j => { const out = {}; for (const [m, rows] of Object.entries(j)) if (m !== 'contracts') out[m] = rows.map(([t, o, h, l, c, v]) => ({ t: t * 1000, o, h, l, c, v })); return out; })
+    .catch(e => { futCache.delete(key); throw e; }));
+  return futCache.get(key);
+}
+function loadInd(key) {  // -> { market: [...] } of one Indian trading day
+  if (!indCache.has(key)) indCache.set(key, fetch(`data/india/1m/${key}.json`, { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(`${key}: ${r.status}`); return r.json(); })
+    .then(j => { const out = {}; for (const [m, rows] of Object.entries(j)) out[m] = rows.map(([t, o, h, l, c, v]) => ({ t: t * 1000, o, h, l, c, v })); return out; })
+    .catch(e => { indCache.delete(key); throw e; }));
+  return indCache.get(key);
+}
+const futToday = () => { const k = NsbCme.key(Date.now()); return weekday(k) ? k : null; };  // today's CME trading day (none at weekends)
+const indToday = () => { const k = CAL.india.key(Date.now()); return weekday(k) ? k : null; };  // the Indian trading day (from GIFT's 06:30 IST open)
+// The days each of these markets really has (owner 1/11/2026: the calendar offers only days with data for that market):
+// the saved days (and today once the stream has it), less the days found without a candle of it, from its Swing file's
+// daily candles and from every day file read
+const KNOWN = new Map();  // symbol -> { has: days with candles, checked: days looked at }
+function vpsDays(inst) {
+  const now = Date.now(), today = inst.kind === 'fut' ? futToday() : indToday();
+  const keys = new Set(inst.kind === 'fut' ? [...FUT_FILES].filter(k => weekday(k) && NsbCme.open(k) <= now) : [...IND_DAYS]);
+  if (today && NsbLive.has(inst.sym)) keys.add(today);
+  const kn = KNOWN.get(inst.sym);
+  return [...keys].filter(k => k === today || !kn || !kn.checked.has(k) || kn.has.has(k)).sort().reverse();
+}
+function learnDays(inst, swing1440, readKeys) {
+  const kn = KNOWN.get(inst.sym) || { has: new Set(), checked: new Set() }, have = swing1440.map(b => NsbSwing.dayKeyOf(b.time, inst.origin));
+  for (const k of have) kn.has.add(k);
+  const lo = have[0], hi = have[have.length - 1], saved = inst.kind === 'fut' ? FUT_FILES : IND_DAYS;
+  if (lo) for (const k of saved) if (k >= lo && k <= hi) kn.checked.add(k);
+  for (const k of readKeys) kn.checked.add(k);
+  KNOWN.set(inst.sym, kn);
+}
+const daysOf = inst => isVps(inst) ? vpsDays(inst) : hlDays(inst);
+
+// ---- one series, minute by minute, exactly as the live engine runs it ----------------------------------------------
+function capture(sig) {  // the gate's four conditions at each minute's close
+  const checksAt = new Map();
+  let captured = null;
+  const evaluate = sig.evaluate.bind(sig), finish = sig.finishMinute.bind(sig);
+  sig.evaluate = (v, now) => { const ev = evaluate(v, now); captured = ev; return ev; };
+  sig.finishMinute = (start, close, vol) => { captured = null; finish(start, close, vol); if (captured) checksAt.set(start, captured.checks); };
+  return checksAt;
+}
+const runOf = (sig, checksAt) => ({ stateAt: new Map(sig.history), checksAt, bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) });
+function runSeries(coef, minutes, origin = 0) {  // Hyperliquid (the Perps and Nasdaq tabs): minutes { coin: contiguous bars }
+  const sig = new TrendSignal(coef, SHOWN, origin), coins = Object.keys(coef), checksAt = capture(sig);
+  const at = Object.fromEntries(coins.map(c => [c, 0]));
+  const first = Math.min(...coins.map(c => minutes[c] && minutes[c].length ? minutes[c][0].t : Infinity));
+  const last = Math.max(...coins.map(c => minutes[c] && minutes[c].length ? minutes[c][minutes[c].length - 1].t : -Infinity));
+  for (let t = first; t <= last; t += MIN) for (const c of coins) {
+    const a = minutes[c] || [];
+    while (at[c] < a.length && a[at[c]].t < t) at[c]++;
+    if (at[c] < a.length && a[at[c]].t === t) sig.onMemberBar(c, t, a[at[c]].c, a[at[c]].v);
+  }
+  return runOf(sig, checksAt);
+}
+function runMarket(sym, rows, origin) {  // the board's own markets (the India and Commodities tabs): no candle in a quiet minute
+  const sig = new TrendSignal({ [sym]: 1 }, SHOWN, origin), checksAt = capture(sig);
+  for (const b of rows) sig.onMemberBar(sym, b.t, b.c, b.v);
+  return runOf(sig, checksAt);
+}
+
+// ---- building a strip of days, per kind of market ---------------------------------------------------------------
+// -> { key, d0, d1, lastD0, shown, more, end, name, run, price, digits, macdDigits, swing } (the chart's whole input).
+// list: the market's days, newest first; the picked day is the newest shown, `warm` more before it warm the indicators.
+const DIGITS = new Map();  // Hyperliquid coin -> [price, MACD] decimals, chosen at its first build (as the Perps tab)
+const closedRows = bars => { const now = Date.now(); return bars.filter(b => b.t + MIN <= now); };
+function strip(inst, list, key, shown) {
+  const i = Math.max(0, list.indexOf(key)), cal = CAL[inst.cal], shownKeys = list.slice(i, i + shown), warmKeys = list.slice(i + shown, i + shown + inst.home.warm);
+  return { i, shownKeys, warmKeys, d0: cal.open(shownKeys[shownKeys.length - 1]), lastD0: cal.open(key), d1: cal.open(nextKey(key)), more: list.length > i + shown };
+}
+const utcFilesOf = keys => [...new Set(keys.flatMap(k => [prevKey(k), k]))].sort();  // day k (IST or CME) takes UTC days k-1 and k
+async function buildHl(inst, list, key, shown) {
+  const s = strip(inst, list, key, shown), coin = inst.coin, files = utcFilesOf([...s.shownKeys, ...s.warmKeys]);
+  const ahead = NsbSwing.series(inst.swing, []).catch(() => null);  // its long candles fetched meanwhile
+  const days = await Promise.all(files.map(k => loadDay(k, coin, inst.arch)));
+  const m = minutesOf(days), run = runSeries({ [coin]: 1 }, { [coin]: m });
+  const price = m.filter(b => b.t >= s.d0 && b.t < s.d1).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }));
+  const px = price.length ? price[price.length - 1].close : 100;
+  const [digits, macdDigits] = DIGITS.get(coin) || [px >= 10 ? 2 : px >= 1 ? 4 : 5, px >= 100 ? 2 : px >= 10 ? 3 : px >= 1 ? 4 : 6];
+  if (price.length && !DIGITS.has(coin)) DIGITS.set(coin, [digits, macdDigits]);
+  await ahead;
+  const swing = await NsbSwing.series(inst.swing, closedRows(m));
+  return { key, ...s, shown: s.shownKeys.length, name: inst.name, run, price, digits, macdDigits, swing };
+}
+async function buildComp(inst, list, key, shown) {  // your stocks' composite (the Nasdaq tab's left chart)
+  const s = strip(inst, list, key, shown), want = ACTIVE.slice(), files = utcFilesOf([...s.shownKeys, ...s.warmKeys]), coef = composite();
+  const spec = { members: Object.fromEntries(want.map(c => ['hl_' + c.replace(/:/g, '_'), coef[c]])), origin: 0 };
+  const ahead = NsbSwing.series(spec, []).catch(() => null);
+  const days = await Promise.all(files.map(async k => Object.fromEntries(await Promise.all(want.map(async c => [c, await loadDay(k, c, 'nasdaq')])))));
+  const m = Object.fromEntries(want.map(c => [c, minutesOf(days.map(d => d[c]))]));
+  const run = runSeries(coef, m);
+  const ones = run.bars[1] || [];  // the composite's own 1-minute candles
+  const price = ones.filter(b => b.time >= s.d0 && b.time < s.d1).map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 }));
+  await ahead;
+  const swing = await NsbSwing.series(spec, closedRows(ones.map(b => ({ t: b.time, o: b.open, h: b.high, l: b.low, c: b.close, v: b.volume || 0 }))));
+  return { key, ...s, shown: s.shownKeys.length, name: leftName(), run, price, digits: 2, macdDigits: 3, swing };
+}
+async function buildVps(inst, list, key, shown) {  // CME and MCX futures (with their contract switches), India
+  const s = strip(inst, list, key, shown), keys = [...s.shownKeys, ...s.warmKeys], sym = inst.sym, fut = inst.kind === 'fut';
+  const ahead = NsbSwing.series(inst.swing, []).catch(() => null);
+  const read = fut ? [...new Set(keys.flatMap(k => [prevKey(k), k]))].filter(f => FUT_FILES.has(f)).sort() : keys.filter(k => IND_DAYS.has(k)).sort();
+  const files = await Promise.all(read.map(fut ? loadFut : loadInd));
+  const byT = new Map();
+  for (const f of files) for (const b of f[sym] || []) byT.set(b.t, b);
+  const today = fut ? futToday() : indToday();
+  if (keys.includes(today)) { const cur = NsbLive.cur(sym); for (const b of NsbLive.bars(sym)) if (b !== cur) byT.set(b.t, b); }  // today: the live stream's CLOSED candles (owner 27/10)
+  let rows = [...byT.values()].sort((a, b) => a.t - b.t);
+  if (fut) rows = NsbRolls.adjust(sym, rows);  // older contracts moved onto the one traded now
+  const run = runMarket(sym, rows, inst.origin);
+  const price = rows.filter(b => b.t >= s.d0 && b.t < s.d1).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }));
+  await ahead;
+  const swing = await NsbSwing.series(inst.swing, rows);
+  learnDays(inst, swing[1440] || [], fut ? keys.filter(k => FUT_FILES.has(k)) : keys.filter(k => IND_DAYS.has(k)));
+  return { key, ...s, shown: s.shownKeys.length, name: inst.name, run, price, digits: inst.digits, macdDigits: inst.macdDigits, swing };
+}
+const builder = inst => inst.kind === 'hl' ? buildHl : inst.kind === 'comp' ? buildComp : buildVps;
+
+// ---- the charts ----------------------------------------------------------------------------------------------
+const panels = {};
+const panelList = () => ['a', 'b'].map(k => panels[k]).filter(Boolean);
+function options(showTime, isMain) {
+  return {
+    watermark: isMain ? { visible: true, text: '', color: 'rgba(232, 238, 246, 0.04)', fontSize: 40, fontStyle: '700' } : { visible: false },
+    autoSize: true, handleScroll: isMain, handleScale: isMain,
+    layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },
+    grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
+    rightPriceScale: { borderColor: C.line, minimumWidth: 64 },
+    timeScale: { visible: showTime, borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.05,
+      tickMarkFormatter: (t, type) => { const d = new Date(t * 1000 + IST); return type < 3 ? `${d.getUTCDate()} ${MON[d.getUTCMonth()]}` : hhmm(t * 1000); } },
+    localization: { timeFormatter: t => when(t * 1000) },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label },
+      horzLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label } },
+  };
+}
+const PANE_KINDS = ['entry', 'trend', 'swing'];
+class Panel {
+  // key 'a' or 'b'. Each chart has its own market, day, candle size and build sequence (a build for one chart never
+  // cancels the other's); the charts themselves are made for each market (mount), on its grid, day lines and decimals.
+  constructor(key) {
+    this.key = key; this.inst = null; this.day = null; this.dayList = []; this.builds = 0; this.opening = 0; this.refreshing = false; this.olderBusy = false;
+    this.mainBars = []; this.mainStates = []; this.src = {}; this.store = new Map(); this.emaPts = []; this.charts = []; this.macd = {}; this.panes = [];
+    this.tf = TFS.includes(pref('tf.' + key, 1)) ? pref('tf.' + key, 1) : 1;
+    $('board').insertAdjacentHTML('beforeend', `
+      <section class="panel" id="${key}">
+        <div class="phead">
+          <span class="pctl"><input class="ip-in" id="${key}-q" type="text" autocomplete="off" spellcheck="false" aria-label="Market" title="The market shown: type to search" placeholder="Search markets">
+            <span id="${key}-day"></span>
+            <select class="tf-sel" id="${key}-tfs" aria-label="Candle size" title="Candle size"></select></span>
+          <span class="pname" id="${key}-name">—</span><span class="pval" id="${key}-val">—</span>
+          <span class="gate"><span class="gk">Gate</span><span class="gw" id="${key}-gate">—</span></span>
+          <span class="conds" id="${key}-conds"></span>
+          <span class="warm" id="${key}-warm"></span>
+        </div>
+        <div class="stack" id="${key}-stack"></div>
+        <div class="ploading" id="${key}-loading" hidden><div id="${key}-loading-text">Loading…</div></div>
+      </section>`);
+    $(`${key}-tfs`).innerHTML = TFS.map(m => `<option value="${m}"${m === this.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
+    $(`${key}-tfs`).onchange = () => { this.tf = +$(`${key}-tfs`).value; save('tf.' + key, this.tf); if (this.day && this.main) this.render(true); };
+    this.dayPick = DayPick($(`${key}-day`), { onPick: k => this.openDay(k), title: 'Day' });
+    this.dayPop = document.body.lastElementChild;  // its calendar (daypick.js adds it to the page last): placed by placePop once open
+    $(`${key}-day`).querySelector('.dp-btn').addEventListener('click', () => this.placeDay());
+    for (const ev of ['pointerdown', 'wheel', 'touchstart']) $(key).addEventListener(ev, () => { driver = this; }, { capture: true, passive: true });
+    this.picker = new Picker(this);
+  }
+  // ---- the market ----
+  async show(inst) {  // another market: the same day if it has it, else its newest; a failed load keeps the one shown
+    // (none shown yet: the market that failed stays in the box, and picking it again tries again)
+    const was = this.inst, wasList = this.dayList, at = this.day ? this.day.key : null;
+    if (was && was.id === inst.id && this.day) return true;
+    // its unfinished days stopped while nobody showed it (the stream follows the markets shown): fetched whole again
+    if (inst.kind === 'hl' && !panelList().some(p => p.shows(inst.coin))) for (const d of dayCache.values()) if (d[inst.coin] && !d[inst.coin].complete) delete d[inst.coin];
+    this.inst = inst; this.dayList = daysOf(inst);
+    if (isVps(inst)) startVps();
+    liveSync();
+    const opened = await this.openDay(at && this.dayList.includes(at) ? at : this.dayList[0]);
+    if (opened === false) { if (this.day) { this.inst = was; this.dayList = wasList; liveSync(); } this.picker.reset(); return false; }
+    if (opened) save(this.key, inst.id);
+    this.picker.reset();
+    return true;
+  }
+  placeDay() { if (this.dayPop && !this.dayPop.hidden) placePop(this.dayPop, $(`${this.key}-day`).querySelector('.dp-btn'), 6, false); }
+  shows(coin) { const i = this.inst; return !!i && (i.kind === 'hl' ? i.coin === coin : i.kind === 'comp' && ACTIVE.includes(coin)); }
+  onToday() { return !!this.day && this.day.d1 > Date.now() && this.day.lastD0 <= Date.now(); }
+  async build(key, shown, quiet) {  // false: a newer build of this chart started meanwhile, it stands
+    const seq = ++this.builds, inst = this.inst, list = this.dayList.length ? this.dayList : daysOf(inst);
+    if (!quiet) this.loading(`Loading ${inst.name} · ${key}…`);
+    try {
+      const side = await builder(inst)(inst, list, key, shown || inst.home.show);
+      if (seq !== this.builds || inst !== this.inst) return false;
+      side.end = (side.price.length ? side.price[side.price.length - 1].time : side.d0) + MIN;
+      this.day = side;
+      if (isVps(inst)) { const l = daysOf(inst); if (l.join() !== this.dayList.join()) { this.dayList = l; this.dayPick.set(l, this.day.key, CAL[inst.cal].key(Date.now())); } }  // days found empty meanwhile
+      return true;
+    } finally { if (!quiet && seq === this.builds) this.loading(null); }
+  }
+  async openDay(key) {  // the calendar, the market list, today's follow: a failed load says why for a moment, the day shown stays
+    this.opening++;
+    const run = this.build(key), seq = this.builds;
+    try {
+      if (!await run) return;
+      if (this.mounted !== this.inst.id) this.mount();
+      this.dayPick.set(this.dayList, key, CAL[this.inst.cal].key(Date.now()));
+      this.render(true);
+      return true;
+    } catch (e) {
+      if (seq !== this.builds) return;
+      const msg = `Couldn't load ${this.inst ? this.inst.name : ''} · ${key} (${e.message})` + (this.day ? '' : '. Reload the page to try again.');
+      this.loading(msg);
+      // the day shown stays (nothing shown yet: the message stays, as the other tabs' first load says why and what to do)
+      if (this.day) setTimeout(() => { const el = $(`${this.key}-loading-text`); if (el && el.textContent === msg) this.loading(null); }, 3000);
+      return false;
+    } finally { this.opening--; }
+  }
+  loading(text) {  // this chart's loading screen: only when the wait is long enough to notice (as on every tab)
+    clearTimeout(this.loadingTimer);
+    const el = $(`${this.key}-loading`);
+    if (!el) return;
+    if (text === null) { el.hidden = true; return; }
+    $(`${this.key}-loading-text`).textContent = text;
+    if (el.hidden) this.loadingTimer = setTimeout(() => { el.hidden = false; }, 400);
+  }
+  busy() { return this.opening || this.refreshing || this.olderBusy; }
+  // ---- the charts, made for the market shown ----
+  unmount() {
+    if (!this.main) return;
+    this.gen = (this.gen || 0) + 1;  // the old charts' callbacks still queued do nothing
+    // its own drawings first: the countdown repaints every second, and on a removed chart that throws "Object is disposed"
+    for (const x of this.prims) try { this.candles.detachPrimitive(x); } catch (e) {}
+    this.drawing.remove(); this.main.remove();
+    for (const p of Object.values(this.macd)) p.chart.remove();
+    $(`${this.key}-stack`).innerHTML = '';
+    this.main = null; this.charts = []; this.macd = {}; this.panes = []; this.mounted = null;
+  }
+  mount() {
+    this.unmount();
+    const key = this.key, inst = this.inst, o = inst.origin;
+    this.mounted = inst.id;
+    $(`${key}-stack`).innerHTML = `
+      <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
+      <div class="pane" id="${key}-pentry"><div class="tag mix" id="${key}-tentry"></div></div>
+      <div class="pane" id="${key}-ptrend"><div class="tag mix" id="${key}-ttrend"></div></div>
+      <div class="pane" id="${key}-pswing"><div class="tag mix" id="${key}-tswing"></div></div>`;
+    this.main = LightweightCharts.createChart($(`${key}-pmain`), options(true, true));
+    this.vol = this.main.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
+    this.main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.88, bottom: 0 }, visible: false });
+    this.candles = this.main.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
+    this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.14 } });
+    const emaLine = () => this.main.addLineSeries({ color: NsbMacd.STACK.mixed, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+    this.e8 = emaLine(); this.e21 = emaLine(); this.e47 = emaLine();  // the 5m EMA 8 / 21 / 47, each point colored by their stack
+    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
+    // where each day begins, with its date: midnight India time (Perps), the CME open, or the market's own open (India, MCX)
+    const lines = inst.lines === 'ist' ? new IstDayLines(() => this.main, () => this.mainBars, 30, -IST) : new DayLines(() => this.main, () => this.mainBars, 30, inst.lines);
+    const count = new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];  // time left in the newest candle (as on TradingView)
+      return b && { close: b.close, end: bucketEnd(b.time, this.tf, o), up: b.close >= b.open }; });
+    this.prims = [this.zones, lines, count];
+    for (const x of this.prims) this.candles.attachPrimitive(x);
+    this.drawing = NsbDraw.add({ id: inst.id, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
+                                 tf: () => this.tf, fmt: v => num(v, this.day ? this.day.digits : 2) });
+    this.macd = {};
+    for (const k of PANE_KINDS) this.macd[k] = new MacdPane({
+      el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: this.day ? this.day.macdDigits : 2, options: options(false, false), origin: o, days: inst.paneDays,
+      bars: () => this.mainBars, tf: () => this.tf, src: () => this.src,
+      shade: k === 'swing' ? i => NsbSwing.state(this.macd.swing.pts[i]) : i => this.waveAt(i),
+    });
+    for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
+    this.panes = Object.values(this.macd);
+    this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
+      if (chartFingers.size) scrollAt = Date.now();  // (before the chart's re-check of the crosshair, in the same call)
+      for (const p of Object.values(this.macd)) p.sync(r);
+      syncOther(this);
+      if (r && r.from < 8 && !syncing && this.day && this.day.more) this.loadOlder();  // at the left edge: older days
+    });
+    // one crosshair over this chart and its panes (and the other chart at the same time, on its own candle)
+    const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
+                 ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
+    this.charts = all;
+    for (const self of all) self.chart.chartElement().addEventListener('pointerdown', () => { pressedChart = self.chart; }, true);
+    let leaving = 0;
+    for (const self of all) self.chart.subscribeCrosshairMove(p => {
+      // (31/10/2026, as on the Nasdaq and Perps tabs) a mouse left the chart (the chart's own leave). Onto its label's
+      // switches: the hover and the label's layout stay until the pointer leaves the pane (below). Anywhere else the hover
+      // ends a moment later, unless a switch or a chart has the pointer by then, so a switch aimed at doesn't move
+      if (p.time === undefined && !p.sourceEvent && !finger) {
+        if (self.chart !== pressedChart || document.querySelector('.tag.mix:hover')) return;
+        const at = hoverAt;
+        clearTimeout(leaving);
+        leaving = setTimeout(() => {
+          if (hoverAt !== at || document.querySelector('.tag.mix:hover')) return;
+          for (const o of all) if (o !== self) o.chart.clearCrosshairPosition();
+          hoverAll(this, undefined);
+        }, 120);
+        return;
+      }
+      if (p.sourceEvent) pressedChart = self.chart;
+      else if (self.chart !== pressedChart) return;
+      const t = p.time;
+      for (const o of all) if (o !== self) { const v = t === undefined ? null : o.value(t); if (ok(v)) o.chart.setCrosshairPosition(v, t, o.series); else o.chart.clearCrosshairPosition(); }
+      hoverAll(this, t, !!p.sourceEvent);
+    });
+    // the hover ends when the pointer leaves a pane - but not when it goes straight onto a chip of the next pane (31/10/2026)
+    for (const k of ['pmain', 'pentry', 'ptrend', 'pswing']) $(`${key}-${k}`).addEventListener('mouseleave', e => {
+      if (!(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(`#${key} .tag.mix`))) hoverAll(null, undefined);
+    });
+    // the price chart and its panes keep one price-scale width, the widest of them (as on the Nasdaq tab, 31/10/2026), read
+    // once the charts have laid out (two frames), then the panes are lined up with the price chart again
+    this.scaleW = 64;
+    const gen = this.gen;
+    const level = () => requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!this.main || this.gen !== gen) return;
+      const w = Math.max(64, ...all.map(o => o.chart.priceScale('right').width()));
+      if (w !== this.scaleW) {
+        this.scaleW = w;
+        for (const o of all) o.chart.applyOptions({ rightPriceScale: { minimumWidth: w } });
+        for (const p of Object.values(this.macd)) p.tagEl.style.maxWidth = w > 64 ? `calc(100% - ${w + 16}px)` : '';
+      }
+      const r = this.main.timeScale().getVisibleLogicalRange();
+      for (const p of Object.values(this.macd)) {
+        const q = p.chart.timeScale().getVisibleLogicalRange();
+        if (r && (!q || Math.abs(q.from - r.from) > 0.01 || Math.abs(q.to - r.to) > 0.01)) p.sync(r);
+      }
+    }));
+    for (const o of all) o.chart.timeScale().subscribeVisibleLogicalRangeChange(level);
+  }
+  remove() {  // one chart again: this one goes, with its charts, drawings layer, live subscriptions and timers
+    this.builds++;  // a build under way is dropped
+    clearTimeout(this.soonTimer); clearTimeout(this.loadingTimer);
+    if (hoverSrc === this) { hoverSrc = null; hovering = false; hoverT = undefined; }
+    this.unmount(); this.picker.remove();
+    if (this.roomCss) this.roomCss.remove();
+    $(this.key).remove();
+  }
+  waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }
+  forming() {  // the board's markets: today's forming minute from the stream, drawn on top of the closed ones (the day is built without it)
+    const side = this.day, inst = this.inst;
+    if (!isVps(inst)) return [];
+    const cur = NsbLive.cur(inst.sym), last = side.price[side.price.length - 1];
+    if (!cur || cur.t < side.d0 || cur.t >= side.d1 || (last && cur.t <= last.time)) return [];
+    return [{ time: cur.t, open: cur.o, high: cur.h, low: cur.l, close: cur.c, volume: cur.v }];
+  }
+  draw(full) {
+    const side = this.day, tf = this.tf, o = this.inst.origin;
+    if (full && this.scaleW !== 64) { this.scaleW = 64; for (const c of this.charts) c.chart.applyOptions({ rightPriceScale: { minimumWidth: 64 } }); for (const p of Object.values(this.macd)) p.tagEl.style.maxWidth = ''; }
+    this.mainBars = aggregate(side.price.concat(this.forming()), tf, o);
+    const st = side.run.stateAt;
+    this.mainStates = this.mainBars.map(b => {  // the gate at the candle's last finished minute
+      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { const s = st.get(t); if (s) return s; }
+      return null;
+    });
+    this.firstState = Infinity;
+    for (const x of st.keys()) if (x >= side.d0 && x < side.d1 && x < this.firstState) this.firstState = x;
+    // the panes and EMAs: only bars closed by the strip's end (the files run past it). The Swing candles close at their own
+    // end; on today's strip the newest of each (still forming, from the closed minutes) is kept for the newest candle
+    const live = side.d1 > Date.now();
+    this.src = Object.fromEntries([
+      ...Object.entries(side.run.bars).map(([m, bars]) => [m, bars.filter(b => bucketEnd(b.time, +m, o) <= side.d1)]),
+      ...Object.entries(side.swing).map(([m, bars]) => [m, live ? bars : bars.filter(b => b.end <= side.d1)])]);
+    this.candles.applyOptions({ priceFormat: { type: 'price', precision: side.digits, minMove: 10 ** -side.digits } });
+    this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
+    this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
+    this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
+    this.setEmas();
+    for (const p of Object.values(this.macd)) { p.digits = side.macdDigits; p.update(); p.showLines(); }
+    this.valueRoom();
+    this.main.applyOptions({ watermark: { text: `${side.name} · ${tf}m` } });
+    if (this.zones.requestUpdate) this.zones.requestUpdate();
+    for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
+  }
+  valueRoom() {  // each line's value in the pane labels (shown while a mouse's crosshair is up) takes the room of that line's
+    // widest value on the strip, so a moving crosshair widens no switch and the label never wraps another way under the
+    // pointer on its way to a switch (1907 px, two charts: the Trend label sat right at its wrap)
+    let css = '';
+    for (const [k, p] of Object.entries(this.macd)) for (const m of p.lines) {
+      const len = v => typeof v === 'number' && isFinite(v) ? Math.abs(v).toFixed(p.digits).length + 1 : 1;  // sign + digits, or '—'
+      let w = 1;
+      for (const q of p.pts) w = Math.max(w, p.sigs[m] ? len(q.v[m]) + 3 + len(q.sg[m]) : len(q.v[m]));
+      css += `#${this.key}-t${k} .t-mm[data-k="${m}"] .t-v { min-width: ${w}ch; }\n`;
+    }
+    if (!this.roomCss) { this.roomCss = document.createElement('style'); document.head.appendChild(this.roomCss); }
+    if (this.roomCss.textContent !== css) this.roomCss.textContent = css;
+  }
+  fit() {  // the newest day of the strip (the older ones are to the left)
+    const n = this.mainBars.length;
+    if (!n || !this.main) return false;
+    let i = this.mainBars.findIndex(b => b.time >= this.day.lastD0);
+    if (i < 0) i = 0;
+    const r = { from: i - 1, to: n + 2 };
+    this.main.timeScale().setVisibleLogicalRange(r);
+    for (const p of Object.values(this.macd)) p.sync(r);
+    return true;
+  }
+  render(full) {
+    if (!this.main || !this.day) return;
+    if (full) driver = null;  // a new day, market or candle size: nobody's move to pass on
+    syncing = true;
+    try { this.draw(full); if (full) this.fit(); } finally { syncing = false; }
+    if (full) {  // and again once the chart has its final size
+      const fit = () => { syncing = true; try { this.fit(); } finally { syncing = false; } };
+      requestAnimationFrame(() => requestAnimationFrame(fit)); setTimeout(fit, 150);
+    }
+    refreshText(full);
+  }
+  keepView(fn) {  // rebuild, keeping the newest candles in view if you were looking at them
+    const r = this.main && this.main.timeScale().getVisibleLogicalRange(), n = this.mainBars.length, atEnd = !r || r.to >= n - 2;
+    fn();
+    const added = this.mainBars.length - n;
+    if (this.main && r && atEnd && added > 0) { syncing = true; try { this.main.timeScale().setVisibleLogicalRange({ from: r.from + added, to: r.to + added }); } finally { syncing = false; } }
+  }
+  setEmas() {  // the 5m EMA 8, 21 and 47 as of each candle's close (never ahead of it), colored by their stack
+    const out = this.emaPts = NsbMacd.emaPoints(this.mainBars, this.tf, this.src, this.inst.origin);
+    for (const k of ['e8', 'e21', 'e47']) this[k].setData(out.map(p => ({ time: p.time, value: p[k], color: p.color })));
+  }
+  head(t) {  // the header at time t (ms, a minute) or at the market's last candle
+    const side = this.day;
+    if (!side) return;
+    const at = t !== undefined ? t : side.end - MIN, back = this.inst.kind === 'india' ? 15 : 5;  // (GIFT NIFTY skips quiet minutes, as on the India tab)
+    let st = null, k = null;
+    for (let x = at; x >= at - back * MIN; x -= MIN) { const s = side.run.stateAt.get(x); if (s) { st = s; k = x; break; } }
+    $(`${this.key}-name`).textContent = side.name;
+    const newest = this.mainBars[this.mainBars.length - 1];
+    const bar = newest && (t === undefined || t >= newest.time) ? newest : barAt(side.price, at);  // as drawn (the live tick moves it), or the one hovered
+    $(`${this.key}-val`).textContent = bar ? num(bar.close, side.digits) : '—';
+    $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
+    const ch = k !== null ? side.run.checksAt.get(k) : null;
+    $(`${this.key}-conds`).innerHTML = ch ? NsbMacd.chips(RULES, ch) : '';
+    const f = this.firstState, from = side.price.length ? side.price[0].time : side.d0;
+    $(`${this.key}-warm`).textContent = f > from + MIN && f < Infinity ? `warming up until ${hhmm(f)}` : f === Infinity ? 'not enough data for the indicators' : '';
+  }
+  tags(t) {  // the chart labels (t: candle time in seconds, or the newest candle)
+    if (!this.main || !this.day) return;
+    const side = this.day, d = side.digits;
+    const b = t !== undefined ? this.store.get(t) : this.mainBars.length ? { ...this.mainBars[this.mainBars.length - 1], state: this.mainStates[this.mainStates.length - 1] } : null;
+    if (b) {
+      let e = null;
+      for (const p of this.emaPts) if (p.time <= sec(b.time)) e = p; else break;
+      $(`${this.key}-tmain`).innerHTML = `<b>${esc(side.name)}</b><span>${this.tf}m</span>${t !== undefined ? `<span>${when(b.time)}</span>` : ''}`
+        + `<span>O <b>${num(b.open, d)}</b> H <b>${num(b.high, d)}</b> L <b>${num(b.low, d)}</b> C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close, d)}</b></span>`
+        + (b.state ? `<span class="${kind(b.state) === 'bull' ? 'up' : kind(b.state) === 'bear' ? 'down' : ''}">GATE ${WORD[b.state]}</span>` : '')
+        + (e ? NsbMacd.emaTag(e, v => num(v, d)) : '');
+    } else if (!this.mainBars.length) $(`${this.key}-tmain`).innerHTML = `<b>${esc(side.name)}</b><span>no candles this day</span>`;
+    for (const p of this.panes) { p.name = side.name; p.tag(t); }
+  }
+  // ---- older days, today ----
+  async loadOlder() {  // add older days to the strip, keeping what you are looking at in place
+    if (this.busy()) return;
+    this.olderBusy = true;
+    $('older').hidden = false;
+    try {
+      if (!await this.build(this.day.key, this.day.shown + this.inst.home.more, true)) return;
+      const r = this.main.timeScale().getVisibleLogicalRange(), span = r && this.mainBars.length ? [timeAt(this.mainBars, this.tf, r.from), timeAt(this.mainBars, this.tf, r.to)] : null;
+      this.render(false);
+      if (span && this.mainBars.length) { syncing = true; try { this.main.timeScale().setVisibleLogicalRange({ from: indexAt(this.mainBars, this.tf, span[0]), to: indexAt(this.mainBars, this.tf, span[1]) }); } finally { syncing = false; } }
+    } catch (e) { /* the next scroll tries again */ } finally { this.olderBusy = false; $('older').hidden = !panelList().some(p => p.olderBusy); }
+  }
+  // Each minute (and a closed minute of the stream): a new day joins the calendar (followed when you were on the newest),
+  // and today is rebuilt with the minutes closed since, the view kept on the newest candles
+  async minute() {
+    if (this.busy() || !this.day || !this.inst || document.visibilityState !== 'visible') return;
+    const inst = this.inst, cal = CAL[inst.cal], today = cal.key(Date.now()), was = this.day.key;
+    this.refreshing = true;
+    try {
+      let list = daysOf(inst);
+      if (list[0] !== this.dayList[0]) {  // a new day: the archives and Hyperliquid's reach have moved on too
+        if (!isVps(inst)) { await readArchives(); list = daysOf(inst); }
+        if (this.opening || inst !== this.inst || this.day.key !== was) return;
+        const newest = was === this.dayList[0];
+        this.dayList = list;
+        if (newest && list[0] !== was) { this.refreshing = false; await this.openDay(list[0]); return; }  // you were on the newest day: follow it
+        this.dayPick.set(list, was, today);
+      }
+      if (!this.onToday()) return;
+      if (inst.kind === 'hl' || inst.kind === 'comp') {  // Hyperliquid: the minutes the stream may have missed
+        const coins = inst.kind === 'hl' ? [inst.coin] : ACTIVE;
+        await Promise.all(coins.map(c => topUp(utcFilesOf([was]), c)));
+      }
+      if (this.day.key !== was || inst !== this.inst || this.opening) return;
+      if (!await this.build(was, this.day.shown, true) || this.day.key !== was) return;
+      this.keepView(() => this.render(false));
+    } catch (e) { /* tried again next minute */ } finally { this.refreshing = false; }
+  }
+  soon(ms) { clearTimeout(this.soonTimer); this.soonTimer = setTimeout(() => this.minute(), ms); }
+  liveOne() {  // the forming minute on this chart now: { t, o, h, l, c }, or null
+    const inst = this.inst, T = thisMinute();
+    if (isVps(inst)) { const b = NsbLive.cur(inst.sym); return b ? { t: b.t, o: b.o, h: b.h, l: b.l, c: b.c } : null; }
+    if (inst.kind === 'hl') { const d = dayCache.get(dayKey(T)), a = d && d[inst.coin] && d[inst.coin].bars, one = a && a[a.length - 1]; return one && one.t === T ? one : null; }
+    const coef = composite();  // your stocks: the sum of each picked stock's price times its weight (its candle: open = last close)
+    let c = 0;
+    for (const [coin, k] of Object.entries(coef)) { const px = lastClose(coin, T); if (!ok(px)) return null; c += k * px; }
+    return { t: T, o: c, h: c, l: c, c };
+  }
+}
+function aggregate(bars, m, o = 0) {
+  const out = [];
+  for (const b of bars) {
+    const s = bucketStart(b.time, m, o), last = out[out.length - 1];
+    if (!last || last.time !== s) out.push({ time: s, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 });
+    else { last.high = Math.max(last.high, b.high); last.low = Math.min(last.low, b.low); last.close = b.close; last.volume += b.volume || 0; }
+  }
+  return out;
+}
+function barAt(bars, t) {  // the last bar at or before t (bars oldest first), or null
+  let lo = 0, hi = bars.length - 1, hit = null;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) { hit = bars[mid]; lo = mid + 1; } else hi = mid - 1; }
+  return hit;
+}
+function timeAt(bars, tf, x) {  // candle position (fractional, may lie past either end) -> time
+  const n = bars.length, step = tf * MIN;
+  if (x <= 0) return bars[0].time + x * step;
+  if (x >= n - 1) return bars[n - 1].time + (x - n + 1) * step;
+  const i = Math.floor(x);
+  return bars[i].time + (x - i) * (bars[i + 1].time - bars[i].time);
+}
+function indexAt(bars, tf, t) {  // the reverse
+  const n = bars.length, step = tf * MIN;
+  if (t <= bars[0].time) return (t - bars[0].time) / step;
+  if (t >= bars[n - 1].time) return n - 1 + (t - bars[n - 1].time) / step;
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bars[mid].time <= t) lo = mid; else hi = mid; }
+  return lo + (t - bars[lo].time) / (bars[hi].time - bars[lo].time);
+}
+
+// ---- two charts in step ------------------------------------------------------------------------------------------
+// The other chart ends at the time the one you move ends, with as many candles (as on the MNQ and India tabs: two markets
+// with different hours line up on their right edge, not on one stretch of time). Only the chart you are moving (pressed,
+// scrolled or zoomed last: `driver`) passes its moves on; the charts apply a range a frame late, so passing on every
+// chart's changes would let the other pull the one being dragged back.
+let driver = null, syncing = false;
+function syncOther(src, force = false) {
+  if (syncing || (!force && src !== driver)) return;
+  const other = panelList().find(p => p !== src);
+  if (!other || !other.main || !src.mainBars.length || !other.mainBars.length) return;
+  const r = src.main.timeScale().getVisibleLogicalRange();
+  if (!r) return;
+  const end = indexAt(other.mainBars, other.tf, timeAt(src.mainBars, src.tf, r.to)), to = { from: end - (r.to - r.from), to: end };
+  const now = other.main.timeScale().getVisibleLogicalRange();
+  if (now && Math.abs(now.from - to.from) < 0.01 && Math.abs(now.to - to.to) < 0.01) return;  // already there: no echo back
+  syncing = true;
+  try { other.main.timeScale().setVisibleLogicalRange(to); } catch (e) {}
+  syncing = false;
+}
+let hovering = false, pressedChart = null;  // pressedChart: the chart (or pane) last pressed: a finger moves its crosshair
+let hoverAt = 0, hoverT, hoverSrc = null, finger = false;  // when the crosshair last moved, to which candle and on which chart, and if the last press was a finger
+// a finger's readout is held while the finger that moved the crosshair is down, and for 5 s after it lifts (a hovering pen's
+// for 5 s after it last moved); the chart's own re-checks after new data are no move (31/10/2026)
+const chartFingers = new Map();
+let fingerHeld = false, fingerAt = 0, fingerUp = 0, penHover = 0, scrollAt = 0;
+const inPlot = (e, o) => { const r = o.chart.chartElement().getBoundingClientRect();  // on the chart, off its price and time axes
+  return e.clientX >= r.left && e.clientX < r.right - o.chart.priceScale('right').width() && e.clientY >= r.top && e.clientY < r.bottom - o.chart.timeScale().height(); };
+document.addEventListener('pointerdown', e => {
+  finger = e.pointerType !== 'mouse';
+  if (!finger) return;
+  if (e.isPrimary) {  // the only one of its kind down (a lost lift heals here)
+    for (const [id, type] of chartFingers) if (type === e.pointerType) chartFingers.delete(id);
+    if (!chartFingers.size) fingerHeld = false;
+  }
+  if (allCharts().some(o => o.chart.chartElement().contains(e.target) && inPlot(e, o))) chartFingers.set(e.pointerId, e.pointerType);
+}, true);
+document.addEventListener('pointermove', e => {
+  if (!finger || !(e.pointerType === 'mouse' || (e.pointerType === 'pen' && !e.buttons))) return;
+  if (!allCharts().some(o => o.chart.chartElement().contains(e.target))) return;
+  if (e.pointerType === 'mouse') finger = false;  // the mouse on a chart after a tap (a touch laptop): the mouse's again
+  else penHover = Date.now();
+}, true);
+for (const k of ['pointerup', 'pointercancel']) document.addEventListener(k, e => {
+  if (!chartFingers.delete(e.pointerId)) return;
+  fingerUp = Date.now();
+  if (fingerHeld && !chartFingers.size) { fingerHeld = false; fingerAt = fingerUp; }
+}, true);
+const hoverHeld = () => hovering && (!finger || fingerHeld || Date.now() - fingerAt < 5000);  // live prices leave the readout under the crosshair alone
+// t (s) on chart src -> each chart's own candle holding that time (as on the India tab: each chart has its own candle size
+// and session open), and the minute its header reads: that candle's last one, never past src's candle
+function ownAt(p, t, src) {
+  if (t === undefined) return [undefined, undefined];
+  const s = src && src.inst ? src : p, own = p === s ? t : sec(bucketStart(t * 1000, p.tf, p.inst.origin));
+  return [own, Math.min(own * 1000 + p.tf * MIN - MIN, t * 1000 + s.tf * MIN - MIN)];
+}
+function hoverAll(src, t, moved) {  // moved: the crosshair's own move (its event), not a re-check
+  const was = hoverT;
+  hovering = t !== undefined; hoverT = t; hoverAt = Date.now();
+  if (src) hoverSrc = src;
+  if (!finger) fingerAt = hoverAt;
+  else if (hovering && (moved || t !== was || hoverAt - scrollAt < 50) && (chartFingers.size || hoverAt - fingerUp < 300 || hoverAt - penHover < 300)) {
+    fingerAt = hoverAt; fingerHeld = chartFingers.size > 0;
+  }
+  const shown = hoverHeld() ? t : undefined;
+  NsbMacd.showValues(hovering && !finger);  // the lines' values in the pane labels: a mouse's only (31/10/2026)
+  for (const p of panelList()) {
+    if (!p.main) continue;
+    const [own] = ownAt(p, t, src), [ownShown, minute] = ownAt(p, shown, src);
+    if (p !== src) for (const o of p.charts) { const v = own === undefined ? null : o.value(own); if (ok(v)) o.chart.setCrosshairPosition(v, own, o.series); else o.chart.clearCrosshairPosition(); }
+    p.tags(ownShown); p.head(minute);
+  }
+}
+// a mouse drag of a chart let go off the charts ends the hover (31/10/2026)
+let dragging = false;
+const allCharts = () => panelList().flatMap(p => p.charts || []);
+document.addEventListener('pointerdown', e => { dragging = e.pointerType === 'mouse' && allCharts().some(o => o.chart.chartElement().contains(e.target)); }, true);
+document.addEventListener('pointerup', e => {
+  const was = dragging; dragging = false;
+  if (!was || !hovering) return;
+  if (!allCharts().some(o => inPlot(e, o))) { for (const o of allCharts()) o.chart.clearCrosshairPosition(); hoverAll(null, undefined); }
+}, true);
+// the newest candle's readout, or the held crosshair's, unless the day or candle size just changed (31/10/2026)
+function refreshText(fresh) {
+  const t = !fresh && hoverHeld() ? hoverT : undefined;
+  for (const p of panelList()) { if (!p.main) continue; const [own, minute] = ownAt(p, t, hoverSrc); p.tags(own); p.head(minute); }
+}
+
+// ---- the market search (owner 1/11/2026): every market of the board --------------------------------------------------
+function groups() {
+  const g = [];
+  g.push(['Nasdaq', [...ALL().map(c => 'hl:' + c), 'hl:' + BENCH, 'comp']]);
+  g.push(['CME futures', ['MNQ', 'MCL', 'NG', 'MGC', 'SIL', 'MHG']]);
+  g.push(['MCX', ['CRUDEOILM', 'NATGASMINI', 'GOLDM', 'SILVERM', 'COPPER']]);
+  g.push(['India', ['NIFTY', 'BANKNIFTY', 'GIFTNIFTY', 'RELIANCE', 'HDFCBANK', 'ICICIBANK', 'BHARTIARTL', 'LT', 'KOTAKBANK', 'AXISBANK', 'SBIN']]);
+  g.push(['Perps · stocks', Object.keys(PERPS.members).map(c => 'hl:' + c)]);
+  g.push(['Perps · crypto', Object.keys(PERPS.crypto).map(c => 'hl:' + c)]);
+  return g;
+}
+// a list or calendar opened from a chart's header (fixed on the screen): under its control, or above it when there is no
+// room below (the second chart's header low on a phone screen); placed again when the page scrolls or the keyboard opens
+function placePop(pop, anchor, gap, fit) {  // fit: the list may shrink to the room it gets (it scrolls inside)
+  const r = anchor.getBoundingClientRect(), vv = window.visualViewport;
+  const top = vv ? vv.offsetTop : 0, bottom = Math.min(innerHeight, vv ? vv.offsetTop + vv.height : innerHeight);
+  const below = bottom - r.bottom - gap - 8, above = r.top - top - gap - 8;
+  const down = (fit ? below >= Math.min(200, above) : pop.offsetHeight <= below) || below >= above;
+  if (fit) pop.style.maxHeight = `${Math.max(0, Math.round(down ? below : above))}px`;
+  pop.style.top = `${Math.round(down ? r.bottom + gap : r.top - gap - pop.offsetHeight)}px`;
+}
+function placePops(e) {  // (not for a scroll inside the list itself)
+  if (e && e.target && e.target.closest && e.target.closest('.ip-pop, .dp-pop')) return;
+  for (const p of panelList()) { p.picker.place(); p.placeDay(); }
+}
+window.addEventListener('scroll', placePops, { passive: true, capture: true });
+window.addEventListener('resize', placePops);
+if (window.visualViewport) { visualViewport.addEventListener('resize', placePops); visualViewport.addEventListener('scroll', placePops); }
+class Picker {
+  constructor(panel) {
+    this.p = panel; this.q = $(`${panel.key}-q`); this.hi = -1;
+    this.pop = document.createElement('div');
+    this.pop.className = 'ip-pop'; this.pop.hidden = true; this.pop.setAttribute('role', 'listbox'); this.pop.setAttribute('aria-label', 'Markets');
+    document.body.appendChild(this.pop);
+    this.q.addEventListener('focus', () => { this.q.select(); this.open(true); });
+    this.q.addEventListener('input', () => { this.hi = -1; this.redraw(); });
+    this.q.addEventListener('keydown', e => {
+      const items = [...this.pop.querySelectorAll('.ip-it')];
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        this.hi = Math.max(0, Math.min(items.length - 1, this.hi + (e.key === 'ArrowDown' ? 1 : -1)));
+        items.forEach((b, i) => b.classList.toggle('hi', i === this.hi));
+        if (items[this.hi]) items[this.hi].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const b = items[this.hi >= 0 ? this.hi : 0];
+        if (b) this.pick(b.dataset.id);
+      } else if (e.key === 'Escape') { this.q.blur(); }
+    });
+    this.q.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== this.q) { this.open(false); this.reset(); } }, 150));
+    this.pop.addEventListener('pointerdown', e => e.preventDefault());  // the box keeps the focus
+    this.pop.addEventListener('click', e => { const b = e.target.closest('.ip-it'); if (b) this.pick(b.dataset.id); });
+    this.reset();
+  }
+  reset() { const i = this.p.inst; this.q.value = i ? i.label : ''; this.q.title = i ? `${i.label}${i.sub ? ' · ' + i.sub : ''}: type to search` : 'The market shown: type to search'; }
+  remove() { this.pop.remove(); }
+  open(on) {
+    this.pop.hidden = !on;
+    if (!on) return;
+    this.redraw();
+    this.place();
+  }
+  place() {  // under the box, or above it when the box sits low on the screen (a phone); again when the page scrolls
+    if (this.pop.hidden) return;
+    const r = this.q.getBoundingClientRect(), w = Math.min(340, innerWidth - 16), s = this.pop.style;
+    s.width = `${w}px`; s.left = `${Math.round(Math.max(8, Math.min(r.left, innerWidth - w - 8)))}px`;
+    placePop(this.pop, this.q, 4, true);
+  }
+  redraw() {
+    if (this.pop.hidden) return;
+    const q = this.q.value.trim().toLowerCase(), cur = this.p.inst && this.p.inst.id, typed = this.p.inst && this.q.value !== this.p.inst.label;
+    let html = '';
+    for (const [title, ids] of groups()) {
+      const items = ids.map(id => [id, instOf(id)]).filter(([, i]) => i)
+        .filter(([id, i]) => !typed || !q || `${i.label} ${i.sub} ${id.replace(/^hl:/, '')} ${title}`.toLowerCase().includes(q));
+      if (!items.length) continue;
+      html += `<div class="ip-g">${esc(title)}</div>` + items.map(([id, i]) => `<button type="button" class="ip-it${id === cur ? ' on' : ''}" data-id="${esc(id)}" role="option">`
+        + `<b>${esc(i.label)}</b><span>${esc(i.sub || (id === 'comp' ? `${leftName()} · ${ACTIVE.length} stocks` : ''))}</span></button>`).join('');
+    }
+    this.pop.innerHTML = html || '<div class="ip-none">No market matches</div>';
+  }
+  async pick(id) {
+    const inst = instOf(id);
+    this.open(false); this.q.blur();
+    if (!inst) return;
+    this.q.value = inst.label;
+    await this.p.show(inst);
+    this.reset();  // the market shown (the one picked, or the one kept when it could not load)
+  }
+}
+
+// ---- one chart or two (owner 1/11/2026: a switch in the top bar, remembered) -----------------------------------------
+let N = pref('n', 2) === 1 ? 1 : 2;
+function seg(el, items, current, onPick) {
+  el.innerHTML = items.map(([label, val]) => `<button type="button" data-v="${val}" aria-pressed="${String(val) === String(current)}">${label}</button>`).join('');
+  for (const b of el.children) b.onclick = () => { onPick(b.dataset.v); for (const x of el.children) x.setAttribute('aria-pressed', String(x === b)); };
+}
+function setN(n) {
+  if (n === N && (n === 2) === !!panels.b) return;
+  N = n; save('n', n);
+  $('board').classList.toggle('two', n === 2);
+  if (n === 1 && panels.b) { panels.b.remove(); delete panels.b; driver = null; liveSync(); }
+  if (n === 2 && !panels.b) { panels.b = new Panel('b'); startPanel(panels.b); }
+  for (const p of panelList()) if (p.main) p.render(true);  // the charts' new widths
+}
+function startPanel(p) { return p.show(instOf(pref(p.key, DEFAULTS[p.key])) || instOf(DEFAULTS[p.key])); }
+
+// ---- live: Hyperliquid's candle stream, one subscription per Hyperliquid market shown ---------------------------------
+let liveWs = null, liveTextAt = 0, hlLast = 0, hlDown = 0, subbed = new Set();
+NsbStatus.add('Hyperliquid live stream', () => {  // its replies to the 30 s ping keep it fresh in a quiet market
+  const fresh = liveWs && liveWs.readyState === WebSocket.OPEN && Date.now() - hlLast < 45000;
+  return { state: fresh ? 'live' : hlDown && Date.now() - hlDown > 60000 ? 'down' : 'reconnecting', last: hlLast };
+});
+const thisMinute = () => Math.floor(Date.now() / MIN) * MIN;
+const sub = (method, coin) => JSON.stringify({ method, subscription: { type: 'candle', coin, interval: '1m' } });
+const wanted = () => new Set(panelList().flatMap(p => !p.inst ? [] : p.inst.kind === 'hl' ? [p.inst.coin] : p.inst.kind === 'comp' ? ACTIVE : []));
+function liveConnect() {
+  const ws = liveWs = new WebSocket('wss://api.hyperliquid.xyz/ws');
+  ws.onopen = () => { subbed = new Set(); liveSync(); };
+  ws.onmessage = e => { hlLast = Date.now(); hlDown = 0; let m; try { m = JSON.parse(e.data); } catch (x) { return; } if (m.channel === 'candle' && m.data) liveCandle(m.data); };
+  ws.onclose = () => { if (liveWs !== ws) return; if (!hlDown) hlDown = Date.now(); setTimeout(liveConnect, 3000); };
+  ws.onerror = () => ws.close();
+}
+function liveSync() {  // the stream follows the markets shown
+  if (!liveWs || liveWs.readyState !== WebSocket.OPEN) return;  // (a socket still opening subscribes them itself)
+  const want = wanted();
+  for (const c of subbed) if (!want.has(c)) liveWs.send(sub('unsubscribe', c));
+  for (const c of want) if (!subbed.has(c)) liveWs.send(sub('subscribe', c));
+  subbed = want;
+}
+setInterval(() => { if (liveWs && liveWs.readyState === WebSocket.OPEN) liveWs.send('{"method":"ping"}'); }, 30000);
+function liveCandle(r) {
+  const b = toBar(r), d = dayCache.get(dayKey(b.t)), e = d && d[r.s];
+  if (!e || e.complete) return;  // a day not loaded (the next build fetches it whole)
+  const a = e.bars;
+  if (a.length && a[a.length - 1].t === b.t) a[a.length - 1] = b; else if (!a.length || b.t > a[a.length - 1].t) a.push(b); else return;
+  if (b.t !== thisMinute()) return;
+  for (const p of panelList()) if (p.shows(r.s)) liveTick(p);
+}
+function lastClose(c, t) {  // a market's latest close at or before minute t, from the loaded days
+  for (const k of [dayKey(t), dayKey(t - DAY)]) {
+    const d = dayCache.get(k), a = d && d[c] && d[c].bars;
+    if (a) for (let i = a.length - 1; i >= 0; i--) if (a[i].t <= t) return a[i].c;
+  }
+  return null;
+}
+function liveTick(p) {  // chart p's newest candle at the latest price, between rebuilds
+  if (!p.main || !p.day || !p.onToday()) return;
+  const one = p.liveOne();
+  if (!one) return;
+  const bars = p.mainBars, last = bars[bars.length - 1], start = bucketStart(one.t, p.tf, p.inst.origin);
+  if (!last || last.time > start) return;
+  if (last.time === start) { last.close = one.c; last.high = Math.max(last.high, one.h); last.low = Math.min(last.low, one.l); }
+  else bars.push({ time: start, open: one.o, high: one.h, low: one.l, close: one.c, volume: 0 });  // a new candle, until the rebuild draws it fully
+  const b = bars[bars.length - 1];
+  p.candles.update({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close });
+  const s = p.store.get(sec(b.time));
+  if (s) Object.assign(s, { close: b.close, high: b.high, low: b.low }); else p.store.set(sec(b.time), { ...b, state: null });
+  const newestHeld = hoverT !== undefined && hoverSrc === p && hoverT === sec(b.time);
+  if ((!hoverHeld() || newestHeld) && Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }
+}
+// ---- live: the VPS's stream for the board's own markets (live.js), started once one of them is shown ------------------
+let vpsStarted = false;
+function startVps() { if (vpsStarted) return; vpsStarted = true; NsbLive.start('VPS live stream', () => panelList().filter(p => isVps(p.inst)).map(p => p.inst.sym)); }
+NsbLive.on((kind, s) => {
+  for (const p of panelList()) {
+    if (!isVps(p.inst)) continue;
+    if (kind === 'tick') { if (p.inst.sym === s && p.day) liveTick(p); }
+    else if (kind === 'snapshot' || (kind === 'bar' && p.inst.sym === s)) p.soon(kind === 'snapshot' ? 0 : 700);  // a minute closed: once the others' bars are in too
+  }
+});
+function everyMinute() {  // 2 s past each minute (its last trades in): the minute just closed joins the charts
+  setTimeout(() => {
+    for (const p of panelList()) p.minute();
+    if (Date.now() - futRead >= 10 * MIN) readFut().then(() => NsbRolls.load());  // the futures' saved days, every 10 minutes
+    everyMinute();
+  }, MIN - Date.now() % MIN + 2000);
+}
+document.addEventListener('visibilitychange', () => { for (const p of panelList()) p.minute(); });
+
+// ---- start ---------------------------------------------------------------------------------------------------
+let loadingTimer = 0;
+const loading = text => {
+  clearTimeout(loadingTimer);
+  if (text === null) { $('loading').hidden = true; return; }
+  $('loading-text').textContent = text;
+};
+NsbMacd.onToggle(() => { for (const p of panelList()) { for (const pane of Object.values(p.macd)) pane.showLines(); if (p.zones) p.zones.update(); } refreshText(); });
+(async () => {
+  try {
+    loading('Loading the list of markets…');
+    const [b, j] = await Promise.all([fetch('basket.json', { cache: 'no-cache' }).then(r => r.json()), fetch('perps.json', { cache: 'no-cache' }).then(r => r.json())]);
+    BASKET = b; PERPS = { members: j.members || {}, crypto: j.crypto || {} };
+    readPick();
+    await Promise.all([readArchives(), readFut(), readInd(), NsbRolls.load()]);
+    seg($('nSeg'), [['One chart', 1], ['Two charts', 2]], N, v => setN(+v));
+    // drawings: draw.js keeps one set of drawings per page at a time (NsbDraw.use switches the whole page), so the two charts
+    // can't each keep their own: one set for the Compare page. Each price chart is added under its market (as on India and
+    // Commodities), so a line keeps its price on the market it was drawn on, shows at the same % on the other chart, and
+    // goes away with that market (back when a chart shows it again)
+    NsbDraw.setup({ key: 'nsb.draw.compare', when });
+    $('board').classList.toggle('two', N === 2);
+    panels.a = new Panel('a');
+    if (N === 2) panels.b = new Panel('b');
+    loading(null);
+    liveConnect(); everyMinute();
+    await Promise.all(panelList().map(startPanel));
+  } catch (e) {
+    loading(`Couldn't load the Compare page (${e.message}). Reload the page to try again.`);
+  }
+})();
+</script>
+</body>
+</html>

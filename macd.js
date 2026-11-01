@@ -82,13 +82,16 @@ window.addEventListener('storage', e => {
 // ---- each line at every candle's close ------------------------------------------------------------------
 // bars: the price chart's candles (ms times), tf their size, src: { minutes: closed bars with their indicators } ->
 // one point per candle: v (and sg, a line's signal line, if it has one) by line
+// A src bar that carries its own `end` (ms) closes then (1/11/2026: the Swing pane's weeks and months, which the one-day
+// cap of bucketEnd would show from the end of their first day); the others close at bucketEnd, as before
+const barEnd = (b, m, origin) => typeof b.end === 'number' ? b.end : bucketEnd(b.time, m, origin);
 function points(bars, tf, src, lines, origin = 0) {
   const out = [], tfs = [...new Set(lines.map(l => LINE[l].tf))], k = Object.fromEntries(tfs.map(m => [m, -1]));
   for (let i = 0; i < bars.length; i++) {
     const end = bucketEnd(bars[i].time, tf, origin), v = {}, sg = {}, at = {};
     for (const m of tfs) {
       const a = src[m] || [];
-      while (k[m] + 1 < a.length && bucketEnd(a[k[m] + 1].time, m, origin) <= end) k[m]++;
+      while (k[m] + 1 < a.length && barEnd(a[k[m] + 1], m, origin) <= end) k[m]++;
       const j = i === bars.length - 1 ? a.length - 1 : k[m];
       at[m] = j >= 0 ? a[j] : null;
     }
