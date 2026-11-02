@@ -15,13 +15,14 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
-<script src="labels.js?v=2" defer></script>
+<script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=3"></script>
-<script src="macd.js?v=18"></script>
-<script src="engine.js?v=14"></script>
+<script src="macd.js?v=19"></script>
+<script src="engine.js?v=15"></script>
 <script src="live.js?v=3"></script>
-<script src="swing.js?v=2"></script>
+<script src="swing.js?v=3"></script>
+<script src="gate.js?v=1"></script>
 <script src="draw.js?v=8"></script>
 <script src="install.js?v=2"></script>
 <style>
@@ -164,7 +165,6 @@ const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', li
             bg: '#0a0d12' };
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
 const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
-const RULES = [['5m waves', '5m'], ['9m waves', '9m'], ['11m waves', '11m'], ['5m EMA21 vs EMA47', '5m 21/47']];  // the RDX WIP gate's conditions
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], WKD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const $ = id => document.getElementById(id);
 const two = n => String(n).padStart(2, '0');
@@ -416,17 +416,10 @@ function learnDays(inst, swing1440, readKeys) {
 const daysOf = inst => isVps(inst) ? vpsDays(inst) : hlDays(inst);
 
 // ---- one series, minute by minute, exactly as the live engine runs it ----------------------------------------------
-function capture(sig) {  // the gate's four conditions at each minute's close
-  const checksAt = new Map();
-  let captured = null;
-  const evaluate = sig.evaluate.bind(sig), finish = sig.finishMinute.bind(sig);
-  sig.evaluate = (v, now) => { const ev = evaluate(v, now); captured = ev; return ev; };
-  sig.finishMinute = (start, close, vol) => { captured = null; finish(start, close, vol); if (captured) checksAt.set(start, captured.checks); };
-  return checksAt;
-}
-const runOf = (sig, checksAt) => ({ stateAt: new Map(sig.history), checksAt, bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) });
+// sig: the engine's run itself, which the gate is read from (gate.js: the lines switched on)
+const runOf = sig => ({ sig, stateAt: new Map(sig.history), bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) });
 function runSeries(coef, minutes, origin = 0) {  // Hyperliquid (the Perps and Nasdaq tabs): minutes { coin: contiguous bars }
-  const sig = new TrendSignal(coef, SHOWN, origin), coins = Object.keys(coef), checksAt = capture(sig);
+  const sig = new TrendSignal(coef, SHOWN, origin), coins = Object.keys(coef);
   const at = Object.fromEntries(coins.map(c => [c, 0]));
   const first = Math.min(...coins.map(c => minutes[c] && minutes[c].length ? minutes[c][0].t : Infinity));
   const last = Math.max(...coins.map(c => minutes[c] && minutes[c].length ? minutes[c][minutes[c].length - 1].t : -Infinity));
@@ -435,12 +428,12 @@ function runSeries(coef, minutes, origin = 0) {  // Hyperliquid (the Perps and N
     while (at[c] < a.length && a[at[c]].t < t) at[c]++;
     if (at[c] < a.length && a[at[c]].t === t) sig.onMemberBar(c, t, a[at[c]].c, a[at[c]].v);
   }
-  return runOf(sig, checksAt);
+  return runOf(sig);
 }
 function runMarket(sym, rows, origin) {  // the board's own markets (the India and Commodities tabs): no candle in a quiet minute
-  const sig = new TrendSignal({ [sym]: 1 }, SHOWN, origin), checksAt = capture(sig);
+  const sig = new TrendSignal({ [sym]: 1 }, SHOWN, origin);
   for (const b of rows) sig.onMemberBar(sym, b.t, b.c, b.v);
-  return runOf(sig, checksAt);
+  return runOf(sig);
 }
 
 // ---- building a strip of days, per kind of market ---------------------------------------------------------------
@@ -625,7 +618,7 @@ class Panel {
     this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.14 } });
     const emaLine = () => this.main.addLineSeries({ color: NsbMacd.STACK.mixed, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e8 = emaLine(); this.e21 = emaLine(); this.e47 = emaLine();  // the 5m EMA 8 / 21 / 47, each point colored by their stack
-    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
+    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the gate
     // where each day begins, with its date: midnight India time (Perps), the CME open, or the market's own open (India, MCX)
     const lines = inst.lines === 'ist' ? new IstDayLines(() => this.main, () => this.mainBars, 30, -IST) : new DayLines(() => this.main, () => this.mainBars, 30, inst.lines);
     const count = new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];  // time left in the newest candle (as on TradingView)
@@ -638,7 +631,7 @@ class Panel {
     for (const k of PANE_KINDS) this.macd[k] = new MacdPane({
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: this.day ? this.day.macdDigits : 2, options: options(false, false), origin: o, days: inst.paneDays,
       bars: () => this.mainBars, tf: () => this.tf, src: () => this.src,
-      shade: k === 'swing' ? i => NsbSwing.state(this.macd.swing.pts[i]) : i => this.waveAt(i),
+      shade: i => this.waveAt(i),  // every pane: the gate at the candle
     });
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
     this.panes = Object.values(this.macd);
@@ -707,7 +700,29 @@ class Panel {
     if (this.roomCss) this.roomCss.remove();
     $(this.key).remove();
   }
-  waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }
+  // the shading at candle i (the price chart and every pane): its own lines switched on - one market: its gate; Your stocks:
+  // the composite's own waves, as before 2/11/2026 (its gate needs every stock to agree, which shades little)
+  waveAt(i) { return (this.shades || this.mainStates)[i] || null; }
+  // the gate by minute, from the lines switched on in the Trend and Swing panes (gate.js; all Trend lines on and the Swing
+  // lines off: the engine's RDX WIP gate)
+  gate() { return NsbGate.states(this.day.run.sig, this.day.swing, NsbSwing.LINES); }
+  ownShades(bars) {  // Your stocks: the composite's own lines, at each candle (none for one market: its gate is its shading)
+    const sig = this.day.run.sig;
+    return sig && sig.parts ? this.statesAt(NsbGate.states(sig, this.day.swing, NsbSwing.LINES, true), bars) : null;
+  }
+  statesAt(st, bars) {  // the gate at each candle's last finished minute
+    const tf = this.tf, o = this.inst.origin;
+    return bars.map(b => {
+      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { const s = st.get(t); if (s) return s; }
+      return null;
+    });
+  }
+  regate() {  // a line switched on or off: the candles' gate (their readout and shading) again, the data kept
+    if (!this.main || !this.day) return;
+    this.mainStates = this.statesAt(this.gate(), this.mainBars.slice(0, this.mainStates.length));
+    this.shades = this.ownShades(this.mainBars.slice(0, this.mainStates.length));
+    this.mainStates.forEach((s, i) => { const q = this.store.get(sec(this.mainBars[i].time)); if (q) q.state = s; });
+  }
   forming() {  // the board's markets: today's forming minute from the stream, drawn on top of the closed ones (the day is built without it)
     const side = this.day, inst = this.inst;
     if (!isVps(inst)) return [];
@@ -719,11 +734,9 @@ class Panel {
     const side = this.day, tf = this.tf, o = this.inst.origin;
     if (full && this.scaleW !== 64) { this.scaleW = 64; for (const c of this.charts) c.chart.applyOptions({ rightPriceScale: { minimumWidth: 64 } }); for (const p of Object.values(this.macd)) p.tagEl.style.maxWidth = ''; }
     this.mainBars = aggregate(side.price.concat(this.forming()), tf, o);
-    const st = side.run.stateAt;
-    this.mainStates = this.mainBars.map(b => {  // the gate at the candle's last finished minute
-      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { const s = st.get(t); if (s) return s; }
-      return null;
-    });
+    const st = this.gate();
+    this.mainStates = this.statesAt(st, this.mainBars);  // the gate at the candle's last finished minute
+    this.shades = this.ownShades(this.mainBars);
     this.firstState = Infinity;
     for (const x of st.keys()) if (x >= side.d0 && x < side.d1 && x < this.firstState) this.firstState = x;
     // the panes and EMAs: only bars closed by the strip's end (the files run past it). The Swing candles close at their own
@@ -791,15 +804,15 @@ class Panel {
     const side = this.day;
     if (!side) return;
     const at = t !== undefined ? t : side.end - MIN, back = this.inst.kind === 'india' ? 15 : 5;  // (GIFT NIFTY skips quiet minutes, as on the India tab)
+    const gate = this.gate();
     let st = null, k = null;
-    for (let x = at; x >= at - back * MIN; x -= MIN) { const s = side.run.stateAt.get(x); if (s) { st = s; k = x; break; } }
+    for (let x = at; x >= at - back * MIN; x -= MIN) { const s = gate.get(x); if (s) { st = s; k = x; break; } }
     $(`${this.key}-name`).textContent = side.name;
     const newest = this.mainBars[this.mainBars.length - 1];
     const bar = newest && (t === undefined || t >= newest.time) ? newest : barAt(side.price, at);  // as drawn (the live tick moves it), or the one hovered
     $(`${this.key}-val`).textContent = bar ? num(bar.close, side.digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
-    const ch = k !== null ? side.run.checksAt.get(k) : null;
-    $(`${this.key}-conds`).innerHTML = ch ? NsbMacd.chips(RULES, ch) : '';
+    $(`${this.key}-conds`).innerHTML = k !== null ? NsbGate.chips(side.run.sig, side.swing, NsbSwing.LINES, k) : '';  // the lines switched on, at that minute
     const f = this.firstState, from = side.price.length ? side.price[0].time : side.d0;
     $(`${this.key}-warm`).textContent = f > from + MIN && f < Infinity ? `warming up until ${hhmm(f)}` : f === Infinity ? 'not enough data for the indicators' : '';
   }
@@ -1158,7 +1171,8 @@ const loading = text => {
   if (text === null) { $('loading').hidden = true; return; }
   $('loading-text').textContent = text;
 };
-NsbMacd.onToggle(() => { for (const p of panelList()) { for (const pane of Object.values(p.macd)) pane.showLines(); if (p.zones) p.zones.update(); } refreshText(); });
+// a switch: the gate again (gate.js works it out from the lines now on), then the candles, shading, header and labels
+NsbMacd.onToggle(() => { for (const p of panelList()) { p.regate(); for (const pane of Object.values(p.macd)) pane.showLines(); if (p.zones) p.zones.update(); } refreshText(); });
 (async () => {
   try {
     loading('Loading the list of markets…');

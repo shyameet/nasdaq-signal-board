@@ -5,7 +5,7 @@
    only on the Perps tab's stocks (owner 1/11: "keep the weekly thing monthly thing for stocks tab only"): PANES.swing.lines
    is the 1h/4h/1D set every pane draws, PANES.swing.all adds 1W and 1M (a pane's setLines, a spec's `wm`). 1W and 1M have
    a scale of their own in the pane (LINE[k].scale), so their size doesn't flatten the others.
-   Shown only: no signal, and the gate doesn't use them. Every candle carries its own close time (`end`), which macd.js
+   Since 2/11/2026 the lines switched on count for the gate and the shading (gate.js). Every candle carries its own close time (`end`), which macd.js
    reads, so a week or a month never shows before it has closed.
      NsbSwing.state(pt)               the pane's shading at one of its points
      NsbSwing.file(id)                data/swing/<id>.json, the VPS's nightly long candles (none: null)
@@ -33,7 +33,7 @@ const SWING = [['s1a', 60, '1h 8/47', 'w5a'], ['s1b', 60, '1h 21/47', 'w5b'], ['
   for (const [k, tf, label, pair] of SWING) {
     const fast = label.endsWith('8/47');
     LINE[k] = { tf, label, v: fast ? b => b.ema8 - b.ema47 : b => b.ema21 - b.ema47, pair, ...(tf >= 10080 ? { scale: 'wm' } : {}),
-                tip: `${label.split(' ')[0]} EMA ${fast ? 8 : 21} − EMA 47 (left color above 0, right color below): shown only, the gate doesn't use it` };
+                tip: `${label.split(' ')[0]} EMA ${fast ? 8 : 21} − EMA 47 (left color above 0, right color below): counts for the gate and the shading while switched on (once it has a value)` };
     if (typeof show[k] !== 'boolean') show[k] = typeof saved[k] === 'boolean' ? saved[k] : true;  // the switches kept with the other panes' ones
   }
   PANES.swing = { title: 'Swing', lines: SWING.filter(s => s[1] <= 1440).map(s => s[0]), all: SWING.map(s => s[0]) };

@@ -15,12 +15,13 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
-<script src="labels.js?v=2" defer></script>
+<script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=3"></script>
-<script src="macd.js?v=18"></script>
-<script src="engine.js?v=14"></script>
-<script src="swing.js?v=2"></script>
+<script src="macd.js?v=19"></script>
+<script src="engine.js?v=15"></script>
+<script src="swing.js?v=3"></script>
+<script src="gate.js?v=1"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=8"></script>
@@ -235,10 +236,10 @@
     <summary title="How it works">?</summary>
     <div class="how-body">
       <h3>What you see</h3>
-      <p>Left: your stocks' composite from Hyperliquid (Stocks button; the same pick as the other pages, each stock counting equally, its gate LONG or SHORT only when every picked stock agrees). Right: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS). Both get the same gate, the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), the Entry pane (the 1m, 2m and 3m MACD) and the Trend pane (the 5m, 9m and 11m waves). Each price chart and its panes are shaded by its Trend waves switched on: green where all are above 0, red where all are below. An arrow marks where an <b style="color:#ff8a3d">MNQ alone</b> stretch (MNQ's gate is LONG, your stocks' isn't) or a <b style="color:#2bb68a">Stocks first</b> stretch (your stocks' gate is LONG, MNQ's not yet) begins. The badge in the top bar says where they stand right now (on a past day, at MNQ's last candle of it). MNQ's bars start at its session open (17:00 Chicago), as on TradingView.</p>
+      <p>Left: your stocks' composite from Hyperliquid (Stocks button; the same pick as the other pages, each stock counting equally, its gate LONG or SHORT only when every picked stock agrees). Right: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS). Both get the same gate, the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), the Entry pane (the 1m, 2m and 3m MACD) and the Trend pane (the 5m, 9m and 11m waves). Each price chart and its panes are shaded by its gate: green LONG, red SHORT. An arrow marks where an <b style="color:#ff8a3d">MNQ alone</b> stretch (MNQ's gate is LONG, your stocks' isn't) or a <b style="color:#2bb68a">Stocks first</b> stretch (your stocks' gate is LONG, MNQ's not yet) begins. The badge in the top bar says where they stand right now (on a past day, at MNQ's last candle of it). MNQ's bars start at its session open (17:00 Chicago), as on TradingView.</p>
       <h3>The gate</h3>
-      <p>RDX WIP's trend (Rahul's RDX WIP Trend): LONG when the 5m, 9m and 11m waves are all up (on each of them, EMA 8 − EMA 47 and EMA 21 − EMA 47 both above 0) and the 5m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. It is read on candle close: a 5m, 9m or 11m candle counts from the minute it closes. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
-      <p>The <b>Swing</b> pane: the same waves on long candles, EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 1-hour, 4-hour and daily candles of each market's own hours and days (its history from our nightly files, today from its live minutes). Shown only: the gate and the entries don't use it. Its background is green where every line switched on is above 0, red where every one is below.</p>
+      <p>From the lines switched on in the Trend and Swing panes (click a line's name to switch it): LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. With every Trend line on and the Swing lines off it is RDX WIP's trend (Rahul's RDX WIP Trend). It is read on candle close: a candle counts from the minute it closes. Each chart uses its own gate (your stocks: each picked stock's own Trend lines must agree); its header also shows the other chart's gate at the same moment.</p>
+      <p>The <b>Swing</b> pane: the same waves on long candles, EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 1-hour, 4-hour and daily candles of each market's own hours and days (its history from our nightly files, today from its live minutes). Its lines switched on count for the gate (one with no value yet is left out), and it is shaded by the gate, as the other panes.</p>
       <h3>Days</h3>
       <p>A day is a CME trading day: it starts at the CME open, 17:00 Chicago (03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time), on both charts. Saturday and Sunday trading days have no CME session: the MNQ chart says <b>CME closed – weekend</b> (the stocks still trade). The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The marks cover everything loaded.</p>
       <h3>Data</h3>
@@ -261,8 +262,7 @@ const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', li
             bg: '#0a0d12', ema21: '#f2b33d', ema47: '#5b8cff' };
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
 const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
-const RULES = [['5m waves', '5m'], ['9m waves', '9m'], ['11m waves', '11m'], ['5m EMA21 vs EMA47', '5m 21/47']];  // the RDX WIP gate's conditions
-const TFS = [1, 2, 3, 5], GAPS = [0, 1, 3, 5, 10, 15, 30], PER_TREND = [['1', 1], ['2', 2], ['∞', Infinity]];
+const TFS = [1, 2, 3, 5];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const $ = id => document.getElementById(id);
 const two = n => String(n).padStart(2, '0');
@@ -289,12 +289,7 @@ const save = (k, v) => { try { localStorage.setItem('nsb.mnq.' + k, JSON.stringi
 // ---- settings (remembered in this browser) ----------------------------------------------------------------
 const opt = {
   tf: TFS.includes(pref('tf', 1)) ? pref('tf', 1) : 1,
-  sc2: pref('sc2', true), sc3: pref('sc3', true),
-  perTrend: pref('perTrend', 'inf'),          // '1', '2' or 'inf'
-  gap: GAPS.includes(pref('gap', 0)) ? pref('gap', 0) : 0,
-  oneTrend: pref('oneTrend', false),
 };
-const perTrendLimit = () => opt.perTrend === '1' ? 1 : opt.perTrend === '2' ? 2 : Infinity;
 
 // ---- data: one UTC day of 1-minute candles per market -------------------------------------------------------
 // From our daily archive (data/1m/YYYY-MM-DD.json, written by the VPS) when it has the day, else straight from
@@ -394,13 +389,10 @@ async function fetchDay(key, coins) {  // one UTC day of these markets, whole
 
 // ---- one series, minute by minute, exactly as the live engine runs it ----------------------------------------
 // coef: { coin: scaled coefficient } (the composite), or { XYZ100: 1 }. Returns its 1-minute candles, its bars
-// at every size with their indicators, the gate at each minute's close and the four conditions behind it.
+// at every size with their indicators, and the engine's RDX WIP gate at each minute's close (the page shows the gate
+// from the lines switched on: gateOf, gate.js).
 function runSeries(coef, minutes, origin = 0) {  // minutes: { coin: contiguous bars over the warm-up day and the day }
-  const sig = new TrendSignal(coef, SHOWN, origin), coins = Object.keys(coef), checksAt = new Map();
-  let captured = null;
-  const evaluate = sig.evaluate.bind(sig), finish = sig.finishMinute.bind(sig);
-  sig.evaluate = (v, now) => { const ev = evaluate(v, now); captured = ev; return ev; };
-  sig.finishMinute = (start, close, vol) => { captured = null; finish(start, close, vol); if (captured) checksAt.set(start, captured.checks); };
+  const sig = new TrendSignal(coef, SHOWN, origin), coins = Object.keys(coef);
   const at = Object.fromEntries(coins.map(c => [c, 0]));
   const first = Math.min(...coins.map(c => minutes[c] && minutes[c].length ? minutes[c][0].t : Infinity));
   const last = Math.max(...coins.map(c => minutes[c] && minutes[c].length ? minutes[c][minutes[c].length - 1].t : -Infinity));
@@ -409,55 +401,7 @@ function runSeries(coef, minutes, origin = 0) {  // minutes: { coin: contiguous 
     while (at[c] < a.length && a[at[c]].t < t) at[c]++;
     if (at[c] < a.length && a[at[c]].t === t) sig.onMemberBar(c, t, a[at[c]].c, a[at[c]].v);
   }
-  return { sig, stateAt: new Map(sig.history), checksAt, bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) };
-}
-
-// The trends of a series: each minute the gate is LONG or SHORT gets a trend number; a NO TRADE stretch longer than
-// `gap` minutes, or a turn to the other side, starts a new trend.
-function trendsOf(stateAt, gap) {
-  const id = new Map(), keys = [...stateAt.keys()].sort((a, b) => a - b);
-  let cur = null, n = 0;
-  for (const t of keys) {
-    const s = stateAt.get(t);
-    if (s !== 'BULLISH' && s !== 'BEARISH') continue;
-    if (!cur || cur.dir !== s || t - cur.last - MIN > gap * MIN) cur = { dir: s, id: ++n };
-    cur.last = t;
-    id.set(t, cur.id);
-  }
-  return id;
-}
-// The entry signals of a series: the 2m or 3m MACD crossing 0 on a closed candle the way the gate points at its close.
-function crosses(run, m) {
-  const out = [], bars = run.bars[m] || [];
-  for (let i = 1; i < bars.length; i++) {
-    const a = bars[i - 1].macd, b = bars[i].macd;
-    if (!ok(a) || !ok(b)) continue;
-    const dir = a <= 0 && b > 0 ? 'BULLISH' : a >= 0 && b < 0 ? 'BEARISH' : null;
-    if (!dir) continue;
-    const close = bucketEnd(bars[i].time, m), gate = run.stateAt.get(close - MIN);
-    if (gate === dir) out.push({ t: close, m, dir, macd: b });
-  }
-  return out;
-}
-function signalsOf(run, d0, d1) {  // the strip's signals after the boxes: scalpers shown, per trend, one trend per day
-  const want = [opt.sc2 && 2, opt.sc3 && 3].filter(Boolean);
-  const all = want.flatMap(m => crosses(run, m)).sort((a, b) => a.t - b.t || a.m - b.m);
-  const trend = trendsOf(run.stateAt, opt.gap), used = new Map(), limit = perTrendLimit();
-  const dayDir = new Map();  // each trading day's first gate trend: the first minute of the day the gate is LONG or SHORT
-  for (const t of [...run.stateAt.keys()].sort((a, b) => a - b)) {
-    const s = run.stateAt.get(t), k = NsbCme.dayNo(t);
-    if ((s === 'BULLISH' || s === 'BEARISH') && !dayDir.has(k)) dayDir.set(k, s);
-  }
-  const out = [];
-  for (const s of all) {  // counted over the warm-up day too, so a trend running past the day's start keeps its count
-    const k = NsbCme.dayNo(s.t - MIN);
-    if (opt.oneTrend && s.t > d0 && s.t <= d1 && s.dir !== dayDir.get(k)) continue;
-    const id = trend.get(s.t - MIN), n = used.get(id) || 0;
-    if (n >= limit) continue;
-    used.set(id, n + 1);
-    if (s.t > d0 && s.t <= d1) out.push(s);
-  }
-  return out;
+  return { sig, stateAt: new Map(sig.history), bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) };
 }
 
 // ---- building a day ----------------------------------------------------------------------------------------
@@ -517,14 +461,12 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   day = { key, d0, d1, lastD0, shown: shownKeys.length, more: !!warmKey, prevLoaded: !!warmKey || list.length > i + shownKeys.length, source: src, lacking,
           left: { name: leftName(), run: runL, price: priceL, digits: 2, macdDigits: 3, origin: 0, swing: swL },
           right: { name: 'MNQ', run: runR, price: priceR, digits: 2, macdDigits: 2, origin: CME_OPEN, swing: swR } };
-  computeSignals();
   const lastT = Math.max(priceL.length ? priceL[priceL.length - 1].time : 0, priceR.length ? priceR[priceR.length - 1].time : 0);
   day.end = lastT + MIN;
   showNote();
   if (!quiet) loading(null);  // a quiet build never hides another build's loading screen
   return true;
 }
-function computeSignals() { for (const side of [day.left, day.right]) side.signals = []; }  // no 2m/3m signals on this page
 
 // ---- the Divergence page's marks: where the two gates disagree ----------------------------------------------
 const PATTERN = {
@@ -534,8 +476,10 @@ const PATTERN = {
 };
 // the stocks' and MNQ's gates at one moment -> null when they agree (or MNQ is closed), else which disagreement
 const classify = (sn, sx) => !sn || !sx || sn === sx ? null : sx === 'BULLISH' ? 'alone' : sn === 'BULLISH' ? 'first' : 'other';
-const gateNear = (run, t) => { for (let k = t; k >= t - 2 * MIN; k -= MIN) { const s = run.stateAt.get(k); if (s) return s; } return null; };
-const kindAt = t => classify(gateNear(day.left.run, t), gateNear(day.right.run, t));
+// a chart's gate (gate.js, owner 1/11/2026): from the Trend and Swing lines switched on, at each minute's close
+const gateOf = side => NsbGate.states(side.run.sig, side.swing, NsbSwing.LINES);
+const gateNear = (side, t) => { const g = gateOf(side); for (let k = t; k >= t - 2 * MIN; k -= MIN) { const s = g.get(k); if (s) return s; } return null; };
+const kindAt = t => classify(gateNear(day.left, t), gateNear(day.right, t));
 // A past day ends at the next CME open, inside MNQ's daily break: MNQ's header and the badge read it at MNQ's last candle of
 // the day instead (none, as at a weekend: the day's end, where MNQ is closed).
 const mnqEnd = () => { const p = day.right.price, b = p[p.length - 1]; return day.d1 <= Date.now() && b && b.time >= day.lastD0 ? b.time + MIN : day.end; };
@@ -588,7 +532,7 @@ class Panel {
     this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.14 } });
     const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e8 = emaLine(NsbMacd.STACK.mixed); this.e21 = emaLine(NsbMacd.STACK.mixed); this.e47 = emaLine(NsbMacd.STACK.mixed);  // the 5m EMA 8 / 21 / 47, each point colored by their stack
-    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on, as on every other tab (owner 30/10/2026; was: where the gates disagree)
+    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the gate (owner 1/11/2026; was: the Trend waves switched on)
     this.candles.attachPrimitive(this.zones);
     this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30, 'cme'));  // where each trading day begins (the CME open), with its date
     this.candles.attachPrimitive(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];  // time left in the newest candle (as on TradingView)
@@ -599,7 +543,7 @@ class Panel {
     for (const k of PANE_KINDS) this.macd[k] = new MacdPane({
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 2, options: options(false, false, ''), origin, days: 'cme',
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src,
-      shade: k === 'swing' ? i => NsbSwing.state(this.macd.swing.pts[i]) : i => this.waveAt(i),  // Swing: its own lines switched on
+      shade: i => this.waveAt(i),  // the gate, Swing too (owner 1/11/2026)
     });
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
     for (const ev of ['pointerdown', 'wheel', 'touchstart']) $(key).addEventListener(ev, () => { driver = this; }, { capture: true, passive: true });
@@ -666,24 +610,16 @@ class Panel {
     }));
     for (const o of all) o.chart.timeScale().subscribeVisibleLogicalRangeChange(level);
   }
-  waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }  // the colour at candle i
+  // the colour at candle i (the price chart and every pane): its own lines switched on, Trend and Swing - for MNQ its gate;
+  // for Your stocks the composite's own waves, as before 2/11/2026 (its gate needs every stock to agree, which shades little)
+  waveAt(i) { return (this.shades || this.mainStates)[i] || null; }
   get side() { return day[this.key]; }
   draw(full) {  // the whole day
     const side = this.side, upto = Infinity;
     if (full && this.scaleW !== 64) { this.scaleW = 64; for (const o of this.charts) o.chart.applyOptions({ rightPriceScale: { minimumWidth: 64 } }); for (const p of Object.values(this.macd)) p.tagEl.style.maxWidth = ''; }  // another day, candle size or pick: each chart finds its own width again (the widest is shared above)
     const tf = opt.tf, ones = side.price.filter(b => b.time < upto).concat(this.key === 'right' ? mnqForming() : []), o = side.origin;  // MNQ: today's forming minute on top
     this.mainBars = aggregate(ones, tf, o);
-    const st = side.run.stateAt;
-    this.mainStates = this.mainBars.map(b => {  // the gate at the candle's last finished minute (so far)
-      for (let t = Math.min(bucketEnd(b.time, tf, o), upto) - MIN; t >= b.time; t -= MIN) { const s = st.get(t); if (s) return s; }
-      return null;
-    });
-    this.firstState = Infinity;  // its first gate minute in the strip (not after it), once per draw: head() runs on every crosshair move, and a long strip has too many to spread
-    for (const x of st.keys()) if (x >= day.d0 && x < day.d1 && x < this.firstState) this.firstState = x;
-    this.kinds = this.mainBars.map(b => {  // the disagreement at the candle's last minute with both gates
-      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { if (gateNear(day.left.run, t) && gateNear(day.right.run, t)) return kindAt(t); }
-      return null;
-    });
+    this.gateStates();
     // MACD panes and EMAs: only bars closed by then, and by the strip's end (the UTC files run past it, and the last candle takes the newest bar).
     // The Swing candles close at their own end; on today's strip the newest of each (still forming, from the closed minutes)
     // is kept for the newest candle (as on the Compare tab)
@@ -700,6 +636,25 @@ class Panel {
     this.main.applyOptions({ watermark: { text: `${side.name} · ${tf}m` } });
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
+  }
+  gateStates() {  // the candles' gates and the marks' disagreements: at each draw, and again after a switch (owner 1/11/2026)
+    const side = this.side, tf = opt.tf, o = side.origin, st = gateOf(side);
+    this.mainStates = this.mainBars.map(b => {  // the gate at the candle's last finished minute (so far)
+      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { const s = st.get(t); if (s) return s; }
+      return null;
+    });
+    const own = side.run.sig && side.run.sig.parts ? NsbGate.states(side.run.sig, side.swing, NsbSwing.LINES, true) : null;
+    this.shades = own && this.mainBars.map(b => {  // Your stocks' shading: the composite's own lines, at the same minute
+      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { const s = own.get(t); if (s) return s; }
+      return null;
+    });
+    this.firstState = Infinity;  // its first gate minute in the strip (not after it), once per draw: head() runs on every crosshair move, and a long strip has too many to spread
+    for (const x of st.keys()) if (x >= day.d0 && x < day.d1 && x < this.firstState) this.firstState = x;
+    this.kinds = this.mainBars.map(b => {  // the disagreement at the candle's last minute with both gates
+      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { if (gateNear(day.left, t) && gateNear(day.right, t)) return kindAt(t); }
+      return null;
+    });
+    this.mainBars.forEach((b, i) => { const s = this.store.get(sec(b.time)); if (s) s.state = this.mainStates[i]; });  // the hover readout's GATE word
   }
   fit() {  // the newest day of the strip (the older ones are to the left)
     const n = this.mainBars.length, i = this.mainBars.findIndex(b => b.time >= day.lastD0);
@@ -730,15 +685,14 @@ class Panel {
   head(t) {  // the header at time t (ms, a minute) or at the day's end
     const side = this.side, other = day[this.key === 'left' ? 'right' : 'left'], mnq = side.origin === CME_OPEN;
     const at = t !== undefined ? t : (mnq ? mnqEnd() : day.end) - MIN;
-    const gateAt = run => { for (let k = at; k >= at - 5 * MIN; k -= MIN) { const s = run.stateAt.get(k); if (s) return [s, k]; } return [null, null]; };
-    const [st, k] = gateAt(side.run), [ost] = gateAt(other.run);
+    const gateAt = s => { const g = gateOf(s); for (let k = at; k >= at - 5 * MIN; k -= MIN) { const x = g.get(k); if (x) return [x, k]; } return [null, null]; };
+    const [st, k] = gateAt(side), [ost] = gateAt(other);
     $(`${this.key}-name`).textContent = side.name;
     const newest = this.mainBars[this.mainBars.length - 1];
     const bar = newest && (t === undefined || t >= newest.time) ? newest : [...side.price].reverse().find(b => b.time <= at);  // as drawn (liveTick moves it), or the one hovered
     $(`${this.key}-val`).textContent = bar ? num(bar.close, side.digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
-    const ch = k !== null ? side.run.checksAt.get(k) : null;
-    $(`${this.key}-conds`).innerHTML = ch ? NsbMacd.chips(RULES, ch) : '';
+    $(`${this.key}-conds`).innerHTML = k !== null ? NsbGate.chips(side.run.sig, side.swing, NsbSwing.LINES, k) : '';  // one chip per timeframe with a line on
     $(`${this.key}-oname`).textContent = other.name;
     $(`${this.key}-ogate`).className = 'gw ' + kind(ost); $(`${this.key}-ogate`).textContent = ost ? WORD[ost] : '—';
     const from = mnq && side.price.length ? side.price[0].time : day.d0;  // MNQ: from its first candle in the strip, not the strip's start (a weekend or its break may come first)
@@ -881,12 +835,12 @@ function render(full) {
 function showBadge() {  // right now (a past day: at MNQ's last candle of it): the latest minute where both gates exist
   const end = mnqEnd();
   let t = null;
-  for (let k = end - MIN; k >= end - 30 * MIN; k -= MIN) if (gateNear(day.left.run, k) && gateNear(day.right.run, k)) { t = k; break; }
+  for (let k = end - MIN; k >= end - 30 * MIN; k -= MIN) if (gateNear(day.left, k) && gateNear(day.right, k)) { t = k; break; }
   const k = t === null ? undefined : kindAt(t), el = $('badge');
   if (t === null) { el.className = 'badge'; el.textContent = 'MNQ CLOSED'; el.title = 'No MNQ candle in the last 30 minutes (the daily break, the weekend, or no live data yet)'; return; }
   el.className = 'badge ' + (k || 'sync');
   el.textContent = k ? PATTERN[k].word : 'IN SYNC';
-  el.title = k ? PATTERN[k].note : `Both gates say ${WORD[gateNear(day.left.run, t)]}.`;
+  el.title = k ? PATTERN[k].note : `Both gates say ${WORD[gateNear(day.left, t)]}.`;
 }
 // the newest candle's readout, or the held crosshair's, unless the day or candle size just changed (31/10/2026: a switch
 // click or the minute's rebuild put the newest candle's values beside an older candle's crosshair, and the chips moved)
@@ -905,7 +859,6 @@ function buildControls() {
   $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
   dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Trading day (from the CME open, 17:00 Chicago: 03:30 IST, 04:30 IST in its winter time)' });  // (no signal rules on this page)
 }
-function recompute() { if (!day) return; computeSignals(); render(false); }
 function listDays() {  // newest first: the trading days of the archived UTC days and the days Hyperliquid still has
   const files = new Set(archiveDays), live = NsbCme.key(Date.now());
   for (let t = Date.now(); dayStart(dayKey(t)) + DAY > hlFrom; t -= DAY) files.add(dayKey(t));  // UTC days ending after hlFrom
@@ -1207,7 +1160,8 @@ function buildPicker() {
 }
 
 // ---- start ---------------------------------------------------------------------------------------------------
-NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } refreshText(); });
+// a switch: the gate again (the candles' states, the marks, the shading, the header's word and chips, the badge), no reload
+NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { if (day) { p.gateStates(); p.setMarkers(); } for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } refreshText(); });
 (async () => {
   try {
     loading('Loading the list of days…');

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>India · Indra Quant Signal Board</title>
-<meta name="description" content="Replay past Indian market days: the Nifty setup (NIFTY + GIFT NIFTY, then RELIANCE) and the Bank Nifty setup (BANK NIFTY, then HDFC BANK), with the RDX WIP gate, the sync and the entries E1-E4.">
+<meta name="description" content="Replay past Indian market days: the Nifty setup (NIFTY + GIFT NIFTY, then RELIANCE) and the Bank Nifty setup (BANK NIFTY, then HDFC BANK), with the RDX WIP gate and the sync.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -15,11 +15,12 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
-<script src="labels.js?v=2" defer></script>
+<script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=18"></script>
-<script src="engine.js?v=14"></script>
-<script src="swing.js?v=2"></script>
+<script src="macd.js?v=19"></script>
+<script src="engine.js?v=15"></script>
+<script src="swing.js?v=3"></script>
+<script src="gate.js?v=1"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=8"></script>
@@ -33,8 +34,8 @@
   .brand .board-name { font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
   /* India Replay: one Indian trading day at a time, from the VPS's saved Dhan 1-minute candles (data/india/1m/).
      Nifty setup: NIFTY 50 and GIFT NIFTY must show the same gate (step 1); RELIANCE, which must not already be on that
-     side when step 1 starts, then turns to it (step 2); the entries are RDX WIP's four on RELIANCE (step 3; owner
-     28/10/2026: E1/E2 while steps 1 and 2 hold, E3/E4 while step 1 holds). Bank Nifty setup: the same with NIFTY BANK alone, then HDFC BANK. */
+     side when step 1 starts, then turns to it (step 2) (the entries E1-E4, step 3, came off: owner 2/11/2026). Each
+     market's gate is from the lines switched on in its Trend and Swing panes (gate.js). Bank Nifty setup: the same with NIFTY BANK alone, then HDFC BANK. */
   :root {
     color-scheme: dark;
     --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
@@ -78,7 +79,7 @@
   select.btn { padding-right: 4px; }
   .day { font-family: var(--font-num); }
 
-  /* ---- steps 1 / 2 / 3: chips in the big chart's header (point at one for the details) ---- */
+  /* ---- steps 1 / 2: chips in the big chart's header (point at one for the details) ---- */
   .steps { margin-left: auto; display: inline-flex; gap: 6px; min-width: 0; overflow: hidden; }
   .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 3px; border: 1px solid var(--line); border-radius: 999px;
           background: var(--bg); font-size: 12px; white-space: nowrap; cursor: default; min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
@@ -179,7 +180,6 @@
     .topbar .brand .iq-lock { content: url(brand/iq_emblem.svg); height: 24px; }   /* the emblem alone */
     .topbar .tabs a { padding: 4px 7px; }
     .topbar .btn, .topbar .lb-btn { padding-left: 7px; padding-right: 7px; }
-    .topbar .grp > .lbl { display: none; }   /* "Per trend": its tooltip still says it */
     .topbar .spacer { flex: 1 1 0; min-width: 0; }
     .lv.live > span { display: none; }       /* Live: the green dot says it (other states keep their words) */
   }
@@ -190,29 +190,23 @@
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
   <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html" aria-current="page">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a></nav>
   <div class="grp" title="Setup"><div class="seg words" id="setupSel" role="group" aria-label="Setup"></div></div>
-  <div class="grp"><select class="tf-sel" id="stockSel" aria-label="Stock traded" title="The stock traded (steps 2 and 3)"></select></div>
+  <div class="grp"><select class="tf-sel" id="stockSel" aria-label="Stock traded" title="The stock traded (step 2)"></select></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
-  <div class="grp">
-    <button class="btn" id="e1" type="button" aria-pressed="true" title="E1: RELIANCE's 2m MACD crossing 0 the trend's way while steps 1 and 2 hold (one trade at a time; × marks its exit)">E1</button>
-    <button class="btn" id="e2" type="button" aria-pressed="true" title="E2: RELIANCE's 1m MACD crossing 0 the trend's way while steps 1 and 2 hold (one trade at a time; × marks its exit)">E2</button>
-    <button class="btn" id="e3" type="button" aria-pressed="true" title="E3: RELIANCE's 5m EMA 8 crossing back over the 21, its 9m and 11m waves agreeing, while step 1 holds">E3</button>
-    <button class="btn" id="e4" type="button" aria-pressed="true" title="E4: RELIANCE's 3m EMA 8 crossing back over the 21, its 9m and 11m waves agreeing, while step 1 holds">E4</button>
-  </div>
   <details class="how">
     <summary title="How it works">?</summary>
     <div class="how-body">
       <h3>The setups</h3>
-      <p><b>Nifty</b>: step 1, NIFTY 50 and GIFT NIFTY show the same gate (both LONG or both SHORT). Step 2, RELIANCE's gate turns to that side after step 1 has started; if RELIANCE is already on that side when step 1 starts, it doesn't count until it leaves that side and comes back (it has to be the odd man out). If it drops out again while the trend holds, it can sync again. Step 3, the entries, RDX WIP's four on RELIANCE (Rahul's RDX WIP Trend): <b>E1</b>, its 2m MACD (12, 26) crossing 0 that way on a closed candle, and <b>E2</b>, the same on its 1m MACD, while steps 1 and 2 hold, each one trade at a time (× where it ends: its MACD back through 0 against it, 16:58 New York, or its last candle of the day (15:14, where Dhan's stock candles stop)); <b>E3</b>, its 9m and 11m waves that way, its 5m EMA 21 on that side of the 47 and its 5m EMA 8 crossing back over the 21, and <b>E4</b>, the same on its 3m, while step 1 holds (as on Rahul's chart, they don't wait for step 2). Times shown are the candle's close.</p>
-      <p><b>Bank Nifty</b>: the same, with NIFTY BANK alone in step 1 and HDFC BANK in steps 2 and 3.</p>
-      <p><b>The stock</b> in steps 2 and 3 is picked in the list beside the setup, among the index's five biggest by weight (NSE, 30 Sep 2026): Nifty HDFC BANK, ICICI BANK, RELIANCE, BHARTI AIRTEL, L&amp;T; Bank Nifty HDFC BANK, ICICI BANK, KOTAK BANK, AXIS BANK, SBI. Step 1 stays the same. A stock shows "no data yet" until the VPS records it.</p>
+      <p><b>Nifty</b>: step 1, NIFTY 50 and GIFT NIFTY show the same gate (both LONG or both SHORT). Step 2, RELIANCE's gate turns to that side after step 1 has started; if RELIANCE is already on that side when step 1 starts, it doesn't count until it leaves that side and comes back (it has to be the odd man out). If it drops out again while the trend holds, it can sync again.</p>
+      <p><b>Bank Nifty</b>: the same, with NIFTY BANK alone in step 1 and HDFC BANK in step 2.</p>
+      <p><b>The stock</b> in step 2 is picked in the list beside the setup, among the index's five biggest by weight (NSE, 30 Sep 2026): Nifty HDFC BANK, ICICI BANK, RELIANCE, BHARTI AIRTEL, L&amp;T; Bank Nifty HDFC BANK, ICICI BANK, KOTAK BANK, AXIS BANK, SBI. Step 1 stays the same. A stock shows "no data yet" until the VPS records it.</p>
       <h3>The gate</h3>
-      <p>For each market on its own candles, RDX WIP's trend (Rahul's RDX WIP Trend): LONG when the 5m, 9m and 11m waves are all up (on each of them, EMA 8 − EMA 47 and EMA 21 − EMA 47 both above 0) and the 5m EMA 21 is above the EMA 47; SHORT when all of that is the other way; NO TRADE otherwise. It is read on candle close: a 5m, 9m or 11m candle counts from the minute it closes. Exactly the Nasdaq pages' gate. Each indicator is warmed up on the saved days before, so it reads what it would have read live.</p>
-      <p>The <b>Swing</b> pane: the same waves on long candles, EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 1-hour, 4-hour and daily candles of each market's own hours and days (its history from our nightly files, today from its live minutes). Shown only: the gate and the entries don't use it. Its background is green where every line switched on is above 0, red where every one is below.</p>
+      <p>For each market on its own candles, from the lines switched on in its Trend and Swing panes: LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. With every Trend line on (the 5m, 9m and 11m waves: EMA 8 − EMA 47 and EMA 21 − EMA 47 on each) and the Swing lines off, it is RDX WIP's gate (Rahul's RDX WIP Trend), exactly the Nasdaq pages' gate. It is read on candle close: a candle counts from the minute it closes. Each indicator is warmed up on the saved days before, so it reads what it would have read live.</p>
+      <p>The <b>Swing</b> pane: the same waves on long candles, EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 1-hour, 4-hour and daily candles of each market's own hours and days (its history from our nightly files, today from its live minutes). Its lines switched on now count for the gate (one with no value yet doesn't), and its background is shaded as its price chart's.</p>
       <h3>Trends</h3>
-      <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it. Every entry in a trend is shown.</p>
+      <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it.</p>
       <h3>Charts</h3>
-      <p>The charts side by side, equal widths: Nifty's three (NIFTY 50, GIFT NIFTY, the stock), Bank Nifty's two; each with its Entry pane (the 1m, 2m and 3m MACD) and Trend pane (the 5m, 9m and 11m waves), and the 5m EMA 8, 21 and 47 on the price chart, colored by their stack (green or red stacked, yellow a shallow pullback, orange a deeper one). All the charts end at the same time and show as many candles each: drag or zoom any of them and the others follow (GIFT NIFTY's night hours then simply scroll past). Drag the thin lines between the charts, or between a price chart and its MACD panes, to size them as you like (remembered; double-click a line for the default). Each chart and its panes are green where every Trend wave switched on is above 0 (with all six on, that market's own RDX WIP trend), red where every one is below (the gate is shown in words in the step chips); GIFT NIFTY shows its whole session, 06:30 to 02:45 the next morning; the stock shows its entries (arrows). The chips in the index chart's header show steps 1 and 3, the trend and the entry (point at one for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <p>The charts side by side, equal widths: Nifty's three (NIFTY 50, GIFT NIFTY, the stock), Bank Nifty's two; each with its Entry pane (the 1m, 2m and 3m MACD) and Trend pane (the 5m, 9m and 11m waves), and the 5m EMA 8, 21 and 47 on the price chart, colored by their stack (green or red stacked, yellow a shallow pullback, orange a deeper one). All the charts end at the same time and show as many candles each: drag or zoom any of them and the others follow (GIFT NIFTY's night hours then simply scroll past). Drag the thin lines between the charts, or between a price chart and its MACD panes, to size them as you like (remembered; double-click a line for the default). Each chart and its panes are green where its own gate is LONG, red where it is SHORT (the steps are shown in words in the step chips); GIFT NIFTY shows its whole session, 06:30 to 02:45 the next morning. The chip in the index chart's header shows step 1 and its trends (point at it for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
       <h3>Days</h3>
       <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
       <h3>Data</h3>
@@ -225,7 +219,6 @@
 <div class="steps" id="steps" aria-label="Where the setup stands">
   <span class="chip" id="s1"><span class="k">1</span><span class="v" id="s1v">—</span><span class="d" id="s1d"></span></span>
   <span class="chip" id="s2"><span class="k">2</span><span class="v" id="s2v">—</span><span class="d" id="s2d"></span></span>
-  <span class="chip" id="s3"><span class="k">3</span><span class="v" id="s3v">—</span><span class="d" id="s3d"></span></span>
 </div></div>
 <main class="board" id="board"></main>
 <div id="older" class="older" hidden>Loading older days…</div>
@@ -233,14 +226,13 @@
 <script>
 'use strict';
 const DAY = 86400000, MIN = 60000, IST = 19800000;  // IST = UTC + 5:30
-const { TrendSignal, SHOWN, wipSignals, wipMarker, nyFlat } = NdxEngine.internals;
+const { TrendSignal, SHOWN } = NdxEngine.internals;
 NdxEngine.internals.keep(Infinity);  // every loaded day keeps its gate minutes and bars (the engine trims past 5,500 bars / 7,700 minutes: older days lost their gates)
 const { MacdPane, Bands, DayLines } = NsbMacd;
 const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', line: '#1c2430', cross: 'rgba(232, 238, 246, 0.85)', label: '#283240',
             bg: '#0a0d12' };
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
 const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
-const RULES = [['5m waves', '5m'], ['9m waves', '9m'], ['11m waves', '11m'], ['5m EMA21 vs EMA47', '5m 21/47']];  // the RDX WIP gate's conditions
 const TFS = [1, 2, 3, 5];
 // Each market's bars start at its session open, as on TradingView (ms after 00:00 UTC): NSE 09:15 IST, GIFT NIFTY 06:30 IST
 const NSE_OPEN = 3 * 3600000 + 45 * MIN, GIFT_OPEN = 1 * 3600000;
@@ -259,7 +251,7 @@ const MARKETS = {
 };
 // The Swing pane's long candles (swing.js): the market's data/swing/<SYM>.json on its own grid, as on the Compare tab (no roll for India)
 const swingOf = m => ({ id: m, origin: MARKETS[m].origin });
-// The stock traded (steps 2 and 3), picked in the top bar among the index's five biggest by weight (owner 29/10/2026;
+// The stock traded (step 2), picked in the top bar among the index's five biggest by weight (owner 29/10/2026;
 // NSE factsheets of 30 Sep 2026: NIFTY 50 HDFC Bank 10.38%, ICICI 9.05, Reliance 7.58, Airtel 5.10, L&T 4.20; NIFTY BANK
 // HDFC Bank 18.61, ICICI 14.18, Kotak 10.20, Axis 10.06, SBI 9.93). The index side (step 1) stays as it was. A stock can
 // be picked once the VPS has its candles (`HAVE`); until then the setup's first stock is used.
@@ -295,7 +287,6 @@ const opt = {
   setup: SETUPS[location.hash.slice(1)] ? location.hash.slice(1)   // a link to a setup: india-replay.html#bank or #nifty
        : SETUPS[pref('setup', 'nifty')] ? pref('setup', 'nifty') : 'nifty',
   tf: TFS.includes(pref('tf', 1)) ? pref('tf', 1) : 1,
-  e1: pref('e1', true), e2: pref('e2', true), e3: pref('e3', true), e4: pref('e4', true),  // RDX WIP's entries shown
 };
 
 // ---- data: the VPS's saved days (data/india/1m/YYYY-MM-DD.json) -------------------------------------------
@@ -315,14 +306,13 @@ async function loadFile(key) {  // -> { market: [{ t (ms), o, h, l, c, v }] }
 }
 
 // ---- one market's gate, minute by minute, exactly as the live engine runs it ----------------------------------
-function runMarket(market, rows) {  // rows: its 1-minute candles over the warm-up days and the day, oldest first
-  const sig = new TrendSignal({ [market]: 1 }, SHOWN, MARKETS[market].origin), checksAt = new Map();
-  let captured = null;
-  const evaluate = sig.evaluate.bind(sig), finish = sig.finishMinute.bind(sig);
-  sig.evaluate = (v, now) => { const ev = evaluate(v, now); captured = ev; return ev; };
-  sig.finishMinute = (start, close, vol) => { captured = null; finish(start, close, vol); if (captured) checksAt.set(start, captured.checks); };
+// gate(): Map(minute -> 'BULLISH' | 'BEARISH' | 'NEUTRAL') at each minute's close, from the lines switched on in its Trend
+// and Swing panes (gate.js; every Trend line on and the Swing lines off: the engine's RDX WIP gate), worked out again after a switch
+function runMarket(market, rows, swing) {  // rows: its 1-minute candles over the warm-up days and the day, oldest first; swing: its Swing candles
+  const sig = new TrendSignal({ [market]: 1 }, SHOWN, MARKETS[market].origin);
   for (const b of rows) sig.onMemberBar(market, b.t, b.c, b.v);
-  return { stateAt: new Map(sig.history), checksAt, trace: sig.trace, bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) };
+  return { sig, swing, gate: () => NsbGate.states(sig, swing, NsbSwing.LINES),
+           bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) };
 }
 
 // ---- the setup ----------------------------------------------------------------------------------------------
@@ -344,15 +334,16 @@ function trendsOf(stateAt) {
   }
   return id;
 }
-function latestState(run, t, within = 15) {  // a market's gate at minute t, or its last one shortly before (GIFT can skip quiet minutes)
-  for (let k = t; k >= t - within * MIN; k -= MIN) { const s = run.stateAt.get(k); if (s) return s; }
+function latestState(gate, t, within = 15) {  // a market's gate at minute t, or its last one shortly before (GIFT can skip quiet minutes)
+  for (let k = t; k >= t - within * MIN; k -= MIN) { const s = gate.get(k); if (s) return s; }
   return null;
 }
+// Built again after a line switch (each market's gate changes), from the data already loaded
 function setupOf(S, runs, indexMinutes) {
-  const idx = runs[S.index], gift = S.gift ? runs[S.gift] : null, stk = runs[S.stock];
+  const idx = runs[S.index].gate(), gift = S.gift ? runs[S.gift].gate() : null, stk = runs[S.stock].gate();
   const trend = new Map();  // minute -> step 1 state
   for (const t of indexMinutes) {
-    const a = idx.stateAt.get(t);
+    const a = idx.get(t);
     if (!a) continue;
     if (!gift) { trend.set(t, a); continue; }
     const b = latestState(gift, t);
@@ -361,7 +352,7 @@ function setupOf(S, runs, indexMinutes) {
   const ids = trendsOf(trend), at = new Map(), syncs = [], starts = [];
   let cur = null;  // the trend being followed: { id, dir, start, last, armed, synced, since, told }
   for (const t of indexMinutes) {
-    const id = ids.get(t), s = stk.stateAt.get(t) || 'NEUTRAL';  // no stock candle (after 15:14): off the trend's side
+    const id = ids.get(t), s = stk.get(t) || 'NEUTRAL';  // no stock candle (after 15:14): off the trend's side
     if (cur && id === undefined) cur = null;  // a NO TRADE minute ends the trend
     if (id !== undefined && (!cur || cur.id !== id)) {  // a new trend: the stock must be the odd man out first
       cur = { id, dir: trend.get(t), start: t, last: t, armed: s !== trend.get(t), synced: false, since: null, told: false };
@@ -378,27 +369,6 @@ function setupOf(S, runs, indexMinutes) {
                 since: on && cur.synced ? cur.since : null, start: on ? cur.start : null });
   }
   return { trend, at, syncs, starts };
-}
-
-// The entries: RDX WIP's four on the stock (engine.js wipSignals; owner 28/10/2026, Rahul's RDX WIP Trend). E1 and E2
-// (its 2m and 1m MACD crossing 0) the trend's way while steps 1 and 2 hold, one trade at a time each, × where one ends;
-// E3 and E4 (its 5m and 3m EMA 8 back over the 21, its 9m and 11m waves agreeing) while step 1 holds: they don't wait
-// for step 2, as on his chart (owner: "go with rahuls logic").
-function entriesOf() {
-  const tr = day.runs[day.setup.stock].trace, st = day.setupRun;
-  const step = (i, two) => {  // the trend's side at trace minute i: step 1 (and step 2 with two), or null
-    const s = st.at.get(tr[i].t);
-    return s && s.step1 && s.trend === s.step1 && (!two || s.synced) ? s.step1 : null;
-  };
-  return wipSignals(tr, { trend: i => step(i, true), side: (i, dir) => step(i, false) === dir, isFlat: flatOf(tr) })
-    .filter(e => opt['e' + e.e] && e.k >= day.d0 && e.k < day.d1);
-}
-// A minute with no entries that ends any E1/E2 trade, as on Rahul's indicator: 16:58 or 16:59 New York, or the stock's
-// last minute of a session (the next one more than 30 minutes later; today's from 15:14 IST, where Dhan's stock candles stop)
-function flatOf(tr) {
-  const last = new Set(), end = tr.length ? tr[tr.length - 1].t : null;
-  for (let i = 0; i + 1 < tr.length; i++) if (tr[i + 1].t - tr[i].t > 30 * MIN) last.add(tr[i].t);
-  return t => nyFlat(t) || last.has(t) || (t === end && (t + IST) % DAY >= (15 * 60 + 14) * MIN);
 }
 
 // ---- building a day -----------------------------------------------------------------------------------------
@@ -419,7 +389,7 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   for (const m of markets) {
     const byT = new Map();
     for (const f of files) for (const b of f[m] || []) byT.set(b.t, b);
-    if (keys.includes(TODAY_KEY())) { const cur = NsbLive.cur(m); for (const b of NsbLive.bars(m)) if (b !== cur) byT.set(b.t, b); }  // today: the live stream's CLOSED candles (owner 27/10: the forming one is only drawn, by liveForming and liveTick, so the gate, the steps and the signals never see a minute still forming)
+    if (keys.includes(TODAY_KEY())) { const cur = NsbLive.cur(m); for (const b of NsbLive.bars(m)) if (b !== cur) byT.set(b.t, b); }  // today: the live stream's CLOSED candles (owner 27/10: the forming one is only drawn, by liveForming and liveTick, so the gate and the steps never see a minute still forming)
     rows[m] = [...byT.values()].sort((a, b) => a.t - b.t);
   }
   // the Swing pane (swing.js, as on the Compare tab): each market's long candles, then its hours, days, weeks and months
@@ -427,14 +397,13 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   await ahead;
   const swing = Object.fromEntries(await Promise.all(markets.map(async m => [m, await NsbSwing.series(swingOf(m), rows[m]).catch(() => ({}))])));
   if (seq !== builds) return false;  // a newer build started meanwhile: it is drawn
-  const runs = Object.fromEntries(markets.map(m => [m, runMarket(m, rows[m])]));
+  const runs = Object.fromEntries(markets.map(m => [m, runMarket(m, rows[m], swing[m])]));
   // the strip: 06:30 IST (GIFT NIFTY's open) of its oldest day to 06:30 the morning after the picked day
   const open = k => istMidnight(k) + 6 * 3600000 + 30 * MIN;
   const d0 = open(DAYS[first]), lastD0 = open(key), d1 = lastD0 + DAY;
   const indexMinutes = rows[S.index].map(b => b.t);
   day = { key, d0, d1, lastD0, shown: i - first + 1, more: first > 0, setup: S, rows, runs, indexMinutes, warm: keys.length - 1 - (i - first), swing };
   day.setupRun = setupOf(S, runs, indexMinutes);
-  day.entries = entriesOf();
   const inDay = b => b.t >= d0 && b.t < d1;
   day.price = Object.fromEntries(markets.map(m => [m, rows[m].filter(inDay).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }))]));
   day.nse = day.price[S.index].length > 0;
@@ -451,7 +420,7 @@ let panels = {};
 let pressedChart = null;  // the chart (or MACD pane) last pressed: a finger moves its crosshair
 let touched = false;  // the last press on any chart was a finger or pen: page-wide, as the click the browser still sends after a tap can land on another chart (the tap enlarged a tile and the tiles moved under the finger)
 const drawArmed = () => !!document.querySelector('.dr-rail [data-tool][aria-pressed="true"]');  // a drawing tool is picked (draw.js's rail)
-const PANE_KINDS = ['entry', 'trend', 'swing'];  // under each full chart's price chart: Entry, Trend, and Swing (owner 1/11/2026: shown only)
+const PANE_KINDS = ['entry', 'trend', 'swing'];  // under each full chart's price chart: Entry, Trend, and Swing (owner 1/11/2026; its lines count for the gate since 2/11)
 function options(showTime, isMain) {
   return {
     watermark: isMain ? { visible: true, text: '', color: 'rgba(232, 238, 246, 0.04)', fontSize: 36, fontStyle: '700' } : { visible: false },
@@ -497,7 +466,7 @@ class Panel {
     this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.14, bottom: 0.14 } });
     const emaLine = () => this.main.addLineSeries({ color: NsbMacd.STACK.mixed, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e8 = emaLine(); this.e21 = emaLine(); this.e47 = emaLine();  // the 5m EMA 8 / 21 / 47, each point colored by their stack
-    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
+    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the setup's state at each candle (shadeAt)
     // what is attached to the candles is detached again before the chart goes (remove(); 1/11/2026: a removed chart's
     // countdown went on ticking and threw "Object is disposed" every second after a stock or setup switch)
     this.prims = [];
@@ -513,7 +482,7 @@ class Panel {
     if (panes) for (const k of PANE_KINDS) this.macd[k] = new MacdPane({
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 3, options: options(false, false), origin: this.origin,
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src,
-      shade: k === 'swing' ? i => NsbSwing.state(this.macd.swing.pts[i]) : i => this.waveAt(i),  // Swing: its own lines switched on (swing.js)
+      shade: i => this.waveAt(i),  // every pane as its price chart (owner 2/11/2026)
     });
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
     this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
@@ -580,26 +549,39 @@ class Panel {
     this.main.applyOptions({ handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: full }, handleScale: true,
                              rightPriceScale: { minimumWidth: full ? 70 : 56 } });
   }
-  waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }  // the colour at candle i
+  // the colour at candle i (the price chart and every pane): the market's own gate there, from the lines switched on - as the
+  // chart was shaded before 2/11/2026 (its own Trend waves), now with the Swing lines switched on too (the setup's states,
+  // mainStates, stay for the readout)
+  waveAt(i) { return (this.gates || [])[i] || null; }
   remove() { this.gone = true; for (const x of this.prims) try { this.candles.detachPrimitive(x); } catch (e) {} this.drawing.remove(); this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
-  shadeAt(t) {  // the state a candle is shaded by, at minute t
-    if (this.role === 'gift') return day.runs[this.market].stateAt.get(t) || null;
+  shadeAt(t, gate) {  // the state a candle is shaded by, at minute t (gate: the market's gate, for GIFT NIFTY)
+    if (this.role === 'gift') return gate.get(t) || null;
     const s = day.setupRun.at.get(t);
     if (!s) return null;
     if (this.role === 'index') return s.trend;
     return s.synced ? s.step1 : null;  // the stock: where step 2 holds
   }
+  restate() {  // each candle's state at its last finished minute: on a draw and after a line switch (the gates change)
+    const tf = opt.tf, o = this.origin, gate = day.runs[this.market].gate();
+    this.mainStates = this.mainBars.map(b => {
+      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { const s = this.shadeAt(t, gate); if (s) return s; }
+      return null;
+    });
+    this.gates = this.mainBars.map(b => {  // the market's own gate at the candle's last finished minute (the shading)
+      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { const s = gate.get(t); if (s) return s; }
+      return null;
+    });
+    this.mainBars.forEach((b, i) => { const q = this.store.get(sec(b.time)); if (q) q.state = this.mainStates[i]; });
+    return gate;
+  }
   draw() {
     const upto = Infinity, tf = opt.tf, o = this.origin;
     const ones = day.price[this.market].filter(b => b.time < upto).concat(liveForming(this.market));  // today: the forming minute on top
     this.mainBars = aggregate(ones, tf, o);
-    this.mainStates = this.mainBars.map((b, i) => {
-      for (let t = Math.min(bucketEnd(b.time, tf, o), upto) - MIN; t >= b.time; t -= MIN) { const s = this.shadeAt(t); if (s) return s; }
-      return null;
-    });
+    const gate = this.restate();
     const run = day.runs[this.market];
     this.firstState = Infinity;  // its first gate minute in the strip, once per draw (head() runs on every crosshair move)
-    for (const x of run.stateAt.keys()) if (x >= day.d0 && x < day.d1 && x < this.firstState) this.firstState = x;
+    for (const x of gate.keys()) if (x >= day.d0 && x < day.d1 && x < this.firstState) this.firstState = x;
     // the Swing candles close at their own end: on a past day only those closed by the strip's end (the files run past it);
     // on today's strip the newest of each (still forming, from the closed minutes) is kept for the newest candle (as on the Compare tab)
     const live = day.d1 > Date.now();
@@ -611,7 +593,6 @@ class Panel {
     this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
     this.setEmas();
     for (const p of Object.values(this.macd)) { p.digits = MARKETS[this.market].macdDigits; p.update(); p.showLines(); }
-    this.setMarkers(upto);
     this.main.applyOptions({ watermark: { text: `${MARKETS[this.market].name} · ${tf}m` } });
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
@@ -628,25 +609,17 @@ class Panel {
     const out = this.emaPts = NsbMacd.emaPoints(this.mainBars, opt.tf, this.src, this.origin);
     for (const k of ['e8', 'e21', 'e47']) this[k].setData(out.map(p => ({ time: p.time, value: p[k], color: p.color })));
   }
-  setMarkers(upto) {  // the stock: its entries (owner 26/10/2026: no "sync" dots)
-    if (this.role !== 'stock') { this.candles.setMarkers([]); return; }
-    const m = [], at = t => sec(bucketStart(t, opt.tf, this.origin));
-    for (const e of day.entries) if (e.t <= upto) m.push(wipMarker(e, at(e.k)));  // E1-E4, and × where an E1/E2 trade ends
-    m.sort((a, b) => a.time - b.time);
-    this.candles.setMarkers(m);
-  }
   head(t) {  // the header at minute t (hovering), or at the market's last candle
     if (!day || !day.price[this.market] || !day.runs[this.market]) return;  // a setup switch: its day not built yet (1/11/2026)
-    const run = day.runs[this.market], own = day.price[this.market], ownEnd = own.length ? own[own.length - 1].time + MIN : day.end;
+    const run = day.runs[this.market], gate = run.gate(), own = day.price[this.market], ownEnd = own.length ? own[own.length - 1].time + MIN : day.end;
     const at = t !== undefined ? t : ownEnd - MIN;  // its own last candle
     let st = null, k = null;
-    for (let x = at; x >= at - 15 * MIN; x -= MIN) { const s = run.stateAt.get(x); if (s) { st = s; k = x; break; } }
+    for (let x = at; x >= at - 15 * MIN; x -= MIN) { const s = gate.get(x); if (s) { st = s; k = x; break; } }
     const newest = this.mainBars[this.mainBars.length - 1];
     const bar = newest && (t === undefined || t >= newest.time) ? newest : barAt(own, at);  // its newest candle as drawn (liveTick moves it), or the one hovered
     $(`${this.key}-val`).textContent = bar ? num(bar.close, MARKETS[this.market].digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
-    const ch = k !== null ? run.checksAt.get(k) : null;
-    $(`${this.key}-conds`).innerHTML = ch ? NsbMacd.chips(RULES, ch) : '';
+    $(`${this.key}-conds`).innerHTML = k !== null ? NsbGate.chips(run.sig, run.swing, NsbSwing.LINES, k) : '';  // the lines switched on, by timeframe
     const first = this.firstState;
     const firstBar = day.price[this.market].length ? day.price[this.market][0].time : Infinity;
     $(`${this.key}-warm`).textContent = first === Infinity && firstBar < Infinity ? 'not enough earlier days for the indicators'
@@ -876,28 +849,24 @@ const stamp = t => day.shown > 1 ? `${WKD[new Date(t + IST).getUTCDay()]} ${hhmm
 function showStrip(t) {
   const S = day.setup, st = day.setupRun, names = S.gift ? 'NIFTY + GIFT' : 'BANK NIFTY', stock = MARKETS[S.stock].name;
   const set = (k, cls, v, d) => { $(`${k}v`).className = 'v ' + cls; $(`${k}v`).textContent = v; $(`${k}d`).textContent = d;
-                                  $(k).title = `Step ${k[1]} · ${['Trend', 'Sync', 'Entry'][k[1] - 1]}: ${v}${d ? ' · ' + d : ''}`; };
-  if (!day.nse) { set('s1', 'wait', 'NSE closed', 'no NSE candles this day'); set('s2', 'wait', '—', ''); set('s3', 'wait', '—', ''); return; }
+                                  $(k).title = `Step ${k[1]} · ${['Trend', 'Sync'][k[1] - 1]}: ${v}${d ? ' · ' + d : ''}`; };
+  if (!day.nse) { set('s1', 'wait', 'NSE closed', 'no NSE candles this day'); set('s2', 'wait', '—', ''); return; }
   if (t === undefined) {  // the day as a whole
     const inDay = x => x.t >= day.d0 && x.t < day.d1;
     const trends = st.starts.filter(inDay), syncs = st.syncs.filter(inDay);
     set('s1', 'wait', `${trends.length} trend${trends.length === 1 ? '' : 's'}`, trends.map(x => `${WORD[x.dir]} ${stamp(x.t)}`).join(' · ') || `${names}: no trend`);
     set('s2', 'wait', `${syncs.length} sync${syncs.length === 1 ? '' : 's'}`, syncs.map(x => `${WORD[x.dir]} ${stamp(x.t)}`).join(' · ') || `${stock} never synced`);
-    const ins = day.entries.filter(e => !e.exit);
-    set('s3', 'wait', `${ins.length} entr${ins.length === 1 ? 'y' : 'ies'}`, ins.map(e => `E${e.e} ${WORD[e.dir]} ${stamp(e.t)}`).join(' · ') || 'none');
     return;
   }
   const at = t, k = nearestIndexMinute(at), s = k !== null ? st.at.get(k) : null;
   if (!s || !s.step1) {
-    set('s1', 'wait', s && s.trend ? WORD[s.trend] : 'No trend', s && S.gift ? `NIFTY ${WORD[day.runs.NIFTY.stateAt.get(k)] || '—'} · GIFT ${WORD[latestState(day.runs.GIFTNIFTY, k)] || '—'}` : '');
-    set('s2', 'wait', 'Needs step 1', ''); set('s3', 'wait', 'Not yet', '');
+    set('s1', 'wait', s && s.trend ? WORD[s.trend] : 'No trend', s && S.gift ? `NIFTY ${WORD[day.runs.NIFTY.gate().get(k)] || '—'} · GIFT ${WORD[latestState(day.runs.GIFTNIFTY.gate(), k)] || '—'}` : '');
+    set('s2', 'wait', 'Needs step 1', '');
   } else {
     set('s1', kind(s.step1), WORD[s.step1], `${names} since ${hhmm(s.start)}${s.trend !== s.step1 ? ' · now NO TRADE (gap)' : ''}`);
-    const ss = day.runs[S.stock].stateAt.get(k);
+    const ss = day.runs[S.stock].gate().get(k);
     if (s.synced) set('s2', kind(s.step1), `${stock} synced`, `at ${hhmm(s.since)}`);
     else set('s2', 'wait', `Waiting for ${stock}`, `${stock}: ${ss ? WORD[ss] : 'no candle'}${ss === s.step1 ? ' (was already on this side: must leave first)' : ''}`);
-    const last = day.entries.filter(e => !e.exit && e.k <= at && e.k >= s.start).pop();
-    set('s3', last ? kind(last.dir) : 'wait', last ? `E${last.e} ${WORD[last.dir]} at ${hhmm(last.t)}` : 'Waiting for an entry', s.synced ? '' : 'E1/E2 need step 2');
   }
 }
 
@@ -934,11 +903,9 @@ function seg(el, items, current, onPick) {
 function buildControls() {
   seg($('setupSel'), Object.entries(SETUPS).map(([k, s]) => [s.label, k]), opt.setup, async v => { opt.setup = v; save('setup', v); fillStocks(); buildPanels(); await openDay(day.key); });
   fillStocks();
-  $('stockSel').onchange = async () => { save('stock.' + opt.setup, $('stockSel').value); stockTitles(); buildPanels(); await openDay(day.key); };
+  $('stockSel').onchange = async () => { save('stock.' + opt.setup, $('stockSel').value); buildPanels(); await openDay(day.key); };
   $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === opt.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
   $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
-  const toggle = (id, key) => { $(id).setAttribute('aria-pressed', String(opt[key])); $(id).onclick = () => { opt[key] = !opt[key]; save(key, opt[key]); $(id).setAttribute('aria-pressed', String(opt[key])); recompute(); }; };
-  for (const e of ['e1', 'e2', 'e3', 'e4']) toggle(e, e);
   dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Day (IST)' });
   document.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('select, input, summary')) return;
@@ -949,20 +916,11 @@ function buildControls() {
 function fillStocks() {  // the setup's five stocks; one without candles yet says so and can't be picked
   const cur = SETUPS[opt.setup].stock;
   $('stockSel').innerHTML = STOCKS[opt.setup].map(s => `<option value="${s}"${s === cur ? ' selected' : ''}${HAVE.has(s) ? '' : ' disabled'}>${MARKETS[s].name}${HAVE.has(s) ? '' : ' · no data yet'}</option>`).join('');
-  stockTitles();
-}
-function stockTitles() {  // the entry buttons name the stock they trade
-  const name = MARKETS[SETUPS[opt.setup].stock].name;
-  for (const [id, text] of [['e1', "2m MACD crossing 0 the trend's way while steps 1 and 2 hold (one trade at a time; × marks its exit)"],
-                            ['e2', "1m MACD crossing 0 the trend's way while steps 1 and 2 hold (one trade at a time; × marks its exit)"],
-                            ['e3', "5m EMA 8 crossing back over the 21, its 9m and 11m waves agreeing, while step 1 holds"],
-                            ['e4', "3m EMA 8 crossing back over the 21, its 9m and 11m waves agreeing, while step 1 holds"]]) $(id).title = `${id.toUpperCase()}: ${name}'s ${text}`;
 }
 async function findStocks() {  // the stocks with candles: in the newest saved day, or in the live stream today
   try { const f = await loadFile(DAYS[DAYS.length - 1]); for (const s of Object.keys(f)) if (MARKETS[s]) HAVE.add(s); } catch (e) {}
   for (const s of Object.keys(MARKETS)) if (NsbLive.has(s)) HAVE.add(s);
 }
-function recompute() { if (!day) return; day.entries = entriesOf(); render(false); }
 let olderBusy = false;
 async function loadOlder() {  // add older days to the strip, keeping what you are looking at in place
   if (olderBusy || loadingNow) return;  // not while a day is opening (its loading screen is up): that strip replaces this one
@@ -991,8 +949,8 @@ async function openDay(key) {
 }
 // ---- live: the VPS's stream (live.js; owner 25/10/2026: "real time", no lag) ------------------------------------
 // Today's trading day joins the calendar as soon as the stream has candles of it (its saved file is only written after
-// the day). Its newest candle moves with every tick; when a minute closes the day is rebuilt with it, so the gate, the
-// steps and the signals change only at a candle's close (owner 25/10). The dot in the top bar says if the stream is live.
+// the day). Its newest candle moves with every tick; when a minute closes the day is rebuilt with it, so the gate and the
+// steps change only at a candle's close (owner 25/10). The dot in the top bar says if the stream is live.
 let liveTextAt = 0, liveTimer = 0, liveSoon = 0;
 function liveMarkets() { const S = SETUPS[opt.setup]; return [S.index, S.gift, S.stock].filter(Boolean); }
 function liveAddToday() {  // true when today was added (and opened, if you were on the newest day)
@@ -1060,7 +1018,13 @@ const loading = text => {
 };
 
 // ---- start ---------------------------------------------------------------------------------------------------
-NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } refreshText(); });
+// a switch: each market's gate again (gate.js), so the steps and trends (from the data already loaded), every shading,
+// the strip and the headers change at once
+NsbMacd.onToggle(() => {
+  if (day) day.setupRun = setupOf(day.setup, day.runs, day.indexMinutes);
+  for (const p of Object.values(panels)) { if (day && p.mainBars.length) p.restate(); for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); }
+  refreshText();
+});
 (async () => {
   try {
     loading('Loading the list of days…');

@@ -15,11 +15,12 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="lightweight-charts.js"></script>
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
-<script src="labels.js?v=2" defer></script>
+<script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=18"></script>
-<script src="engine.js?v=14"></script>
-<script src="swing.js?v=2"></script>
+<script src="macd.js?v=19"></script>
+<script src="engine.js?v=15"></script>
+<script src="swing.js?v=3"></script>
+<script src="gate.js?v=1"></script>
 <script src="daypick.js?v=3"></script>
 <script src="draw.js?v=8"></script>
 <script src="install.js?v=2"></script>
@@ -32,9 +33,10 @@
   #kindSeg button { font-family: var(--font-ui); }
   /* The Perps page (owner 31/10/2026): one market at a time (the stock perps, or the crypto coins), one Indian calendar
      day at a time, with the Nasdaq tab's indicators (gate zones, the 5m EMA 8/21/47, the Entry MACD and Trend waves
-     panes) plus a Swing pane: the same waves on the 1-hour, 4-hour, daily, weekly and monthly candles (swing.js), shown
-     only. No signal arrows or signal buttons (owner 31/10: "no need for this E1 E2 E3 E4 Per trend ... Labels"; the Labels
-     button came back the same day). The Swing pane is on every market, crypto too (owner 1/11/2026). Watching only. */
+     panes) plus a Swing pane: the same waves on the 1-hour, 4-hour, daily, weekly and monthly candles (swing.js), which
+     count for the gate and the shading (2/11/2026, gate.js). No signal arrows or signal buttons (owner 31/10: "no need for
+     this E1 E2 E3 E4 Per trend ... Labels"; the Labels button came back the same day). The Swing pane is on every market,
+     crypto too (owner 1/11/2026). Watching only. */
   :root {
     color-scheme: dark;
     --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
@@ -146,7 +148,6 @@ const C = { up: '#2bb68a', down: '#f0555f', grid: '#121821', text: '#7d899b', li
 const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 0.10)' };
 const SWING_ZONE = { BULLISH: 'rgba(43, 182, 138, 0.13)', BEARISH: 'rgba(240, 85, 95, 0.12)' };
 const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
-const RULES = [['5m waves', '5m'], ['9m waves', '9m'], ['11m waves', '11m'], ['5m EMA21 vs EMA47', '5m 21/47']];  // the RDX WIP gate's conditions
 const TFS = [1, 2, 3, 5];
 const KINDS = [['Stocks', 'stocks'], ['Crypto', 'crypto']], FIRST = { stocks: 'xyz:NVDA', crypto: 'BTC' };  // the two lists, and who opens each
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -189,9 +190,10 @@ class IstDayLines extends DayLines {  // the day lines at midnight India time, d
   }
 }
 
-// ---- the Swing pane (owner 31/10/2026: shown only; 1/11/2026: on every market, crypto too) ---------------------------
-// Its lines (1h, 4h, 1D; and 1W, 1M on the stocks only, owner 1/11/2026), their switches (kept with the other panes' ones),
-// its shading and its candles: swing.js. The candles: the VPS's nightly long candles (data/swing/hl_<coin>.json; none:
+// ---- the Swing pane (owner 31/10/2026; 1/11/2026: on every market, crypto too; 2/11/2026: its lines switched on count for
+// the gate and the shading, gate.js) ----------------------------------------------------------------------------------
+// Its lines (1h, 4h, 1D; and 1W, 1M on the stocks only, owner 1/11/2026), their switches (kept with the other panes' ones)
+// and its candles: swing.js. The candles: the VPS's nightly long candles (data/swing/hl_<coin>.json; none:
 // Hyperliquid's own), then candles from this page's closed minutes, so today's hour, day, week and month stay current. A
 // stock perp's weeks and months begin with the real stock's days (data/swing/us_<ticker>.json).
 const swingOf = c => LISTS.stocks.includes(c) ? { id: 'hl_' + c.replace(/:/g, '_'), hl: c, origin: 0, under: 'us_' + MEMBERS[c].ticker, wm: true }
@@ -263,11 +265,7 @@ async function loadDay(key, coin) {  // -> { bars (toBar objects), source, compl
 
 // ---- one series, minute by minute, exactly as the live engine runs it (as on the Nasdaq tab) -----------------------
 function runSeries(coef, minutes) {
-  const sig = new TrendSignal(coef, SHOWN), coins = Object.keys(coef), checksAt = new Map();
-  let captured = null;
-  const evaluate = sig.evaluate.bind(sig), finish = sig.finishMinute.bind(sig);
-  sig.evaluate = (v, now) => { const ev = evaluate(v, now); captured = ev; return ev; };
-  sig.finishMinute = (start, close, vol) => { captured = null; finish(start, close, vol); if (captured) checksAt.set(start, captured.checks); };
+  const sig = new TrendSignal(coef, SHOWN), coins = Object.keys(coef);
   const at = Object.fromEntries(coins.map(c => [c, 0]));
   const first = Math.min(...coins.map(c => minutes[c] && minutes[c].length ? minutes[c][0].t : Infinity));
   const last = Math.max(...coins.map(c => minutes[c] && minutes[c].length ? minutes[c][minutes[c].length - 1].t : -Infinity));
@@ -276,7 +274,7 @@ function runSeries(coef, minutes) {
     while (at[c] < a.length && a[at[c]].t < t) at[c]++;
     if (at[c] < a.length && a[at[c]].t === t) sig.onMemberBar(c, t, a[at[c]].c, a[at[c]].v);
   }
-  return { sig, stateAt: new Map(sig.history), checksAt, trace: sig.trace, bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) };
+  return { sig, stateAt: new Map(sig.history), trace: sig.trace, bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) };
 }
 
 // ---- building a day ----------------------------------------------------------------------------------------
@@ -362,7 +360,7 @@ class Panel {
     this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.14 } });
     const emaLine = () => this.main.addLineSeries({ color: NsbMacd.STACK.mixed, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e8 = emaLine(); this.e21 = emaLine(); this.e47 = emaLine();
-    this.zones = new NsbMacd.Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the Trend waves switched on
+    this.zones = new NsbMacd.Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the gate (gate.js)
     this.candles.attachPrimitive(this.zones);
     this.candles.attachPrimitive(new IstDayLines(() => this.main, () => this.mainBars, 30, -IST));  // where each Indian day begins, with its date
     this.candles.attachPrimitive(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];
@@ -373,7 +371,7 @@ class Panel {
     for (const k of PANE_KINDS) this.macd[k] = new MacdPane({
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 2, options: options(false, false, ''), days: -IST,
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src,
-      shade: k === 'swing' ? i => NsbSwing.state(this.macd.swing.pts[i]) : i => this.waveAt(i),
+      shade: i => this.waveAt(i),  // every pane shaded by the gate, the Swing pane too (2/11/2026)
     });
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);
     this.panes = Object.values(this.macd);  // the panes on screen (the Swing pane on every market since 1/11/2026)
@@ -420,7 +418,19 @@ class Panel {
       hoverAll(undefined);
     });
   }
-  waveAt(i) { return NsbMacd.trendState(this.macd.trend && this.macd.trend.pts[i]); }
+  // the gate (owner 1-2/11/2026): from every Trend line and every Swing line drawn that is switched on (gate.js); with every
+  // Trend line on and the Swing lines off it is the engine's RDX WIP gate
+  gateMap() { return NsbGate.states(this.side.run.sig, this.side.swing, this.macd.swing.lines); }
+  gate() {  // each candle's gate, at its last finished minute (worked out again after a switch)
+    const st = this.gateMap(), tf = opt.tf;
+    this.mainStates = this.mainBars.map(b => {
+      for (let t = bucketEnd(b.time, tf) - MIN; t >= b.time; t -= MIN) { const s = st.get(t); if (s) return s; }
+      return null;
+    });
+    this.mainBars.forEach((b, i) => { const q = this.store.get(sec(b.time)); if (q) q.state = this.mainStates[i]; });  // the hover's GATE word
+    return st;
+  }
+  waveAt(i) { return this.mainStates[i]; }  // the shading at candle i: its gate (the price chart's bands and every pane's)
   get side() { return day[this.key]; }
   draw() {
     const side = this.side, tf = opt.tf;
@@ -430,11 +440,7 @@ class Panel {
       this.macd.swing.setLines(LISTS.stocks.includes(side.coin) ? NsbSwing.ALL : NsbSwing.LINES);  // 1W and 1M: the stocks only (owner 1/11)
     }
     this.mainBars = aggregate(side.price, tf);
-    const st = side.run.stateAt;
-    this.mainStates = this.mainBars.map(b => {  // the gate at the candle's last finished minute
-      for (let t = bucketEnd(b.time, tf) - MIN; t >= b.time; t -= MIN) { const s = st.get(t); if (s) return s; }
-      return null;
-    });
+    const st = this.gate();  // the gate at each candle's last finished minute
     this.firstState = Infinity;
     for (const x of st.keys()) if (x >= day.d0 && x < day.d1 && x < this.firstState) this.firstState = x;
     // the panes and EMAs: only bars closed by the strip's end (the UTC files run past it). The Swing candles close at their own
@@ -481,17 +487,17 @@ class Panel {
     for (const k of ['e8', 'e21', 'e47']) this[k].setData(out.map(p => ({ time: p.time, value: p[k], color: p.color })));
   }
   head(t) {  // the header at time t (ms, a minute) or at the day's end
-    const side = this.side, at = t !== undefined ? t : day.end - MIN;
+    const side = this.side, at = t !== undefined ? t : day.end - MIN, gate = this.gateMap();
     let st = null, k = null;
-    for (let x = at; x >= at - 5 * MIN; x -= MIN) { const s = side.run.stateAt.get(x); if (s) { st = s; k = x; break; } }
+    for (let x = at; x >= at - 5 * MIN; x -= MIN) { const s = gate.get(x); if (s) { st = s; k = x; break; } }
     $(`${this.key}-name`).textContent = side.name;
     $(`${this.key}-co`).textContent = MEMBERS[side.coin] ? MEMBERS[side.coin].company : '';
     const newest = this.mainBars[this.mainBars.length - 1];
     const bar = newest && (t === undefined || t >= newest.time) ? newest : barAt(side.price, at);  // as drawn (liveTick moves it), or the one hovered
     $(`${this.key}-val`).textContent = bar ? num(bar.close, side.digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
-    const ch = k !== null ? side.run.checksAt.get(k) : null;
-    $(`${this.key}-conds`).innerHTML = ch ? NsbMacd.chips(RULES, ch) : '';
+    // the chips: one per timeframe with a line switched on (gate.js), at the minute the gate is read
+    $(`${this.key}-conds`).innerHTML = k !== null ? NsbGate.chips(side.run.sig, side.swing, this.macd.swing.lines, k) : '';
     const f = this.firstState;
     $(`${this.key}-warm`).textContent = f > day.d0 + MIN && f < Infinity ? `warming up until ${hhmm(f)}` : f === Infinity ? 'not enough data for the indicators' : '';
   }
@@ -791,7 +797,9 @@ const loading = text => {
 };
 
 // ---- start ---------------------------------------------------------------------------------------------------
-NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } refreshText(); });
+// a switch: the gate again (gate.js counts the lines switched on), then the candles' states, the shading, the header's
+// word and chips, and the readout, without loading anything
+NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { if (day && day[p.key] && p.mainBars.length) p.gate(); for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } if (day) refreshText(); });
 (async () => {
   try {
     loading('Loading the list of days…');

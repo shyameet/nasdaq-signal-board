@@ -29,9 +29,10 @@ const PANES = {
 // own, one while it is above 0 and one while below, so its color changes where it crosses zero. The MACDs keep the
 // board's colors; the waves take Rahul's "Wave lines" colors.
 const LINE = {
-  m1: { tf: 1, label: '1m', v: b => b.macd, pair: ['#facc15', '#8b5cf6'], tip: '1m MACD (12, 26): entry E2 is its cross of 0' },   // yellow / violet
-  m2: { tf: 2, label: '2m', v: b => b.macd, pair: ['#fb7185', '#22c55e'], tip: '2m MACD (12, 26): entry E1 is its cross of 0' },   // rose / green
-  m3: { tf: 3, label: '3m', v: b => b.macd, pair: ['#38bdf8', '#fb923c'], tip: '3m MACD (12, 26): shown only, no entry uses it' },   // sky / orange (owner 29/10)
+  m1: { tf: 1, label: '1m', v: b => b.macd, pair: ['#facc15', '#8b5cf6'], tip: '1m MACD (12, 26): shown only, the gate doesn\'t use it' },   // yellow / violet
+  m2: { tf: 2, label: '2m', v: b => b.macd, pair: ['#fb7185', '#22c55e'], tip: '2m MACD (12, 26): shown only, the gate doesn\'t use it' },   // rose / green
+  m3: { tf: 3, label: '3m', v: b => b.macd, pair: ['#38bdf8', '#fb923c'], tip: '3m MACD (12, 26): shown only, the gate doesn\'t use it' },   // sky / orange (owner 29/10)
+  // (the entries E1-E4 that read the 1m and 2m MACD came off the board: owner 2/11/2026)
   w5a: { tf: 5, label: '5m 8/47', v: b => b.ema8 - b.ema47, pair: ['#00E676', '#FF5252'] },
   w5b: { tf: 5, label: '5m 21/47', v: b => b.ema21 - b.ema47, pair: ['#00B8D4', '#FF9100'] },
   w9a: { tf: 9, label: '9m 8/47', v: b => b.ema8 - b.ema47, pair: ['#2979FF', '#FFEA00'] },
@@ -40,7 +41,7 @@ const LINE = {
   w11b: { tf: 11, label: '11m 21/47', v: b => b.ema21 - b.ema47, pair: ['#B0BEC5', '#8D6E63'] },
 };
 for (const l of ['w5a', 'w5b', 'w9a', 'w9b', 'w11a', 'w11b'])
-  LINE[l].tip = `${LINE[l].label.replace(' ', ' EMA ').replace('/', ' − EMA ')} (left color above 0, right color below): one of the gate's waves`;
+  LINE[l].tip = `${LINE[l].label.replace(' ', ' EMA ').replace('/', ' − EMA ')} (left color above 0, right color below): counts for the gate and the shading while switched on`;
 const LINES = [...new Set(Object.values(LINE).map(l => l.tf))];  // the candle sizes the engine must provide
 const shades = lines => Object.fromEntries(lines.map(l => [l, LINE[l].pair]));
 const faded = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}, ${a})`;

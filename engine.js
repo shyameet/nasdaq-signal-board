@@ -156,7 +156,7 @@ class TrendSignal {  // members' 1-minute closes combined (sum of coef * close),
     this.coef = coef; this.coins = Object.keys(coef);
     // two or more members: each one's own gate, from its own closes; the series' gate is where they all agree
     this.parts = this.coins.length > 1 ? Object.fromEntries(this.coins.map(c => [c, new TrendSignal({ [c]: 1 }, TIMEFRAMES, origin)])) : null;
-    if (this.parts) for (const p of Object.values(this.parts)) p.trace = null;  // only their gates count
+    // (each member keeps its trace too: the gate from the lines switched on reads every member's own lines, gate.js, 1/11/2026)
     this.prices = null;
     this.tfs = {};
     for (const m of Object.keys(timeframes).map(Number).sort((a, b) => a - b)) this.tfs[m] = new Timeframe(m, timeframes[m], origin);
