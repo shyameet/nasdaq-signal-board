@@ -25,6 +25,7 @@
 <script src="gate.js?v=1"></script>
 <script src="draw.js?v=8"></script>
 <script src="install.js?v=2"></script>
+<script src="finder.js?v=1"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
   /* The Compare page (owner 1/11/2026): two charts side by side, each on its own market (the board's own markets only:
@@ -101,22 +102,8 @@
   .tag .t-ema { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-ui); }
   .pane .tag.mix { max-width: calc(100% - 90px); }
 
-  /* the market search (a box over every market; the list opens under it) */
-  .ip-in { width: 11em; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text);
-           font: 600 12px var(--font-ui); }
-  .ip-in:hover { border-color: var(--line-strong); }
-  .ip-in::placeholder { color: var(--faint); font-weight: 400; }
-  .ip-pop { position: fixed; z-index: 60; overflow-y: auto; padding: 6px; border: 1px solid var(--line-strong); border-radius: 10px;
-            background: var(--surface); box-shadow: 0 16px 48px rgba(0, 0, 0, .55); font: 12px var(--font-ui); }
-  .ip-pop[hidden] { display: none; }
-  .ip-g { padding: 6px 8px 3px; color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
-  .ip-it { display: flex; width: 100%; align-items: baseline; gap: 8px; padding: 5px 8px; border: 0; border-radius: 6px; background: transparent;
-           color: var(--text); cursor: pointer; text-align: left; }
-  .ip-it b { font: 600 12px var(--font-num); white-space: nowrap; }
-  .ip-it span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .ip-it:hover, .ip-it.hi { background: var(--tile); }
-  .ip-it.on b { color: var(--accent); }
-  .ip-none { padding: 8px; color: var(--muted); }
+  /* each chart's market button opens the market finder (finder.js, owner 3/11/2026) */
+  .pctl .nf-btn { max-width: 15em; }
 
   #loading, .ploading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--bg); color: var(--muted); }
   #loading { position: fixed; inset: 0; z-index: 50; }
@@ -247,9 +234,10 @@ const VPS = {
   SBIN: { name: 'SBI', sub: 'State Bank of India', kind: 'india', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
 };
 const DEFAULTS = { a: 'hl:' + BENCH, b: 'MNQ' };  // a first visit: the Nasdaq tab's pair, XYZ100 and MNQ
-let BASKET = null, PERPS = { members: {}, crypto: {} }, ACTIVE = [];
+let BASKET = null, PERPS = { members: {}, more: {}, crypto: {}, groups: [] }, ACTIVE = [];
 const tk = c => c.replace(/^xyz:/, '');
-const hlName = c => PERPS.members[c] ? PERPS.members[c].ticker : /^xyz:/.test(c) || !c.includes(':') ? tk(c) : c;  // xyz's and the main dex's by name; another dex's with its dex
+const perpOf = c => PERPS.members[c] || PERPS.more[c] || PERPS.crypto[c] || null;  // the Perps tab's own (perps.json)
+const hlName = c => perpOf(c) && perpOf(c).ticker && !PERPS.crypto[c] ? perpOf(c).ticker : /^xyz:/.test(c) || !c.includes(':') ? tk(c) : c;  // the Perps tab's name; else xyz's and the main dex's by name, another dex's with its dex
 // the Nasdaq tab's composite: your stocks (the pick every tab shares), each counting equally
 const SEL_KEY = 'nsb.div.stocks';
 const ALL = () => Object.keys(BASKET.members);
@@ -264,7 +252,8 @@ const custom = () => ACTIVE.join() !== DEFAULT().join();
 const leftName = () => custom() ? (ACTIVE.length <= 3 ? ACTIVE.map(tk).join('+') : `Basket ${ACTIVE.length}`) : 'NDX10';
 const composite = () => Object.fromEntries(ACTIVE.map(c => [c, BASKET.base / ACTIVE.length / BASKET.members[c].ref_price]));
 // One market: everything a chart needs to know about it. kind 'hl' (a Hyperliquid market of the board's: the Nasdaq tab's
-// stocks and XYZ100, the Perps tab's stocks and crypto; any other is refused, a saved one too), 'comp' (your stocks), 'fut'
+// stocks and XYZ100, the Perps tab's stocks (every one Hyperliquid trades, since 3/11/2026) and crypto; any other is
+// refused, a saved one too), 'comp' (your stocks), 'fut'
 // (CME and MCX futures) or 'india'; its day (CAL), its candles' origin, where its day lines go, its Swing candles
 // (swing.js), and how many days are shown, warmed up on and added at the left edge (its tab's).
 function instOf(id) {
@@ -280,8 +269,8 @@ function instOf(id) {
   }
   if (!/^hl:./.test(id)) return null;
   const coin = id.slice(3), bench = coin === BENCH, ticker = PERPS.members[coin] ? PERPS.members[coin].ticker : null;
-  if (!bench && !(BASKET && BASKET.members[coin]) && !PERPS.members[coin] && !PERPS.crypto[coin]) return null;
-  return { id, coin, kind: 'hl', label: hlName(coin), name: hlName(coin), sub: (PERPS.members[coin] || PERPS.crypto[coin] || {}).company || (BASKET && BASKET.members[coin] || {}).company || '',
+  if (!bench && !(BASKET && BASKET.members[coin]) && !perpOf(coin)) return null;
+  return { id, coin, kind: 'hl', label: hlName(coin), name: hlName(coin), sub: (perpOf(coin) || {}).company || (BASKET && BASKET.members[coin] || {}).company || '',
            origin: 0, cal: bench ? 'cme' : 'ist', lines: bench ? 'cme' : 'ist', paneDays: bench ? 'cme' : -IST, home: { show: 3, warm: 1, more: 2 },
            arch: bench ? 'nasdaq' : perpsCoins.has(coin) ? 'perps' : nasdaqCoins().has(coin) ? 'nasdaq' : null,
            swing: { id: 'hl_' + coin.replace(/:/g, '_'), hl: coin, origin: 0, under: bench ? 'us_NDX' : ticker ? 'us_' + ticker : null } };
@@ -523,7 +512,7 @@ class Panel {
     $('board').insertAdjacentHTML('beforeend', `
       <section class="panel" id="${key}">
         <div class="phead">
-          <span class="pctl"><input class="ip-in" id="${key}-q" type="text" autocomplete="off" spellcheck="false" aria-label="Market" title="The market shown: type to search" placeholder="Search markets"></span>
+          <span class="pctl"><button type="button" class="nf-btn" id="${key}-pick" aria-haspopup="dialog" aria-expanded="false" title="Pick a market"><b>—</b><span></span><i>▼</i></button></span>
           <span class="pname" id="${key}-name">—</span><span class="pval" id="${key}-val">—</span>
           <span class="gate"><span class="gk">Gate</span><span class="gw" id="${key}-gate">—</span></span>
           <span class="conds" id="${key}-conds"></span>
@@ -997,17 +986,37 @@ function refreshText(fresh) {
   for (const p of panelList()) { if (!p.main) continue; const [own, minute] = ownAt(p, t, hoverSrc); p.tags(own); p.head(minute); }
 }
 
-// ---- the market search (owner 1/11/2026): every market of the board --------------------------------------------------
-function groups() {
-  const g = [];
-  g.push(['Nasdaq', [...ALL().map(c => 'hl:' + c), 'hl:' + BENCH, 'comp']]);
-  g.push(['CME futures', ['MNQ', 'MCL', 'NG', 'MGC', 'SIL', 'MHG']]);
-  g.push(['MCX', ['CRUDEOILM', 'NATGASMINI', 'GOLDM', 'SILVERM', 'COPPER']]);
-  g.push(['India', ['NIFTY', 'BANKNIFTY', 'GIFTNIFTY', 'RELIANCE', 'HDFCBANK', 'ICICIBANK', 'BHARTIARTL', 'LT', 'KOTAKBANK', 'AXISBANK', 'SBIN']]);
-  g.push(['Perps · stocks', Object.keys(PERPS.members).map(c => 'hl:' + c)]);
-  g.push(['Perps · crypto', Object.keys(PERPS.crypto).map(c => 'hl:' + c)]);
-  return g;
+// ---- the market finder (owner 1/11/2026: every market of the board; 3/11/2026: "i also need this on the compare tab"): the
+// board's own groups (kept in their order), then every stock Hyperliquid trades in the Perps tab's groups (busiest first),
+// ★ My list (the same on every tab), the search over all of them (finder.js)
+const BOARD = () => [
+  ['nasdaq', 'Nasdaq', [...ALL().map(c => 'hl:' + c), 'hl:' + BENCH, 'comp']],
+  ['cme', 'CME futures', ['MNQ', 'MCL', 'NG', 'MGC', 'SIL', 'MHG']],
+  ['mcx', 'MCX', ['CRUDEOILM', 'NATGASMINI', 'GOLDM', 'SILVERM', 'COPPER']],
+  ['india', 'India', ['NIFTY', 'BANKNIFTY', 'GIFTNIFTY', 'RELIANCE', 'HDFCBANK', 'ICICIBANK', 'BHARTIARTL', 'LT', 'KOTAKBANK', 'AXISBANK', 'SBIN']],
+  ['coins', 'Crypto', Object.keys(PERPS.crypto).map(c => 'hl:' + c)],  // (not 'crypto': the stocks' Crypto-linked group)
+];
+const ORDERED = new Set(['nasdaq', 'cme', 'mcx', 'india']);
+function finderItems() {  // every market a chart can show, each once, with every group it is in
+  const items = new Map();
+  const add = (id, group) => {
+    let it = items.get(id);
+    if (!it) {
+      const i = instOf(id);
+      if (!i) return;
+      const coin = i.kind === 'hl' ? i.coin : null, m = coin ? perpOf(coin) : null, mfp = !!(coin && PERPS.members[coin]);
+      it = { id, coin, ticker: i.label, name: id === 'comp' ? `${leftName()} · ${ACTIVE.length} stocks` : i.sub || (coin === BENCH ? 'Nasdaq-100 index perp (trade.xyz)' : ''), kind: m && m.kind,
+             mfp, groups: [...((m && m.groups) || []), ...(mfp ? ['mfp'] : [])], where: m && m.where };
+      items.set(id, it);
+    }
+    if (group && !it.groups.includes(group)) it.groups.push(group);
+  };
+  for (const [g, , ids] of BOARD()) for (const id of ids) add(id, g);
+  for (const c of [...Object.keys(PERPS.members), ...Object.keys(PERPS.more)]) add('hl:' + c, null);
+  return [...items.values()];
 }
+const finderChips = () => [['star', '★ My list'], ...BOARD().map(([g, label]) => [g, label]), ['mfp', 'MyFundedPerps'], ['all', 'All'], ...PERPS.groups];
+const chipOf = () => { const g = pref('chip', null); return g && finderChips().some(x => x[0] === g) ? g : NsbFinder.stars().length ? 'star' : 'nasdaq'; };
 // a list or calendar opened from a chart's header (fixed on the screen): under its control, or above it when there is no
 // room below (the second chart's header low on a phone screen); placed again when the page scrolls or the keyboard opens
 function placePop(pop, anchor, gap, fit) {  // fit: the list may shrink to the room it gets (it scrolls inside)
@@ -1019,70 +1028,31 @@ function placePop(pop, anchor, gap, fit) {  // fit: the list may shrink to the r
   pop.style.top = `${Math.round(down ? r.bottom + gap : r.top - gap - pop.offsetHeight)}px`;
 }
 function placePops(e) {  // (not for a scroll inside the list itself)
-  if (e && e.target && e.target.closest && e.target.closest('.ip-pop, .dp-pop')) return;
+  if (e && e.target && e.target.closest && e.target.closest('.nf, .dp-pop')) return;
   for (const p of panelList()) p.picker.place();
 }
 window.addEventListener('scroll', placePops, { passive: true, capture: true });
 window.addEventListener('resize', placePops);
 if (window.visualViewport) { visualViewport.addEventListener('resize', placePops); visualViewport.addEventListener('scroll', placePops); }
-class Picker {
+class Picker {  // a chart's market button and its finder
   constructor(panel) {
-    this.p = panel; this.q = $(`${panel.key}-q`); this.hi = -1;
-    this.pop = document.createElement('div');
-    this.pop.className = 'ip-pop'; this.pop.hidden = true; this.pop.setAttribute('role', 'listbox'); this.pop.setAttribute('aria-label', 'Markets');
-    document.body.appendChild(this.pop);
-    this.q.addEventListener('focus', () => { this.q.select(); this.open(true); });
-    this.q.addEventListener('input', () => { this.hi = -1; this.redraw(); });
-    this.q.addEventListener('keydown', e => {
-      const items = [...this.pop.querySelectorAll('.ip-it')];
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        this.hi = Math.max(0, Math.min(items.length - 1, this.hi + (e.key === 'ArrowDown' ? 1 : -1)));
-        items.forEach((b, i) => b.classList.toggle('hi', i === this.hi));
-        if (items[this.hi]) items[this.hi].scrollIntoView({ block: 'nearest' });
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        const b = items[this.hi >= 0 ? this.hi : 0];
-        if (b) this.pick(b.dataset.id);
-      } else if (e.key === 'Escape') { this.q.blur(); }
-    });
-    this.q.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== this.q) { this.open(false); this.reset(); } }, 150));
-    this.pop.addEventListener('pointerdown', e => e.preventDefault());  // the box keeps the focus
-    this.pop.addEventListener('click', e => { const b = e.target.closest('.ip-it'); if (b) this.pick(b.dataset.id); });
+    this.p = panel; this.btn = $(`${panel.key}-pick`);
+    this.f = NsbFinder.make({ anchor: this.btn, items: finderItems, chips: finderChips, chip: chipOf, setChip: g => save('chip', g),
+                              ordered: g => ORDERED.has(g), current: () => this.p.inst && this.p.inst.id, mfp: () => true, onPick: id => this.pick(id) });
+    this.btn.onclick = () => this.f.toggle();
     this.reset();
   }
-  reset() { const i = this.p.inst; this.q.value = i ? i.label : ''; this.q.title = i ? `${i.label}${i.sub ? ' · ' + i.sub : ''}: type to search` : 'The market shown: type to search'; }
-  remove() { this.pop.remove(); }
-  open(on) {
-    this.pop.hidden = !on;
-    if (!on) return;
-    this.redraw();
-    this.place();
+  reset() {  // the button: the market shown
+    const i = this.p.inst;
+    this.btn.querySelector('b').textContent = i ? i.label : '—';
+    this.btn.querySelector('span').textContent = i ? (i.id === 'comp' ? leftName() : i.sub || '') : '';
+    this.btn.title = i ? `${i.label}${i.sub ? ' · ' + i.sub : ''}: pick another market` : 'Pick a market';
   }
-  place() {  // under the box, or above it when the box sits low on the screen (a phone); again when the page scrolls
-    if (this.pop.hidden) return;
-    const r = this.q.getBoundingClientRect(), w = Math.min(340, innerWidth - 16), s = this.pop.style;
-    s.width = `${w}px`; s.left = `${Math.round(Math.max(8, Math.min(r.left, innerWidth - w - 8)))}px`;
-    placePop(this.pop, this.q, 4, true);
-  }
-  redraw() {
-    if (this.pop.hidden) return;
-    const q = this.q.value.trim().toLowerCase(), cur = this.p.inst && this.p.inst.id, typed = this.p.inst && this.q.value !== this.p.inst.label;
-    let html = '';
-    for (const [title, ids] of groups()) {
-      const items = ids.map(id => [id, instOf(id)]).filter(([, i]) => i)
-        .filter(([id, i]) => !typed || !q || `${i.label} ${i.sub} ${id.replace(/^hl:/, '')} ${title}`.toLowerCase().includes(q));
-      if (!items.length) continue;
-      html += `<div class="ip-g">${esc(title)}</div>` + items.map(([id, i]) => `<button type="button" class="ip-it${id === cur ? ' on' : ''}" data-id="${esc(id)}" role="option">`
-        + `<b>${esc(i.label)}</b><span>${esc(i.sub || (id === 'comp' ? `${leftName()} · ${ACTIVE.length} stocks` : ''))}</span></button>`).join('');
-    }
-    this.pop.innerHTML = html || '<div class="ip-none">No market matches</div>';
-  }
+  remove() { this.f.close(); this.f.el.remove(); }
+  place() { this.f.place(); }
   async pick(id) {
     const inst = instOf(id);
-    this.open(false); this.q.blur();
     if (!inst) return;
-    this.q.value = inst.label;
     await this.p.show(inst);
     this.reset();  // the market shown (the one picked, or the one kept when it could not load)
   }
@@ -1177,7 +1147,7 @@ NsbMacd.onToggle(() => { for (const p of panelList()) { p.regate(); for (const p
   try {
     loading('Loading the list of markets…');
     const [b, j] = await Promise.all([fetch('basket.json', { cache: 'no-cache' }).then(r => r.json()), fetch('perps.json', { cache: 'no-cache' }).then(r => r.json())]);
-    BASKET = b; PERPS = { members: j.members || {}, crypto: j.crypto || {} };
+    BASKET = b; PERPS = { members: j.members || {}, more: j.more || {}, crypto: j.crypto || {}, groups: j.groups || [] };
     readPick();
     await Promise.all([readArchives(), readFut(), readInd(), NsbRolls.load()]);
     // drawings: draw.js keeps one set of drawings per page at a time (NsbDraw.use switches the whole page), so the two charts
