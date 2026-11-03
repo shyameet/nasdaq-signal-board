@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Perps · Indra Quant Signal Board</title>
-<meta name="description" content="The stock perps MyFundedPerps lists and ten crypto coins, one at a time on Hyperliquid's own prices, with the RDX WIP gate, the Entry, Trend and Swing panes.">
+<meta name="description" content="Every stock perp Hyperliquid trades (picked in a finder with sector groups) and ten crypto coins, one at a time on Hyperliquid's own prices, with the RDX WIP gate, the Entry, Trend and Swing panes.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -29,7 +29,71 @@
   .tf-sel { padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text);
             font: 500 12px var(--font-num); cursor: pointer; }
   .tf-sel:hover { border-color: var(--line-strong); }
-  #stockSel { width: 10.5em; }   /* the list opens with the full names; closed, the header shows the company */
+  /* ---- the market finder (owner 3/11/2026: every stock Hyperliquid trades, "(a) The finder in the picture") ---- */
+  .pick-btn { display: inline-flex; align-items: center; gap: 6px; max-width: 16em; padding: 3px 8px; border: 1px solid var(--line);
+              border-radius: 7px; background: var(--bg); color: var(--text); font: 600 12px var(--font-num); cursor: pointer; }
+  .pick-btn:hover, .pick-btn[aria-expanded="true"] { border-color: var(--accent); }
+  .pick-btn span { font: 400 12px var(--font-ui); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pick-btn i { font-style: normal; color: var(--muted); font-size: 10px; }
+  .step-btn { padding: 2px 7px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--muted);
+              font: 600 13px/18px var(--font-num); cursor: pointer; }
+  .step-btn:hover { color: var(--text); border-color: var(--line-strong); }
+  .pick-pos { color: var(--faint); font-size: 11.5px; white-space: nowrap; }
+  .finder { position: fixed; z-index: 45; width: min(680px, calc(100vw - 16px)); display: flex; flex-direction: column;
+            background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: 0 18px 50px rgba(0, 0, 0, .6); }
+  .finder[hidden] { display: none; }
+  .f-search { margin: 10px 10px 8px; padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--bg);
+              color: var(--text); font: 13px var(--font-ui); outline: none; }
+  .f-search:focus { border-color: var(--accent); }
+  .f-search::placeholder { color: var(--faint); }
+  .f-chips { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 10px 9px; border-bottom: 1px solid var(--line); }
+  .f-chips[hidden] { display: none; }
+  .chip { padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted);
+          font: 12px var(--font-ui); white-space: nowrap; cursor: pointer; }
+  .chip:hover { color: var(--text); border-color: var(--line-strong); }
+  .chip em { font: normal 11px var(--font-num); color: var(--faint); margin-left: 4px; }
+  .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #06101f; font-weight: 600; }
+  .chip[aria-pressed="true"] em { color: #0b1d3d; }
+  .chip.star { color: var(--warn); border-color: #4a3a16; }
+  .f-head, .frow { display: grid; grid-template-columns: 24px 96px minmax(0, 1fr) 96px 58px 78px; gap: 0 8px; align-items: center; padding: 0 12px; }
+  .f-head { padding-top: 6px; padding-bottom: 4px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+  .f-head span:nth-child(n+5), .frow .fch, .frow .fv { text-align: right; }
+  .f-head span { white-space: nowrap; }
+  .f-rows { overflow-y: auto; min-height: 0; flex: 1; }
+  .frow { padding-top: 5px; padding-bottom: 5px; border-top: 1px solid var(--line); cursor: pointer; }
+  .frow:hover { background: var(--tile); }
+  .frow.sel { background: var(--tile-2); box-shadow: inset 3px 0 0 var(--accent); }
+  .frow.now .ft { color: var(--accent); }
+  .fstar { padding: 0; border: 0; background: none; color: var(--faint); font-size: 14px; cursor: pointer; }
+  .fstar.on { color: var(--warn); }
+  .ft { font: 600 12.5px var(--font-num); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fc { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fch, .fv { font: 12px var(--font-num); white-space: nowrap; }
+  .fv { color: var(--text); }
+  .ftag { font: 10.5px var(--font-ui); padding: 1px 6px; border-radius: 4px; }
+  .ftag.mfp { background: #13283f; color: #8fb6ff; } .ftag.ipo { background: #3a2a10; color: var(--warn); }
+  .ftag.etf { background: var(--tile-2); color: var(--muted); }
+  .fnone { color: var(--faint); }
+  .mfp-dot { display: none; margin-left: 5px; font: 600 9.5px var(--font-ui); padding: 0 4px; border-radius: 3px; background: #13283f; color: #8fb6ff; vertical-align: 1px; }
+  .fempty { padding: 18px 12px; color: var(--faint); }
+  .f-foot { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 7px 12px; border-top: 1px solid var(--line); color: var(--faint); font-size: 11.5px; }
+  .f-foot b { color: var(--muted); font-weight: 500; }
+  .finder.crypto .f-head .fm-h, .finder.crypto .frow .fm { visibility: hidden; }
+  @media (max-width: 1120px) {  /* the bar stays one row down to the old width (1024 px measured 3/11/2026) */
+    .pick-pos { display: none; }
+    .pick-btn span { display: none; }  /* the ticker only; the company is in the chart's header */
+  }
+  @media (max-width: 640px) {
+    .f-head { display: none; }
+    .frow { grid-template-columns: 24px minmax(0, 1fr) 54px 58px; grid-template-areas: "s t ch v" "s c ch v"; row-gap: 1px; }
+    .frow .fstar { grid-area: s; } .frow .ft { grid-area: t; } .frow .fc { grid-area: c; font-size: 12px; }
+    .frow .fch { grid-area: ch; } .frow .fv { grid-area: v; } .frow .fm { display: none; }
+    .mfp-dot { display: inline-block; }
+    .f-foot { display: none; }
+    .pick-pos { display: none; }
+    .f-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }  /* one row to swipe, so the list keeps the screen */
+    .f-chips::-webkit-scrollbar { display: none; }
+  }
   #kindSeg button { font-family: var(--font-ui); }
   /* The Perps page (owner 31/10/2026): one market at a time (the stock perps, or the crypto coins), one Indian calendar
      day at a time, with the Nasdaq tab's indicators (gate zones, the 5m EMA 8/21/47, the Entry MACD and Trend waves
@@ -129,12 +193,22 @@
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
   <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" aria-current="page" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a></nav>
   <div class="grp"><div class="seg" id="kindSeg" role="group" aria-label="Stocks or crypto"></div>
-    <select class="tf-sel" id="stockSel" aria-label="Market" title="The market shown"></select></div>
+    <button type="button" class="step-btn" id="prevBtn" title="The previous market in the group" aria-label="Previous market">‹</button>
+    <button type="button" class="pick-btn" id="pickBtn" aria-haspopup="dialog" aria-expanded="false" title="Pick a market (or press /)"><b id="pickTk">—</b><span id="pickCo"></span><i>▼</i></button>
+    <button type="button" class="step-btn" id="nextBtn" title="The next market in the group" aria-label="Next market">›</button>
+    <span class="pick-pos" id="pickPos"></span></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
   <div class="spacer"></div>
 </header>
 <main class="board" id="board"></main>
+<div class="finder" id="finder" role="dialog" aria-label="Pick a market" hidden>
+  <input class="f-search" id="fSearch" type="search" autocomplete="off" spellcheck="false" placeholder="Type a ticker or a name: “micron”, “korea”, “memory”…" aria-label="Search">
+  <div class="f-chips" id="fChips" role="group" aria-label="Groups"></div>
+  <div class="f-head"><span></span><span>Ticker</span><span>Company</span><span class="fm-h">MyFundedPerps</span><span>24h</span><span>24h traded</span></div>
+  <div class="f-rows" id="fRows" role="listbox" aria-label="Markets"></div>
+  <div class="f-foot"><span><b>↑ ↓</b> move</span><span><b>Enter</b> open</span><span><b>★</b> your list (this browser)</span><span><b>‹ ›</b> next in the group</span><span><b>Esc</b> close</span></div>
+</div>
 <div id="older" class="older" hidden>Loading older days…</div>
 <div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
 <script>
@@ -207,11 +281,14 @@ const opt = {
 
 // ---- data: one UTC day of 1-minute candles per market ----------------------------------------------------------
 // From our daily archive (data/perps/1m/YYYY-MM-DD/<coin>.json, written by the VPS) when it has the day, else straight
-// from Hyperliquid, which keeps about the last 3.5 days of 1-minute candles.
+// from Hyperliquid, which keeps about the last 3.5 days of 1-minute candles. Archived: the MyFundedPerps stocks and the
+// crypto coins (ARCHIVED); every other stock (perps.json "more", owner 3/11/2026) only from Hyperliquid (owner's choice
+// (a): no site space), so its calendar has its last 3 or 4 days.
 let MEMBERS = {}, LISTS = {}, ALL = [], KIND = 'stocks', COIN = null, archiveDays = new Set(), hlFrom = Infinity;
+let GROUPS = [], ARCHIVED = new Set();
 const dayCache = new Map();  // UTC day -> { coin: { bars, source, complete } }
 const tk = c => MEMBERS[c] ? MEMBERS[c].ticker : c.replace(/^xyz:/, '');
-const fileOf = c => c.replace(/^xyz:/, '');  // the archive's name for it: Hyperliquid's own
+const fileOf = c => c.split(':').pop();  // the archive's name for it: Hyperliquid's own, without its dex (perps_days.py)
 async function archiveIndex() {
   try {
     const r = await fetch('data/perps/1m/index.json', { cache: 'no-cache' });
@@ -244,7 +321,7 @@ async function loadDay(key, coin) {  // -> { bars (toBar objects), source, compl
   if (dayStart(key) > Date.now()) return { bars: [], source: 'hl', complete: false };  // not begun yet (not cached: it will)
   const d0 = dayStart(key), done = ended(key);
   let bars = null, source = 'hl', failed = false;
-  if (archiveDays.has(key) && key !== dayKey(Date.now())) {
+  if (archiveDays.has(key) && ARCHIVED.has(coin) && key !== dayKey(Date.now())) {
     for (let attempt = 0; attempt < 2; attempt++) {  // a 5xx or no answer: once more 0.7 s later (31/10/2026: GitHub Pages answered a day's file 503 once)
       if (attempt) await new Promise(r => setTimeout(r, 700));
       try {
@@ -619,39 +696,176 @@ function seg(el, items, current, onPick) {
   for (const b of el.children) b.onclick = () => { onPick(b.dataset.v); for (const x of el.children) x.setAttribute('aria-pressed', String(x === b)); };
 }
 const picked = k => { const c = pref(k === 'stocks' ? 'stock' : 'crypto', null); return LISTS[k].includes(c) ? c : LISTS[k].includes(FIRST[k]) ? FIRST[k] : LISTS[k][0]; };
-function fillList() {
-  $('stockSel').innerHTML = ALL.map(c => `<option value="${c}"${c === COIN ? ' selected' : ''}>${tk(c)} · ${MEMBERS[c].company}</option>`).join('');
+
+// ---- the market finder (owner 3/11/2026: "add all the stocks from hyperliquid but how would we categorize so much in a
+// drop down list" -> "(a) The finder in the picture"): a search box over the whole list, the sector groups (perps.json
+// "groups"; a stock can be in two), ★ My list (this browser), MyFundedPerps (the stocks it lists), busiest first
+// (Hyperliquid's 24-hour volume), and ‹ › for the next or previous market of the group without opening it
+let STATS = {}, statsAt = 0, statsBusy = null, finderSel = 0, finderRows = [];
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+const money = v => !v ? '—' : v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(v >= 1e7 ? 0 : 1)}M` : `$${Math.max(1, Math.round(v / 1e3))}K`;
+const pct = v => ok(v) ? `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%` : '—';
+const stars = () => { const a = pref('stars', []); return Array.isArray(a) ? a.filter(c => MEMBERS[c]) : []; };
+const groupOf = () => { if (KIND === 'crypto') return 'all'; const g = pref('group', null); return g && (['star', 'mfp', 'all'].includes(g) || GROUPS.some(x => x[0] === g)) ? g : stars().length ? 'star' : 'mfp'; };
+const groupName = g => g === 'star' ? 'My list' : g === 'mfp' ? 'MyFundedPerps' : g === 'all' ? (KIND === 'crypto' ? 'Crypto' : 'All') : (GROUPS.find(x => x[0] === g) || [g, g])[1];
+function inGroup(g) {  // a group's markets in the list shown (stocks or crypto)
+  const all = LISTS[KIND];
+  if (KIND === 'crypto' || g === 'all') return all;
+  if (g === 'star') { const s = new Set(stars()); return all.filter(c => s.has(c)); }
+  if (g === 'mfp') return all.filter(c => ARCHIVED.has(c));
+  return all.filter(c => (MEMBERS[c].groups || []).includes(g));
+}
+const busiest = list => list.slice().sort((a, b) => ((STATS[b] || {}).vol || 0) - ((STATS[a] || {}).vol || 0) || tk(a).localeCompare(tk(b)));
+function loadStats() {  // every market's 24-hour volume and change, Hyperliquid's own (its main dex and the stock dexes), a minute old at most
+  if (Date.now() - statsAt < 60000) return Promise.resolve();
+  if (statsBusy) return statsBusy;
+  const dexes = [...new Set(Object.keys(MEMBERS).map(c => c.includes(':') ? c.split(':')[0] : ''))];
+  statsBusy = Promise.all(dexes.map(async dex => {
+    const r = await fetch('https://api.hyperliquid.xyz/info', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dex ? { type: 'metaAndAssetCtxs', dex } : { type: 'metaAndAssetCtxs' }) });
+    if (!r.ok) throw new Error(r.status);
+    const [meta, ctx] = await r.json();
+    meta.universe.forEach((a, i) => { const x = ctx[i] || {}, px = +x.markPx, prev = +x.prevDayPx;
+      STATS[a.name] = { vol: +x.dayNtlVlm || 0, chg: px && prev ? px / prev - 1 : null }; });
+  })).then(() => { statsAt = Date.now(); }).catch(() => { /* asked again next time */ }).finally(() => { statsBusy = null; });
+  return statsBusy;
+}
+const starts = (c, q) => tk(c).toLowerCase().startsWith(q) || fileOf(c).toLowerCase().startsWith(q);
+function finderList() {  // typing: the whole list (tickers that begin with it first), else the group's; busiest first
+  const q = $('fSearch').value.trim().toLowerCase();
+  if (!q) return busiest(inGroup(groupOf()));
+  const label = Object.fromEntries(GROUPS);
+  const hit = c => { const m = MEMBERS[c]; return [tk(c), fileOf(c), m.company, m.where || '', ...(m.groups || []).map(g => label[g] || '')].some(s => String(s).toLowerCase().includes(q)); };  // where: its country ("korea")
+  const found = busiest(LISTS[KIND].filter(hit));
+  return found.filter(c => starts(c, q)).concat(found.filter(c => !starts(c, q)));
+}
+function renderFinder() {
+  const el = $('fChips'), g = groupOf(), searching = !!$('fSearch').value.trim();
+  $('finder').classList.toggle('crypto', KIND === 'crypto');
+  el.hidden = KIND === 'crypto';
+  if (!el.hidden) {
+    el.innerHTML = [['star', '★ My list'], ['mfp', 'MyFundedPerps'], ['all', 'All'], ...GROUPS].map(([id, label]) =>
+      `<button type="button" class="chip${id === 'star' ? ' star' : ''}" data-g="${esc(id)}" aria-pressed="${!searching && id === g}">${esc(label)}<em>${inGroup(id).length}</em></button>`).join('');
+    for (const b of el.children) b.onclick = () => { save('group', b.dataset.g); $('fSearch').value = ''; finderSel = -1; renderFinder(); updatePick(); $('fSearch').focus(); };
+  }
+  finderRows = finderList();
+  if (finderSel < 0 || finderSel >= finderRows.length) finderSel = Math.max(0, finderRows.indexOf(COIN));
+  const st = new Set(stars());
+  $('fRows').innerHTML = finderRows.length ? finderRows.map((c, i) => {
+    const m = MEMBERS[c], s = STATS[c] || {}, on = st.has(c), mfp = KIND === 'stocks' && ARCHIVED.has(c);
+    const tag = m.kind === 'preipo' ? ' <span class="ftag ipo">pre-IPO</span>' : m.kind === 'etf' ? ' <span class="ftag etf">ETF</span>' : '';
+    return `<div class="frow${i === finderSel ? ' sel' : ''}${c === COIN ? ' now' : ''}" role="option" aria-selected="${i === finderSel}" data-i="${i}">`
+      + `<button type="button" class="fstar${on ? ' on' : ''}" data-star="${esc(c)}" title="${on ? 'Take it off My list' : 'Add it to My list'}" aria-label="${on ? 'Take it off My list' : 'Add it to My list'}">${on ? '★' : '☆'}</button>`
+      + `<span class="ft">${esc(tk(c))}${mfp ? '<span class="mfp-dot" title="On MyFundedPerps">MFP</span>' : ''}</span>`
+      + `<span class="fc" title="${esc(m.company)}">${esc(m.company)}${tag}</span>`
+      + `<span class="fm">${mfp ? '<span class="ftag mfp">yes</span>' : '<span class="fnone">—</span>'}</span>`
+      + `<span class="fch ${s.chg > 0 ? 'up' : s.chg < 0 ? 'down' : ''}">${pct(s.chg)}</span><span class="fv">${money(s.vol)}</span></div>`;
+  }).join('') : '<div class="fempty">Nothing matches.</div>';
+  const sel = $('fRows').querySelector('.frow.sel');
+  if (sel) sel.scrollIntoView({ block: 'nearest' });
+}
+function markSel(i) {  // the keyboard's row, without drawing the list again
+  if (!finderRows.length) return;
+  finderSel = (i + finderRows.length) % finderRows.length;
+  for (const r of $('fRows').children) { const on = +r.dataset.i === finderSel; r.classList.toggle('sel', on); r.setAttribute('aria-selected', String(on)); }
+  const sel = $('fRows').querySelector('.frow.sel');
+  if (sel) sel.scrollIntoView({ block: 'nearest' });
+}
+function placeFinder() {  // under the market button, inside the window
+  const f = $('finder'), r = $('pickBtn').getBoundingClientRect(), w = f.offsetWidth, top = Math.round(r.bottom + 6);
+  f.style.left = `${Math.max(8, Math.min(Math.round(r.left) - 40, window.innerWidth - w - 8))}px`;
+  f.style.top = `${top}px`;
+  f.style.maxHeight = `${Math.max(240, window.innerHeight - top - 10)}px`;
+}
+function openFinder() {
+  if (!$('finder').hidden) return;
+  $('finder').hidden = false;
+  $('pickBtn').setAttribute('aria-expanded', 'true');
+  $('fSearch').value = ''; finderSel = -1;
+  renderFinder(); placeFinder();
+  $('fSearch').focus();
+  loadStats().then(() => { if (!$('finder').hidden) renderFinder(); updatePick(); });
+}
+function closeFinder() { $('finder').hidden = true; $('pickBtn').setAttribute('aria-expanded', 'false'); }
+async function pickRow(i) { const c = finderRows[i]; if (!c) return; closeFinder(); if (c !== COIN) await showMarket(c, KIND); }
+function stepList() {  // the group's markets, busiest first; the market shown is not in it (found by searching): the whole list
+  const g = groupOf(), list = busiest(inGroup(g));
+  return list.includes(COIN) ? [list, g] : [busiest(LISTS[KIND]), 'all'];
+}
+async function step(d) {
+  const [list] = stepList(), i = list.indexOf(COIN);
+  if (list.length > 1) await showMarket(list[(i + d + list.length) % list.length], KIND);
+  loadStats().then(updatePick);
+}
+function updatePick() {  // the market button and "5 of 22 · Chips & memory"
+  $('pickTk').textContent = COIN ? tk(COIN) : '—';
+  $('pickCo').textContent = COIN && MEMBERS[COIN] ? MEMBERS[COIN].company : '';
+  const [list, g] = stepList();
+  $('pickPos').textContent = COIN ? `${list.indexOf(COIN) + 1} of ${list.length} · ${groupName(g)}` : '';
+}
+function finderEvents() {
+  $('pickBtn').onclick = () => { if ($('finder').hidden) openFinder(); else closeFinder(); };
+  $('prevBtn').onclick = () => step(-1);
+  $('nextBtn').onclick = () => step(1);
+  $('fSearch').addEventListener('input', () => { finderSel = 0; renderFinder(); });
+  $('fSearch').addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); markSel(finderSel + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); markSel(finderSel - 1); }
+    else if (e.key === 'Enter') { e.preventDefault(); pickRow(finderSel); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeFinder(); $('pickBtn').focus(); }
+  });
+  $('fRows').addEventListener('click', e => {
+    const s = e.target.closest('[data-star]');
+    if (s) {  // ★: on or off My list, the list stays as it is
+      e.stopPropagation();
+      const c = s.dataset.star, a = stars(), on = a.includes(c);
+      save('stars', on ? a.filter(x => x !== c) : a.concat(c));
+      renderFinder(); updatePick(); $('fSearch').focus();
+      return;
+    }
+    const r = e.target.closest('.frow');
+    if (r) pickRow(+r.dataset.i);
+  });
+  document.addEventListener('pointerdown', e => {  // a press outside it closes it
+    if (!$('finder').hidden && !$('finder').contains(e.target) && !$('pickBtn').contains(e.target)) closeFinder();
+  }, true);
+  document.addEventListener('keydown', e => {  // "/" opens it (not while typing somewhere)
+    if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || '') && !(e.target || {}).isContentEditable) { e.preventDefault(); openFinder(); }
+    else if (e.key === 'Escape' && !$('finder').hidden) closeFinder();
+  });
+  window.addEventListener('resize', () => { if (!$('finder').hidden) placeFinder(); });
 }
 function buildControls() {
   seg($('kindSeg'), KINDS, KIND, pickKind);
-  fillList();
-  $('stockSel').onchange = () => showMarket($('stockSel').value, KIND);
+  finderEvents();
+  updatePick();
   $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === opt.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
   $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
   dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Day (India: 00:00 to 24:00 IST)' });
 }
 async function pickKind(k) {  // Stocks / Crypto: that list, at the market last shown from it
   if (k === KIND) return;
+  closeFinder();
   if (!await showMarket(picked(k), k)) seg($('kindSeg'), KINDS, KIND, pickKind);  // not loaded: the switch back as it was
 }
-async function showMarket(next, kind) {  // another market: its own drawings, its live candles, the same day
-  const was = COIN, wasKind = KIND;
+async function showMarket(next, kind) {  // another market: its own drawings, its live candles, the same day (or its newest, when it has no such day)
+  const was = COIN, wasKind = KIND, wasList = dayList;
   if (next === was) return true;
-  const use = (c, k) => { COIN = c; KIND = k; ALL = LISTS[k]; NsbDraw.use('nsb.draw.perps.' + fileOf(c)); fillList(); };
+  const use = (c, k, list) => { COIN = c; KIND = k; ALL = LISTS[k]; dayList = list || listDays(); NsbDraw.use('nsb.draw.perps.' + fileOf(c)); updatePick(); };
   // its unfinished days stopped when you left it (the stream follows the market shown only): fetched whole again
   // (31/10/2026: the minutes away were a flat line, never filled in)
   for (const d of dayCache.values()) if (d[next] && !d[next].complete) delete d[next];
   use(next, kind);
   liveSwap(was, next);
-  if (await openDay(day.key) === false) {  // not loaded: back to the market the chart still shows
-    use(was, wasKind); liveSwap(next, was);
+  if (await openDay(dayList.includes(day.key) ? day.key : dayList[0]) === false) {  // not loaded: back to the market the chart still shows
+    use(was, wasKind, wasList); liveSwap(next, was);
     return false;
   }
   save(kind === 'stocks' ? 'stock' : 'crypto', next); save('kind', kind);
   return true;
 }
-function listDays() {  // newest first: the Indian days of the archived UTC days and of the days Hyperliquid still has
-  const files = new Set(archiveDays), live = Ist.key(Date.now());
+function listDays() {  // newest first: the Indian days of the archived UTC days (the market shown has them) and of the days Hyperliquid still has
+  const files = new Set(ARCHIVED.has(COIN) ? archiveDays : []), live = Ist.key(Date.now());
   for (let t = Date.now(); dayStart(dayKey(t)) + DAY > hlFrom; t -= DAY) files.add(dayKey(t));
   const keys = new Set([...files].filter(k => files.has(Ist.prev(k))).concat(live));  // Indian day k takes UTC days k-1 (evening) and k
   return [...keys].filter(k => Ist.open(k) <= Date.now()).sort().reverse();
@@ -804,8 +1018,10 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { if (day && day
   try {
     loading('Loading the list of days…');
     const j = await (await fetch('perps.json', { cache: 'no-cache' })).json();
-    MEMBERS = { ...j.members, ...j.crypto };
-    LISTS = { stocks: Object.keys(j.members), crypto: Object.keys(j.crypto || {}) };
+    MEMBERS = { ...(j.more || {}), ...j.members, ...j.crypto };
+    LISTS = { stocks: [...Object.keys(j.members), ...Object.keys(j.more || {})], crypto: Object.keys(j.crypto || {}) };
+    ARCHIVED = new Set([...Object.keys(j.members), ...Object.keys(j.crypto || {})]);  // their every day archived (data/perps/1m)
+    GROUPS = j.groups || [];
     KIND = pref('kind', 'stocks') === 'crypto' && LISTS.crypto.length ? 'crypto' : 'stocks';
     ALL = LISTS[KIND];
     COIN = picked(KIND);
@@ -816,6 +1032,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { if (day && day
     panels.stock = new Panel('stock');
     await openDay(dayList[0]);  // today, updating every minute
     liveConnect(); everyMinute();
+    loadStats().then(updatePick);  // busiest first: the order ‹ › steps in
   } catch (e) {
     loading(`Couldn't load the Perps data (${e.message}). Reload the page to try again.`);
   }

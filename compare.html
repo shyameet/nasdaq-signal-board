@@ -335,7 +335,7 @@ async function loadDay(key, coin, arch) {
     for (let attempt = 0; attempt < 2; attempt++) {  // a 5xx or no answer: once more 0.7 s later (as the Perps tab)
       if (attempt) await new Promise(r => setTimeout(r, 700));
       try {
-        const r = await fetch(`data/perps/1m/${key}/${tk(coin)}.json`, { cache: 'no-cache' });
+        const r = await fetch(`data/perps/1m/${key}/${coin.split(':').pop()}.json`, { cache: 'no-cache' });  // the archive names a file without its dex (perps_days.py: io:ANTH -> ANTH, 3/11/2026)
         failed = !r.ok;
         if (r.ok) { bars = (await r.json()).map(([t, o, h, l, cl, v, n]) => toBar({ t, o, h, l, c: cl, v, n })); source = 'archive'; }
         if (r.ok || r.status < 500) break;
