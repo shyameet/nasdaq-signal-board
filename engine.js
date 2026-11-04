@@ -107,7 +107,13 @@ class Timeframe {  // bars of one size: closed bars with their indicators, plus 
   }
   indicators(close, commit) {
     const out = {};
-    if (this.macd) { const [line, signal] = commit ? this.macd.update(close) : this.macd.peek(close); Object.assign(out, { macd: line, signal, hist: line - signal }); }
+    if (this.macd) {
+      const [line, signal] = commit ? this.macd.update(close) : this.macd.peek(close);
+      Object.assign(out, { macd: line, signal, hist: line - signal });
+      // a closed bar keeps its EMA 12 and 26: the Entry pane's early lines work out from them, at each minute, the MACD of the
+      // bar still forming (macd.js; owner 4/11/2026)
+      if (commit) Object.assign(out, { f12: this.macd.fast.value, s26: this.macd.slow.value });
+    }
     if (this.ema8) Object.assign(out, commit ? { ema8: this.ema8.update(close), ema21: this.ema21.update(close), ema47: this.ema47.update(close) }
                                              : { ema8: this.ema8.peek(close), ema21: this.ema21.peek(close), ema47: this.ema47.peek(close) });
     return out;

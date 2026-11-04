@@ -33,8 +33,8 @@ PANES.all = { title: 'Lines', lines: [...PANES.entry.lines, ...PANES.trend.lines
 // board's colors; the waves take Rahul's "Wave lines" colors.
 const LINE = {
   m1: { tf: 1, label: '1m', v: b => b.macd, pair: ['#facc15', '#8b5cf6'], tip: '1m MACD (12, 26): shown only, the gate doesn\'t use it' },   // yellow / violet
-  m2: { tf: 2, label: '2m', v: b => b.macd, pair: ['#fb7185', '#22c55e'], tip: '2m MACD (12, 26): shown only, the gate doesn\'t use it' },   // rose / green
-  m3: { tf: 3, label: '3m', v: b => b.macd, pair: ['#38bdf8', '#fb923c'], tip: '3m MACD (12, 26): shown only, the gate doesn\'t use it' },   // sky / orange (owner 29/10)
+  m2: { tf: 2, label: '2m', v: b => b.macd, pair: ['#fb7185', '#22c55e'], early: true, tip: '2m MACD (12, 26): shown only, the gate doesn\'t use it. Solid: its closed 2-minute candles; dotted: every minute, as if its candle closed then' },   // rose / green
+  m3: { tf: 3, label: '3m', v: b => b.macd, pair: ['#38bdf8', '#fb923c'], early: true, tip: '3m MACD (12, 26): shown only, the gate doesn\'t use it. Solid: its closed 3-minute candles; dotted: every minute, as if its candle closed then' },   // sky / orange (owner 29/10)
   // (the entries E1-E4 that read the 1m and 2m MACD came off the board: owner 2/11/2026)
   w5a: { tf: 5, label: '5m 8/47', v: b => b.ema8 - b.ema47, pair: ['#00E676', '#FF5252'] },
   w5b: { tf: 5, label: '5m 21/47', v: b => b.ema21 - b.ema47, pair: ['#00B8D4', '#FF9100'] },
@@ -55,7 +55,7 @@ const MATCH = { BULLISH: 'rgba(43, 182, 138, 0.13)', BEARISH: 'rgba(240, 85, 95,
 
 // ---- which lines are on ------------------------------------------------------------------------------
 const KEY = 'nsb.macd.show';
-const show = Object.fromEntries([...Object.keys(LINE).map(l => [l, true]), ['sig', true]]);
+const show = Object.fromEntries([...Object.keys(LINE).map(l => [l, true]), ['sig', true], ['early', true]]);
 try {
   const saved = JSON.parse(localStorage.getItem(KEY));
   if (saved && typeof saved === 'object') for (const k in show) if (typeof saved[k] === 'boolean') show[k] = saved[k];
@@ -92,8 +92,14 @@ window.addEventListener('storage', e => {
 // A src bar that carries its own `end` (ms) closes then (1/11/2026: the Swing pane's weeks and months, which the one-day
 // cap of bucketEnd would show from the end of their first day); the others close at bucketEnd, as before
 const barEnd = (b, m, origin) => typeof b.end === 'number' ? b.end : bucketEnd(b.time, m, origin);
+// A line with `early` (the 2m and 3m MACD, owner 4/11/2026: "update the macd every 1 min instead of waiting for candle close")
+// also gets ev: at each candle's close, the value its own candle would have if it closed then - the EMA 12 and 26 of its last
+// closed candle moved on by the series' last closed minute (as the engine's forming bar: never ahead of that minute). Once its
+// candle has closed, ev is the line's value; nothing else reads it.
+const EMA12 = 2 / 13, EMA26 = 2 / 27;
 function points(bars, tf, src, lines, origin = 0) {
-  const out = [], tfs = [...new Set(lines.map(l => LINE[l].tf))], k = Object.fromEntries(tfs.map(m => [m, -1]));
+  const early = lines.filter(l => LINE[l].early);
+  const out = [], tfs = [...new Set([...lines.map(l => LINE[l].tf), ...(early.length ? [1] : [])])], k = Object.fromEntries(tfs.map(m => [m, -1]));
   for (let i = 0; i < bars.length; i++) {
     const end = bucketEnd(bars[i].time, tf, origin), v = {}, sg = {}, at = {};
     for (const m of tfs) {
@@ -106,7 +112,16 @@ function points(bars, tf, src, lines, origin = 0) {
       const b = at[LINE[l].tf], x = b ? LINE[l].v(b) : null;
       if (ok(x)) { v[l] = x; if (LINE[l].sig) sg[l] = LINE[l].sig(b); }
     }
-    out.push({ time: Math.floor(bars[i].time / 1000), v, sg });
+    const ev = {}, one = at[1];  // the series' last closed minute
+    for (const l of early) {
+      const m = LINE[l].tf, b = at[m];
+      if (!b || !one || !ok(one.close)) continue;
+      if (barEnd(b, m, origin) >= barEnd(one, 1, origin)) { if (ok(v[l])) ev[l] = v[l]; continue; }  // its candle closed with that minute
+      if (!ok(b.f12) || !ok(b.s26)) continue;
+      const c = one.close;
+      ev[l] = (b.f12 + EMA12 * (c - b.f12)) - (b.s26 + EMA26 * (c - b.s26));
+    }
+    out.push({ time: Math.floor(bars[i].time / 1000), v, sg, ev });
   }
   return out;
 }
@@ -304,6 +319,11 @@ class MacdPane {
     this.sigs = {};  // each line's signal line, if it has one: dashed, in the line's color (none since 28/10/2026)
     for (const m of this.lines) if (LINE[m].sig)
       this.sigs[m] = line(faded(LINE[m].pair[0], 0.55), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
+    // the 2m and 3m MACD's early line (owner 4/11/2026): faint and dotted, in the line's colors, on its scale
+    this.earlys = {};
+    this.addEarly = m => line(faded(this.shade2[m][0], 0.6), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lastValueVisible: false,
+                                                              ...(scaleOf(m) ? { priceScaleId: scaleOf(m) } : {}) });
+    for (const m of this.lines) if (LINE[m].early) this.earlys[m] = this.addEarly(m);
     this.zero.priceScale().applyOptions({ scaleMargins: { top: 0.2, bottom: 0.06 } });
     this.shading = new Bands(() => chart, () => this.pts.length, i => {
       if (this.shade) return MATCH[this.shade(i)] || null;  // the page's state at candle i (the Trend waves switched on)
@@ -322,6 +342,8 @@ class MacdPane {
   setLines(list) {  // another choice of the pane's lines (a market with or without some): drawn whole at the next update()
     if (list.join() === this.lines.join()) return;
     for (const m of list) if (!this.series[m]) this.series[m] = this.addLine(m);
+    for (const m of list) if (LINE[m].early && !this.earlys[m]) this.earlys[m] = this.addEarly(m);
+    for (const m in this.earlys) if (!list.includes(m)) this.earlys[m].setData([]);
     for (const m in this.series) if (!list.includes(m)) { this.series[m].setData([]); this.series[m].applyOptions({ visible: false }); }
     this.lines = list; this.split = list.some(this.scaleOf);
     this.pts = []; this.store.clear(); this.lastQ = null; this.html = null;
@@ -330,6 +352,7 @@ class MacdPane {
   showLines() {
     for (const m of this.lines) this.series[m].applyOptions({ visible: show[m] });
     for (const m in this.sigs) this.sigs[m].applyOptions({ visible: show[m] && show.sig });  // a hidden line takes its signal with it
+    for (const m in this.earlys) this.earlys[m].applyOptions({ visible: this.lines.includes(m) && show[m] && show.early });  // and its early line
     this.shading.update();
   }
   // Redraw from the latest bars, or only move the newest points when that's all that changed. True when it redrew
@@ -337,7 +360,7 @@ class MacdPane {
   update() {
     if (this.stocks) this.stockPts = points(this.bars(), this.tf(), this.stocks(), this.lines, this.origin || 0);
     const pts = points(this.bars(), this.tf(), this.src(), this.lines, this.origin || 0), old = this.pts, n = pts.length, k = old.length;
-    const same = (a, b) => a.time === b.time && this.lines.every(m => a.v[m] === b.v[m] && a.sg[m] === b.sg[m]);
+    const same = (a, b) => a.time === b.time && this.lines.every(m => a.v[m] === b.v[m] && a.sg[m] === b.sg[m] && a.ev[m] === b.ev[m]);
     let i = 0;
     while (i < n && i < k && same(pts[i], old[i])) i++;
     this.shading.update();
@@ -346,11 +369,14 @@ class MacdPane {
     const pt = (p, value) => value === undefined ? { time: p.time } : { time: p.time, value };  // blank, but the candle keeps its slot
     const wave = (p, m) => { const v = p.v[m]; return v === undefined ? { time: p.time } : { time: p.time, value: v, color: this.shade2[m][v >= 0 ? 0 : 1] }; };
     const put = p => { if (this.lines.some(m => p.v[m] !== undefined)) this.store.set(p.time, p); };
+    const early = (p, m) => { const v = p.ev[m]; return v === undefined ? { time: p.time } : { time: p.time, value: v, color: faded(this.shade2[m][v >= 0 ? 0 : 1], 0.6) }; };
+    const earlys = Object.keys(this.earlys).filter(m => this.lines.includes(m));
     if (k && n >= k && n <= k + 1 && i >= k - 1 && pts[k - 1].time === old[k - 1].time) {
       for (let j = k - 1; j < n; j++) {
         const p = pts[j];
         for (const m of this.lines) this.series[m].update(wave(p, m));
         for (const m in this.sigs) this.sigs[m].update(pt(p, p.sg[m]));
+        for (const m of earlys) this.earlys[m].update(early(p, m));
         this.zero.update({ time: p.time, value: 0 });
         put(p);
       }
@@ -358,6 +384,7 @@ class MacdPane {
     }
     for (const m of this.lines) this.series[m].setData(pts.map(p => wave(p, m)));
     for (const m in this.sigs) this.sigs[m].setData(pts.map(p => pt(p, p.sg[m])));
+    for (const m of earlys) this.earlys[m].setData(pts.map(p => early(p, m)));
     this.zero.setData(pts.map(p => ({ time: p.time, value: 0 })));
     this.store.clear();
     pts.forEach(put);
@@ -379,11 +406,13 @@ class MacdPane {
       const tip = `${LINE[m].tip}. Click to ${show[m] ? 'hide' : 'show'}`;
       return `<span class="t-mm${show[m] ? '' : ' off'}" data-k="${m}" title="${tip}"><span class="sw" style="background:linear-gradient(90deg, ${this.shade2[m][0]} 50%, ${this.shade2[m][1]} 50%)"></span><b>${LINE[m].label}</b>`
         + `<span class="t-dot ${ok(v[m]) ? (pass ? 'pass' : 'fail') : ''}"></span>`
-        + `<span class="t-v">${this.sigs[m] ? `${sgn(v[m], d)} / ${sgn(q.sg[m], d)}` : sgn(v[m], d)}</span></span>`;
+        + `<span class="t-v">${this.sigs[m] ? `${sgn(v[m], d)} / ${sgn(q.sg[m], d)}` : sgn(v[m], d)}${this.earlys[m] && show.early && ok(q.ev[m]) && q.ev[m] !== v[m] ? ` ~${sgn(q.ev[m], d)}` : ''}</span></span>`;
     };
     const html = `<span class="t-name"><b>${this.title || PANES[this.kind].title}</b></span>` + this.lines.map(item).join('')  // no market name (owner 24/10/2026)
       + (Object.keys(this.sigs).length ? `<span class="t-mm${show.sig ? '' : ' off'}" data-k="sig" title="Every line's signal line (dashed, in its color). Click to ${show.sig ? 'hide' : 'show'} them">`
-                  + `<span class="sw dash"></span><span class="t-of">signals</span></span>` : '');
+                  + `<span class="sw dash"></span><span class="t-of">signals</span></span>` : '')
+      + (this.lines.some(m => this.earlys[m]) ? `<span class="t-mm${show.early ? '' : ' off'}" data-k="early" title="The 2m and 3m MACD's dotted lines: every minute, the value their candle would have if it closed then (it can change until it closes; the solid lines are the closed candles'). Click to ${show.early ? 'hide' : 'show'} them">`
+                  + `<span class="sw dot"></span><span class="t-of">early</span></span>` : '');
     // written only when it changed (31/10/2026: the live prices wrote the same label again every second or so, rebuilding
     // the chip under the pointer)
     if (html !== this.html) this.tagEl.innerHTML = this.html = html;
@@ -410,6 +439,7 @@ css.textContent = `
   .tag.mix .t-mm b { color: var(--text); font: 600 10.5px var(--font-num); letter-spacing: -.01em; }
   .tag.mix .t-mm .sw { width: 9px; height: 3px; border-radius: 2px; display: inline-block; }
   .tag.mix .t-mm .sw.dash { background: none !important; border-top: 2px dashed var(--muted); height: 0; }
+  .tag.mix .t-mm .sw.dot { background: none !important; border-top: 2px dotted var(--muted); height: 0; }
   .tag.mix .t-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); display: inline-block; }
   .tag.mix .t-dot.pass { background: var(--up); } .tag.mix .t-dot.fail { background: var(--down); }
   .tag.mix .t-v { display: none; font-family: var(--font-num); color: var(--text); }
