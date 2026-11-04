@@ -319,10 +319,13 @@ class MacdPane {
     this.sigs = {};  // each line's signal line, if it has one: dashed, in the line's color (none since 28/10/2026)
     for (const m of this.lines) if (LINE[m].sig)
       this.sigs[m] = line(faded(LINE[m].pair[0], 0.55), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
-    // the 2m and 3m MACD's early line (owner 4/11/2026): faint and dotted, in the line's colors, on its scale
+    // the 2m and 3m MACD's early line (owner 4/11/2026): dotted, in the line's colors, on its scale; as thick as the line and nearly as
+    // bright since 4/11 (owner: "the dotted line is not clearly visible")
+    const EARLY_ALPHA = 0.9;
     this.earlys = {};
-    this.addEarly = m => line(faded(this.shade2[m][0], 0.6), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lastValueVisible: false,
+    this.addEarly = m => line(faded(this.shade2[m][0], EARLY_ALPHA), { lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Dotted, lastValueVisible: false,
                                                               ...(scaleOf(m) ? { priceScaleId: scaleOf(m) } : {}) });
+    this.earlyAlpha = EARLY_ALPHA;
     for (const m of this.lines) if (LINE[m].early) this.earlys[m] = this.addEarly(m);
     this.zero.priceScale().applyOptions({ scaleMargins: { top: 0.2, bottom: 0.06 } });
     this.shading = new Bands(() => chart, () => this.pts.length, i => {
@@ -369,7 +372,7 @@ class MacdPane {
     const pt = (p, value) => value === undefined ? { time: p.time } : { time: p.time, value };  // blank, but the candle keeps its slot
     const wave = (p, m) => { const v = p.v[m]; return v === undefined ? { time: p.time } : { time: p.time, value: v, color: this.shade2[m][v >= 0 ? 0 : 1] }; };
     const put = p => { if (this.lines.some(m => p.v[m] !== undefined)) this.store.set(p.time, p); };
-    const early = (p, m) => { const v = p.ev[m]; return v === undefined ? { time: p.time } : { time: p.time, value: v, color: faded(this.shade2[m][v >= 0 ? 0 : 1], 0.6) }; };
+    const early = (p, m) => { const v = p.ev[m]; return v === undefined ? { time: p.time } : { time: p.time, value: v, color: faded(this.shade2[m][v >= 0 ? 0 : 1], this.earlyAlpha) }; };
     const earlys = Object.keys(this.earlys).filter(m => this.lines.includes(m));
     if (k && n >= k && n <= k + 1 && i >= k - 1 && pts[k - 1].time === old[k - 1].time) {
       for (let j = k - 1; j < n; j++) {
