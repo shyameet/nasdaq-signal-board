@@ -21,7 +21,7 @@
 <script src="macd.js?v=21"></script>
 <script src="engine.js?v=17"></script>
 <script src="swing.js?v=3"></script>
-<script src="gate.js?v=3"></script>
+<script src="gate.js?v=4"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=8"></script>
@@ -906,9 +906,10 @@ async function loadOlder(src) {  // add older days to the strip, keeping what yo
     } finally { syncing = false; }
   } catch (e) { /* the next scroll tries again */ } finally { olderBusy = false; $('older').hidden = true; }
 }
-async function openDay(key) {
+async function openDay(key, quiet = false) {
+  // quiet: no loading screen (4/11/2026: today joining from the live stream put a second one up after the first load)
   try {
-    if (!await buildDay(key)) return;  // another day was picked meanwhile: it is drawn instead
+    if (!await buildDay(key, SHOW_DAYS, quiet)) return;  // another day was picked meanwhile: it is drawn instead
     dayPick.set(DAYS, key, NsbCme.key(Date.now()));
     render(true);
     const w = NsbRolls.warning([day.setup.index, day.setup.stock], key);  // the switch day and the trading day before it
@@ -926,7 +927,7 @@ function liveAddToday() {  // true when today was added (and opened, if you were
   if (!k || DAYS.includes(k) || !liveMarkets().some(m => NsbLive.has(m))) return false;
   const wasNewest = !day || day.key === DAYS[DAYS.length - 1];
   DAYS = [...DAYS, k].sort();
-  if (wasNewest) openDay(k); else if (dayPick) dayPick.set(DAYS, day.key, k);  // a day you picked stays
+  if (wasNewest) openDay(k, !!day); else if (dayPick) dayPick.set(DAYS, day.key, k);  // a day you picked stays
   return true;
 }
 function liveForming(m) {  // market m's forming minute, drawn on top of today's closed ones (the day is built without it)

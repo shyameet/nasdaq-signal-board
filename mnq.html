@@ -21,7 +21,7 @@
 <script src="macd.js?v=21"></script>
 <script src="engine.js?v=17"></script>
 <script src="swing.js?v=3"></script>
-<script src="gate.js?v=3"></script>
+<script src="gate.js?v=4"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=8"></script>
@@ -996,9 +996,16 @@ setInterval(refreshToday, 60000);
 // XYZ100 and MNQ, asks Hyperliquid only for the minutes since, plus the last 3 hours again (a minute saved from the live
 // stream is replaced by Hyperliquid's own candle), instead of downloading the whole day each time.
 const CANDLE_CACHE = 'nsb.candles.v2.', CACHE_REFETCH = 180 * MIN;
+// each coin's saved minutes, read once (4/11/2026: read again, the whole two days of them, for every day and coin; with this
+// browser's cache full that was a good part of a returning visit's load); saveCandles drops what it rewrites
+const savedRows = new Map();
 function cachedRows(c) {
-  try { const a = JSON.parse(localStorage.getItem(CANDLE_CACHE + c)); return Array.isArray(a) ? a.map(([t, o, h, l, cl, v, n]) => ({ t, o, h, l, c: cl, v, n })) : []; }
-  catch (e) { return []; }
+  if (savedRows.has(c)) return savedRows.get(c);
+  let rows = [];
+  try { const a = JSON.parse(localStorage.getItem(CANDLE_CACHE + c)); if (Array.isArray(a)) rows = a.map(([t, o, h, l, cl, v, n]) => ({ t, o, h, l, c: cl, v, n })); }
+  catch (e) { /* none */ }
+  savedRows.set(c, rows);
+  return rows;
 }
 function savedMinutes(c, d0, end) {  // one coin's minutes in [d0, end] saved in this browser (none unless they reach back to d0)
   const all = cachedRows(c);
@@ -1022,6 +1029,7 @@ function saveCandles() {  // the closed minutes of the last two days back into t
       if (d && d.coins[c]) for (const b of d.coins[c]) if (b.t >= oldest && b.t < now) byT.set(b.t, b);
     }
     const rows = [...byT.values()].sort((a, b) => a.t - b.t).map(b => [b.t, b.o, b.h, b.l, b.c, b.v, b.n]);
+    savedRows.delete(c);
     try { localStorage.setItem(CANDLE_CACHE + c, JSON.stringify(rows)); } catch (e) { /* full: Hyperliquid next time */ }
   }
 }

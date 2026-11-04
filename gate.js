@@ -51,39 +51,52 @@ function trendDir(b, lines) {
   }
   return up === lines.length ? 1 : down === lines.length ? -1 : 0;
 }
-const cache = new WeakMap(), ownCache = new WeakMap();
+const cache = new WeakMap(), ownCache = new WeakMap(), dirCache = new WeakMap(), ownDirCache = new WeakMap();
+const traceKey = sig => `${sig.trace.length}|${(sig.trace[sig.trace.length - 1] || {}).t}`;
+// Each minute's Trend verdict, before any Swing line: 1 (all the Trend lines on above 0), -1 (all below), 0 (not so, or a line
+// on without a value yet), null (no Trend line on); none for a minute the engine had not warmed up. Two or more stocks: every
+// stock's own lines must agree. Worked out once per series, switch state and trace (4/11/2026: it was redone, every stock's
+// minutes looked up afresh, for every set of Swing lines asked - the MNQ page's two copies - and that was most of its load)
+function trendDirs(sig, own) {
+  const store = own ? ownDirCache : dirCache, key = `${ver}|${traceKey(sig)}`, have = store.get(sig);
+  if (have && have.key === key) return have.dirs;
+  const tOn = PANES.trend.lines.filter(m => show[m]);
+  const parts = sig.parts && !own ? Object.values(sig.parts).map(p => new Map((p.trace || []).map(e => [e.t, e.state === null ? null : e.b]))) : null;
+  const dirs = new Map();
+  for (const e of sig.trace) {
+    if (e.state === null) continue;  // the engine not warmed up yet: no gate
+    if (!tOn.length) { dirs.set(e.t, null); continue; }
+    let dir = null;  // 1 / -1 so far, 0: they disagree
+    if (parts) {
+      for (const p of parts) {
+        const b = p.get(e.t), d = b ? trendDir(b, tOn) : null;
+        if (d === null || d === 0) { dir = 0; break; }
+        dir = dir === null ? d : dir === d ? d : 0;
+        if (!dir) break;
+      }
+    } else {
+      const d = trendDir(e.b, tOn);
+      dir = d === null ? 0 : d;
+    }
+    dirs.set(e.t, dir);
+  }
+  store.set(sig, { key, dirs });
+  return dirs;
+}
 // own: the series' own lines only, even for Your stocks (the shading of the composite's chart, as before 2/11/2026: its own
 // waves, not every stock's agreement; for one market it is the gate itself)
 function states(sig, swing, swingLines = PANES.swing.lines, own = false) {
   if (!sig || !sig.trace) return new Map();
   // one answer kept per series and set of Swing lines (4/11/2026: the MNQ page asks the same series with and without its 1h lines)
   const store = own ? ownCache : cache, lk = swingLines.join(), per = store.get(sig) || {};
-  const key = `${ver}|${lk}`, have = per[lk];
-  if (have && have.key === key && have.swing === swing && have.n === sig.trace.length && have.last === (sig.trace[sig.trace.length - 1] || {}).t) return have.map;
-  const tOn = PANES.trend.lines.filter(m => show[m]), sOn = swingLines.filter(m => show[m]);
-  const sw = swingAt(swing, sOn);
-  // two or more stocks: each one's own Trend gate by minute (they must all agree)
-  const parts = sig.parts && !own ? Object.values(sig.parts).map(p => new Map((p.trace || []).map(e => [e.t, e.state === null ? null : e.b]))) : null;
+  const key = `${ver}|${lk}|${traceKey(sig)}`, have = per[lk];
+  if (have && have.key === key && have.swing === swing) return have.map;
+  const sOn = swingLines.filter(m => show[m]), sw = swingAt(swing, sOn), dirs = trendDirs(sig, own);
   const map = new Map();
-  for (const e of sig.trace) {
-    if (e.state === null) continue;  // the engine not warmed up yet: no gate
-    let dir = null, counted = 0;     // dir: 1 / -1 so far, 0: they disagree
-    if (tOn.length) {
-      if (parts) {
-        for (const p of parts) {
-          const b = p.get(e.t), d = b ? trendDir(b, tOn) : null;
-          if (d === null || d === 0) { dir = 0; break; }
-          dir = dir === null ? d : dir === d ? d : 0;
-          if (!dir) break;
-        }
-      } else {
-        const d = trendDir(e.b, tOn);
-        dir = d === null ? 0 : d;
-      }
-      counted += 1;
-    }
+  for (const [t, trend] of dirs) {
+    let dir = trend, counted = trend === null ? 0 : 1;  // dir: 1 / -1 so far, 0: they disagree
     if (dir !== 0 && sOn.length) {
-      for (const x of sw(e.t)) {
+      for (const x of sw(t)) {
         if (x === null) continue;  // a Swing line with no value yet (a young market's month): not counted
         const d = x > 0 ? 1 : x < 0 ? -1 : 0;
         dir = dir === null ? d : dir === d ? d : 0;
@@ -91,9 +104,9 @@ function states(sig, swing, swingLines = PANES.swing.lines, own = false) {
         if (!dir) break;
       }
     }
-    map.set(e.t, counted && dir === 1 ? 'BULLISH' : counted && dir === -1 ? 'BEARISH' : 'NEUTRAL');
+    map.set(t, counted && dir === 1 ? 'BULLISH' : counted && dir === -1 ? 'BEARISH' : 'NEUTRAL');
   }
-  per[lk] = { key, swing, n: sig.trace.length, last: (sig.trace[sig.trace.length - 1] || {}).t, map };
+  per[lk] = { key, swing, map };
   store.set(sig, per);
   return map;
 }
