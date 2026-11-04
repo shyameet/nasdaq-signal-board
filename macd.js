@@ -1,8 +1,8 @@
 /* Indra Quant Signal Board: the MACD panes under a price chart, and the day separators, shared by both pages.
 
    Two panes (owner 28/10/2026, Rahul's RDX WIP): Entry (the 1m and 2m MACD 12/26: entries E2 and E1; the 3m MACD since 29/10, shown only) above Trend (the
-   5m, 9m and 11m waves, EMA 8 - EMA 47 and EMA 21 - EMA 47 on each: the gate's waves; until 28/10 the 5m to 15m MACD
-   with signal lines). Every line is drawn on the price chart's own candles, at its value as of each candle's close
+   5m, 9m and 11m waves, EMA 8 - EMA 47 and EMA 21 - EMA 47 on each: the gate's waves, and the 15m waves since 3/11/2026;
+   until 28/10 the 5m to 15m MACD with signal lines). Every line is drawn on the price chart's own candles, at its value as of each candle's close
    (never ahead of it; the forming candle live), so a pane lines up bar for bar with the chart above it and scrolls with
    it. Any line can be switched off from its pane's label; the choice is kept in this browser and shared by every page.
    A page can pass shade(i), the state at candle i, to shade the panes by the gate (green LONG, red SHORT); without it
@@ -23,8 +23,11 @@ const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const PANES = {
   entry: { title: 'Entry', lines: ['m1', 'm2', 'm3'] },
-  trend: { title: 'Trend', lines: ['w5a', 'w5b', 'w9a', 'w9b', 'w11a', 'w11b'] },
+  trend: { title: 'Trend', lines: ['w5a', 'w5b', 'w9a', 'w9b', 'w11a', 'w11b', 'w15a', 'w15b'] },  // 15m: owner 3/11/2026
 };
+// one pane with both, the 1m to 15m lines (the MNQ page's three panes, owner 3/11/2026: "all 3 will have same macds with
+// values from 1 to 15 min")
+PANES.all = { title: 'Lines', lines: [...PANES.entry.lines, ...PANES.trend.lines] };
 // Every line drawn: the timeframe it is read on, its label, its value from that timeframe's bar, and two colors of its
 // own, one while it is above 0 and one while below, so its color changes where it crosses zero. The MACDs keep the
 // board's colors; the waves take Rahul's "Wave lines" colors.
@@ -39,8 +42,11 @@ const LINE = {
   w9b: { tf: 9, label: '9m 21/47', v: b => b.ema21 - b.ema47, pair: ['#FFFFFF', '#D500F9'] },
   w11a: { tf: 11, label: '11m 8/47', v: b => b.ema8 - b.ema47, pair: ['#76FF03', '#F50057'] },
   w11b: { tf: 11, label: '11m 21/47', v: b => b.ema21 - b.ema47, pair: ['#B0BEC5', '#8D6E63'] },
+  // the 15m waves (owner 3/11/2026: "add 15 min timeframe as well on the trend thing"; they count for the gate too)
+  w15a: { tf: 15, label: '15m 8/47', v: b => b.ema8 - b.ema47, pair: ['#40C4FF', '#FF6E40'] },
+  w15b: { tf: 15, label: '15m 21/47', v: b => b.ema21 - b.ema47, pair: ['#EA80FC', '#FFE57F'] },
 };
-for (const l of ['w5a', 'w5b', 'w9a', 'w9b', 'w11a', 'w11b'])
+for (const l of PANES.trend.lines)
   LINE[l].tip = `${LINE[l].label.replace(' ', ' EMA ').replace('/', ' − EMA ')} (left color above 0, right color below): counts for the gate and the shading while switched on`;
 const LINES = [...new Set(Object.values(LINE).map(l => l.tf))];  // the candle sizes the engine must provide
 const shades = lines => Object.fromEntries(lines.map(l => [l, LINE[l].pair]));
@@ -117,8 +123,9 @@ function matchAt(a, b, lines) {  // the stocks' and the index's points at one ca
 }
 
 // The colour at one candle (owner 24/10/2026): from the Trend waves switched on, green where every one of them is above
-// 0, red where every one is below, none otherwise or with all of them off. With all six on, that is the RDX WIP trend
-// itself (owner 28/10/2026: the 5m, 9m and 11m waves all up, which has the 5m EMA 21 above the 47). The price chart and
+// 0, red where every one is below, none otherwise or with all of them off. With the 5m, 9m and 11m ones on (the 15m ones
+// off, since 3/11/2026) that is the RDX WIP trend itself (owner 28/10/2026: the 5m, 9m and 11m waves all up, which has the
+// 5m EMA 21 above the 47). The price chart and
 // both panes use it, on every page; the gate itself is shown in words.
 function trendState(pt) {
   if (!pt) return null;
@@ -254,7 +261,8 @@ class DayLines {  // a dashed line where a new day begins, with its date along t
 }
 
 // ---- one MACD pane ----------------------------------------------------------------------------------------
-// opts: el and tagEl (the pane and its label), kind ('trend' or 'entry'), name (shown first in the label), digits,
+// opts: el and tagEl (the pane and its label), kind ('trend', 'entry', 'swing' or 'all'), title (the label's first word, if
+// not the kind's), scales ({ line: price scale id }: lines drawn on a scale of their own in this pane), name, digits,
 // options (chart options), bars() and tf() (the price chart's candles and their size), src() ({ minutes: MACD bars }
 // of the series drawn), and for the shading either match() -> [stocks' points, index's points] or stocks() (the
 // stocks' MACD bars; the series drawn is then the index)
@@ -270,6 +278,7 @@ class MacdPane {
     chart.applyOptions({ crosshair: { horzLine: { visible: false, labelVisible: false } } });  // no horizontal hover line in the panes, only the vertical one (owner 24/10)
     // A line with a scale of its own (LINE[m].scale: the Swing pane's 1W and 1M, whose size flattened the others, 1/11/2026)
     // is drawn on that scale; while one is drawn every scale keeps 0 in the middle, so the zero line stays every line's
+    const scaleOf = m => (this.scales && this.scales[m]) || LINE[m].scale;
     const sym = orig => {
       const r = orig();
       if (!this.split || !r || !r.priceRange) return r;
@@ -284,11 +293,12 @@ class MacdPane {
     this.series = {};
     this.shade2 = shades(PANES[this.kind].all || PANES[this.kind].lines);
     this.addLine = m => {
-      if (LINE[m].scale) chart.priceScale(LINE[m].scale).applyOptions({ scaleMargins: { top: 0.2, bottom: 0.06 } });
-      return line(this.shade2[m][0], { lineWidth: m === 'm1' ? 1 : 2, ...(LINE[m].scale ? { priceScaleId: LINE[m].scale } : {}) });
+      if (scaleOf(m)) chart.priceScale(scaleOf(m)).applyOptions({ scaleMargins: { top: 0.2, bottom: 0.06 } });
+      return line(this.shade2[m][0], { lineWidth: m === 'm1' ? 1 : 2, ...(scaleOf(m) ? { priceScaleId: scaleOf(m) } : {}) });
     };
     for (const m of this.lines) this.series[m] = this.addLine(m);
-    this.split = this.lines.some(m => LINE[m].scale);
+    this.scaleOf = scaleOf;
+    this.split = this.lines.some(scaleOf);
     this.sigs = {};  // each line's signal line, if it has one: dashed, in the line's color (none since 28/10/2026)
     for (const m of this.lines) if (LINE[m].sig)
       this.sigs[m] = line(faded(LINE[m].pair[0], 0.55), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
@@ -311,7 +321,7 @@ class MacdPane {
     if (list.join() === this.lines.join()) return;
     for (const m of list) if (!this.series[m]) this.series[m] = this.addLine(m);
     for (const m in this.series) if (!list.includes(m)) { this.series[m].setData([]); this.series[m].applyOptions({ visible: false }); }
-    this.lines = list; this.split = list.some(m => LINE[m].scale);
+    this.lines = list; this.split = list.some(this.scaleOf);
     this.pts = []; this.store.clear(); this.lastQ = null; this.html = null;
     this.showLines();
   }
@@ -369,7 +379,7 @@ class MacdPane {
         + `<span class="t-dot ${ok(v[m]) ? (pass ? 'pass' : 'fail') : ''}"></span>`
         + `<span class="t-v">${this.sigs[m] ? `${sgn(v[m], d)} / ${sgn(q.sg[m], d)}` : sgn(v[m], d)}</span></span>`;
     };
-    const html = `<span class="t-name"><b>${PANES[this.kind].title}</b></span>` + this.lines.map(item).join('')  // no market name (owner 24/10/2026)
+    const html = `<span class="t-name"><b>${this.title || PANES[this.kind].title}</b></span>` + this.lines.map(item).join('')  // no market name (owner 24/10/2026)
       + (Object.keys(this.sigs).length ? `<span class="t-mm${show.sig ? '' : ' off'}" data-k="sig" title="Every line's signal line (dashed, in its color). Click to ${show.sig ? 'hide' : 'show'} them">`
                   + `<span class="sw dash"></span><span class="t-of">signals</span></span>` : '');
     // written only when it changed (31/10/2026: the live prices wrote the same label again every second or so, rebuilding

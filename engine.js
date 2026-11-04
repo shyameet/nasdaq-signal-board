@@ -43,7 +43,9 @@ const RECHECK = 3 * 60000, RECHECK_SPAN = 20;  // every 3 minutes, the last 20 c
 const REFETCH = 180;     // minutes always fetched again on a reload or a reconnect
 const KEEP_BARS = 5000, KEEP_MINUTES = 7200;
 const KEEP = { bars: KEEP_BARS, minutes: KEEP_MINUTES };  // raised when older days are added from our archive (extendBack)
-const TIMEFRAMES = { 5: 'ema', 9: 'ema', 11: 'ema' };  // the gate: minutes -> what runs on it (EMA 8, 21 and 47: the waves)
+// the gate: minutes -> what runs on it (EMA 8, 21 and 47: the waves). 15: the board's gate reads its waves too (gate.js;
+// owner 3/11/2026: "add 15 min timeframe as well on the trend thing"); RDX WIP's own state below stays the 5m, 9m and 11m
+const TIMEFRAMES = { 5: 'ema', 9: 'ema', 11: 'ema', 15: 'ema' };
 // what the pages also need, beyond the gate: the 1m and 2m MACD (entries E2 and E1), the 3m waves (entry E4) and the 3m
 // MACD (Entry pane only, owner 29/10/2026)
 const SHOWN = { ...TIMEFRAMES, 1: 'macd', 2: 'macd', 3: 'both' };

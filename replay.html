@@ -17,10 +17,10 @@
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=19"></script>
-<script src="engine.js?v=15"></script>
+<script src="macd.js?v=20"></script>
+<script src="engine.js?v=16"></script>
 <script src="swing.js?v=3"></script>
-<script src="gate.js?v=1"></script>
+<script src="gate.js?v=2"></script>
 <script src="basket.js?v=2"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
@@ -203,7 +203,7 @@
 <header class="topbar">
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
   <nav class="tabs" aria-label="Pages"><a href="replay.html" aria-current="page">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a></nav>
-  <div class="grp" title="Section"><div class="seg" role="group" aria-label="Section"><button type="button" aria-pressed="true" title="Your stocks beside XYZ100">XYZ100</button><button type="button" aria-pressed="false" onclick="location.href='mnq.html'" title="Your stocks beside MNQ">MNQ</button></div></div>
+  <div class="grp" title="Section"><div class="seg" role="group" aria-label="Section"><button type="button" aria-pressed="true" title="Your stocks beside XYZ100">XYZ100</button><button type="button" aria-pressed="false" onclick="location.href='mnq.html'" title="MNQ, with two baskets of your stocks under it">MNQ</button></div></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
   <div class="grp"><span class="note" id="dataNote"></span></div>
@@ -222,9 +222,9 @@
     <summary title="How it works">?</summary>
     <div class="how-body">
       <h3>What you see</h3>
-      <p>One trading day at a time, from the CME open to the next (17:00 Chicago: 03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time; times are shown in your timezone). Left: your stocks' composite (Stocks button; the same pick as the other pages, applied to every past day). Right: the Nasdaq-100 perp, XYZ100. Both get exactly the same treatment: candles, the gate's zones, the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), the Entry pane (the 1m, 2m and 3m MACD) and the Trend pane (the 5m, 9m and 11m waves). Each indicator is warmed up on the day before, so it reads what it would have read live.</p>
+      <p>One trading day at a time, from the CME open to the next (17:00 Chicago: 03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time; times are shown in your timezone). Left: your stocks' composite (Stocks button; the same pick as the other pages, applied to every past day). Right: the Nasdaq-100 perp, XYZ100. Both get exactly the same treatment: candles, the gate's zones, the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), the Entry pane (the 1m, 2m and 3m MACD) and the Trend pane (the 5m, 9m, 11m and 15m waves). Each indicator is warmed up on the day before, so it reads what it would have read live.</p>
       <h3>The gate</h3>
-      <p>From the lines switched on in the Trend and Swing panes: LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. With every Trend line on (the 5m, 9m and 11m waves: EMA 8 − EMA 47 and EMA 21 − EMA 47 on each) and the Swing lines off, it is RDX WIP's gate (Rahul's RDX WIP Trend). It is read on candle close: a candle counts from the minute it closes. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
+      <p>From the lines switched on in the Trend and Swing panes: LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. With the 5m, 9m and 11m Trend lines on (EMA 8 − EMA 47 and EMA 21 − EMA 47 on each) and the 15m and Swing lines off, it is RDX WIP's gate (Rahul's RDX WIP Trend). It is read on candle close: a candle counts from the minute it closes. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
       <p>The <b>Swing</b> pane: the same waves on long candles, EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 1-hour, 4-hour and daily candles of each market's own hours and days (its history from our nightly files, today from its live minutes). Its lines switched on now count for the gate (one with no value yet doesn't), and its background shows the gate, as the price chart's and the other panes' do.</p>
       <h3>Days</h3>
       <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown.</p>

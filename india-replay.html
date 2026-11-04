@@ -17,10 +17,10 @@
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=19"></script>
-<script src="engine.js?v=15"></script>
+<script src="macd.js?v=20"></script>
+<script src="engine.js?v=16"></script>
 <script src="swing.js?v=3"></script>
-<script src="gate.js?v=1"></script>
+<script src="gate.js?v=2"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=8"></script>
@@ -201,12 +201,12 @@
       <p><b>Bank Nifty</b>: the same, with NIFTY BANK alone in step 1 and HDFC BANK in step 2.</p>
       <p><b>The stock</b> in step 2 is picked in the list beside the setup, among the index's five biggest by weight (NSE, 30 Sep 2026): Nifty HDFC BANK, ICICI BANK, RELIANCE, BHARTI AIRTEL, L&amp;T; Bank Nifty HDFC BANK, ICICI BANK, KOTAK BANK, AXIS BANK, SBI. Step 1 stays the same. A stock shows "no data yet" until the VPS records it.</p>
       <h3>The gate</h3>
-      <p>For each market on its own candles, from the lines switched on in its Trend and Swing panes: LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. With every Trend line on (the 5m, 9m and 11m waves: EMA 8 − EMA 47 and EMA 21 − EMA 47 on each) and the Swing lines off, it is RDX WIP's gate (Rahul's RDX WIP Trend), exactly the Nasdaq pages' gate. It is read on candle close: a candle counts from the minute it closes. Each indicator is warmed up on the saved days before, so it reads what it would have read live.</p>
+      <p>For each market on its own candles, from the lines switched on in its Trend and Swing panes: LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. With the 5m, 9m and 11m Trend lines on (EMA 8 − EMA 47 and EMA 21 − EMA 47 on each) and the 15m and Swing lines off, it is RDX WIP's gate (Rahul's RDX WIP Trend), exactly the Nasdaq pages' gate. It is read on candle close: a candle counts from the minute it closes. Each indicator is warmed up on the saved days before, so it reads what it would have read live.</p>
       <p>The <b>Swing</b> pane: the same waves on long candles, EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 1-hour, 4-hour and daily candles of each market's own hours and days (its history from our nightly files, today from its live minutes). Its lines switched on now count for the gate (one with no value yet doesn't), and its background is shaded as its price chart's.</p>
       <h3>Trends</h3>
       <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it.</p>
       <h3>Charts</h3>
-      <p>The charts side by side, equal widths: Nifty's three (NIFTY 50, GIFT NIFTY, the stock), Bank Nifty's two; each with its Entry pane (the 1m, 2m and 3m MACD) and Trend pane (the 5m, 9m and 11m waves), and the 5m EMA 8, 21 and 47 on the price chart, colored by their stack (green or red stacked, yellow a shallow pullback, orange a deeper one). All the charts end at the same time and show as many candles each: drag or zoom any of them and the others follow (GIFT NIFTY's night hours then simply scroll past). Drag the thin lines between the charts, or between a price chart and its MACD panes, to size them as you like (remembered; double-click a line for the default). Each chart and its panes are green where its own gate is LONG, red where it is SHORT (the steps are shown in words in the step chips); GIFT NIFTY shows its whole session, 06:30 to 02:45 the next morning. The chip in the index chart's header shows step 1 and its trends (point at it for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
+      <p>The charts side by side, equal widths: Nifty's three (NIFTY 50, GIFT NIFTY, the stock), Bank Nifty's two; each with its Entry pane (the 1m, 2m and 3m MACD) and Trend pane (the 5m, 9m, 11m and 15m waves), and the 5m EMA 8, 21 and 47 on the price chart, colored by their stack (green or red stacked, yellow a shallow pullback, orange a deeper one). All the charts end at the same time and show as many candles each: drag or zoom any of them and the others follow (GIFT NIFTY's night hours then simply scroll past). Drag the thin lines between the charts, or between a price chart and its MACD panes, to size them as you like (remembered; double-click a line for the default). Each chart and its panes are green where its own gate is LONG, red where it is SHORT (the steps are shown in words in the step chips); GIFT NIFTY shows its whole session, 06:30 to 02:45 the next morning. The chip in the index chart's header shows step 1 and its trends (point at it for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
       <h3>Days</h3>
       <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
       <h3>Data</h3>
@@ -307,7 +307,7 @@ async function loadFile(key) {  // -> { market: [{ t (ms), o, h, l, c, v }] }
 
 // ---- one market's gate, minute by minute, exactly as the live engine runs it ----------------------------------
 // gate(): Map(minute -> 'BULLISH' | 'BEARISH' | 'NEUTRAL') at each minute's close, from the lines switched on in its Trend
-// and Swing panes (gate.js; every Trend line on and the Swing lines off: the engine's RDX WIP gate), worked out again after a switch
+// and Swing panes (gate.js; the 5m, 9m and 11m Trend lines on, the 15m and Swing lines off: the engine's RDX WIP gate), worked out again after a switch
 function runMarket(market, rows, swing) {  // rows: its 1-minute candles over the warm-up days and the day, oldest first; swing: its Swing candles
   const sig = new TrendSignal({ [market]: 1 }, SHOWN, MARKETS[market].origin);
   for (const b of rows) sig.onMemberBar(market, b.t, b.c, b.v);

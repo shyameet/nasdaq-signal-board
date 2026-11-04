@@ -17,10 +17,10 @@
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=19"></script>
-<script src="engine.js?v=15"></script>
+<script src="macd.js?v=20"></script>
+<script src="engine.js?v=16"></script>
 <script src="swing.js?v=3"></script>
-<script src="gate.js?v=1"></script>
+<script src="gate.js?v=2"></script>
 <script src="daypick.js?v=3"></script>
 <script src="draw.js?v=8"></script>
 <script src="install.js?v=2"></script>
@@ -433,8 +433,8 @@ class Panel {
       hoverAll(undefined);
     });
   }
-  // the gate (owner 1-2/11/2026): from every Trend line and every Swing line drawn that is switched on (gate.js); with every
-  // Trend line on and the Swing lines off it is the engine's RDX WIP gate
+  // the gate (owner 1-2/11/2026): from every Trend line and every Swing line drawn that is switched on (gate.js); with the 5m,
+  // 9m and 11m Trend lines on and the 15m and Swing lines off it is the engine's RDX WIP gate
   gateMap() { return NsbGate.states(this.side.run.sig, this.side.swing, this.macd.swing.lines); }
   gate() {  // each candle's gate, at its last finished minute (worked out again after a switch)
     const st = this.gateMap(), tf = opt.tf;

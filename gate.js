@@ -2,12 +2,12 @@
    off should exactly work and reflect on the shading area as our trend" ... "gate as well").
 
    At each minute's close, from the bars CLOSED by then (as the engine's gate, "candle close"):
-     LONG (BULLISH)     every Trend line switched on (5m, 9m, 11m: EMA 8 − EMA 47, EMA 21 − EMA 47) and every Swing line
+     LONG (BULLISH)     every Trend line switched on (5m, 9m, 11m, 15m: EMA 8 − EMA 47, EMA 21 − EMA 47) and every Swing line
                         switched on that has a value yet (1h, 4h, 1D; 1W and 1M where the chart draws them) above 0
      SHORT (BEARISH)    every one of them below 0
      NO TRADE (NEUTRAL) anything else; also when no line is switched on, or a Trend line switched on has no value yet
-   A line switched off counts for nothing, at once. With every Trend line on and the Swing lines off it is exactly the
-   engine's RDX WIP gate (its "5m EMA21 vs EMA47" is the 5m 21/47 line). Your stocks (two or more picked): each stock's own
+   A line switched off counts for nothing, at once. With the 5m, 9m and 11m Trend lines on (the 15m ones, owner 3/11/2026,
+   and the Swing lines off) it is exactly the engine's RDX WIP gate (its "5m EMA21 vs EMA47" is the 5m 21/47 line). Your stocks (two or more picked): each stock's own
    Trend lines decide its own gate and they must all agree, as the engine's; the Swing lines are the composite's.
      NsbGate.states(sig, swing, swingLines, own) -> Map(minute ms -> 'BULLISH' | 'BEARISH' | 'NEUTRAL'), the minutes the
                                                  engine's sig has run (its trace); worked out again after a switch. own:
@@ -25,7 +25,7 @@ const MIN = 60000;
 const ok = v => v !== null && v !== undefined && isFinite(v);
 let ver = 0;
 NsbMacd.onToggle(() => { ver += 1; });  // a switch: every gate is worked out again
-const LABEL = { 5: '5m', 9: '9m', 11: '11m', 60: '1h', 240: '4h', 1440: '1D', 10080: '1W', 43200: '1M' };
+const LABEL = { 5: '5m', 9: '9m', 11: '11m', 15: '15m', 60: '1h', 240: '4h', 1440: '1D', 10080: '1W', 43200: '1M' };
 
 // each Swing line switched on, minute by minute: its value from the last candle CLOSED by the minute's close (none: no value)
 function swingAt(swing, lines) {
