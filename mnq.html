@@ -18,7 +18,7 @@
 <script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=3"></script>
-<script src="macd.js?v=23"></script>
+<script src="macd.js?v=24"></script>
 <script src="engine.js?v=18"></script>
 <script src="swing.js?v=4"></script>
 <script src="gate.js?v=5"></script>
@@ -601,6 +601,7 @@ class Panel {
         </div>
       </section>`);
     this.main = LightweightCharts.createChart($(`${key}-pmain`), options(true, true, ''));
+    NsbMacd.autoButton($(`${key}-pmain`), autoFit);  // the A button (owner 4/11/2026)
     this.vol = this.main.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
     this.main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.88, bottom: 0 }, visible: false });
     this.candles = this.main.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
@@ -745,7 +746,8 @@ class Panel {
     this.onDay = i < 0 ? 0 : n - i;  // the day's candles when fitted: many more at once (the VPS's minutes) fit it again (render)
     if (!n) return false;
     // no candle on it (a weekend, or today before the VPS's stream has sent its minutes): MNQ's last day before it
-    this.main.timeScale().setVisibleLogicalRange(i >= 0 ? { from: i - 1, to: n + 2 } : { from: Math.max(0, n - Math.round(1380 / opt.tf)) - 1, to: n + 2 });
+    this.main.timeScale().setVisibleLogicalRange(NsbMacd.roomy(i >= 0 ? { from: i - 1, to: n + 2 } : { from: Math.max(0, n - Math.round(1380 / opt.tf)) - 1, to: n + 2 },
+                                                               this.main, day.d1 > Date.now()));
     return true;
   }
   setEmas() {  // the 5m EMA 8, 21 and 47 as of each candle's close (never ahead of it), colored by their stack
@@ -897,6 +899,10 @@ document.addEventListener('pointerup', e => {
 function fitAll() {  // the chart on the picked day
   syncing = true;
   try { for (const p of Object.values(panels)) p.fit(); } finally { syncing = false; }
+}
+function autoFit() {  // the A button in each price chart's corner (macd.js): both charts back as they opened, their prices fitted
+  for (const p of Object.values(panels)) p.main.priceScale('right').applyOptions({ autoScale: true });
+  fitAll();
 }
 // -> true when it fitted the chart to the picked day again (the callers then leave the view alone)
 let userMoved = false;  // you scrolled, zoomed or pressed a chart since the last fit: the view is yours

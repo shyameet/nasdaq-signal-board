@@ -18,7 +18,7 @@
 <script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=3"></script>
-<script src="macd.js?v=23"></script>
+<script src="macd.js?v=24"></script>
 <script src="engine.js?v=18"></script>
 <script src="live.js?v=3"></script>
 <script src="swing.js?v=4"></script>
@@ -601,6 +601,7 @@ class Panel {
       <div class="pane" id="${key}-ptrend"><div class="tag mix" id="${key}-ttrend"></div></div>
       <div class="pane" id="${key}-pswing"><div class="tag mix" id="${key}-tswing"></div></div>`;
     this.main = LightweightCharts.createChart($(`${key}-pmain`), options(true, true));
+    NsbMacd.autoButton($(`${key}-pmain`), autoFit);  // the A button (owner 4/11/2026)
     this.vol = this.main.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
     this.main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.88, bottom: 0 }, visible: false });
     this.candles = this.main.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
@@ -763,7 +764,7 @@ class Panel {
     if (!n || !this.main) return false;
     let i = this.mainBars.findIndex(b => b.time >= this.day.lastD0);
     if (i < 0) i = 0;
-    const r = { from: i - 1, to: n + 2 };
+    const r = NsbMacd.roomy({ from: i - 1, to: n + 2 }, this.main, this.day.d1 > Date.now());
     this.main.timeScale().setVisibleLogicalRange(r);
     for (const p of Object.values(this.macd)) p.sync(r);
     return true;
@@ -917,6 +918,13 @@ function syncOther(src, force = false) {
   syncing = true;
   try { other.main.timeScale().setVisibleLogicalRange(to); } catch (e) {}
   syncing = false;
+}
+function autoFit() {  // the A button in each price chart's corner (macd.js): both charts back as they opened, their prices fitted
+  for (const p of panelList()) if (p.main) {
+    p.main.priceScale('right').applyOptions({ autoScale: true });
+    syncing = true;
+    try { p.fit(); } finally { syncing = false; }
+  }
 }
 let hovering = false, pressedChart = null;  // pressedChart: the chart (or pane) last pressed: a finger moves its crosshair
 let hoverAt = 0, hoverT, hoverSrc = null, finger = false;  // when the crosshair last moved, to which candle and on which chart, and if the last press was a finger

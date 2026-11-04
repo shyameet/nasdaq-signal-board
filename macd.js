@@ -452,6 +452,11 @@ css.textContent = `
   .tag.mix .t-mm.off .sw { background: transparent !important; box-shadow: inset 0 0 0 1px var(--faint); }
   .tag.mix .t-mm.off .t-v, .tag.mix .t-mm.off .t-dot { visibility: hidden; }  /* kept in place: switching a line off moves no chip (31/10/2026) */
   .conds .mixed { color: #FFD600; }
+  /* the A button (autoButton): in the price chart's bottom-right corner, under its price scale, as on TradingView */
+  .nsb-auto { position: absolute; right: 6px; bottom: 3px; z-index: 6; min-width: 22px; height: 20px; padding: 0 5px;
+              border: 1px solid var(--line-strong); border-radius: 5px; background: var(--bg); color: var(--muted);
+              font: 600 11px/18px var(--font-num); cursor: pointer; touch-action: manipulation; }
+  .nsb-auto:hover { color: var(--text); border-color: var(--muted); }
 `;
 document.head.appendChild(css);
 
@@ -474,7 +479,9 @@ class Countdown {
     if (y === null) return;
     const s = Math.ceil((k.end - now) / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), two = v => String(v).padStart(2, '0');
     const text = h ? `${h}:${two(m)}:${two(s % 60)}` : `${two(m)}:${two(s % 60)}`, bg = k.up ? '#2bb68a' : '#f0555f';
-    this.views = [{ coordinate: () => y + 17, text: () => text, textColor: () => '#ffffff', backColor: () => bg, visible: () => true, tickVisible: () => false }];
+    // its fixed place too (4/11/2026): without one the chart took it as the scale's top, and with both labels in the top
+    // half it pushed the price's own label up there, away from its line
+    this.views = [{ coordinate: () => y + 17, fixedCoordinate: () => y + 17, text: () => text, textColor: () => '#ffffff', backColor: () => bg, visible: () => true, tickVisible: () => false }];
   }
 }
 
@@ -502,5 +509,24 @@ function applyValues() {
   document.body.classList.toggle('hovering', valuesOn);
 }
 
-window.NsbMacd = { PANES, LINES, LINE, STACK, stackColor, emaPoints, emaTag, chips, MacdPane, DayLines, Bands, Countdown, show, toggle, onToggle: fn => listeners.push(fn), points, matchAt, trendState, showValues };
+// The A button (owner 4/11/2026: "an auto size thing ... similar to TradingView ... it says A"), in a price chart's
+// bottom-right corner under its price scale: the page's reset() puts its charts back as they opened, their prices fitted
+// top to bottom again (a dragged price scale too). While it runs, roomy() keeps a day that has only just begun from
+// stretching its few candles across the chart: at most 10 px each, the day before filling the rest
+let fitting = false;
+function autoButton(el, reset) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'nsb-auto'; b.textContent = 'A';
+  b.title = 'Fit the chart: back as it opened, its prices top to bottom';
+  b.addEventListener('dblclick', e => e.stopPropagation());
+  b.addEventListener('click', e => { e.stopPropagation(); fitting = true; try { reset(); } finally { fitting = false; } });
+  el.appendChild(b);
+  return b;
+}
+const roomy = (r, chart, live) => {  // r: the range a page's fit shows; live: the picked day is today
+  if (!fitting || !live) return r;
+  const least = chart.timeScale().width() / 10;
+  return r.to - r.from >= least ? r : { from: r.to - least, to: r.to };
+};
+window.NsbMacd = { autoButton, roomy, PANES, LINES, LINE, STACK, stackColor, emaPoints, emaTag, chips, MacdPane, DayLines, Bands, Countdown, show, toggle, onToggle: fn => listeners.push(fn), points, matchAt, trendState, showValues };
 })();
