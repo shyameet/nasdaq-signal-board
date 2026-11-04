@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nasdaq · MNQ · Indra Quant Signal Board</title>
-<meta name="description" content="The real MNQ future, with two baskets of your Nasdaq stocks and MNQ itself in three panes under it: the same 1m to 15m lines and each one's gate.">
+<meta name="description" content="The real MNQ future twice side by side, each with two baskets of your Nasdaq stocks and MNQ in three panes under it: the 1m to 15m lines, and on the right the 1h waves too.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -18,11 +18,10 @@
 <script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=3"></script>
-<script src="macd.js?v=20"></script>
-<script src="engine.js?v=16"></script>
+<script src="macd.js?v=21"></script>
+<script src="engine.js?v=17"></script>
 <script src="swing.js?v=3"></script>
-<script src="gate.js?v=2"></script>
-<script src="basket.js?v=2"></script>
+<script src="gate.js?v=3"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=8"></script>
@@ -36,7 +35,8 @@
   .brand .board-name { font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
   /* The MNQ page (owner 24/10/2026): the Replay page with the real MNQ future on the right instead of XYZ100, and the
      Divergence page's marks (MNQ alone / stocks first / other) on both charts instead of the 2m/3m signals. Remade 3/11/2026
-     (owner): one MNQ chart, and under it three panes, Basket 1, Basket 2 and MNQ, each with the 1m to 15m lines.
+     (owner): one MNQ chart, and under it three panes, Basket 1, Basket 2 and MNQ, each with the 1m to 15m lines. Split in
+     two 4/11/2026 (owner): that on the left, and a copy on the right whose panes have the 1h waves too, each its own baskets.
      The Replay page's notes: one trading day at a time (from the CME open). Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
      has the same indicators (the RDX WIP gate, the 5m EMA 8/21/47, the Entry MACD and Trend waves panes; owner
      28/10/2026, Rahul's RDX WIP Trend). */
@@ -119,8 +119,10 @@
   .note.warn { color: var(--warn); }
 
   /* ---- the chart (owner 3/11/2026): MNQ on top, then Basket 1, Basket 2 and MNQ, each pane with the 1m to 15m lines ---- */
-  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }   /* left, and right with the 1h waves (4/11/2026) */
   .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .panel + .panel { border-left: 1px solid var(--line-strong); }
+  .pside { color: var(--faint); font: 600 10.5px var(--font-num); letter-spacing: .04em; }
   .phead { flex: none; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 10px; padding: 6px 10px; border-bottom: 1px solid var(--line); min-width: 0; overflow: hidden; white-space: nowrap; }   /* one tidy line (owner 24/10/2026) */
   .pname { font-size: 14px; font-weight: 700; line-height: 20px; letter-spacing: .01em; }
   .pval { font: 600 14px/20px var(--font-num); margin-left: -2px; }   /* name and price on one line, one size (owner 24/10/2026) */
@@ -137,12 +139,15 @@
   .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 43fr 19fr 19fr 19fr; }   /* MNQ's price, then the panes: Basket 1, Basket 2, MNQ */
   .cell { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .cell > .pane { flex: 1; }
-  /* a basket's row: its stock picker, then its leader, the stocks that joined its trend and the ones still waiting (basket.js) */
+  /* a basket's row: its stock picker and its stocks (the leader / follower words came off: owner 4/11/2026) */
   .bkrow { flex: none; display: flex; align-items: center; gap: 4px 10px; min-width: 0; min-height: 27px; padding: 2px 10px;
            border-bottom: 1px solid var(--line); background: var(--surface); overflow: hidden; white-space: nowrap; }
   .bkrow .pick-btn { flex: none; padding: 2px 8px; gap: 6px; }
   .bkrow .pick-btn b { font-weight: 600; }
-  .bkrow .bk { flex: 1; min-width: 0; padding: 0; border: 0; min-height: 0; flex-wrap: nowrap; overflow: hidden; }
+  .bkrow .bk-list { flex: 1; min-width: 0; color: var(--muted); font: 11px var(--font-num); overflow: hidden; text-overflow: ellipsis; }
+  /* the first load shows at once; a note while Hyperliquid's newest minutes are still coming (or it is busy) */
+  .older.fill { bottom: 46px; max-width: calc(100vw - 24px); white-space: normal; }
+  .older.fill.warn { color: var(--warn); border-color: rgba(242, 179, 61, .5); }
   .pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line); }
   .tag { position: absolute; top: 4px; left: 10px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 90px);
          padding: 3px 8px; border-radius: 6px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 11.5px; color: var(--muted);
@@ -202,15 +207,16 @@
   .pick-actions .msg.warn { color: var(--warn); }
   .pick-actions .go { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
   .pick-actions .go:disabled { opacity: .4; cursor: default; }
-  @media (max-width: 1100px) {   /* the page scrolls: each chart keeps a height of its own */
+  @media (max-width: 1100px) {   /* the page scrolls: the two copies one under the other, each chart a height of its own */
     html, body { height: auto; }
+    .board { grid-template-columns: minmax(0, 1fr); }
+    .panel + .panel { border-left: 0; border-top: 2px solid var(--line-strong); }
     .stack { flex: none; grid-template-rows: max(320px, 46vh) repeat(3, max(230px, 31vh)); }
   }
   @media (max-width: 640px) {
     .phead { flex-wrap: wrap; white-space: normal; row-gap: 4px; }
     .other { margin-left: 0; }
     .bkrow { flex-wrap: wrap; white-space: normal; }
-    .bkrow .bk { flex-wrap: wrap; flex-basis: 100%; }
   }
   /* ---- tablet width (owner 30/10/2026: the stocks pick, ?, Live and Labels sat alone on a second row): below 1500 px
      the bar tightens so everything fits on one row; it only wraps when there is truly no room. Wide screens unchanged */
@@ -240,11 +246,12 @@
     <summary title="How it works">?</summary>
     <div class="how-body">
       <h3>What you see</h3>
-      <p>On top: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS) with its gate's shading (green LONG, red SHORT) and the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one). MNQ's bars start at its session open (17:00 Chicago), as on TradingView.</p>
-      <p>Under it three panes with the same lines: the 1m, 2m and 3m MACD (12, 26; shown only, on a scale of their own in each pane so the far bigger waves don't flatten them, 0 shared) and the 5m, 9m, 11m and 15m waves (EMA 8 − EMA 47 and EMA 21 − EMA 47 on each). <b>Basket 1</b> and <b>Basket 2</b>: two composites of your own stocks from Hyperliquid, each picked with the button on its row (Basket 1 is the pick the other pages use, Basket 2 this page's own; each stock counts equally), drawn on MNQ's candles: every point is the basket's line as of that MNQ candle's close. <b>MNQ</b>: MNQ's own. Each pane is shaded by its own trend. A basket's row says its leader, how many of its stocks joined its trend and which are still waiting; the marks on its zero line show the leader, each join and the last follower.</p>
-      <p>An arrow on the MNQ chart marks where an <b style="color:#ff8a3d">MNQ alone</b> stretch (MNQ's gate is LONG, Basket 1's isn't) or a <b style="color:#2bb68a">Stocks first</b> stretch (Basket 1's gate is LONG, MNQ's not yet) begins. The badge in the top bar says where they stand right now (on a past day, at MNQ's last candle of it).</p>
+      <p>Two copies side by side. Each: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS) with its gate's shading (green LONG, red SHORT) and the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), and under it three panes with the same lines: the 1m, 2m and 3m MACD (12, 26; shown only, on a scale of their own in each pane so the far bigger waves don't flatten them, 0 shared) and the 5m, 9m, 11m and 15m waves (EMA 8 − EMA 47 and EMA 21 − EMA 47 on each). The <b>right</b> copy's panes also have the <b>1h waves</b> (the same two on the 1-hour candles, from our nightly files and today's minutes). MNQ's bars start at its session open (17:00 Chicago), as on TradingView. Both copies scroll and zoom together.</p>
+      <p><b>Basket 1</b> and <b>Basket 2</b>: composites of your own stocks from Hyperliquid, each picked with the button on its row; each copy has its own two (the left's Basket 1 is the pick the other pages use); each stock counts equally. They are drawn on MNQ's candles: every point is the basket's line as of that MNQ candle's close. <b>MNQ</b>: MNQ's own. Each pane is shaded by its own trend.</p>
+      <p>An arrow on an MNQ chart marks where an <b style="color:#ff8a3d">MNQ alone</b> stretch (MNQ's gate is LONG, that copy's Basket 1's isn't) or a <b style="color:#2bb68a">Stocks first</b> stretch (Basket 1's gate is LONG, MNQ's not yet) begins. The badge in the top bar says where the left copy stands right now (on a past day, at MNQ's last candle of it).</p>
       <h3>The gate</h3>
-      <p>From the 5m, 9m, 11m and 15m lines switched on (click a line's name in any pane to switch it; the switch holds on every pane and every tab): LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. With the 5m, 9m and 11m lines on and the 15m ones off it is RDX WIP's trend (Rahul's RDX WIP Trend). This page has no Swing pane, so the Swing lines don't count here (on the other tabs they do while switched on). It is read on candle close: a candle counts from the minute it closes. MNQ and each basket have their own gate (a basket's: every picked stock's own lines must agree; its pane is shaded by the basket's own lines); the header shows all three at the same moment.</p>
+      <p>From the lines switched on (click a line's name in any pane to switch it; the switch holds on every pane and every tab): LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. On the left the 5m, 9m, 11m and 15m waves count; on the right the 1h waves too. The 1m, 2m and 3m MACD are shown only. With the 5m, 9m and 11m lines on and the 15m and 1h ones off it is RDX WIP's trend (Rahul's RDX WIP Trend). It is read on candle close: a candle counts from the minute it closes (an hour's from the minute that ends it). MNQ and each basket have their own gate (a basket's: every picked stock's own lines must agree; its pane is shaded by the basket's own lines); each header shows all three at the same moment.</p>
+      <p><b>Loading</b>: a page opens at once on the saved days and on the minutes this browser saved; the newest minutes come in from Hyperliquid a moment later. A note at the bottom says when Hyperliquid is busy or not answering, and they come in once it does.</p>
       <h3>Days</h3>
       <p>A day is a CME trading day: it starts at the CME open, 17:00 Chicago (03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time). Saturday and Sunday trading days have no CME session: the header says <b>CME closed – weekend</b>, and as every pane follows MNQ's candles, nothing new shows until the CME opens (the stocks still trade). The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The marks cover everything loaded.</p>
       <h3>Data</h3>
@@ -263,6 +270,7 @@
     <div class="pick-actions"><span class="msg" id="pickMsg"></span><button type="button" id="pickCancel">Cancel</button><button type="button" class="go" id="pickGo">Apply</button></div>
   </div>
 <div id="older" class="older" hidden>Loading older days…</div>
+<div id="fillNote" class="older fill" role="status" hidden></div>
 <div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
 <script>
 'use strict';
@@ -290,6 +298,7 @@ const kind = st => st === 'BULLISH' ? 'bull' : st === 'BEARISH' ? 'bear' : '';
 // bars restart each day at `o` ms after 00:00 UTC: 0 for the stock perps (24/7); 'cme' for MNQ, its session open 17:00
 // Chicago on whichever clock Chicago is on (22:00 UTC in summer time, 23:00 UTC from 1 Nov; cme.js), as on TradingView
 const CME_OPEN = 'cme';
+const SWING_MNQ = { id: 'MNQ', origin: CME_OPEN, roll: 'MNQ' };  // MNQ's long candles (swing.js): its file, moved onto the contract traded now
 const day0Of = (t, o) => o === 'cme' ? NsbCme.day0(t) : t - ((t - o) % DAY + DAY) % DAY;
 const dayEndOf = (t, o) => o === 'cme' ? NsbCme.dayEnd(t) : day0Of(t, o) + DAY;
 const bucketStart = (t, m, o = 0) => { const d0 = day0Of(t, o), s = m * MIN; return d0 + Math.floor((t - d0) / s) * s; };
@@ -306,7 +315,7 @@ const opt = {
 // From our daily archive (data/1m/YYYY-MM-DD.json, written by the VPS) when it has the day, else straight from
 // Hyperliquid, which keeps about the last 3.5 days of 1-minute candles.
 let BASKET = null, ALL = [], archiveDays = new Set(), hlFrom = Infinity;
-const PICKS = { b1: [], b2: [] };  // the two baskets' stocks
+const PICKS = { left: { b1: [], b2: [] }, right: { b1: [], b2: [] } };  // each side's two baskets' stocks (owner 4/11/2026: own baskets each side)
 const dayCache = new Map();
 // MNQ: the VPS's saved futures days (data/futures/1m, one file per UTC day; NinjaTrader's front month)
 let futDays = new Set(), futRead = 0;  // futRead: when the index was last read
@@ -352,7 +361,7 @@ const ended = key => Date.now() >= dayStart(key) + DAY + MIN;  // UTC day over, 
 // yesterday's file too, all day long). One cached while under way is topped up; an unpicked stock in it is dropped
 // rather than kept up to date, and fetched whole if picked again.
 async function topUp(keys, want) {  // the cached, unfinished UTC days among keys: only the minutes since each market's last candle
-  await Promise.all(keys.map(k => dayCache.get(k)).filter(d => d && !d.complete).map(async d => {
+  await Promise.all(keys.map(k => dayCache.get(k)).filter(d => d && !d.complete && !d.partial).map(async d => {  // (a partial day: fillIn's)
     const f0 = dayStart(d.key), now = Date.now(), done = ended(d.key);
     for (const c of Object.keys(d.coins)) if (!want.includes(c)) delete d.coins[c];
     await Promise.all(Object.keys(d.coins).map(async c => {
@@ -373,6 +382,7 @@ async function loadDay(key, want) {  // -> { key, source, coins: { coin: [bars (
     const got = await fetchDay(key, missing);
     Object.assign(d.coins, got.coins);
     if (got.source !== d.source && Object.values(got.coins).some(a => a.length)) d.source = 'archive+hl';
+    if (got.partial) { d.partial = true; d.complete = false; }
   }
   return d;
 }
@@ -390,13 +400,17 @@ async function fetchDay(key, coins) {  // one UTC day of these markets, whole
     } catch (e) { /* falls back to Hyperliquid below */ }
   }
   const missing = coins.filter(c => !out[c]);
+  let partial = false;
   if (missing.length && d0 + DAY > hlFrom) {  // Hyperliquid still has (some of) this day
     const end = Math.min(d0 + DAY - 1, Date.now());
-    await Promise.all(missing.map(async c => { out[c] = (await hlDay(c, d0, end)).filter(b => b.t < d0 + DAY); }));
+    // the page's first load (nothing shown yet): the minutes this browser saved, at once; Hyperliquid's own once the charts
+    // show (fillIn; owner 4/11/2026: "its taking too long to load" - Hyperliquid answering slowly held the loading screen)
+    if (!day) { for (const c of missing) out[c] = savedMinutes(c, d0, end); partial = true; }
+    else await Promise.all(missing.map(async c => { out[c] = (await hlDay(c, d0, end)).filter(b => b.t < d0 + DAY); }));
     if (source === 'archive') source = 'archive+hl';
   }
   for (const c of coins) if (!out[c]) out[c] = [];  // none to be had: not asked for again at every build
-  return { key, source, coins: out, complete: done };
+  return { key, source, coins: out, complete: done && !partial, partial };
 }
 
 // ---- one series, minute by minute, exactly as the live engine runs it ----------------------------------------
@@ -427,8 +441,9 @@ function minutesOf(days, coins) {  // each market's bars over the loaded days, o
   }
   return out;
 }
-// The two baskets (owner 3/11/2026: "basket of stocks, basket of stocks once again", each a pick of your own): Basket 1 is
-// the pick the other pages share, Basket 2 this page's own (the chip makers until you pick)
+// The two baskets (owner 3/11/2026: "basket of stocks, basket of stocks once again", each a pick of your own): on the left
+// Basket 1 is the pick the other pages share, Basket 2 this page's own (the chip makers until you pick); the right side has
+// its own two (4/11/2026), the same to begin with
 const BASKETS = { b1: 'Basket 1', b2: 'Basket 2' };
 function composite(list) {  // a basket's coefficients: every picked stock counts equally
   return Object.fromEntries(list.map(c => [c, BASKET.base / list.length / BASKET.members[c].ref_price]));
@@ -438,18 +453,21 @@ const DEFAULT = () => (BASKET && BASKET.default ? ALL.filter(c => BASKET.default
 const CHIPS = ['xyz:NVDA', 'xyz:MU', 'xyz:AMD', 'xyz:AVGO', 'xyz:TSM', 'xyz:INTC'];
 const DEFAULTS = { b1: DEFAULT, b2: () => { const a = ALL.filter(c => CHIPS.includes(c)); return a.length ? a : DEFAULT(); } };
 const pickName = list => list.join() === DEFAULT().join() ? 'NDX10' : list.length <= 3 ? list.map(tk).join('+') : `${list.length} stocks`;
-const want = () => ALL.filter(c => PICKS.b1.includes(c) || PICKS.b2.includes(c));  // every stock either basket holds
+const want = () => ALL.filter(c => SIDES.some(s => PICKS[s].b1.includes(c) || PICKS[s].b2.includes(c)));  // every stock a basket holds
 // One long strip of days (owner 24/10/2026): the picked day is the newest; `shown` days up to it are drawn (plus one
 // more behind them to warm the indicators up), and older ones join when you scroll to the left edge.
 // quiet: no loading screen (the minute refresh of today, or adding older days). False: a newer build started meanwhile
 // and its result stands (a day picked while the minute refresh or older days were loading is not overwritten by them).
 let builds = 0;  // buildDay's sequence number
 async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
-  const seq = ++builds, coins = want(), picks = { b1: PICKS.b1, b2: PICKS.b2 };
+  const seq = ++builds, coins = want(), picks = { left: { ...PICKS.left }, right: { ...PICKS.right } };
   const list = dayList.length ? dayList : listDays(), i = Math.max(0, list.indexOf(key));
   const shownKeys = list.slice(i, i + shown), warmKey = list[i + shown];
   const d0 = NsbCme.open(shownKeys[shownKeys.length - 1]), lastD0 = NsbCme.open(key), d1 = NsbCme.open(NsbCme.next(key));
   if (!quiet) loading(`Loading ${key}…`);
+  // the right side's 1h waves: each series' long candles (swing.js), our nightly files fetched meanwhile
+  const hourSpec = list => { const coef = composite(list); return { members: Object.fromEntries(list.map(c => ['hl_' + c.replace(/:/g, '_'), coef[c]])), origin: 0 }; };
+  const ahead = Promise.all([NsbSwing.series(hourSpec(picks.right.b1), []), NsbSwing.series(hourSpec(picks.right.b2), []), NsbSwing.series(SWING_MNQ, [])]).catch(() => null);
   // the indicators warm up on the day before the oldest one shown, and past a weekend's (no CME session) on to the Friday
   // before it (3/11/2026: MNQ's 15m waves need about 12 hours of its candles, so a Monday's gate began at 04:45 Chicago)
   const warmKeys = [];
@@ -462,24 +480,31 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const fut = NsbRolls.adjust('MNQ', [...byT.values()].sort((a, b) => a.t - b.t));  // older contracts moved onto the one traded now
   if (seq !== builds) return false;  // a newer build started meanwhile: its result stands
   const m = minutesOf(days, coins);  // only the picked stocks: nothing else is drawn here
-  const run = { b1: runSeries(composite(picks.b1), m), b2: runSeries(composite(picks.b2), m),
-                mnq: runSeries({ MNQ: 1 }, { MNQ: fut }, CME_OPEN) };  // MNQ: no candle in a quiet minute or the daily break
+  const runs = new Map(), runOf = list => { const k = list.join(); if (!runs.has(k)) runs.set(k, runSeries(composite(list), m)); return runs.get(k); };  // a basket on both sides runs once
+  const mnqRun = runSeries({ MNQ: 1 }, { MNQ: fut }, CME_OPEN);  // MNQ: no candle in a quiet minute or the daily break
   const inDay = b => b.t >= d0 && b.t < d1;  // the strip
   const price = fut.filter(inDay).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }));  // MNQ's own 1-minute candles
   const src = days.map(d => d.source).join(' + ');
   const lacking = coins.filter(c => !m[c].some(inDay));  // picked stocks with no candles on this day (not archived yet)
   const lastOf = r => { const a = (r.bars[1] || []).filter(b => b.time < d1); return a.length ? a[a.length - 1].time : 0; };
-  day = { key, d0, d1, lastD0, shown: shownKeys.length, more: !!warmKey, prevLoaded: !!warmKey || list.length > i + shownKeys.length, source: src, lacking, price,
-          b1: { key: 'b1', name: BASKETS.b1, pick: picks.b1, run: run.b1, origin: 0, macdDigits: 3 },
-          b2: { key: 'b2', name: BASKETS.b2, pick: picks.b2, run: run.b2, origin: 0, macdDigits: 3 },
-          mnq: { key: 'mnq', name: 'MNQ', run: run.mnq, origin: CME_OPEN, digits: 2, macdDigits: 2 } };
-  day.end = Math.max(price.length ? price[price.length - 1].time : 0, lastOf(run.b1), lastOf(run.b2)) + MIN;
+  // the 1h candles, current up to the last closed minute: each right basket's own 1-minute candles, and MNQ's
+  await ahead;
+  const now = Date.now(), ones = r => (r.bars[1] || []).filter(b => b.time + MIN <= now).map(b => ({ t: b.time, o: b.open, h: b.high, l: b.low, c: b.close, v: b.volume || 0 }));
+  const hours = new Map(), hourOf = list => { const k = list.join(); if (!hours.has(k)) hours.set(k, NsbSwing.series(hourSpec(list), ones(runOf(list))).catch(() => null)); return hours.get(k); };
+  const [h1, h2, hm] = await Promise.all([hourOf(picks.right.b1), hourOf(picks.right.b2), NsbSwing.series(SWING_MNQ, fut).catch(() => null)]);
+  if (seq !== builds) return false;
+  const basket = (k, pick, swing) => ({ key: k, name: BASKETS[k], pick, run: runOf(pick), origin: 0, macdDigits: 3, swing });
+  const mnq = { key: 'mnq', name: 'MNQ', run: mnqRun, origin: CME_OPEN, digits: 2, macdDigits: 2, swing: null };
+  day = { key, d0, d1, lastD0, shown: shownKeys.length, more: !!warmKey, prevLoaded: !!warmKey || list.length > i + shownKeys.length, source: src, lacking, price, mnq,
+          left: { b1: basket('b1', picks.left.b1, null), b2: basket('b2', picks.left.b2, null), mnq },
+          right: { b1: basket('b1', picks.right.b1, h1), b2: basket('b2', picks.right.b2, h2), mnq: { ...mnq, swing: hm } } };
+  day.end = Math.max(price.length ? price[price.length - 1].time : 0, ...[...runs.values()].map(lastOf)) + MIN;
   showNote();
   if (!quiet) loading(null);  // a quiet build never hides another build's loading screen
   return true;
 }
 
-// ---- the Divergence page's marks: where MNQ's gate and Basket 1's disagree -----------------------------------------
+// ---- the Divergence page's marks: where a side's MNQ gate and its Basket 1's disagree ---------------------------------
 const PATTERN = {
   alone: { name: 'MNQ alone', word: 'MNQ ALONE', band: 'rgba(255, 138, 61, 0.17)', color: '#ff8a3d', note: "MNQ's gate is LONG, Basket 1's isn't." },
   first: { name: 'Stocks first', word: 'STOCKS FIRST', band: 'rgba(43, 182, 138, 0.17)', color: '#2bb68a', note: "Basket 1's gate is LONG, MNQ's not yet." },
@@ -487,21 +512,28 @@ const PATTERN = {
 };
 // the stocks' and MNQ's gates at one moment -> null when they agree (or MNQ is closed), else which disagreement
 const classify = (sn, sx) => !sn || !sx || sn === sx ? null : sx === 'BULLISH' ? 'alone' : sn === 'BULLISH' ? 'first' : 'other';
-// a series' gate (gate.js, owner 1/11/2026): from the lines switched on, at each minute's close. This page has no Swing pane
-// (owner 3/11/2026: the three panes hold the 1m to 15m lines), so only the Trend lines count here
-const gateOf = side => NsbGate.states(side.run.sig, null, []);
-const ownOf = side => side.run.sig && side.run.sig.parts ? NsbGate.states(side.run.sig, null, [], true) : gateOf(side);  // a basket's shading: its own lines
-const gateNear = (side, t) => { const g = gateOf(side); for (let k = t; k >= t - 2 * MIN; k -= MIN) { const s = g.get(k); if (s) return s; } return null; };
-const kindAt = t => classify(gateNear(day.b1, t), gateNear(day.mnq, t));
-// A past day ends at the next CME open, inside MNQ's daily break: the header and the badge read it at MNQ's last candle of
+// a series' gate on a side (gate.js, owner 1/11/2026): from the lines switched on that the side draws, at each minute's close:
+// the Trend lines on both, the 1h waves too on the right (owner 4/11/2026); no Swing pane here, so no other long lines
+const gateOf = (ser, side) => NsbGate.states(ser.run.sig, ser.swing || null, LONG_OF[side]);
+const ownOf = (ser, side) => ser.run.sig && ser.run.sig.parts ? NsbGate.states(ser.run.sig, ser.swing || null, LONG_OF[side], true) : gateOf(ser, side);  // a basket's shading: its own lines
+const gateNear = (ser, side, t) => { const g = gateOf(ser, side); for (let k = t; k >= t - 2 * MIN; k -= MIN) { const s = g.get(k); if (s) return s; } return null; };
+const kindAt = (side, t) => classify(gateNear(day[side].b1, side, t), gateNear(day[side].mnq, side, t));
+// A past day ends at the next CME open, inside MNQ's daily break: the headers and the badge read it at MNQ's last candle of
 // the day instead (none, as at a weekend: the day's end, where MNQ is closed).
 const mnqEnd = () => { const p = day.price, b = p[p.length - 1]; return day.d1 <= Date.now() && b && b.time >= day.lastD0 ? b.time + MIN : day.end; };
 const weekend = t => [0, 6].includes(new Date(NsbCme.key(t) + 'T00:00:00Z').getUTCDay());  // a Saturday or Sunday trading day: no CME session (owner 24/10/2026: "just let it show that market is closed on weekends")
 const hasDay = key => archiveDays.has(key) || dayStart(key) + DAY > hlFrom;
 
-// ---- the chart ---------------------------------------------------------------------------------------------
+// ---- the charts (owner 4/11/2026: "split it, keep the current one as it is on the left side and add one more exactly of it
+// on the right ... add 1 hr on it"): two copies side by side, each an MNQ chart and three panes, scrolling and zooming
+// together; the right one's panes also draw the 1h waves, which count for its gate --------------------------------------
 const panels = {};
-const PANE_KEYS = ['b1', 'b2', 'mnq'];  // the panes under the MNQ chart, top to bottom (owner 3/11/2026)
+const SIDES = ['left', 'right'];
+const PANE_KEYS = ['b1', 'b2', 'mnq'];  // the panes under each MNQ chart, top to bottom (owner 3/11/2026)
+const H1 = ['s1a', 's1b'];  // the 1h waves (swing.js): EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 1-hour candles
+const LONG_OF = { left: [], right: H1 };  // each side's lines on long candles: drawn, and counted for its gate while switched on
+// the 1h waves in colors of their own here (on the Swing pane they take the 5m waves', which are in these panes too), drawn thicker
+const H1_COLORS = { s1a: ['#FFD54F', '#4DB6AC'], s1b: ['#BA68C8', '#AED581'] }, H1_WIDTHS = { s1a: 3, s1b: 3 };
 // the 1m, 2m and 3m MACD on a scale of their own in each pane (the 15m waves are many times their size); 0 stays in the
 // middle of both scales, so the zero line is every line's
 const MACD_SCALE = { m1: 'mc', m2: 'mc', m3: 'mc' };
@@ -521,22 +553,24 @@ function options(showTime, isMain, name) {
       horzLine: { color: C.cross, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: C.label } },
   };
 }
+let driver = null;  // the side you are moving (pressed, scrolled or zoomed last): only its moves pass to the other
 class Panel {
-  constructor() {
-    const key = this.key = 'mnq', origin = CME_OPEN;
+  constructor(side) {
+    const key = this.key = side, origin = CME_OPEN;
+    this.lines = [...NsbMacd.PANES.all.lines, ...LONG_OF[side]];
     this.mainBars = []; this.mainStates = []; this.paneStates = {}; this.kinds = []; this.src = {}; this.srcs = {}; this.store = new Map(); this.emaPts = [];
     const pane = k => `<div class="pane" id="${key}-p${k}"><div class="tag mix" id="${key}-t${k}"></div></div>`;
     const cell = k => k === 'mnq' ? pane(k) : `<div class="cell">
-            <div class="bkrow"><button class="pick-btn" id="${k}-btn" type="button" aria-haspopup="dialog" aria-expanded="false"><b>${BASKETS[k]}</b><small id="${k}-sub"></small><span class="caret">▼</span></button><div class="bk" id="${k}-bk"></div></div>
+            <div class="bkrow"><button class="pick-btn" id="${key}-${k}-btn" type="button" aria-haspopup="dialog" aria-expanded="false"><b>${BASKETS[k]}</b><small id="${key}-${k}-sub"></small><span class="caret">▼</span></button><span class="bk-list" id="${key}-${k}-list"></span></div>
             ${pane(k)}</div>`;
     $('board').insertAdjacentHTML('beforeend', `
       <section class="panel" id="${key}">
         <div class="phead">
-          <span class="pname" id="${key}-name">MNQ</span><span class="pval" id="${key}-val">—</span>
+          <span class="pname" id="${key}-name">MNQ</span><span class="pval" id="${key}-val">—</span><span class="pside">${side === 'right' ? '1m–15m + 1h' : '1m–15m'}</span>
           <span class="gk">Gate</span><span class="gw" id="${key}-gate">—</span>
           <span class="conds" id="${key}-conds"></span>
           <span class="warm" id="${key}-warm"></span>
-          <span class="other">${['b1', 'b2'].map(k => `<span>${BASKETS[k]}</span><span class="gw" id="${k}-gate">—</span>`).join('')}</span>
+          <span class="other">${['b1', 'b2'].map(k => `<span>${BASKETS[k]}</span><span class="gw" id="${key}-${k}-gate">—</span>`).join('')}</span>
         </div>
         <div class="stack">
           <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
@@ -555,23 +589,27 @@ class Panel {
     this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30, 'cme'));  // where each trading day begins (the CME open), with its date
     this.candles.attachPrimitive(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];  // time left in the newest candle (as on TradingView)
       return b && { close: b.close, end: bucketEnd(b.time, opt.tf, origin), up: b.close >= b.open }; }));
-    // (id 'right': the MNQ chart's drawings from before 3/11/2026, when it was the right-hand chart, stay)
-    this.drawing = NsbDraw.add({ id: 'right', chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
+    // (the left's id 'right': the MNQ chart's drawings from before 3/11/2026, when it was the right-hand chart, stay; a level
+    // or a time line shows on both copies, as both are MNQ)
+    this.drawing = NsbDraw.add({ id: side === 'left' ? 'right' : 'mnq2', chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
                   tf: () => opt.tf, fmt: v => num(v, 2) });
     this.macd = {};
     for (const k of PANE_KEYS) this.macd[k] = new MacdPane({
-      el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: 'all', title: k === 'mnq' ? 'MNQ' : BASKETS[k], scales: MACD_SCALE,
+      el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: 'all', lines: this.lines, colors: H1_COLORS, widths: H1_WIDTHS,
+      title: k === 'mnq' ? 'MNQ' : BASKETS[k], scales: MACD_SCALE,
       name: '', digits: 2, options: options(false, false, ''), origin, days: 'cme',
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.srcs[k] || {},
       shade: i => (this.paneStates[k] || [])[i] || null,  // each pane its own series' trend
     });
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
+    for (const ev of ['pointerdown', 'wheel', 'touchstart']) $(key).addEventListener(ev, () => { driver = this; }, { capture: true, passive: true });
     this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
       if (chartFingers.size) scrollAt = Date.now();  // (before the chart's re-check of the crosshair, in the same call)
       for (const p of Object.values(this.macd)) p.sync(r);
+      if (!syncing && driver === this) syncSides(this, r);
       if (r && r.from < 8 && !syncing && day && day.more) loadOlder();  // at the left edge: older days
     });
-    // one crosshair over the chart and its panes
+    // one crosshair over the chart and its panes (and the other copy's at the same time)
     const all = [{ chart: this.main, series: this.candles, value: t => { const b = this.store.get(t); return b ? b.close : null; } },
                  ...Object.values(this.macd).map(p => ({ chart: p.chart, series: p.zero, value: t => { const q = p.store.get(t); return q ? p.value(q) : null; } }))];
     this.charts = all;
@@ -628,43 +666,50 @@ class Panel {
     }));
     for (const o of all) o.chart.timeScale().subscribeVisibleLogicalRangeChange(level);
   }
+  ser(k) { return day[this.key][k]; }  // this side's series: b1, b2 or mnq
   get side() { return day.mnq; }
   draw(full) {  // the whole strip
-    const tf = opt.tf, o = CME_OPEN;
+    const tf = opt.tf, o = CME_OPEN, live = day.d1 > Date.now();
     if (full && this.scaleW !== 64) { this.scaleW = 64; for (const c of this.charts) c.chart.applyOptions({ rightPriceScale: { minimumWidth: 64 } }); for (const p of Object.values(this.macd)) p.tagEl.style.maxWidth = ''; }  // another day, candle size or pick: each chart finds its own width again (the widest is shared above)
     this.mainBars = aggregate(day.price.concat(mnqForming()), tf, o);  // today's forming minute on top
     // each pane's lines and the EMAs: only bars closed by the strip's end (the UTC files run past it, and the last candle
-    // takes the newest bar). A basket's bars carry the minute they close (its bars restart at 00:00 UTC, MNQ's at the CME open)
-    const closed = side => Object.fromEntries(Object.entries(side.run.bars).map(([m, bars]) => [m, side.origin === o
-      ? bars.filter(b => bucketEnd(b.time, +m, o) <= day.d1)
-      : bars.map(b => ({ ...b, end: bucketEnd(b.time, +m, side.origin) })).filter(b => b.end <= day.d1)]));
-    this.srcs = Object.fromEntries(PANE_KEYS.map(k => [k, closed(day[k])]));
+    // takes the newest bar). A basket's bars carry the minute they close (its bars restart at 00:00 UTC, MNQ's at the CME
+    // open). The right side's 1h candles close at their own end; on today's strip the newest (still forming, from the closed
+    // minutes) is kept for the newest candle
+    const closed = ser => {
+      const out = Object.fromEntries(Object.entries(ser.run.bars).map(([m, bars]) => [m, ser.origin === o
+        ? bars.filter(b => bucketEnd(b.time, +m, o) <= day.d1)
+        : bars.map(b => ({ ...b, end: bucketEnd(b.time, +m, ser.origin) })).filter(b => b.end <= day.d1)]));
+      if (ser.swing && ser.swing[60]) out[60] = live ? ser.swing[60] : ser.swing[60].filter(b => b.end <= day.d1);
+      return out;
+    };
+    this.srcs = Object.fromEntries(PANE_KEYS.map(k => [k, closed(this.ser(k))]));
     this.src = this.srcs.mnq;
     this.gateStates();
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
     this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
     this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
     this.setEmas();
-    for (const [k, p] of Object.entries(this.macd)) { p.digits = day[k].macdDigits; p.update(); p.showLines(); }
+    for (const [k, p] of Object.entries(this.macd)) { p.digits = this.ser(k).macdDigits; p.update(); p.showLines(); }
     this.setMarkers();
-    this.main.applyOptions({ watermark: { text: `MNQ · ${tf}m` } });
+    this.main.applyOptions({ watermark: { text: `MNQ · ${tf}m${this.key === 'right' ? ' · 1h' : ''}` } });
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
   }
   gateStates() {  // the candles' gates, the panes' shading and the marks' disagreements: at each draw, and again after a switch
-    const tf = opt.tf, o = CME_OPEN;
+    const tf = opt.tf, o = CME_OPEN, side = this.key;
     const at = (states, b) => {  // a series' state at the candle's last finished minute (so far)
       for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { const s = states.get(t); if (s) return s; }
       return null;
     };
-    const st = gateOf(day.mnq);
+    const st = gateOf(this.ser('mnq'), side);
     this.mainStates = this.mainBars.map(b => at(st, b));
     this.paneStates = { mnq: this.mainStates };
-    for (const k of ['b1', 'b2']) { const own = ownOf(day[k]); this.paneStates[k] = this.mainBars.map(b => at(own, b)); }
+    for (const k of ['b1', 'b2']) { const own = ownOf(this.ser(k), side); this.paneStates[k] = this.mainBars.map(b => at(own, b)); }
     this.firstState = Infinity;  // MNQ's first gate minute in the strip (not after it), once per draw: head() runs on every crosshair move, and a long strip has too many to spread
     for (const x of st.keys()) if (x >= day.d0 && x < day.d1 && x < this.firstState) this.firstState = x;
     this.kinds = this.mainBars.map(b => {  // the disagreement at the candle's last minute with both gates
-      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { if (gateNear(day.b1, t) && gateNear(day.mnq, t)) return kindAt(t); }
+      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { if (gateNear(this.ser('b1'), side, t) && gateNear(this.ser('mnq'), side, t)) return kindAt(side, t); }
       return null;
     });
     this.mainBars.forEach((b, i) => { const s = this.store.get(sec(b.time)); if (s) s.state = this.mainStates[i]; });  // the hover readout's GATE word
@@ -672,6 +717,7 @@ class Panel {
   fit() {  // the newest day of the strip (the older ones are to the left)
     const n = this.mainBars.length, i = this.mainBars.findIndex(b => b.time >= day.lastD0);
     this.waiting = i < 0;  // no MNQ candle on the day yet: fitted again once one comes (render)
+    this.onDay = i < 0 ? 0 : n - i;  // the day's candles when fitted: many more at once (the VPS's minutes) fit it again (render)
     if (!n) return false;
     // no candle on it (a weekend, or today before the VPS's stream has sent its minutes): MNQ's last day before it
     this.main.timeScale().setVisibleLogicalRange(i >= 0 ? { from: i - 1, to: n + 2 } : { from: Math.max(0, n - Math.round(1380 / opt.tf)) - 1, to: n + 2 });
@@ -681,7 +727,6 @@ class Panel {
     const out = this.emaPts = NsbMacd.emaPoints(this.mainBars, opt.tf, this.src, CME_OPEN);
     for (const k of ['e8', 'e21', 'e47']) this[k].setData(out.map(p => ({ time: p.time, value: p[k], color: p.color })));
   }
-  basket(k) { const s = day && day[k] && day[k].run.sig; return s && s.parts ? NsbBasket.of(s, null, null, []) : null; }  // two or more stocks
   setMarkers() {  // a mark where an MNQ alone or a stocks-first stretch begins (as on the Divergence page), and MNQ's contract switches
     const m = [];
     for (const r of NsbRolls.marks('MNQ', day.d0, day.d1))
@@ -697,35 +742,25 @@ class Panel {
     }
     m.sort((a, b) => a.time - b.time);
     this.candles.setMarkers(m);
-    // each basket: its leader, the stocks joining its trend, the last to join (basket.js), on its pane's zero line at the MNQ
-    // candle they turned in (none while MNQ is closed)
-    const have = new Set(this.mainBars.map(x => sec(x.time)));
-    for (const k of ['b1', 'b2']) {
-      const b = this.basket(k);
-      const marks = b ? NsbBasket.marks(b.events, t => sec(bucketStart(t, opt.tf, CME_OPEN)), tk, day.d0, day.d1, 20 * opt.tf * 60).filter(x => have.has(x.time)) : [];
-      this.macd[k].zero.setMarkers(marks.sort((x, y) => x.time - y.time));
-    }
   }
-  head(t) {  // the header and the baskets' rows at time t (ms, a minute) or at the day's end
-    const side = day.mnq, at = t !== undefined ? t : mnqEnd() - MIN;
-    const gateAt = s => { const g = gateOf(s); for (let k = at; k >= at - 5 * MIN; k -= MIN) { const x = g.get(k); if (x) return [x, k]; } return [null, null]; };
-    const [st, k] = gateAt(side);
+  head(t) {  // the header at time t (ms, a minute) or at the day's end
+    const side = this.key, mnq = this.ser('mnq'), at = t !== undefined ? t : mnqEnd() - MIN;
+    const gateAt = s => { const g = gateOf(s, side); for (let k = at; k >= at - 5 * MIN; k -= MIN) { const x = g.get(k); if (x) return [x, k]; } return [null, null]; };
+    const [st, k] = gateAt(mnq);
     const newest = this.mainBars[this.mainBars.length - 1];
     const bar = newest && (t === undefined || t >= newest.time) ? newest : [...day.price].reverse().find(b => b.time <= at);  // as drawn (liveTick moves it), or the one hovered
-    $(`${this.key}-val`).textContent = bar ? num(bar.close, side.digits) : '—';
-    $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
-    $(`${this.key}-conds`).innerHTML = k !== null ? NsbGate.chips(side.run.sig, null, [], k) : '';  // one chip per timeframe with a line on
+    $(`${side}-val`).textContent = bar ? num(bar.close, mnq.digits) : '—';
+    $(`${side}-gate`).className = 'gw ' + kind(st); $(`${side}-gate`).textContent = st ? WORD[st] : '—';
+    $(`${side}-conds`).innerHTML = k !== null ? NsbGate.chips(mnq.run.sig, mnq.swing || null, LONG_OF[side], k) : '';  // one chip per timeframe with a line on
     for (const b of ['b1', 'b2']) {
-      const [bs] = gateAt(day[b]), el = $(`${b}-gate`);
+      const [bs] = gateAt(this.ser(b)), el = $(`${side}-${b}-gate`);
       el.className = 'gw ' + kind(bs); el.textContent = bs ? WORD[bs] : '—';
-      const info = this.basket(b);
-      $(`${b}-bk`).innerHTML = info ? NsbBasket.strip(info.at(at), tk) : '';
     }
     const from = day.price.length ? day.price[0].time : day.d0;  // from MNQ's first candle in the strip, not the strip's start (a weekend or its break may come first)
     const firstState = this.firstState;
     const warm = firstState > from + MIN && firstState < Infinity ? `warming up until ${hhmm(firstState)}`
       : firstState === Infinity ? 'not enough data for the indicators' : '';
-    $(`${this.key}-warm`).textContent = [weekend(at) ? 'CME closed – weekend' : '', warm].filter(Boolean).join(' · ');
+    $(`${side}-warm`).textContent = [weekend(at) ? 'CME closed – weekend' : '', warm].filter(Boolean).join(' · ');
   }
   tags(t) {  // the chart labels (t: candle time in seconds, or the newest candle)
     const b = t !== undefined ? this.store.get(t) : this.mainBars.length ? { ...this.mainBars[this.mainBars.length - 1], state: this.mainStates[this.mainStates.length - 1] } : null;
@@ -738,6 +773,17 @@ class Panel {
         + (e ? NsbMacd.emaTag(e, v => num(v, 2)) : '');
     }
     for (const p of Object.values(this.macd)) p.tag(t);
+  }
+}
+// The two copies show the same candles: the one you move takes the other along, candle for candle
+function syncSides(src, r) {
+  if (!r) return;
+  for (const q of Object.values(panels)) {
+    if (q === src || q.mainBars.length !== src.mainBars.length) continue;
+    const now = q.main.timeScale().getVisibleLogicalRange();
+    if (now && Math.abs(now.from - r.from) < 0.01 && Math.abs(now.to - r.to) < 0.01) continue;  // already there: no echo back
+    syncing = true;
+    try { q.main.timeScale().setVisibleLogicalRange(r); } catch (e) {} finally { syncing = false; }
   }
 }
 function aggregate(bars, m, o = 0) {
@@ -827,12 +873,19 @@ function fitAll() {  // the chart on the picked day
   try { for (const p of Object.values(panels)) p.fit(); } finally { syncing = false; }
 }
 // -> true when it fitted the chart to the picked day again (the callers then leave the view alone)
+let userMoved = false;  // you scrolled, zoomed or pressed a chart since the last fit: the view is yours
+for (const ev of ['pointerdown', 'wheel', 'touchstart']) document.addEventListener(ev, e => { if (e.target.closest && e.target.closest('#board')) userMoved = true; }, { capture: true, passive: true });
 function render(full) {
+  if (full) { driver = null; userMoved = false; }  // a new day or candle size: nobody's move to pass on
   syncing = true;  // redrawn: no older days loaded meanwhile
   try { for (const p of Object.values(panels)) p.draw(full); } finally { syncing = false; }
   // the picked day's first MNQ candle has come (3/11/2026: today's MNQ minutes come from the VPS's stream a moment after the
   // page opens, so the first fit fell back to the day before and the chart stayed there)
-  const arrived = !full && Object.values(panels).some(p => p.waiting && p.mainBars.some(b => b.time >= day.lastD0));
+  // (4/11/2026) or many of its candles came at once, before you moved the chart: the saved file holds the session's first hour
+  // (its UTC day ends at 00:00 UTC), the stream the rest a moment later, and the chart kept that hour's width
+  const onDay = p => p.mainBars.length - Math.max(0, p.mainBars.findIndex(b => b.time >= day.lastD0));
+  const arrived = !full && Object.values(panels).some(p => (p.waiting && p.mainBars.some(b => b.time >= day.lastD0))
+    || (!userMoved && p.mainBars.some(b => b.time >= day.lastD0) && onDay(p) > (p.onDay || 0) + 5));
   if (full || arrived) {  // and again once the charts have their final size (a chart sized later keeps its bar spacing)
     fitAll();
     requestAnimationFrame(() => requestAnimationFrame(fitAll)); setTimeout(fitAll, 150);
@@ -840,15 +893,15 @@ function render(full) {
   refreshText(full);
   return full || arrived;
 }
-function showBadge() {  // right now (a past day: at MNQ's last candle of it): the latest minute where both gates exist
-  const end = mnqEnd();
+function showBadge() {  // the left copy right now (a past day: at MNQ's last candle of it): the latest minute where both gates exist
+  const end = mnqEnd(), L = day.left;
   let t = null;
-  for (let k = end - MIN; k >= end - 30 * MIN; k -= MIN) if (gateNear(day.b1, k) && gateNear(day.mnq, k)) { t = k; break; }
-  const k = t === null ? undefined : kindAt(t), el = $('badge');
+  for (let k = end - MIN; k >= end - 30 * MIN; k -= MIN) if (gateNear(L.b1, 'left', k) && gateNear(L.mnq, 'left', k)) { t = k; break; }
+  const k = t === null ? undefined : kindAt('left', t), el = $('badge');
   if (t === null) { el.className = 'badge'; el.textContent = 'MNQ CLOSED'; el.title = 'No MNQ candle in the last 30 minutes (the daily break, the weekend, or no live data yet)'; return; }
   el.className = 'badge ' + (k || 'sync');
   el.textContent = k ? PATTERN[k].word : 'IN SYNC';
-  el.title = k ? PATTERN[k].note : `MNQ's gate and Basket 1's both say ${WORD[gateNear(day.mnq, t)]}.`;
+  el.title = (k ? PATTERN[k].note : `MNQ's gate and Basket 1's both say ${WORD[gateNear(L.mnq, 'left', t)]}.`) + ' (the left copy)';
 }
 // the newest candle's readout, or the held crosshair's, unless the day or candle size just changed (31/10/2026: a switch
 // click or the minute's rebuild put the newest candle's values beside an older candle's crosshair, and the chips moved)
@@ -897,6 +950,7 @@ async function loadOlder() {  // add older days to the strip, keeping what you a
 }
 async function refreshToday() {
   if (refreshing || olderBusy || opening || !day || document.visibilityState !== 'visible') return;  // never over another build
+  if ([...dayCache.values()].some(d => d.partial)) fillIn();  // the first load's minutes Hyperliquid has not given yet: asked again
   const today = NsbCme.key(Date.now()), was = day.key;
   refreshing = true;
   try {
@@ -920,6 +974,7 @@ async function refreshToday() {
     } else if (Date.now() - futRead >= 10 * MIN) await rereadFut();  // MNQ's saved days, every 10 minutes: a file listed since comes in at the next build
     if (day.key !== today) return;
     await topUp(filesOf([today]), want());  // today's UTC days already loaded and not complete (one begun since is fetched whole by buildDay)
+    if (!filling && ![...dayCache.values()].some(d => d.partial)) fillNote(null);  // Hyperliquid answered
     if (day.key !== was || opening) return;  // another day picked meanwhile: its build stands
     const before = Object.fromEntries(Object.entries(panels).map(([k, q]) => {
       const r = q.main.timeScale().getVisibleLogicalRange(), n = q.mainBars.length;
@@ -944,6 +999,10 @@ const CANDLE_CACHE = 'nsb.candles.v2.', CACHE_REFETCH = 180 * MIN;
 function cachedRows(c) {
   try { const a = JSON.parse(localStorage.getItem(CANDLE_CACHE + c)); return Array.isArray(a) ? a.map(([t, o, h, l, cl, v, n]) => ({ t, o, h, l, c: cl, v, n })) : []; }
   catch (e) { return []; }
+}
+function savedMinutes(c, d0, end) {  // one coin's minutes in [d0, end] saved in this browser (none unless they reach back to d0)
+  const all = cachedRows(c);
+  return all.length && all[0].t <= d0 ? all.filter(b => b.t >= d0 && b.t <= end) : [];
 }
 async function hlDay(c, d0, end) {  // one coin's Hyperliquid minutes in [d0, end]: the saved ones and only what they lack
   const all = cachedRows(c);
@@ -990,7 +1049,7 @@ function liveConnect() {
 setInterval(() => { if (liveWs && liveWs.readyState === WebSocket.OPEN) liveWs.send('{"method":"ping"}'); }, 30000);
 function liveCandle(r) {
   const b = toBar(r), d = dayCache.get(dayKey(b.t));
-  if (!d || d.complete || !Array.isArray(d.coins[r.s])) return;  // a day not loaded (the next build fetches it whole)
+  if (!d || d.complete || d.partial || !Array.isArray(d.coins[r.s])) return;  // a day not loaded (the next build fetches it whole), or still waiting for Hyperliquid's minutes (fillIn: a live minute past a gap would hide it)
   const a = d.coins[r.s];
   if (a.length && a[a.length - 1].t === b.t) a[a.length - 1] = b; else if (!a.length || b.t > a[a.length - 1].t) a.push(b);  // (the panes take it at the minute's close)
 }
@@ -999,7 +1058,7 @@ function everyMinute() {  // 1.5 s past each minute (its last trades in): the mi
   liveTimer = setTimeout(() => { liveRebuild(); everyMinute(); }, MIN - Date.now() % MIN + 1500);
 }
 function liveTick() {  // MNQ's newest candle at its latest price, between rebuilds (the panes move as each minute closes)
-  if (panels.mnq) mnqTick(panels.mnq);
+  for (const p of Object.values(panels)) mnqTick(p);
   if (!hoverHeld() && Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }  // the header's price, a few times a second
 }
 function mnqForming() {  // MNQ's forming minute from the VPS's stream, drawn on top of the closed ones (the day is built without it)
@@ -1038,6 +1097,56 @@ async function liveRebuild() {  // a minute closed: today again with it, the vie
   } catch (e) { /* the minute refresh tries again */ } finally { refreshing = false; }
 }
 const LIVE_COINS = () => ALL;
+// ---- the first load doesn't wait for Hyperliquid (owner 4/11/2026: "its taking too long to load"): it shows our saved days
+// and the minutes this browser saved, then asks Hyperliquid for its own (the saved ones' last 3 hours again, as hlDay) and
+// draws the strip again, keeping the view. A note says what it waits for; when Hyperliquid fails it is asked every minute.
+let filling = false;
+const fillNote = (text, warn) => { const el = $('fillNote'); el.hidden = !text; if (text) { el.textContent = text; el.classList.toggle('warn', !!warn); } };
+async function fillIn() {
+  const parts = [...dayCache.values()].filter(d => d.partial);
+  if (!parts.length || filling) return;
+  filling = true;
+  fillNote('Getting the stocks\' newest candles from Hyperliquid…');
+  let done = true;
+  try {
+    await Promise.all(parts.map(async d => {
+      const f0 = dayStart(d.key), end = Math.min(Date.now(), f0 + DAY - 1);
+      await Promise.all(Object.keys(d.coins).map(async c => {
+        const a = d.coins[c], from = a.length ? Math.max(f0, a[a.length - 1].t - CACHE_REFETCH) : f0, byT = new Map(a.map(b => [b.t, b]));
+        for (const b of (await candleRows(c, '1m', from, end)).map(toBar)) if (b.t >= f0 && b.t < f0 + DAY) byT.set(b.t, b);
+        d.coins[c] = [...byT.values()].sort((x, y) => x.t - y.t);
+      }));
+      d.partial = false; d.complete = end >= f0 + DAY - 1;
+      if (d.source === 'archive') d.source = 'archive+hl';
+    }));
+  } catch (e) { done = false; } finally { filling = false; }
+  if (!done) { fillNote('Hyperliquid isn\'t answering: the stocks\' newest candles come in once it does (asked again every minute)', true); return; }
+  fillNote(null);
+  redrawKeeping();
+}
+async function redrawKeeping() {  // the strip again with what has come in, the view kept (on the newest candles when it was there)
+  if (!day) return;
+  if (refreshing || olderBusy || opening) { setTimeout(redrawKeeping, 1000); return; }  // after the build under way
+  refreshing = true;
+  try {
+    const was = day.key, before = Object.fromEntries(Object.entries(panels).map(([k, q]) => {
+      const r = q.main.timeScale().getVisibleLogicalRange(), n = q.mainBars.length;
+      return [k, { r, n, atEnd: !r || r.to >= n - 2 }];
+    }));
+    if (!await buildDay(was, day.shown, true) || day.key !== was) return;
+    if (render(false)) return;
+    for (const [k, q] of Object.entries(panels)) {
+      const b = before[k], added = q.mainBars.length - b.n;
+      if (b.r && b.atEnd && added > 0) q.main.timeScale().setVisibleLogicalRange({ from: b.r.from + added, to: b.r.to + added });
+    }
+  } catch (e) { /* the minute refresh draws it */ } finally { refreshing = false; }
+}
+// every wait for Hyperliquid, said where it shows (owner 4/11/2026: a long "Loading 2026-11-04…" said nothing)
+NdxEngine.internals.onBusy((status, wait) => {
+  const s = Math.round(wait / 1000), msg = status === 429 ? `Hyperliquid is busy (too many requests from this connection): trying again in ${s} s…`
+    : status ? `Hyperliquid answered ${status}: trying again in ${s} s…` : `Hyperliquid isn't answering: trying again in ${s} s…`;
+  if (loadingNow) $('loading-text').textContent = msg; else fillNote(msg, true);
+});
 document.addEventListener('visibilitychange', refreshToday);
 async function openDay(key) {  // the calendar, the stock picker, today's follow: a failed load says why for a moment, the day shown stays
   opening++;
@@ -1078,46 +1187,50 @@ const loading = text => {
   if ($('loading').hidden) loadingTimer = setTimeout(() => { if (loadingNow) $('loading').hidden = false; }, 400);
 };
 
-// ---- the baskets' stock pickers (Basket 1's pick is shared with the other pages, Basket 2's is this page's own) ----------
-const SEL_KEY = 'nsb.div.stocks', PICK_KEY = { b1: SEL_KEY, b2: 'nsb.mnq.basket2' };
-function savedSelection(k) { try { const a = JSON.parse(localStorage.getItem(PICK_KEY[k])); return Array.isArray(a) ? a : null; } catch (e) { return null; } }
-function setPick(k, list) {
+// ---- the baskets' stock pickers: each side its own two (owner 4/11/2026: "own baskets each side"); the left's Basket 1 is the
+// pick the other pages share ------------------------------------------------------------------------------------------
+const SEL_KEY = 'nsb.div.stocks';
+const PICK_KEY = { left: { b1: SEL_KEY, b2: 'nsb.mnq.basket2' }, right: { b1: 'nsb.mnq.r.basket1', b2: 'nsb.mnq.r.basket2' } };
+const SIDE_NAME = { left: 'Left', right: 'Right' };
+function savedSelection(side, k) { try { const a = JSON.parse(localStorage.getItem(PICK_KEY[side][k])); return Array.isArray(a) ? a : null; } catch (e) { return null; } }
+function setPick(side, k, list) {
   const pick = Array.isArray(list) ? ALL.filter(c => list.includes(c)) : [];
-  PICKS[k] = pick.length ? pick : DEFAULTS[k]();
+  PICKS[side][k] = pick.length ? pick : DEFAULTS[k]();
 }
-function showPicks() {  // each basket's button: its stocks
-  for (const k of ['b1', 'b2']) {
-    const btn = $(`${k}-btn`);
-    $(`${k}-sub`).textContent = pickName(PICKS[k]);
-    btn.title = `${BASKETS[k]}: ${PICKS[k].map(tk).join(', ')}. Click to choose its stocks`;
-    btn.classList.toggle('custom', PICKS[k].join() !== DEFAULTS[k]().join());
+function showPicks() {  // each basket's button and row: its stocks
+  for (const side of SIDES) for (const k of ['b1', 'b2']) {
+    const btn = $(`${side}-${k}-btn`), list = PICKS[side][k];
+    $(`${side}-${k}-sub`).textContent = pickName(list);
+    $(`${side}-${k}-list`).textContent = list.map(tk).join(' ');
+    btn.title = `${SIDE_NAME[side]} · ${BASKETS[k]}: ${list.map(tk).join(', ')}. Click to choose its stocks`;
+    btn.classList.toggle('custom', list.join() !== DEFAULTS[k]().join());
   }
 }
-let draft = new Set(), picking = false, which = 'b1';  // which: the basket whose picker is open
+let draft = new Set(), picking = false, which = ['left', 'b1'];  // which: [side, basket] whose picker is open
 function renderPick() {
   const members = BASKET.members, total = draft.size;  // each picked stock counts equally
   $('stocks').innerHTML = ALL.map(c => `<li class="${draft.has(c) ? 'on' : ''}"><label><input type="checkbox" data-c="${c}"${draft.has(c) ? ' checked' : ''}>`
     + `<span class="tk">${tk(c)}</span><span class="co">${members[c].company}</span>`
     + `<span class="wt">${draft.has(c) ? (100 / total).toFixed(1) + '%' : '—'}</span></label></li>`).join('');
   for (const box of $('stocks').querySelectorAll('input')) box.onchange = () => { if (box.checked) draft.add(box.dataset.c); else draft.delete(box.dataset.c); renderPick(); };
-  const list = ALL.filter(c => draft.has(c)), changed = list.join() !== PICKS[which].join();
+  const list = ALL.filter(c => draft.has(c)), changed = list.join() !== PICKS[which[0]][which[1]].join();
   $('pickMsg').textContent = !list.length ? 'Pick at least one stock' : `${list.length} selected`;
   $('pickMsg').className = 'msg' + (list.length ? '' : ' warn');
   $('pickGo').disabled = !list.length || !changed || picking;
 }
-function openPick(k) {  // k: the basket whose picker opens; null: closed
+function openPick(side, k) {  // the picker of that side's basket; openPick(null): closed
   const pop = $('pickPop');
-  for (const b of ['b1', 'b2']) $(`${b}-btn`).setAttribute('aria-expanded', String(b === k));
-  pop.hidden = !k;
-  if (!k) return;
-  which = k; draft = new Set(PICKS[k]);
-  $('pickTitle').textContent = `${BASKETS[k]}: choose its stocks`;
+  for (const s2 of SIDES) for (const b of ['b1', 'b2']) $(`${s2}-${b}-btn`).setAttribute('aria-expanded', String(s2 === side && b === k));
+  pop.hidden = !side;
+  if (!side) return;
+  which = [side, k]; draft = new Set(PICKS[side][k]);
+  $('pickTitle').textContent = `${SIDE_NAME[side]} · ${BASKETS[k]}: choose its stocks`;
   $('pickText').textContent = 'Pick any of them (even just one). Each counts equally, and the basket\'s gate is LONG (or SHORT) only when every one you pick is. '
-    + (k === 'b1' ? 'Basket 1 is the pick the other pages use too.' : 'Basket 2 is this page\'s own pick.');
+    + (side === 'left' && k === 'b1' ? 'The left\'s Basket 1 is the pick the other pages use too.' : `The ${side} side's own pick.`);
   renderPick();
-  // under the button, or over it (Basket 2's row sits low on the screen); where it fits on neither side, from the top of the
+  // under the button, or over it (a Basket 2 row sits low on the screen); where it fits on neither side, from the top of the
   // screen, over the button, so the whole list and Apply show
-  const r = $(`${k}-btn`).getBoundingClientRect(), w = Math.min(360, innerWidth - 24), s = pop.style;
+  const r = $(`${side}-${k}-btn`).getBoundingClientRect(), w = Math.min(360, innerWidth - 24), s = pop.style;
   Object.assign(s, { left: `${Math.round(Math.max(12, Math.min(r.left, innerWidth - w - 12)))}px`, top: '0px', bottom: 'auto', maxHeight: 'none', overflowY: 'auto' });
   const need = pop.offsetHeight, below = innerHeight - r.bottom - 20, above = r.top - 20;
   if (below >= need) s.top = `${Math.round(r.bottom + 8)}px`;
@@ -1125,17 +1238,17 @@ function openPick(k) {  // k: the basket whose picker opens; null: closed
   else { s.top = '12px'; s.maxHeight = `${innerHeight - 24}px`; }
 }
 async function applyPick() {
-  const k = which, list = ALL.filter(c => draft.has(c));
+  const [side, k] = which, list = ALL.filter(c => draft.has(c));
   if (!list.length || picking) return;
   picking = true;
-  const before = PICKS[k];
+  const before = PICKS[side][k], key = PICK_KEY[side][k];
   let saved = null;
-  try { saved = localStorage.getItem(PICK_KEY[k]); localStorage.setItem(PICK_KEY[k], JSON.stringify(list)); } catch (e) {}
-  setPick(k, list); showPicks(); openPick(null);
+  try { saved = localStorage.getItem(key); localStorage.setItem(key, JSON.stringify(list)); } catch (e) {}
+  setPick(side, k, list); showPicks(); openPick(null);
   try {
     if (await openDay(day.key) === false) {  // not loaded: back to the pick the charts still show
-      setPick(k, before); showPicks();
-      try { if (saved === null) localStorage.removeItem(PICK_KEY[k]); else localStorage.setItem(PICK_KEY[k], saved); } catch (e) {}
+      setPick(side, k, before); showPicks();
+      try { if (saved === null) localStorage.removeItem(key); else localStorage.setItem(key, saved); } catch (e) {}
     }
   } finally { picking = false; }
 }
@@ -1144,7 +1257,8 @@ function buildPicker() {
   const presets = [['Top 5', top(5)], ['Top 6', top(6)], ['Top 8', top(8)], [`Default ${DEFAULT().length}`, DEFAULT()], [`Chips ${DEFAULTS.b2().length}`, DEFAULTS.b2()], [`All ${ALL.length}`, ALL], ['None', []]];
   $('presets').innerHTML = presets.map(([name], i) => `<button type="button" data-i="${i}">${name}</button>`).join('');
   for (const b of $('presets').children) b.onclick = () => { draft = new Set(presets[b.dataset.i][1]); renderPick(); };
-  for (const k of ['b1', 'b2']) $(`${k}-btn`).onclick = () => openPick($('pickPop').hidden || which !== k ? k : null);
+  for (const side of SIDES) for (const k of ['b1', 'b2'])
+    $(`${side}-${k}-btn`).onclick = () => { if (!$('pickPop').hidden && which[0] === side && which[1] === k) openPick(null); else openPick(side, k); };
   $('pickCancel').onclick = () => openPick(null);
   $('pickGo').onclick = applyPick;
   document.addEventListener('mousedown', e => { if (!$('pickPop').hidden && !$('pickPop').contains(e.target) && !e.target.closest('.bkrow .pick-btn')) openPick(null); });
@@ -1158,16 +1272,17 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { if (day) { p.g
     loading('Loading the list of days…');
     BASKET = await (await fetch('basket.json', { cache: 'no-cache' })).json();
     ALL = Object.keys(BASKET.members);
-    for (const k of ['b1', 'b2']) setPick(k, savedSelection(k));
+    for (const side of SIDES) for (const k of ['b1', 'b2']) setPick(side, k, savedSelection(side, k));
     [archiveDays, hlFrom, futDays] = await Promise.all([archiveIndex(), hlEarliest(), futIndex(), NsbRolls.load()]);
     futRead = Date.now();
     const days = listDays();
     dayList = days;
     buildControls();
     NsbDraw.setup({ key: 'nsb.draw.mnq', when });
-    panels.mnq = new Panel();
+    for (const side of SIDES) panels[side] = new Panel(side);
     showPicks(); buildPicker();
     await openDay(days[0]);  // today (owner 24/10/2026), updating every minute
+    fillIn();  // the stocks' newest minutes from Hyperliquid (the first load showed the saved ones)
     liveConnect(); everyMinute();  // and from then on, every trade
     NsbLive.start('VPS live stream (MNQ)', () => ['MNQ']);
     let mnqSoon = 0;  // the snapshot (today's MNQ so far) or a closed MNQ minute: today again, straight away

@@ -56,8 +56,9 @@ const cache = new WeakMap(), ownCache = new WeakMap();
 // waves, not every stock's agreement; for one market it is the gate itself)
 function states(sig, swing, swingLines = PANES.swing.lines, own = false) {
   if (!sig || !sig.trace) return new Map();
-  const store = own ? ownCache : cache;
-  const key = `${ver}|${swingLines.join()}`, have = store.get(sig);
+  // one answer kept per series and set of Swing lines (4/11/2026: the MNQ page asks the same series with and without its 1h lines)
+  const store = own ? ownCache : cache, lk = swingLines.join(), per = store.get(sig) || {};
+  const key = `${ver}|${lk}`, have = per[lk];
   if (have && have.key === key && have.swing === swing && have.n === sig.trace.length && have.last === (sig.trace[sig.trace.length - 1] || {}).t) return have.map;
   const tOn = PANES.trend.lines.filter(m => show[m]), sOn = swingLines.filter(m => show[m]);
   const sw = swingAt(swing, sOn);
@@ -92,7 +93,8 @@ function states(sig, swing, swingLines = PANES.swing.lines, own = false) {
     }
     map.set(e.t, counted && dir === 1 ? 'BULLISH' : counted && dir === -1 ? 'BEARISH' : 'NEUTRAL');
   }
-  store.set(sig, { key, swing, n: sig.trace.length, last: (sig.trace[sig.trace.length - 1] || {}).t, map });
+  per[lk] = { key, swing, n: sig.trace.length, last: (sig.trace[sig.trace.length - 1] || {}).t, map };
+  store.set(sig, per);
   return map;
 }
 // the header's chips at minute t (the series' own lines; Your stocks: the composite's), one per timeframe with a line on

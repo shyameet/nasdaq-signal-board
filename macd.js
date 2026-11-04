@@ -262,7 +262,8 @@ class DayLines {  // a dashed line where a new day begins, with its date along t
 
 // ---- one MACD pane ----------------------------------------------------------------------------------------
 // opts: el and tagEl (the pane and its label), kind ('trend', 'entry', 'swing' or 'all'), title (the label's first word, if
-// not the kind's), scales ({ line: price scale id }: lines drawn on a scale of their own in this pane), name, digits,
+// not the kind's), lines (the lines drawn, if not the kind's), colors ({ line: [above 0, below 0] }), widths ({ line: px }), scales ({ line: price
+// scale id }: lines drawn on a scale of their own in this pane), name, digits,
 // options (chart options), bars() and tf() (the price chart's candles and their size), src() ({ minutes: MACD bars }
 // of the series drawn), and for the shading either match() -> [stocks' points, index's points] or stocks() (the
 // stocks' MACD bars; the series drawn is then the index)
@@ -291,10 +292,11 @@ class MacdPane {
     // the shading and day lines, which a hidden series would take with it
     this.zero = line('#6b778a', { lineWidth: 1, lastValueVisible: false });
     this.series = {};
-    this.shade2 = shades(PANES[this.kind].all || PANES[this.kind].lines);
+    // each line's two colors (a page's own for some lines: opts.colors, 4/11/2026: the MNQ page's 1h waves beside the 5m ones)
+    this.shade2 = { ...shades([...new Set([...(PANES[this.kind].all || PANES[this.kind].lines), ...this.lines])]), ...(this.colors || {}) };
     this.addLine = m => {
       if (scaleOf(m)) chart.priceScale(scaleOf(m)).applyOptions({ scaleMargins: { top: 0.2, bottom: 0.06 } });
-      return line(this.shade2[m][0], { lineWidth: m === 'm1' ? 1 : 2, ...(scaleOf(m) ? { priceScaleId: scaleOf(m) } : {}) });
+      return line(this.shade2[m][0], { lineWidth: (this.widths && this.widths[m]) || (m === 'm1' ? 1 : 2), ...(scaleOf(m) ? { priceScaleId: scaleOf(m) } : {}) });
     };
     for (const m of this.lines) this.series[m] = this.addLine(m);
     this.scaleOf = scaleOf;

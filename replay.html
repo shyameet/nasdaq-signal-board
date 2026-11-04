@@ -17,10 +17,10 @@
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=20"></script>
-<script src="engine.js?v=16"></script>
+<script src="macd.js?v=21"></script>
+<script src="engine.js?v=17"></script>
 <script src="swing.js?v=3"></script>
-<script src="gate.js?v=2"></script>
+<script src="gate.js?v=3"></script>
 <script src="basket.js?v=2"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
@@ -86,6 +86,9 @@
   .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
            background: var(--surface); color: var(--muted); font-size: 12px; }
   .older[hidden] { display: none; }
+  /* the first load shows at once; a note while Hyperliquid's newest minutes are still coming (or it is busy) */
+  .older.fill { bottom: 46px; max-width: calc(100vw - 24px); white-space: normal; }
+  .older.fill.warn { color: var(--warn); border-color: rgba(242, 179, 61, .5); }
   .topbar .how summary { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 50%; font-weight: 700; }
   .topbar .how-body { top: calc(100% + 8px); bottom: auto; left: auto; right: 0; max-height: 75vh; overflow: auto; }
   .how-body .credit { color: var(--muted); font-size: 11.5px; } .how-body .credit a { color: var(--muted); }
@@ -236,6 +239,7 @@
 </header>
 <main class="board" id="board"></main>
 <div id="older" class="older" hidden>Loading older days…</div>
+<div id="fillNote" class="older fill" role="status" hidden></div>
 <div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
 <script>
 'use strict';
@@ -294,7 +298,7 @@ const ended = key => Date.now() >= dayStart(key) + DAY + MIN;  // UTC day over, 
 // A cached UTC day is `complete` once fetched (or topped up) after its end: never asked for again (the minute refresh
 // had asked Hyperliquid for yesterday's file too, all day long). One cached while under way is topped up.
 async function topUp(keys) {  // the cached, unfinished UTC days among keys: only the minutes since each market's last candle
-  await Promise.all(keys.map(k => dayCache.get(k)).filter(d => d && !d.complete).map(async d => {
+  await Promise.all(keys.map(k => dayCache.get(k)).filter(d => d && !d.complete && !d.partial).map(async d => {  // (a partial day: fillIn's)
     const f0 = dayStart(d.key), now = Date.now(), done = ended(d.key);
     await Promise.all(Object.keys(d.coins).map(async c => {
       const a = d.coins[c], from = a.length ? a[a.length - 1].t : f0;
@@ -320,14 +324,18 @@ async function loadDay(key) {  // -> { key, source, coins: { coin: [bars (toBar 
     } catch (e) { /* falls back to Hyperliquid below */ }
   }
   const missing = coins.filter(c => !out[c]);
+  let partial = false;
   if (missing.length && d0 + DAY > hlFrom) {  // Hyperliquid still has (some of) this day
     const end = Math.min(d0 + DAY - 1, Date.now());
-    await Promise.all(missing.map(async c => { out[c] = (await hlDay(c, d0, end)).filter(b => b.t < d0 + DAY); }));
+    // the page's first load (nothing shown yet): the minutes this browser saved, at once; Hyperliquid's own once the charts
+    // show (fillIn; owner 4/11/2026: "its taking too long to load" - Hyperliquid answering slowly held the loading screen)
+    if (!day) { for (const c of missing) out[c] = savedMinutes(c, d0, end); partial = true; }
+    else await Promise.all(missing.map(async c => { out[c] = (await hlDay(c, d0, end)).filter(b => b.t < d0 + DAY); }));
     if (source === 'archive') source = 'archive+hl';
   }
-  const day = { key, source, coins: out, complete: done };
-  dayCache.set(key, day);
-  return day;
+  const got = { key, source, coins: out, complete: done && !partial, partial };
+  dayCache.set(key, got);
+  return got;
 }
 
 // ---- one series, minute by minute, exactly as the live engine runs it ----------------------------------------
@@ -785,6 +793,7 @@ async function loadOlder() {  // add older days to the strip, keeping what you a
 }
 async function refreshToday() {
   if (refreshing || olderBusy || opening || !day || document.visibilityState !== 'visible') return;  // never over another build
+  if ([...dayCache.values()].some(d => d.partial)) fillIn();  // the first load's minutes Hyperliquid has not given yet: asked again
   const today = NsbCme.key(Date.now()), was = day.key;
   refreshing = true;
   try {
@@ -808,6 +817,7 @@ async function refreshToday() {
     }
     if (day.key !== today) return;
     await topUp(filesOf([today]));  // today's UTC days already loaded and not complete (one begun since is fetched whole by buildDay)
+    if (!filling && ![...dayCache.values()].some(d => d.partial)) fillNote(null);  // Hyperliquid answered
     if (day.key !== was || opening) return;  // another day picked meanwhile: its build stands
     const before = Object.fromEntries(Object.entries(panels).map(([k, q]) => {
       const r = q.main.timeScale().getVisibleLogicalRange(), n = q.mainBars.length;
@@ -832,6 +842,10 @@ const CANDLE_CACHE = 'nsb.candles.v2.', CACHE_REFETCH = 180 * MIN;
 function cachedRows(c) {
   try { const a = JSON.parse(localStorage.getItem(CANDLE_CACHE + c)); return Array.isArray(a) ? a.map(([t, o, h, l, cl, v, n]) => ({ t, o, h, l, c: cl, v, n })) : []; }
   catch (e) { return []; }
+}
+function savedMinutes(c, d0, end) {  // one coin's minutes in [d0, end] saved in this browser (none unless they reach back to d0)
+  const all = cachedRows(c);
+  return all.length && all[0].t <= d0 ? all.filter(b => b.t >= d0 && b.t <= end) : [];
 }
 async function hlDay(c, d0, end) {  // one coin's Hyperliquid minutes in [d0, end]: the saved ones and only what they lack
   const all = cachedRows(c);
@@ -878,7 +892,7 @@ function liveConnect() {
 setInterval(() => { if (liveWs && liveWs.readyState === WebSocket.OPEN) liveWs.send('{"method":"ping"}'); }, 30000);
 function liveCandle(r) {
   const b = toBar(r), d = dayCache.get(dayKey(b.t));
-  if (!d || d.complete || !Array.isArray(d.coins[r.s])) return;  // a day not loaded (the next build fetches it whole)
+  if (!d || d.complete || d.partial || !Array.isArray(d.coins[r.s])) return;  // a day not loaded (the next build fetches it whole), or still waiting for Hyperliquid's minutes (fillIn: a live minute past a gap would hide it)
   const a = d.coins[r.s];
   if (a.length && a[a.length - 1].t === b.t) a[a.length - 1] = b; else if (!a.length || b.t > a[a.length - 1].t) a.push(b); else return;
   if (!day || day.key !== NsbCme.key(Date.now())) return;  // looking at an older day: nothing on screen moves
@@ -944,6 +958,59 @@ function LIVE_ONE(p, T) {
   return b && b.t === T ? { c: b.c, h: b.h, l: b.l } : null;
 }
 document.addEventListener('visibilitychange', refreshToday);
+// ---- the first load doesn't wait for Hyperliquid (owner 4/11/2026: "its taking too long to load"): it shows our saved days
+// and the minutes this browser saved, then asks Hyperliquid for its own (the saved ones' last 3 hours again, as hlDay) and
+// draws the strip again, keeping the view (fitted to the day again if you haven't moved it: today may have had no candles
+// in this browser). A note says what it waits for; when Hyperliquid fails it is asked again every minute.
+let filling = false, userMoved = false;
+for (const ev of ['pointerdown', 'wheel', 'touchstart']) document.addEventListener(ev, e => { if (e.target.closest && e.target.closest('#board')) userMoved = true; }, { capture: true, passive: true });
+const fillNote = (text, warn) => { const el = $('fillNote'); el.hidden = !text; if (text) { el.textContent = text; el.classList.toggle('warn', !!warn); } };
+async function fillIn() {
+  const parts = [...dayCache.values()].filter(d => d.partial);
+  if (!parts.length || filling) return;
+  filling = true;
+  fillNote('Getting the newest candles from Hyperliquid…');
+  let done = true;
+  try {
+    await Promise.all(parts.map(async d => {
+      const f0 = dayStart(d.key), end = Math.min(Date.now(), f0 + DAY - 1);
+      await Promise.all(Object.keys(d.coins).map(async c => {
+        const a = d.coins[c], from = a.length ? Math.max(f0, a[a.length - 1].t - CACHE_REFETCH) : f0, byT = new Map(a.map(b => [b.t, b]));
+        for (const b of (await candleRows(c, '1m', from, end)).map(toBar)) if (b.t >= f0 && b.t < f0 + DAY) byT.set(b.t, b);
+        d.coins[c] = [...byT.values()].sort((x, y) => x.t - y.t);
+      }));
+      d.partial = false; d.complete = end >= f0 + DAY - 1;
+      if (d.source === 'archive') d.source = 'archive+hl';
+    }));
+  } catch (e) { done = false; } finally { filling = false; }
+  if (!done) { fillNote('Hyperliquid isn\'t answering: the newest candles come in once it does (asked again every minute)', true); return; }
+  fillNote(null);
+  redrawKeeping();
+}
+async function redrawKeeping() {  // the strip again with what has come in, the view kept (on the newest candles when it was there)
+  if (!day) return;
+  if (refreshing || olderBusy || opening) { setTimeout(redrawKeeping, 1000); return; }  // after the build under way
+  refreshing = true;
+  try {
+    const was = day.key, before = Object.fromEntries(Object.entries(panels).map(([k, q]) => {
+      const r = q.main.timeScale().getVisibleLogicalRange(), n = q.mainBars.length;
+      return [k, { r, n, atEnd: !r || r.to >= n - 2 }];
+    }));
+    if (!await buildDay(was, day.shown, true) || day.key !== was) return;
+    render(false);
+    if (!userMoved) { fitAll(); return; }
+    for (const [k, q] of Object.entries(panels)) {
+      const b = before[k], added = q.mainBars.length - b.n;
+      if (b.r && b.atEnd && added > 0) q.main.timeScale().setVisibleLogicalRange({ from: b.r.from + added, to: b.r.to + added });
+    }
+  } catch (e) { /* the minute refresh draws it */ } finally { refreshing = false; }
+}
+// every wait for Hyperliquid, said where it shows (owner 4/11/2026: a long "Loading 2026-11-04…" said nothing)
+NdxEngine.internals.onBusy((status, wait) => {
+  const s = Math.round(wait / 1000), msg = status === 429 ? `Hyperliquid is busy (too many requests from this connection): trying again in ${s} s…`
+    : status ? `Hyperliquid answered ${status}: trying again in ${s} s…` : `Hyperliquid isn't answering: trying again in ${s} s…`;
+  if (loadingNow) $('loading-text').textContent = msg; else fillNote(msg, true);
+});
 async function openDay(key) {  // the calendar, the stock picker, today's follow: a failed load says why for a moment, the day shown stays
   opening++;
   const run = buildDay(key), seq = builds;
@@ -1056,6 +1123,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { if (day) { p.r
     NsbDraw.setup({ key: 'nsb.draw.replay', when });
     panels.left = new Panel('left'); panels.right = new Panel('right');
     await openDay(days[0]);  // today (owner 24/10/2026), updating every minute
+    fillIn();  // Hyperliquid's newest minutes (the first load showed the saved ones)
     liveConnect(); everyMinute();  // and from then on, every trade
   } catch (e) {
     loading(`Couldn't load the replay data (${e.message}). Reload the page to try again.`);

@@ -356,17 +356,23 @@ const wipMarker = (s, time) => s.exit  // a chart marker for one of them (an exi
 
 // ---- Hyperliquid ------------------------------------------------------------------------------
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// A page can be told of every wait (onBusy): the board says why it is waiting (owner 4/11/2026: stuck on "Loading 2026-11-04…")
+let busyHook = null;
+// a request with no answer by then is given up and tried again, waiting longer each time so a slow line still gets through
+// (4/11/2026: one that never answered held a page on its loading screen for good)
+const answerWithin = attempt => Math.min(90000, 25000 * (attempt + 1));
 async function info(body, onWait) {  // one request to the info endpoint, retried with backoff when busy or unreachable
   for (let attempt = 0; ; attempt++) {
     let status = 0;
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null, timer = ctl ? setTimeout(() => ctl.abort(), answerWithin(attempt)) : 0;
     try {
-      const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl ? ctl.signal : undefined });
       if (res.ok) return await res.json();
       status = res.status;
-    } catch (e) { /* offline, or blocked */ }
+    } catch (e) { /* offline, blocked, or no answer in time */ } finally { clearTimeout(timer); }
     if (attempt >= 7) throw new Error(status ? `Hyperliquid answered ${status}` : 'Hyperliquid could not be reached');
     const wait = Math.min(30000, 2000 * 2 ** attempt);
-    if (onWait) onWait(status, wait);
+    if (onWait) onWait(status, wait); else if (busyHook) busyHook(status, wait);
     await sleep(wait);
   }
 }
@@ -789,5 +795,6 @@ window.NdxEngine = Engine;
 const keep = n => { KEEP.minutes = Math.max(KEEP.minutes, n); KEEP.bars = Math.max(KEEP.bars, n); };
 window.NdxEngine.internals = { keep, bucket, Ema, Macd, Timeframe, TrendSignal, Tracker, referenceCloseMs, combine,
                               SHOWN, contiguous, toBar, flat, candleRows, BENCH,  // for checking against Python
+                              onBusy: fn => { busyHook = fn; },  // fn(status, wait ms) at every wait for Hyperliquid (none given its own)
                               WIP, waveRow, wipSignals, wipMarker, nyFlat };
 })();
