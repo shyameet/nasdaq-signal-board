@@ -384,7 +384,12 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   try { files = await Promise.all(keys.map(loadFile)); } catch (e) { err = e; }
   if (seq !== builds) return false;  // stale: dropped, even its error
   if (err) throw err;
-  const S = { ...SETUPS[opt.setup] }, markets = [S.index, S.gift, S.stock].filter(Boolean);
+  const S = { ...SETUPS[opt.setup] };
+  // the stock the charts were built for (4/11/2026, owner: "Couldn't load 2026-11-04 (Cannot read properties of undefined
+  // (reading 'filter'))": a picked stock that had no candles when the page opened - the saved day slow or failing to load -
+  // turned up with the live stream, and the day was built for it while the stock chart still showed the first stock)
+  if (panels.stock) S.stock = panels.stock.market;
+  const markets = [S.index, S.gift, S.stock].filter(Boolean);
   const rows = {};
   for (const m of markets) {
     const byT = new Map();
@@ -1004,7 +1009,16 @@ function everyMinute() {  // 2 s past each minute: its bars are in
 }
 NsbLive.on((kind, s) => {
   if (kind === 'tick') liveTick(s);
-  else if (kind === 'snapshot') { const n = HAVE.size; findStocks().then(() => { if (HAVE.size !== n) fillStocks(); }); liveSoonRebuild(0); }
+  else if (kind === 'snapshot') {
+    const n = HAVE.size;
+    findStocks().then(() => {
+      if (HAVE.size === n) return;
+      fillStocks();
+      // the stock you picked has candles now (it had none when the page opened): its chart takes it
+      if (day && panels.stock && panels.stock.market !== SETUPS[opt.setup].stock) { buildPanels(); openDay(day.key); }
+    });
+    liveSoonRebuild(0);
+  }
   else if (kind === 'bar' && liveMarkets().includes(s)) liveSoonRebuild(700);  // a minute closed: once the others' bars are in too
 });
 // The loading screen covers the page only when the wait is long enough to notice (owner 25/10/2026: smooth switching;
