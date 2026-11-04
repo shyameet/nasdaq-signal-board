@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nasdaq · MNQ · Indra Quant Signal Board</title>
-<meta name="description" content="The real MNQ future twice side by side, each with two baskets of your Nasdaq stocks and MNQ in three panes under it: the 1m to 15m lines, and on the right the 1h waves too.">
+<meta name="description" content="The real MNQ future twice side by side, each with two baskets of your Nasdaq stocks and MNQ in three panes under it: the 1m to 15m lines on the left, the 30m to weekly waves on the right.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -20,8 +20,8 @@
 <script src="rolls.js?v=3"></script>
 <script src="macd.js?v=23"></script>
 <script src="engine.js?v=18"></script>
-<script src="swing.js?v=3"></script>
-<script src="gate.js?v=4"></script>
+<script src="swing.js?v=4"></script>
+<script src="gate.js?v=5"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=8"></script>
@@ -36,7 +36,9 @@
   /* The MNQ page (owner 24/10/2026): the Replay page with the real MNQ future on the right instead of XYZ100, and the
      Divergence page's marks (MNQ alone / stocks first / other) on both charts instead of the 2m/3m signals. Remade 3/11/2026
      (owner): one MNQ chart, and under it three panes, Basket 1, Basket 2 and MNQ, each with the 1m to 15m lines. Split in
-     two 4/11/2026 (owner): that on the left, and a copy on the right whose panes have the 1h waves too, each its own baskets.
+     two 4/11/2026 (owner): that on the left, and a copy on the right whose panes have the 1h waves too, each its own baskets;
+     the same day the right's panes became the long waves only, 30m, 1h, 4h, 1D and 1W, and both MNQ charts are shaded only
+     where the two sides' MNQ gates agree.
      The Replay page's notes: one trading day at a time (from the CME open). Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
      has the same indicators (the RDX WIP gate, the 5m EMA 8/21/47, the Entry MACD and Trend waves panes; owner
      28/10/2026, Rahul's RDX WIP Trend). */
@@ -119,7 +121,7 @@
   .note.warn { color: var(--warn); }
 
   /* ---- the chart (owner 3/11/2026): MNQ on top, then Basket 1, Basket 2 and MNQ, each pane with the 1m to 15m lines ---- */
-  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }   /* left, and right with the 1h waves (4/11/2026) */
+  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }   /* left, and right with the long waves (4/11/2026) */
   .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .panel + .panel { border-left: 1px solid var(--line-strong); }
   .pside { color: var(--faint); font: 600 10.5px var(--font-num); letter-spacing: .04em; }
@@ -246,11 +248,11 @@
     <summary title="How it works">?</summary>
     <div class="how-body">
       <h3>What you see</h3>
-      <p>Two copies side by side. Each: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS) with its gate's shading (green LONG, red SHORT) and the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), and under it three panes with the same lines: the 1m, 2m and 3m MACD (12, 26; shown only, on a scale of their own in each pane so the far bigger waves don't flatten them, 0 shared; the 2m and 3m also as a faint dotted line, updated every minute as if their candle closed then) and the 5m, 9m, 11m and 15m waves (EMA 8 − EMA 47 and EMA 21 − EMA 47 on each). The <b>right</b> copy's panes also have the <b>1h waves</b> (the same two on the 1-hour candles, from our nightly files and today's minutes). MNQ's bars start at its session open (17:00 Chicago), as on TradingView. Both copies scroll and zoom together.</p>
+      <p>Two copies side by side. Each: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS) shaded green only where <b>both</b> copies' MNQ gates are LONG and red only where both are SHORT (owner 4/11/2026: the zone only when the two charts match) and the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), and under it three panes with the same lines: the 1m, 2m and 3m MACD (12, 26; shown only, on a scale of their own in each pane so the far bigger waves don't flatten them, 0 shared; the 2m and 3m also as a faint dotted line, updated every minute as if their candle closed then) and the 5m, 9m, 11m and 15m waves (EMA 8 − EMA 47 and EMA 21 − EMA 47 on each). The <b>right</b> copy's panes have only the <b>long waves</b> instead: the same two on the 30-minute, 1-hour, 4-hour, daily and weekly candles (from our nightly files and the loaded minutes; the 30m and 1h on a scale of their own in each pane, as are the weekly ones, so the bigger daily ones don't flatten them, 0 shared). A basket's weeks before one of its stocks was on Hyperliquid follow the real stock's daily closes (a stock listed nowhere before then, such as SPCX, is left out of those weeks). MNQ's bars start at its session open (17:00 Chicago), as on TradingView. Both copies scroll and zoom together.</p>
       <p><b>Basket 1</b> and <b>Basket 2</b>: composites of your own stocks from Hyperliquid, each picked with the button on its row; each copy has its own two (the left's Basket 1 is the pick the other pages use); each stock counts equally. They are drawn on MNQ's candles: every point is the basket's line as of that MNQ candle's close. <b>MNQ</b>: MNQ's own. Each pane is shaded by its own trend.</p>
       <p>An arrow on an MNQ chart marks where an <b style="color:#ff8a3d">MNQ alone</b> stretch (MNQ's gate is LONG, that copy's Basket 1's isn't) or a <b style="color:#2bb68a">Stocks first</b> stretch (Basket 1's gate is LONG, MNQ's not yet) begins. The badge in the top bar says where the left copy stands right now (on a past day, at MNQ's last candle of it).</p>
       <h3>The gate</h3>
-      <p>From the lines switched on (click a line's name in any pane to switch it; the switch holds on every pane and every tab): LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. On the left the 5m, 9m, 11m and 15m waves count; on the right the 1h waves too. The 1m, 2m and 3m MACD are shown only. With the 5m, 9m and 11m lines on and the 15m and 1h ones off it is RDX WIP's trend (Rahul's RDX WIP Trend). It is read on candle close: a candle counts from the minute it closes (an hour's from the minute that ends it). MNQ and each basket have their own gate (a basket's: every picked stock's own lines must agree; its pane is shaded by the basket's own lines); each header shows all three at the same moment.</p>
+      <p>From the lines switched on (click a line's name in any pane to switch it; the switch holds on every pane and every tab): LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. On the left the 5m, 9m, 11m and 15m waves count (the 1m, 2m and 3m MACD are shown only); with the 5m, 9m and 11m lines on and the 15m ones off it is RDX WIP's trend (Rahul's RDX WIP Trend). On the right the 30m, 1h, 4h, 1D and 1W waves count, only those (one with no value yet, such as a young basket's week, isn't counted). Each header shows its own side's gate; the MNQ charts' green and red are where the two sides' MNQ gates agree. It is read on candle close: a candle counts from the minute it closes (an hour's from the minute that ends it). MNQ and each basket have their own gate (a basket's: every picked stock's own lines must agree; its pane is shaded by the basket's own lines); each header shows all three at the same moment.</p>
       <p><b>Loading</b>: a page opens at once on the saved days and on the minutes this browser saved; the newest minutes come in from Hyperliquid a moment later. A note at the bottom says when Hyperliquid is busy or not answering, and they come in once it does.</p>
       <h3>Days</h3>
       <p>A day is a CME trading day: it starts at the CME open, 17:00 Chicago (03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time). Saturday and Sunday trading days have no CME session: the header says <b>CME closed – weekend</b>, and as every pane follows MNQ's candles, nothing new shows until the CME opens (the stocks still trade). The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The marks cover everything loaded.</p>
@@ -298,7 +300,9 @@ const kind = st => st === 'BULLISH' ? 'bull' : st === 'BEARISH' ? 'bear' : '';
 // bars restart each day at `o` ms after 00:00 UTC: 0 for the stock perps (24/7); 'cme' for MNQ, its session open 17:00
 // Chicago on whichever clock Chicago is on (22:00 UTC in summer time, 23:00 UTC from 1 Nov; cme.js), as on TradingView
 const CME_OPEN = 'cme';
-const SWING_MNQ = { id: 'MNQ', origin: CME_OPEN, roll: 'MNQ' };  // MNQ's long candles (swing.js): its file, moved onto the contract traded now
+// MNQ's long candles (swing.js): its file, moved onto the contract traded now; its weeks (from its days back to 2010) and its
+// 30m candles too, for the right side
+const SWING_MNQ = { id: 'MNQ', origin: CME_OPEN, roll: 'MNQ', wm: true, m30: true };
 const day0Of = (t, o) => o === 'cme' ? NsbCme.day0(t) : t - ((t - o) % DAY + DAY) % DAY;
 const dayEndOf = (t, o) => o === 'cme' ? NsbCme.dayEnd(t) : day0Of(t, o) + DAY;
 const bucketStart = (t, m, o = 0) => { const d0 = day0Of(t, o), s = m * MIN; return d0 + Math.floor((t - d0) / s) * s; };
@@ -465,9 +469,12 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const shownKeys = list.slice(i, i + shown), warmKey = list[i + shown];
   const d0 = NsbCme.open(shownKeys[shownKeys.length - 1]), lastD0 = NsbCme.open(key), d1 = NsbCme.open(NsbCme.next(key));
   if (!quiet) loading(`Loading ${key}…`);
-  // the right side's 1h waves: each series' long candles (swing.js), our nightly files fetched meanwhile
-  const hourSpec = list => { const coef = composite(list); return { members: Object.fromEntries(list.map(c => ['hl_' + c.replace(/:/g, '_'), coef[c]])), origin: 0 }; };
-  const ahead = Promise.all([NsbSwing.series(hourSpec(picks.right.b1), []), NsbSwing.series(hourSpec(picks.right.b2), []), NsbSwing.series(SWING_MNQ, [])]).catch(() => null);
+  // the right side's long waves: each series' long candles (swing.js), our nightly files fetched meanwhile; a basket's weeks
+  // before its stocks were on Hyperliquid from the real stocks' daily files (unders)
+  const fileOf = c => 'hl_' + c.replace(/:/g, '_');
+  const longSpec = list => { const coef = composite(list); return { members: Object.fromEntries(list.map(c => [fileOf(c), coef[c]])), origin: 0, wm: true, m30: true,
+                                                                     unders: Object.fromEntries(list.filter(c => c.startsWith('xyz:')).map(c => [fileOf(c), 'us_' + tk(c)])) }; };
+  const ahead = Promise.all([NsbSwing.series(longSpec(picks.right.b1), []), NsbSwing.series(longSpec(picks.right.b2), []), NsbSwing.series(SWING_MNQ, [])]).catch(() => null);
   // the indicators warm up on the day before the oldest one shown, and past a weekend's (no CME session) on to the Friday
   // before it (3/11/2026: MNQ's 15m waves need about 12 hours of its candles, so a Monday's gate began at 04:45 Chicago)
   const warmKeys = [];
@@ -487,11 +494,11 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const src = days.map(d => d.source).join(' + ');
   const lacking = coins.filter(c => !m[c].some(inDay));  // picked stocks with no candles on this day (not archived yet)
   const lastOf = r => { const a = (r.bars[1] || []).filter(b => b.time < d1); return a.length ? a[a.length - 1].time : 0; };
-  // the 1h candles, current up to the last closed minute: each right basket's own 1-minute candles, and MNQ's
+  // the long candles, current up to the last closed minute: each right basket's own 1-minute candles, and MNQ's
   await ahead;
   const now = Date.now(), ones = r => (r.bars[1] || []).filter(b => b.time + MIN <= now).map(b => ({ t: b.time, o: b.open, h: b.high, l: b.low, c: b.close, v: b.volume || 0 }));
-  const hours = new Map(), hourOf = list => { const k = list.join(); if (!hours.has(k)) hours.set(k, NsbSwing.series(hourSpec(list), ones(runOf(list))).catch(() => null)); return hours.get(k); };
-  const [h1, h2, hm] = await Promise.all([hourOf(picks.right.b1), hourOf(picks.right.b2), NsbSwing.series(SWING_MNQ, fut).catch(() => null)]);
+  const longs = new Map(), longOf = list => { const k = list.join(); if (!longs.has(k)) longs.set(k, NsbSwing.series(longSpec(list), ones(runOf(list))).catch(() => null)); return longs.get(k); };
+  const [h1, h2, hm] = await Promise.all([longOf(picks.right.b1), longOf(picks.right.b2), NsbSwing.series(SWING_MNQ, fut).catch(() => null)]);
   if (seq !== builds) return false;
   const basket = (k, pick, swing) => ({ key: k, name: BASKETS[k], pick, run: runOf(pick), origin: 0, macdDigits: 3, swing });
   const mnq = { key: 'mnq', name: 'MNQ', run: mnqRun, origin: CME_OPEN, digits: 2, macdDigits: 2, swing: null };
@@ -513,9 +520,20 @@ const PATTERN = {
 // the stocks' and MNQ's gates at one moment -> null when they agree (or MNQ is closed), else which disagreement
 const classify = (sn, sx) => !sn || !sx || sn === sx ? null : sx === 'BULLISH' ? 'alone' : sn === 'BULLISH' ? 'first' : 'other';
 // a series' gate on a side (gate.js, owner 1/11/2026): from the lines switched on that the side draws, at each minute's close:
-// the Trend lines on both, the 1h waves too on the right (owner 4/11/2026); no Swing pane here, so no other long lines
-const gateOf = (ser, side) => NsbGate.states(ser.run.sig, ser.swing || null, LONG_OF[side]);
-const ownOf = (ser, side) => ser.run.sig && ser.run.sig.parts ? NsbGate.states(ser.run.sig, ser.swing || null, LONG_OF[side], true) : gateOf(ser, side);  // a basket's shading: its own lines
+// the Trend lines on the left, the long waves alone on the right (owner 4/11/2026); no Swing pane here, so no other long lines
+const gateOf = (ser, side) => NsbGate.states(ser.run.sig, ser.swing || null, LONG_OF[side], false, TREND_OF[side]);
+const ownOf = (ser, side) => ser.run.sig && ser.run.sig.parts ? NsbGate.states(ser.run.sig, ser.swing || null, LONG_OF[side], true, TREND_OF[side]) : gateOf(ser, side);  // a basket's shading: its own lines
+// the MNQ charts' shading (owner 4/11/2026: "we should have the bullish or reddish zone only when both the charts match"): LONG
+// where both sides' MNQ gates are LONG, SHORT where both are SHORT, none otherwise; the same on both charts
+let both = null;
+function bothOf() {
+  const a = gateOf(day.left.mnq, 'left'), b = gateOf(day.right.mnq, 'right');
+  if (both && both.a === a && both.b === b) return both.map;
+  const map = new Map();
+  for (const [t, x] of a) { const y = b.get(t); if (y) map.set(t, x === y && x !== 'NEUTRAL' ? x : 'NEUTRAL'); }
+  both = { a, b, map };
+  return map;
+}
 const gateNear = (ser, side, t) => { const g = gateOf(ser, side); for (let k = t; k >= t - 2 * MIN; k -= MIN) { const s = g.get(k); if (s) return s; } return null; };
 const kindAt = (side, t) => classify(gateNear(day[side].b1, side, t), gateNear(day[side].mnq, side, t));
 // A past day ends at the next CME open, inside MNQ's daily break: the headers and the badge read it at MNQ's last candle of
@@ -526,17 +544,22 @@ const hasDay = key => archiveDays.has(key) || dayStart(key) + DAY > hlFrom;
 
 // ---- the charts (owner 4/11/2026: "split it, keep the current one as it is on the left side and add one more exactly of it
 // on the right ... add 1 hr on it"): two copies side by side, each an MNQ chart and three panes, scrolling and zooming
-// together; the right one's panes also draw the 1h waves, which count for its gate --------------------------------------
+// together; the right one's panes draw the long waves instead, which alone count for its gate (4/11/2026) -----------------
 const panels = {};
 const SIDES = ['left', 'right'];
 const PANE_KEYS = ['b1', 'b2', 'mnq'];  // the panes under each MNQ chart, top to bottom (owner 3/11/2026)
-const H1 = ['s1a', 's1b'];  // the 1h waves (swing.js): EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 1-hour candles
-const LONG_OF = { left: [], right: H1 };  // each side's lines on long candles: drawn, and counted for its gate while switched on
-// the 1h waves in colors of their own here (on the Swing pane they take the 5m waves', which are in these panes too), drawn thicker
-const H1_COLORS = { s1a: ['#FFD54F', '#4DB6AC'], s1b: ['#BA68C8', '#AED581'] }, H1_WIDTHS = { s1a: 3, s1b: 3 };
-// the 1m, 2m and 3m MACD on a scale of their own in each pane (the 15m waves are many times their size); 0 stays in the
-// middle of both scales, so the zero line is every line's
-const MACD_SCALE = { m1: 'mc', m2: 'mc', m3: 'mc' };
+// the right side's waves (owner 4/11/2026: "we just need the long term values such as 30 min 1 hr 4hr daily and weekly"):
+// EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 30m, 1h, 4h, 1D and 1W candles (swing.js), in the Swing pane's colors (the 30m
+// in the 15m's, which that side doesn't draw)
+const LONG = [...NsbSwing.M30, 's1a', 's1b', 's4a', 's4b', 'sDa', 'sDb', 'sWa', 'sWb'];
+const LONG_OF = { left: [], right: LONG };  // each side's lines on long candles: drawn, and counted for its gate while switched on
+const TREND_OF = { left: true, right: false };  // the Trend lines (5m to 15m) drawn and counted: the left only
+const LINES_OF = { left: NsbMacd.PANES.all.lines, right: LONG };  // each side's panes' lines
+const LONG_TFS = [30, 60, 240, 1440, 10080];
+// the 1m, 2m and 3m MACD on a scale of their own in each pane (the 15m waves are many times their size); on the right the
+// 30m and 1h waves (the daily ones are many times theirs; the weekly ones have their own, swing.js). 0 stays in the middle
+// of every scale, so the zero line is every line's
+const SCALES_OF = { left: { m1: 'mc', m2: 'mc', m3: 'mc' }, right: { s30a: 'hs', s30b: 'hs', s1a: 'hs', s1b: 'hs' } };
 function options(showTime, isMain, name) {
   return {
     watermark: isMain ? { visible: true, text: name, color: 'rgba(232, 238, 246, 0.04)', fontSize: 40, fontStyle: '700' } : { visible: false },
@@ -557,8 +580,8 @@ let driver = null;  // the side you are moving (pressed, scrolled or zoomed last
 class Panel {
   constructor(side) {
     const key = this.key = side, origin = CME_OPEN;
-    this.lines = [...NsbMacd.PANES.all.lines, ...LONG_OF[side]];
-    this.mainBars = []; this.mainStates = []; this.paneStates = {}; this.kinds = []; this.src = {}; this.srcs = {}; this.store = new Map(); this.emaPts = [];
+    this.lines = LINES_OF[side];
+    this.mainBars = []; this.mainStates = []; this.zoneStates = []; this.paneStates = {}; this.kinds = []; this.src = {}; this.srcs = {}; this.store = new Map(); this.emaPts = [];
     const pane = k => `<div class="pane" id="${key}-p${k}"><div class="tag mix" id="${key}-t${k}"></div></div>`;
     const cell = k => k === 'mnq' ? pane(k) : `<div class="cell">
             <div class="bkrow"><button class="pick-btn" id="${key}-${k}-btn" type="button" aria-haspopup="dialog" aria-expanded="false"><b>${BASKETS[k]}</b><small id="${key}-${k}-sub"></small><span class="caret">▼</span></button><span class="bk-list" id="${key}-${k}-list"></span></div>
@@ -566,7 +589,7 @@ class Panel {
     $('board').insertAdjacentHTML('beforeend', `
       <section class="panel" id="${key}">
         <div class="phead">
-          <span class="pname" id="${key}-name">MNQ</span><span class="pval" id="${key}-val">—</span><span class="pside">${side === 'right' ? '1m–15m + 1h' : '1m–15m'}</span>
+          <span class="pname" id="${key}-name">MNQ</span><span class="pval" id="${key}-val">—</span><span class="pside">${side === 'right' ? '30m–1W' : '1m–15m'}</span>
           <span class="gk">Gate</span><span class="gw" id="${key}-gate">—</span>
           <span class="conds" id="${key}-conds"></span>
           <span class="warm" id="${key}-warm"></span>
@@ -584,7 +607,7 @@ class Panel {
     this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.14 } });
     const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e8 = emaLine(NsbMacd.STACK.mixed); this.e21 = emaLine(NsbMacd.STACK.mixed); this.e47 = emaLine(NsbMacd.STACK.mixed);  // the 5m EMA 8 / 21 / 47, each point colored by their stack
-    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.mainStates[i]] || null);  // MNQ's gate
+    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.zoneStates[i]] || null);  // where both sides' MNQ gates agree
     this.candles.attachPrimitive(this.zones);
     this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30, 'cme'));  // where each trading day begins (the CME open), with its date
     this.candles.attachPrimitive(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];  // time left in the newest candle (as on TradingView)
@@ -595,8 +618,8 @@ class Panel {
                   tf: () => opt.tf, fmt: v => num(v, 2) });
     this.macd = {};
     for (const k of PANE_KEYS) this.macd[k] = new MacdPane({
-      el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: 'all', lines: this.lines, colors: H1_COLORS, widths: H1_WIDTHS,
-      title: k === 'mnq' ? 'MNQ' : BASKETS[k], scales: MACD_SCALE,
+      el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: 'all', lines: this.lines,
+      title: k === 'mnq' ? 'MNQ' : BASKETS[k], scales: SCALES_OF[side],
       name: '', digits: 2, options: options(false, false, ''), origin, days: 'cme',
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.srcs[k] || {},
       shade: i => (this.paneStates[k] || [])[i] || null,  // each pane its own series' trend
@@ -674,13 +697,13 @@ class Panel {
     this.mainBars = aggregate(day.price.concat(mnqForming()), tf, o);  // today's forming minute on top
     // each pane's lines and the EMAs: only bars closed by the strip's end (the UTC files run past it, and the last candle
     // takes the newest bar). A basket's bars carry the minute they close (its bars restart at 00:00 UTC, MNQ's at the CME
-    // open). The right side's 1h candles close at their own end; on today's strip the newest (still forming, from the closed
+    // open). The right side's long candles close at their own end; on today's strip the newest (still forming, from the closed
     // minutes) is kept for the newest candle
     const closed = ser => {
       const out = Object.fromEntries(Object.entries(ser.run.bars).map(([m, bars]) => [m, ser.origin === o
         ? bars.filter(b => bucketEnd(b.time, +m, o) <= day.d1)
         : bars.map(b => ({ ...b, end: bucketEnd(b.time, +m, ser.origin) })).filter(b => b.end <= day.d1)]));
-      if (ser.swing && ser.swing[60]) out[60] = live ? ser.swing[60] : ser.swing[60].filter(b => b.end <= day.d1);
+      if (ser.swing) for (const m of LONG_TFS) if (ser.swing[m]) out[m] = live ? ser.swing[m] : ser.swing[m].filter(b => b.end <= day.d1);
       return out;
     };
     this.srcs = Object.fromEntries(PANE_KEYS.map(k => [k, closed(this.ser(k))]));
@@ -688,11 +711,11 @@ class Panel {
     this.gateStates();
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
     this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
-    this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
+    this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i], both: this.zoneStates[i] }]));
     this.setEmas();
     for (const [k, p] of Object.entries(this.macd)) { p.digits = this.ser(k).macdDigits; p.update(); p.showLines(); }
     this.setMarkers();
-    this.main.applyOptions({ watermark: { text: `MNQ · ${tf}m${this.key === 'right' ? ' · 1h' : ''}` } });
+    this.main.applyOptions({ watermark: { text: `MNQ · ${tf}m${this.key === 'right' ? ' · 30m–1W' : ''}` } });
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
   }
@@ -703,7 +726,9 @@ class Panel {
       return null;
     };
     const st = gateOf(this.ser('mnq'), side);
-    this.mainStates = this.mainBars.map(b => at(st, b));
+    this.mainStates = this.mainBars.map(b => at(st, b));  // this side's MNQ gate: its header, its MNQ pane's shading
+    const bo = bothOf();
+    this.zoneStates = this.mainBars.map(b => at(bo, b));  // the chart's shading: both sides' MNQ gates agree
     this.paneStates = { mnq: this.mainStates };
     for (const k of ['b1', 'b2']) { const own = ownOf(this.ser(k), side); this.paneStates[k] = this.mainBars.map(b => at(own, b)); }
     this.firstState = Infinity;  // MNQ's first gate minute in the strip (not after it), once per draw: head() runs on every crosshair move, and a long strip has too many to spread
@@ -712,7 +737,7 @@ class Panel {
       for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { if (gateNear(this.ser('b1'), side, t) && gateNear(this.ser('mnq'), side, t)) return kindAt(side, t); }
       return null;
     });
-    this.mainBars.forEach((b, i) => { const s = this.store.get(sec(b.time)); if (s) s.state = this.mainStates[i]; });  // the hover readout's GATE word
+    this.mainBars.forEach((b, i) => { const s = this.store.get(sec(b.time)); if (s) { s.state = this.mainStates[i]; s.both = this.zoneStates[i]; } });  // the hover readout's GATE and BOTH words
   }
   fit() {  // the newest day of the strip (the older ones are to the left)
     const n = this.mainBars.length, i = this.mainBars.findIndex(b => b.time >= day.lastD0);
@@ -751,7 +776,7 @@ class Panel {
     const bar = newest && (t === undefined || t >= newest.time) ? newest : [...day.price].reverse().find(b => b.time <= at);  // as drawn (liveTick moves it), or the one hovered
     $(`${side}-val`).textContent = bar ? num(bar.close, mnq.digits) : '—';
     $(`${side}-gate`).className = 'gw ' + kind(st); $(`${side}-gate`).textContent = st ? WORD[st] : '—';
-    $(`${side}-conds`).innerHTML = k !== null ? NsbGate.chips(mnq.run.sig, mnq.swing || null, LONG_OF[side], k) : '';  // one chip per timeframe with a line on
+    $(`${side}-conds`).innerHTML = k !== null ? NsbGate.chips(mnq.run.sig, mnq.swing || null, LONG_OF[side], k, TREND_OF[side]) : '';  // one chip per timeframe with a line on
     for (const b of ['b1', 'b2']) {
       const [bs] = gateAt(this.ser(b)), el = $(`${side}-${b}-gate`);
       el.className = 'gw ' + kind(bs); el.textContent = bs ? WORD[bs] : '—';
@@ -763,13 +788,14 @@ class Panel {
     $(`${side}-warm`).textContent = [weekend(at) ? 'CME closed – weekend' : '', warm].filter(Boolean).join(' · ');
   }
   tags(t) {  // the chart labels (t: candle time in seconds, or the newest candle)
-    const b = t !== undefined ? this.store.get(t) : this.mainBars.length ? { ...this.mainBars[this.mainBars.length - 1], state: this.mainStates[this.mainStates.length - 1] } : null;
+    const b = t !== undefined ? this.store.get(t) : this.mainBars.length ? { ...this.mainBars[this.mainBars.length - 1], state: this.mainStates[this.mainStates.length - 1], both: this.zoneStates[this.zoneStates.length - 1] } : null;
     if (b) {
       let e = null;
       for (const p of this.emaPts) if (p.time <= sec(b.time)) e = p; else break;
       $(`${this.key}-tmain`).innerHTML = `<b>MNQ</b><span>${opt.tf}m</span>${t !== undefined ? `<span>${when(b.time)}</span>` : ''}`
         + `<span>O <b>${num(b.open, 2)}</b> H <b>${num(b.high, 2)}</b> L <b>${num(b.low, 2)}</b> C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close, 2)}</b></span>`
         + (b.state ? `<span class="${kind(b.state) === 'bull' ? 'up' : kind(b.state) === 'bear' ? 'down' : ''}">GATE ${WORD[b.state]}</span>` : '')
+        + (kind(b.both) ? `<span class="${kind(b.both) === 'bull' ? 'up' : 'down'}" title="Both sides' MNQ gates agree: the shading">BOTH ${WORD[b.both]}</span>` : '')
         + (e ? NsbMacd.emaTag(e, v => num(v, 2)) : '');
     }
     for (const p of Object.values(this.macd)) p.tag(t);

@@ -15,6 +15,8 @@
                                                  stock's agreement; for one market the same as the gate)
      NsbGate.chips(sig, swing, swingLines, t) -> the header's chips at minute t: one per timeframe with a line on, ▲ all
                                                  its lines on above 0, ▼ all below, ◆ mixed (the composite's own lines)
+   Both take a last argument `trend` (default true): false leaves the Trend lines out, the Swing lines given deciding alone
+   (4/11/2026: the MNQ page's right side, its 30m, 1h, 4h, 1D and 1W waves only), from every minute the engine has run.
    sig: an engine TrendSignal (NdxEngine.internals); swing: NsbSwing.series(...)'s candles { 60: [...], 240: [...], ... }
    (each with its own `end`); swingLines: the Swing lines the chart draws (NsbSwing.LINES, or NsbSwing.ALL). */
 (() => {
@@ -25,7 +27,7 @@ const MIN = 60000;
 const ok = v => v !== null && v !== undefined && isFinite(v);
 let ver = 0;
 NsbMacd.onToggle(() => { ver += 1; });  // a switch: every gate is worked out again
-const LABEL = { 5: '5m', 9: '9m', 11: '11m', 15: '15m', 60: '1h', 240: '4h', 1440: '1D', 10080: '1W', 43200: '1M' };
+const LABEL = { 5: '5m', 9: '9m', 11: '11m', 15: '15m', 30: '30m', 60: '1h', 240: '4h', 1440: '1D', 10080: '1W', 43200: '1M' };
 
 // each Swing line switched on, minute by minute: its value from the last candle CLOSED by the minute's close (none: no value)
 function swingAt(swing, lines) {
@@ -51,7 +53,7 @@ function trendDir(b, lines) {
   }
   return up === lines.length ? 1 : down === lines.length ? -1 : 0;
 }
-const cache = new WeakMap(), ownCache = new WeakMap(), dirCache = new WeakMap(), ownDirCache = new WeakMap();
+const cache = new WeakMap(), ownCache = new WeakMap(), dirCache = new WeakMap(), ownDirCache = new WeakMap(), noDirCache = new WeakMap();
 const traceKey = sig => `${sig.trace.length}|${(sig.trace[sig.trace.length - 1] || {}).t}`;
 // Each minute's Trend verdict, before any Swing line: 1 (all the Trend lines on above 0), -1 (all below), 0 (not so, or a line
 // on without a value yet), null (no Trend line on); none for a minute the engine had not warmed up. Two or more stocks: every
@@ -83,15 +85,24 @@ function trendDirs(sig, own) {
   store.set(sig, { key, dirs });
   return dirs;
 }
+// no Trend line counted (trend = false): every minute the engine has run, warmed up or not, with no verdict yet
+function noTrendDirs(sig) {
+  const key = traceKey(sig), have = noDirCache.get(sig);
+  if (have && have.key === key) return have.dirs;
+  const dirs = new Map(sig.trace.map(e => [e.t, null]));
+  noDirCache.set(sig, { key, dirs });
+  return dirs;
+}
 // own: the series' own lines only, even for Your stocks (the shading of the composite's chart, as before 2/11/2026: its own
 // waves, not every stock's agreement; for one market it is the gate itself)
-function states(sig, swing, swingLines = PANES.swing.lines, own = false) {
+function states(sig, swing, swingLines = PANES.swing.lines, own = false, trend = true) {
   if (!sig || !sig.trace) return new Map();
   // one answer kept per series and set of Swing lines (4/11/2026: the MNQ page asks the same series with and without its 1h lines)
-  const store = own ? ownCache : cache, lk = swingLines.join(), per = store.get(sig) || {};
+  // (no Trend line: a basket's own lines and its gate are the same, the composite's Swing lines; one answer for both)
+  const store = own && trend ? ownCache : cache, lk = (trend ? '' : 'long|') + swingLines.join(), per = store.get(sig) || {};
   const key = `${ver}|${lk}|${traceKey(sig)}`, have = per[lk];
   if (have && have.key === key && have.swing === swing) return have.map;
-  const sOn = swingLines.filter(m => show[m]), sw = swingAt(swing, sOn), dirs = trendDirs(sig, own);
+  const sOn = swingLines.filter(m => show[m]), sw = swingAt(swing, sOn), dirs = trend ? trendDirs(sig, own) : noTrendDirs(sig);
   const map = new Map();
   for (const [t, trend] of dirs) {
     let dir = trend, counted = trend === null ? 0 : 1;  // dir: 1 / -1 so far, 0: they disagree
@@ -111,13 +122,13 @@ function states(sig, swing, swingLines = PANES.swing.lines, own = false) {
   return map;
 }
 // the header's chips at minute t (the series' own lines; Your stocks: the composite's), one per timeframe with a line on
-function chips(sig, swing, swingLines = PANES.swing.lines, t) {
+function chips(sig, swing, swingLines = PANES.swing.lines, t, trend = true) {
   if (!sig || !sig.trace || !sig.trace.length) return '';
   let e = null;
   for (let i = sig.trace.length - 1; i >= 0; i--) if (sig.trace[i].t <= t) { e = sig.trace[i]; break; }
   if (!e) return '';
   const groups = new Map();
-  for (const l of PANES.trend.lines.filter(m => show[m])) {
+  for (const l of trend ? PANES.trend.lines.filter(m => show[m]) : []) {
     const bar = e.b[LINE[l].tf], x = bar ? LINE[l].v(bar) : null;
     const g = groups.get(LINE[l].tf) || []; g.push(x); groups.set(LINE[l].tf, g);
   }
