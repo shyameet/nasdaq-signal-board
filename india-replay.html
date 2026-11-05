@@ -23,7 +23,7 @@
 <script src="gate.js?v=5"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
-<script src="draw.js?v=9"></script>
+<script src="draw.js?v=10"></script>
 <script src="install.js?v=2"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
@@ -481,7 +481,7 @@ class Panel {
     attach(new DayLines(() => this.main, () => this.mainBars, 30, this.origin));  // where each day begins, with its date (at the market's open)
     attach(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];  // time left in the newest candle (as on TradingView)
       return b && { close: b.close, end: bucketEnd(b.time, opt.tf, this.origin), up: b.close >= b.open }; }));
-    this.drawing = NsbDraw.add({ id: market, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
+    this.drawing = NsbDraw.add({ days: this.origin, id: market, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
                                  tf: () => opt.tf, fmt: v => num(v, MARKETS[market].digits),
                                  active: () => this.mode !== 'tile' || drawArmed() });  // a tile draws only with a tool picked (owner 26/10/2026)
     this.macd = {};

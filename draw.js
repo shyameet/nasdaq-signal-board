@@ -9,7 +9,9 @@
 // A page calls NsbDraw.setup({ key, when }) once, NsbDraw.add(spec) for each price chart and NsbDraw.use(key) to switch
 // to another set of drawings (India and Commodities keep one per setup). spec = { id (the instrument), chart, series
 // (the candles), el (the chart's element), bars() (its candles, times in ms), tf() (candle minutes), fmt(price),
-// active() (false: shows the drawings but can't draw, like the small tiles) }.
+// active() (false: shows the drawings but can't draw, like the small tiles), days (where its days begin, as the page's
+// day lines: 'cme', ms after 00:00 UTC, or t -> the day's number; none: the viewer's midnight: a cross's horizontal line
+// stays on its own day, owner 5/11/2026) }.
 (function () {
   const INK = '#a78bfa', INK_TAG = '#7457d6', DOWN = '#f0555f', BG = '#0a0d12';
   const MEAS = 'rgba(232, 238, 246, 0.9)', MEAS_FILL = 'rgba(232, 238, 246, 0.09)', MEAS_TAG = '#5c6879';  // the measure: whitish (owner 25/10)
@@ -58,7 +60,7 @@
     if (x0 === null || x1 === null || x1 === x0) return null;
     const step = x1 - x0, tf = c.tf();
     // h read only when asked: clientHeight makes the browser lay the page out again, and this runs on every frame (28/10/2026)
-    return { w: ts.width(), get h() { return c.el.clientHeight - ts.height(); }, bars, tf,
+    return { w: ts.width(), get h() { return c.el.clientHeight - ts.height(); }, bars, tf, step,
              x: t => x0 + indexAt(bars, tf, t) * step, y: v => ok(v) ? c.series.priceToCoordinate(v) : null,
              index: x => (x - x0) / step, price: y => c.series.coordinateToPrice(y) };
   }
@@ -70,10 +72,21 @@
     const p = m.price(y), i = m.index(x);
     return ok(p) ? point(c, timeAt(m.bars, m.tf, smooth ? i : Math.round(i)), p) : null;
   }
+  // A cross's day (owner 5/11/2026: "make it in such a way that it doesn't stretch beyond that particular day"): the candles of
+  // the day its time falls in, as the chart's page counts days (c.days, as its day lines), from the half candle before the
+  // first to the half after the last -> [x left, x right] on c's screen; null when that day has no candle on it
+  const localDay = t => { const d = new Date(t); return d.getFullYear() * 512 + d.getMonth() * 32 + d.getDate(); };
+  const dayOf = o => typeof o === 'function' ? o : o === 'cme' ? window.NsbCme.dayNo : ok(o) && o ? t => Math.floor((t - o) / 86400000) : localDay;
+  function daySpan(c, m, t) {
+    const day = c.dayOf || (c.dayOf = dayOf(c.days)), bars = m.bars, n = bars.length, k = day(t);
+    const first = pred => { let lo = 0, hi = n; while (lo < hi) { const mid = (lo + hi) >> 1; if (pred(day(bars[mid].time))) hi = mid; else lo = mid + 1; } return lo; };
+    const i0 = first(x => x >= k), i1 = first(x => x > k) - 1;
+    return i0 > i1 ? null : [m.x(bars[i0].time) - m.step / 2, m.x(bars[i1].time) + m.step / 2];
+  }
   function shape(c, m, d) {  // drawing d on chart c's screen
     if (d.type === 'vline') return { x: m.x(d.a.t) };
     const y1 = m.y(priceOn(c, d.a, d.src));
-    if (d.type === 'cross') return { x: m.x(d.a.t), y: y1 };  // (y null: its price is off this chart; the time line still shows)
+    if (d.type === 'cross') { const sp = daySpan(c, m, d.a.t); return { x: m.x(d.a.t), y: sp ? y1 : null, xl: sp && sp[0], xr: sp && sp[1] }; }  // (y null: its price is off this chart, or its day has no candle on it; the time line still shows)
     if (y1 === null) return null;
     if (d.type === 'hline') return { y: y1 };
     const y2 = m.y(priceOn(c, d.b, d.src));
@@ -96,7 +109,7 @@
           if (near(s.x2, s.y1)) return { item: d, part: 'ba' };
         }
         if (x >= Math.min(s.x1, s.x2) - 4 && x <= Math.max(s.x1, s.x2) + 4 && y >= Math.min(s.y1, s.y2) - 4 && y <= Math.max(s.y1, s.y2) + 4) return { item: d, part: 'body' };
-      } else if (d.type === 'cross') { if (Math.abs(s.x - x) <= 5 || (s.y !== null && Math.abs(s.y - y) <= 5)) return { item: d, part: 'body' }; }
+      } else if (d.type === 'cross') { if (Math.abs(s.x - x) <= 5 || (s.y !== null && x >= s.xl && x <= s.xr && Math.abs(s.y - y) <= 5)) return { item: d, part: 'body' }; }
       else if (d.type === 'hline' ? Math.abs(s.y - y) <= 5 : Math.abs(s.x - x) <= 5) return { item: d, part: 'body' };
     }
     return null;
@@ -146,7 +159,7 @@
         shapes.push({ ...it, s });
         if (d.type === 'hline') priceTag(priceOn(c, d.a, d.src));
         else if (d.type === 'vline') { if (!c.pane) timeTag(d.a.t); }
-        else if (d.type === 'cross') { if (!c.pane) { timeTag(d.a.t); if (s.y !== null) priceTag(priceOn(c, d.a, d.src)); } }  // its time and its price
+        else if (d.type === 'cross') { if (!c.pane) { timeTag(d.a.t); if (s.y !== null && s.xr >= 0 && s.xl <= m.w) priceTag(priceOn(c, d.a, d.src)); } }  // its time and its price (while its day shows)
         else if (it.sel || it.hover || d === S.temp) { priceTag(d.a.p, MEAS_TAG); priceTag(d.b.p, MEAS_TAG); timeTag(d.a.t, MEAS_TAG); timeTag(d.b.t, MEAS_TAG); }
       }
     }
@@ -183,10 +196,10 @@
             const w = px(bold ? 2 : 1.5), x = crisp(s.x, hr, w);
             g.lineWidth = w; seg(x, 0, x, H);
             if (sel && !c.pane) handle(s.x, H / vr / 2);
-          } else if (d.type === 'cross') {  // the vertical line through the whole chart, the horizontal one (not in a pane)
+          } else if (d.type === 'cross') {  // the vertical line through the whole chart, the horizontal one (not in a pane) over its own day
             const w = px(bold ? 2 : 1.5), x = crisp(s.x, hr, w);
             g.lineWidth = w; seg(x, 0, x, H);
-            if (!c.pane && s.y !== null) { const y = crisp(s.y, vr, w); seg(0, y, W, y); if (sel) handle(s.x, s.y); }
+            if (!c.pane && s.y !== null && s.xr >= 0 && s.xl <= m.w) { const y = crisp(s.y, vr, w); seg(Math.max(0, X(s.xl)), y, Math.min(W, X(s.xr)), y); if (sel) handle(s.x, s.y); }
           } else {  // measure: the change in price and %, and how many candles and how long (whitish, owner 25/10)
             const pa = d.a.p, pb = d.b.p, dp = pb - pa, up = dp >= 0, col = MEAS;
             const l = Math.min(s.x1, s.x2), r = Math.max(s.x1, s.x2), t = Math.min(s.y1, s.y2), b = Math.max(s.y1, s.y2);

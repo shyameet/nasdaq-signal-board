@@ -22,7 +22,7 @@
 <script src="swing.js?v=5"></script>
 <script src="gate.js?v=5"></script>
 <script src="daypick.js?v=3"></script>
-<script src="draw.js?v=9"></script>
+<script src="draw.js?v=10"></script>
 <script src="install.js?v=2"></script>
 <script src="finder.js?v=1"></script>
 <style>
@@ -424,7 +424,7 @@ class Panel {
     this.candles.attachPrimitive(new IstDayLines(() => this.main, () => this.mainBars, 30, -IST));  // where each Indian day begins, with its date
     this.candles.attachPrimitive(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];
       return b && { close: b.close, end: bucketEnd(b.time, opt.tf), up: b.close >= b.open }; }));
-    this.drawing = NsbDraw.add({ id: key, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
+    this.drawing = NsbDraw.add({ days: t => (usOn() ? Us.dayNo(t) : Ist.dayNo(t)), id: key, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
                   tf: () => opt.tf, fmt: v => num(v, day && day[key] ? day[key].digits : 2) });
     this.macd = {};
     for (const k of PANE_KINDS) this.macd[k] = new MacdPane({

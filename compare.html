@@ -23,7 +23,7 @@
 <script src="live.js?v=3"></script>
 <script src="swing.js?v=5"></script>
 <script src="gate.js?v=5"></script>
-<script src="draw.js?v=9"></script>
+<script src="draw.js?v=10"></script>
 <script src="install.js?v=2"></script>
 <script src="finder.js?v=1"></script>
 <style>
@@ -615,7 +615,7 @@ class Panel {
       return b && { close: b.close, end: bucketEnd(b.time, this.tf, o), up: b.close >= b.open }; });
     this.prims = [this.zones, lines, count];
     for (const x of this.prims) this.candles.attachPrimitive(x);
-    this.drawing = NsbDraw.add({ id: inst.id, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
+    this.drawing = NsbDraw.add({ days: inst.paneDays, id: inst.id, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
                                  tf: () => this.tf, fmt: v => num(v, this.day ? this.day.digits : 2) });
     this.macd = {};
     for (const k of PANE_KINDS) this.macd[k] = new MacdPane({

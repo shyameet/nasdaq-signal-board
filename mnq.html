@@ -24,7 +24,7 @@
 <script src="gate.js?v=5"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
-<script src="draw.js?v=9"></script>
+<script src="draw.js?v=10"></script>
 <script src="install.js?v=2"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
@@ -634,7 +634,7 @@ class Panel {
     // (the left's id 'right': the MNQ chart's drawings from before 3/11/2026, when it was the right-hand chart, stay; a level
     // or a time line shows on both charts, on the basket's at the same % from its price; the right's drawings are the basket
     // shown's own, 5/11/2026)
-    this.drawing = NsbDraw.add({ id: side === 'left' ? 'right' : () => 'mnq-' + this.chartKey, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
+    this.drawing = NsbDraw.add({ days: 'cme', id: side === 'left' ? 'right' : () => 'mnq-' + this.chartKey, chart: this.main, series: this.candles, el: $(`${key}-pmain`), bars: () => this.mainBars,
                   tf: () => opt.tf, fmt: v => num(v, 2) });
     this.macd = {};
     for (const k of PANE_KEYS) this.macd[k] = new MacdPane({
