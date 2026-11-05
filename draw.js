@@ -470,6 +470,8 @@
     use(key) { if (key === S.key) return; S.key = key; load(); setTool(null); },
     add(spec) {
       const c = { active: () => true, fmt: v => v.toFixed(2), ...spec };
+      // id() for a chart that shows one market or another (the MNQ page's basket chart, 5/11/2026): its drawings are the shown one's
+      if (typeof spec.id === 'function') Object.defineProperty(c, 'id', { get: spec.id, enumerable: true });
       c.layer = new Layer(c); c.panes = [];
       c.series.attachPrimitive(c.layer);
       // a press that starts a drawing or grabs one never reaches the chart, so the chart doesn't scroll at the same time

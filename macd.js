@@ -35,6 +35,16 @@ const LINE = {
   m1: { tf: 1, label: '1m', v: b => b.macd, pair: ['#facc15', '#8b5cf6'], tip: '1m MACD (12, 26): shown only, the gate doesn\'t use it' },   // yellow / violet
   m2: { tf: 2, label: '2m', v: b => b.macd, pair: ['#22c55e', '#fb7185'], early: true, tip: '2m MACD (12, 26): shown only, the gate doesn\'t use it. Solid: its closed 2-minute candles; dotted: every minute, as if its candle closed then' },   // green / rose (owner 5/11/2026: "green above 0, red below")
   m3: { tf: 3, label: '3m', v: b => b.macd, pair: ['#38bdf8', '#fb923c'], early: true, tip: '3m MACD (12, 26): shown only, the gate doesn\'t use it. Solid: its closed 3-minute candles; dotted: every minute, as if its candle closed then' },   // sky / orange (owner 29/10)
+  // the MNQ page's other MACDs (owner 5/11/2026: "short term chart will have 1 2 3 5 7m macd on all three", "long term chart will
+  // have 9 11 15 30m 1H macd on all three"), shown only; the right side's five in the left's five colors, in the same order. The
+  // 30m and 1h from the long candles (swing.js)
+  m5: { tf: 5, label: '5m', v: b => b.macd, pair: ['#2dd4bf', '#f472b6'], tip: '5m MACD (12, 26): shown only, the gate doesn\'t use it' },   // teal / pink
+  m7: { tf: 7, label: '7m', v: b => b.macd, pair: ['#a3e635', '#c084fc'], tip: '7m MACD (12, 26): shown only, the gate doesn\'t use it' },   // lime / purple
+  m9: { tf: 9, label: '9m', v: b => b.macd, pair: ['#facc15', '#8b5cf6'], tip: '9m MACD (12, 26): shown only, the gate doesn\'t use it' },
+  m11: { tf: 11, label: '11m', v: b => b.macd, pair: ['#22c55e', '#fb7185'], tip: '11m MACD (12, 26): shown only, the gate doesn\'t use it' },
+  m15: { tf: 15, label: '15m', v: b => b.macd, pair: ['#38bdf8', '#fb923c'], tip: '15m MACD (12, 26): shown only, the gate doesn\'t use it' },
+  m30: { tf: 30, label: '30m', v: b => b.macd, pair: ['#2dd4bf', '#f472b6'], tip: '30m MACD (12, 26): shown only, the gate doesn\'t use it' },
+  m60: { tf: 60, label: '1h', v: b => b.macd, pair: ['#a3e635', '#c084fc'], tip: '1h MACD (12, 26): shown only, the gate doesn\'t use it' },
   // (the entries E1-E4 that read the 1m and 2m MACD came off the board: owner 2/11/2026)
   w5a: { tf: 5, label: '5m 8/47', v: b => b.ema8 - b.ema47, pair: ['#00E676', '#FF5252'] },
   w5b: { tf: 5, label: '5m 21/47', v: b => b.ema21 - b.ema47, pair: ['#00B8D4', '#FF9100'] },
@@ -48,6 +58,11 @@ const LINE = {
 };
 for (const l of PANES.trend.lines)
   LINE[l].tip = `${LINE[l].label.replace(' ', ' EMA ').replace('/', ' − EMA ')} (left color above 0, right color below): counts for the gate and the shading while switched on`;
+// every MACD's signal line (EMA 9 of the MACD): drawn only where a pane asks for them (MacdPane opts.signals: the MNQ page, owner
+// 5/11/2026: "a separate switch for each timeframe's signal line"), shown only, each switched on and off by itself (SIG)
+const MACDS = Object.keys(LINE).filter(l => /^m\d+$/.test(l));
+for (const l of MACDS) LINE[l].sig = b => b.signal;
+const SIG = l => 'sig.' + l;
 const LINES = [...new Set(Object.values(LINE).map(l => l.tf))];  // the candle sizes the engine must provide
 const shades = lines => Object.fromEntries(lines.map(l => [l, LINE[l].pair]));
 const faded = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}, ${a})`;
@@ -55,7 +70,7 @@ const MATCH = { BULLISH: 'rgba(43, 182, 138, 0.13)', BEARISH: 'rgba(240, 85, 95,
 
 // ---- which lines are on ------------------------------------------------------------------------------
 const KEY = 'nsb.macd.show';
-const show = Object.fromEntries([...Object.keys(LINE).map(l => [l, true]), ['sig', true], ['early', true]]);
+const show = Object.fromEntries([...Object.keys(LINE).map(l => [l, true]), ...MACDS.map(l => [SIG(l), true]), ['early', true]]);
 try {
   const saved = JSON.parse(localStorage.getItem(KEY));
   if (saved && typeof saved === 'object') for (const k in show) if (typeof saved[k] === 'boolean') show[k] = saved[k];
@@ -316,9 +331,12 @@ class MacdPane {
     for (const m of this.lines) this.series[m] = this.addLine(m);
     this.scaleOf = scaleOf;
     this.split = this.lines.some(scaleOf);
-    this.sigs = {};  // each line's signal line, if it has one: dashed, in the line's color (none since 28/10/2026)
-    for (const m of this.lines) if (LINE[m].sig)
-      this.sigs[m] = line(faded(LINE[m].pair[0], 0.55), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false });
+    // each MACD's signal line where the page asks for them (opts.signals, the MNQ page since 5/11/2026; none elsewhere since
+    // 28/10/2026): dashed, in the line's first color, on its scale, with a switch of its own in the label
+    this.sigs = {};
+    this.addSig = m => line(faded(this.shade2[m][0], 0.8), { lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lastValueVisible: false,
+                                                            ...(scaleOf(m) ? { priceScaleId: scaleOf(m) } : {}) });
+    if (this.signals) for (const m of this.lines) if (LINE[m].sig) this.sigs[m] = this.addSig(m);
     // the 2m and 3m MACD's early line (owner 4/11/2026): dotted, in the line's colors, on its scale; as thick as the line and nearly as
     // bright since 4/11 (owner: "the dotted line is not clearly visible")
     const EARLY_ALPHA = 0.9;
@@ -347,6 +365,8 @@ class MacdPane {
     for (const m of list) if (!this.series[m]) this.series[m] = this.addLine(m);
     for (const m of list) if (LINE[m].early && !this.earlys[m]) this.earlys[m] = this.addEarly(m);
     for (const m in this.earlys) if (!list.includes(m)) this.earlys[m].setData([]);
+    if (this.signals) for (const m of list) if (LINE[m].sig && !this.sigs[m]) this.sigs[m] = this.addSig(m);
+    for (const m in this.sigs) if (!list.includes(m)) this.sigs[m].setData([]);
     for (const m in this.series) if (!list.includes(m)) { this.series[m].setData([]); this.series[m].applyOptions({ visible: false }); }
     this.lines = list; this.split = list.some(this.scaleOf);
     this.pts = []; this.store.clear(); this.lastQ = null; this.html = null;
@@ -354,7 +374,7 @@ class MacdPane {
   }
   showLines() {
     for (const m of this.lines) this.series[m].applyOptions({ visible: show[m] });
-    for (const m in this.sigs) this.sigs[m].applyOptions({ visible: show[m] && show.sig });  // a hidden line takes its signal with it
+    for (const m in this.sigs) this.sigs[m].applyOptions({ visible: this.lines.includes(m) && show[m] && show[SIG(m)] });  // a hidden line takes its signal with it
     for (const m in this.earlys) this.earlys[m].applyOptions({ visible: this.lines.includes(m) && show[m] && show.early });  // and its early line
     this.shading.update();
   }
@@ -411,9 +431,10 @@ class MacdPane {
         + `<span class="t-dot ${ok(v[m]) ? (pass ? 'pass' : 'fail') : ''}"></span>`
         + `<span class="t-v">${this.sigs[m] ? `${sgn(v[m], d)} / ${sgn(q.sg[m], d)}` : sgn(v[m], d)}${this.earlys[m] && show.early && ok(q.ev[m]) && q.ev[m] !== v[m] ? ` ~${sgn(q.ev[m], d)}` : ''}</span></span>`;
     };
-    const html = `<span class="t-name"><b>${this.title || PANES[this.kind].title}</b></span>` + this.lines.map(item).join('')  // no market name (owner 24/10/2026)
-      + (Object.keys(this.sigs).length ? `<span class="t-mm${show.sig ? '' : ' off'}" data-k="sig" title="Every line's signal line (dashed, in its color). Click to ${show.sig ? 'hide' : 'show'} them">`
-                  + `<span class="sw dash"></span><span class="t-of">signals</span></span>` : '')
+    // a MACD's signal line: its own switch, right after the line's (owner 5/11/2026)
+    const sigItem = m => !this.sigs[m] ? '' : `<span class="t-mm${show[SIG(m)] ? '' : ' off'}" data-k="${SIG(m)}" title="The ${LINE[m].label} MACD's signal line (the EMA 9 of it, dashed): shown only. Click to ${show[SIG(m)] ? 'hide' : 'show'} it">`
+      + `<span class="sw dash" style="border-top-color:${this.shade2[m][0]}"></span><span class="t-of">sig</span></span>`;
+    const html = `<span class="t-name"><b>${this.title || PANES[this.kind].title}</b></span>` + this.lines.map(m => item(m) + sigItem(m)).join('')  // no market name (owner 24/10/2026)
       + (this.lines.some(m => this.earlys[m]) ? `<span class="t-mm${show.early ? '' : ' off'}" data-k="early" title="The 2m and 3m MACD's dotted lines: every minute, the value their candle would have if it closed then (it can change until it closes; the solid lines are the closed candles'). Click to ${show.early ? 'hide' : 'show'} them">`
                   + `<span class="sw dot"></span><span class="t-of">early</span></span>` : '');
     // written only when it changed (31/10/2026: the live prices wrote the same label again every second or so, rebuilding

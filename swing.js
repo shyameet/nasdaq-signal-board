@@ -105,12 +105,15 @@ function periods(days, origin, monthly) {
 // EMA 8, 21 and 47 of the closes (the engine's EMA, seeded with the first close, as on the Perps tab), put on the
 // candles from the 47th on, as the gate waits for 47 bars. seed: closes run through the EMAs before the candles' own
 // (they count toward the 47)
+// Also the MACD (12, 26) and its signal line (EMA 9 of it), from the 35th close on (the MNQ page's 30m and 1h MACD, owner 5/11/2026)
 function withEmas(bars, seed = []) {
-  const e8 = new Ema(8), e21 = new Ema(21), e47 = new Ema(47);
-  for (const c of seed) { e8.update(c); e21.update(c); e47.update(c); }
+  const e8 = new Ema(8), e21 = new Ema(21), e47 = new Ema(47), e12 = new Ema(12), e26 = new Ema(26), e9 = new Ema(9);
+  const macd = c => { const line = e12.update(c) - e26.update(c); return [line, e9.update(line)]; };
+  for (const c of seed) { e8.update(c); e21.update(c); e47.update(c); macd(c); }
   bars.forEach((b, i) => {
-    const x = [e8.update(b.close), e21.update(b.close), e47.update(b.close)];
+    const x = [e8.update(b.close), e21.update(b.close), e47.update(b.close)], [line, signal] = macd(b.close);
     if (seed.length + i >= 46) Object.assign(b, { ema8: x[0], ema21: x[1], ema47: x[2] });
+    if (seed.length + i >= 34) Object.assign(b, { macd: line, signal });
   });
   return bars;
 }
