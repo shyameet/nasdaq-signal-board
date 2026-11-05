@@ -18,7 +18,7 @@
 <script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=3"></script>
-<script src="macd.js?v=31"></script>
+<script src="macd.js?v=32"></script>
 <script src="engine.js?v=19"></script>
 <script src="swing.js?v=5"></script>
 <script src="gate.js?v=5"></script>
@@ -41,7 +41,8 @@
      where the two sides' MNQ gates agree. 5/11/2026 (owner): the right's chart shows its Basket 1 or Basket 2 (a switch) on
      MNQ's candles, the left's stays MNQ; every pane also has MACDs, 1m to 7m on the left and 9m to 1h on the right, each with
      a signal line switched on and off by itself. The same day (owner) the right's waves also on the 1M candles, the left's
-     Waves tab also the 1m, 2m and 3m waves (shown only), and the right's MACD tab also the 4h, 1D, 1W and 1M MACDs.
+     Waves tab the 1m, 2m and 3m MACDs again (the Entry lines), the right's MACD tab also the 4h, 1D, 1W and 1M MACDs, and on
+     both sides the MNQ pane first, the baskets' under it.
      The Replay page's notes: one trading day at a time (from the CME open). Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
      has the same indicators (the RDX WIP gate, the 5m EMA 8/21/47, the Entry MACD and Trend waves panes; owner
      28/10/2026, Rahul's RDX WIP Trend). */
@@ -120,7 +121,7 @@
   .note { color: var(--muted); font-size: 11.5px; }
   .note.warn { color: var(--warn); }
 
-  /* ---- the chart (owner 3/11/2026): MNQ on top, then Basket 1, Basket 2 and MNQ, each pane with the 1m to 15m lines ---- */
+  /* ---- the chart (owner 3/11/2026): MNQ on top, then the panes MNQ, Basket 1 and Basket 2 (MNQ's first since 5/11/2026) ---- */
   .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, var(--lw, 1fr)) minmax(0, var(--rw, 1fr)); position: relative; }   /* left, and right with the long waves (4/11/2026) */
   .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .panel + .panel { border-left: 1px solid var(--line-strong); }
@@ -140,7 +141,7 @@
   .other .og[hidden] { display: none; }
   .other .gw { padding: 1px 7px; font-size: 10.5px; }
   .warm { color: var(--warn); font-size: 11px; }
-  .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 43fr 19fr 19fr 19fr; }   /* MNQ's price, then the panes: Basket 1, Basket 2, MNQ */
+  .stack { flex: 1; min-height: 0; display: grid; grid-template-rows: 43fr 19fr 19fr 19fr; }   /* the chart, then the panes: MNQ, Basket 1, Basket 2 (5/11/2026) */
   .cell { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .cell > .pane { flex: 1; }
   /* a basket's row: its stock picker and its stocks (the leader / follower words came off: owner 4/11/2026) */
@@ -407,8 +408,7 @@ async function fetchDay(key, coins) {  // one UTC day of these markets, whole
 // from the lines switched on: gateOf, gate.js).
 // the candle sizes run, beyond the other pages' (SHOWN): the MACD on the 5m to 15m candles and on 7m ones too, for the panes'
 // MACDs (owner 5/11/2026; the 30m and 1h ones come from the long candles, swing.js). The gate reads the waves as before
-// The 1m and 2m: their waves too, for the Waves tab's 1m to 3m ones (owner 5/11/2026)
-const KINDS = { ...SHOWN, 1: 'both', 2: 'both', 5: 'both', 7: 'both', 9: 'both', 11: 'both', 15: 'both' };  // (7m: its waves too since 5/11/2026)
+const KINDS = { ...SHOWN, 5: 'both', 7: 'both', 9: 'both', 11: 'both', 15: 'both' };  // (7m: its waves too since 5/11/2026)
 function runSeries(coef, minutes, origin = 0) {  // minutes: { coin: contiguous bars over the warm-up day and the day }
   const sig = new TrendSignal(coef, KINDS, origin), coins = Object.keys(coef);
   const at = Object.fromEntries(coins.map(c => [c, 0]));
@@ -535,7 +535,8 @@ const hasDay = key => archiveDays.has(key) || dayStart(key) + DAY > hlFrom;
 // together; the right one's panes draw the long waves instead, which alone count for its gate (4/11/2026) -----------------
 const panels = {};
 const SIDES = ['left', 'right'];
-const PANE_KEYS = ['b1', 'b2', 'mnq'];  // the panes under each MNQ chart, top to bottom (owner 3/11/2026)
+// the panes under each chart, top to bottom (owner 3/11/2026; MNQ's first since 5/11/2026: "the pane of the MNQ should be the first one")
+const PANE_KEYS = ['mnq', 'b1', 'b2'];
 // the right side's waves (owner 4/11/2026: "we just need the long term values such as 30 min 1 hr 4hr daily and weekly"):
 // EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 30m, 1h, 4h, 1D and 1W candles (swing.js), in the Swing pane's colors (the 30m
 // in the 15m's, which that side doesn't draw); and the 1M (owner 5/11/2026: "add monthly on the longer time frame as well")
@@ -543,10 +544,10 @@ const LONG = [...NsbSwing.M30, 's1a', 's1b', 's4a', 's4b', 'sDa', 'sDb', 'sWa', 
 const LONG_OF = { left: [], right: LONG };  // each side's lines on long candles: drawn, and counted for its gate while switched on
 const TREND_OF = { left: true, right: false };  // the Trend lines (5m to 15m) drawn and counted: the left only
 // each side's MACDs (owner 5/11/2026: 1m, 2m, 3m, 5m and 7m on the left, 9m, 11m, 15m, 30m and 1h on the right, shown only; the
-// same day the right's 4h, 1D, 1W and 1M too); its waves: the 1m to 3m waves (shown only, owner 5/11/2026) and the Trend lines
-// on the left, the long waves on the right (the panes draw one or the other: paneMode)
+// same day the right's 4h, 1D, 1W and 1M too); its Waves tab: the Entry lines (the 1m, 2m and 3m MACDs, shown only: owner
+// 5/11/2026, "I wanted the original 1 minute, 2 minute and 3 minute entry") and the Trend lines on the left, the long waves on
+// the right (the panes draw one or the other: paneMode)
 const MACDS_OF = { left: ['m1', 'm2', 'm3', 'm5', 'm7'], right: ['m9', 'm11', 'm15', 'm30', 'm60', 'm240', 'm1440', 'm10080', 'm43200'] };
-const SHORT_WAVES = ['w1a', 'w1b', 'w2a', 'w2b', 'w3a', 'w3b'];
 const LONG_TFS = [30, 60, 240, 1440, 10080, 43200];
 // the MACDs on a scale of their own in each pane (the waves are many times their size); on the right also the 30m and 1h waves
 // (the daily ones are many times theirs; the weekly ones have their own, swing.js, and the monthly ones, about five times the
@@ -564,7 +565,7 @@ let rightChart = pref('rchart', 'b1') === 'b2' ? 'b2' : 'b1';
 // only the MACD"): Waves or MACD, remembered in this browser; the gate and the shading are the waves' on either (a MACD tab's lines
 // on the pane's own price scale, its labels theirs)
 let paneMode = pref('panes', 'waves') === 'macd' ? 'macd' : 'waves';
-const linesOf = side => paneMode === 'macd' ? MACDS_OF[side] : side === 'left' ? [...SHORT_WAVES, ...NsbMacd.PANES.trend.lines] : LONG;
+const linesOf = side => paneMode === 'macd' ? MACDS_OF[side] : side === 'left' ? NsbMacd.PANES.all.lines : LONG;
 const scalesOf = side => paneMode === 'macd' ? MACD_SCALES[side] : SCALES_OF[side];
 const NAMES = { b1: 'Basket 1', b2: 'Basket 2', mnq: 'MNQ' };
 function options(showTime, isMain, name) {
@@ -1030,7 +1031,7 @@ function showPanes(mode) {  // the Waves or the MACD tab: the panes' lines, draw
 }
 function buildControls() {
   seg($('paneSeg'), [['Waves', 'waves'], ['MACD', 'macd']], paneMode, showPanes);
-  $('paneSeg').children[0].title = 'The panes: the waves (EMA 8 − EMA 47 and EMA 21 − EMA 47): 1m to 15m on the left, 30m to 1M on the right';
+  $('paneSeg').children[0].title = 'The panes: the waves (EMA 8 − EMA 47 and EMA 21 − EMA 47): 5m to 15m on the left, with the 1m, 2m and 3m MACDs, and 30m to 1M on the right';
   $('paneSeg').children[1].title = 'The panes: the MACDs (12, 26) with their signal lines: 1m to 7m on the left, 9m to 1M on the right';
   $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === opt.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
   $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };

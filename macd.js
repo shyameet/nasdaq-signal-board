@@ -52,14 +52,6 @@ const LINE = {
   m10080: { tf: 10080, label: '1W', v: b => b.macd, pair: ['#FFFF00', '#E040FB'], tip: '1W MACD (12, 26): shown only, the gate doesn\'t use it' },  // yellow / magenta
   m43200: { tf: 43200, label: '1M', v: b => b.macd, pair: ['#BCAAA4', '#FFAB91'], tip: '1M MACD (12, 26): shown only, the gate doesn\'t use it' },  // taupe / peach
   // (the entries E1-E4 that read the 1m and 2m MACD came off the board: owner 2/11/2026)
-  // the MNQ page's 1m, 2m and 3m waves (owner 5/11/2026: "add 1 2 and 3 min timeframes on the waves tab as well"), shown only,
-  // not Trend lines; in six pairs of their own, the furthest (CIELAB) from the Trend lines' ten
-  w1a: { tf: 1, label: '1m 8/47', v: b => b.ema8 - b.ema47, pair: ['#18FFFF', '#F48FB1'] },   // cyan / pink
-  w1b: { tf: 1, label: '1m 21/47', v: b => b.ema21 - b.ema47, pair: ['#CCFF90', '#B39DDB'] },  // light lime / lavender
-  w2a: { tf: 2, label: '2m 8/47', v: b => b.ema8 - b.ema47, pair: ['#A7FFEB', '#FFAB91'] },   // mint / peach
-  w2b: { tf: 2, label: '2m 21/47', v: b => b.ema21 - b.ema47, pair: ['#C6FF00', '#8C9EFF'] },  // lime / periwinkle
-  w3a: { tf: 3, label: '3m 8/47', v: b => b.ema8 - b.ema47, pair: ['#4DB6AC', '#FFC400'] },   // teal / amber
-  w3b: { tf: 3, label: '3m 21/47', v: b => b.ema21 - b.ema47, pair: ['#A5D6A7', '#EF9A9A'] },  // sage / light red
   w5a: { tf: 5, label: '5m 8/47', v: b => b.ema8 - b.ema47, pair: ['#00E676', '#FF5252'] },
   w5b: { tf: 5, label: '5m 21/47', v: b => b.ema21 - b.ema47, pair: ['#00B8D4', '#FF9100'] },
   // the 7m waves (owner 5/11/2026: "add 7 min timeframe ... in the trend pane"; they count for the gate too)
@@ -74,10 +66,7 @@ const LINE = {
   w15b: { tf: 15, label: '15m 21/47', v: b => b.ema21 - b.ema47, pair: ['#EA80FC', '#FFE57F'] },
 };
 for (const l of PANES.trend.lines)
-  LINE[l].tip = `${LINE[l].label.replace(' ', ' EMA ').replace('/', ' − EMA ')} (left color above 0, right color below): counts for the gate and the shading while switched on`;
-for (const l of ['w1a', 'w1b', 'w2a', 'w2b', 'w3a', 'w3b'])
-  LINE[l].tip = `${LINE[l].label.replace(' ', ' EMA ').replace('/', ' − EMA ')} (left color above 0, right color below): shown only, the gate doesn't use it`;
-// every MACD's signal line (EMA 9 of the MACD): drawn only where a pane asks for them (MacdPane opts.signals: the MNQ page, owner
+  LINE[l].tip = `${LINE[l].label.replace(' ', ' EMA ').replace('/', ' − EMA ')} (left color above 0, right color below): counts for the gate and the shading while switched on`;// every MACD's signal line (EMA 9 of the MACD): drawn only where a pane asks for them (MacdPane opts.signals: the MNQ page, owner
 // 5/11/2026: "a separate switch for each timeframe's signal line"), shown only, each switched on and off by itself (SIG)
 const MACDS = Object.keys(LINE).filter(l => /^m\d+$/.test(l));
 for (const l of MACDS) LINE[l].sig = b => b.signal;
