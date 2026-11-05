@@ -21,7 +21,6 @@
 <script src="engine.js?v=19"></script>
 <script src="swing.js?v=5"></script>
 <script src="gate.js?v=5"></script>
-<script src="basket.js?v=2"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=3"></script>
 <script src="draw.js?v=10"></script>
@@ -380,9 +379,6 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const [swingL, swingR] = await Promise.all([
     NsbSwing.series(spec.left, closedRows((runL.bars[1] || []).map(b => ({ t: b.time, o: b.open, h: b.high, l: b.low, c: b.close, v: b.volume || 0 })))),
     NsbSwing.series(spec.right, closedRows(m[BENCH]))]);
-  // each picked stock's own Swing candles, for its own gate in the basket's leader / followers (basket.js; owner 2-3/11/2026)
-  const memberSwing = ACTIVE.length > 1 ? Object.fromEntries(await Promise.all(ACTIVE.map(async c =>
-    [c, await NsbSwing.series({ id: 'hl_' + c.replace(/:/g, '_'), hl: c, origin: 0 }, closedRows(m[c] || [])).catch(() => null)]))) : null;
   if (seq !== builds) return false;
   const inDay = b => b.t >= d0 && b.t < d1;  // the strip
   // the right chart's candles are XYZ100's own 1-minute candles; the left's are the composite's
@@ -392,7 +388,7 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const src = days.map(d => d.source).join(' + ');
   const lacking = ACTIVE.filter(c => !m[c].some(inDay));  // picked stocks with no candles on this day (not archived yet)
   day = { key, d0, d1, lastD0, shown: shownKeys.length, more: !!warmKey, prevLoaded: !!warmKey || list.length > i + shownKeys.length, source: src, lacking,
-          left: { name: leftName(), run: runL, price: priceL, digits: 2, macdDigits: 3, swing: swingL, memberSwing },
+          left: { name: leftName(), run: runL, price: priceL, digits: 2, macdDigits: 3, swing: swingL },
           right: { name: 'XYZ100', run: runR, price: priceR, digits: 1, macdDigits: 2, swing: swingR } };
   const lastT = Math.max(priceL.length ? priceL[priceL.length - 1].time : 0, priceR.length ? priceR[priceR.length - 1].time : 0);
   day.end = lastT + MIN;
@@ -436,7 +432,6 @@ class Panel {
           <span class="warm" id="${key}-warm"></span>
           <span class="other"><span id="${key}-oname"></span><span class="gw" id="${key}-ogate">—</span></span>
         </div>
-        ${key === 'left' ? '<div class="bk" id="left-basket" hidden></div>' : ''}
         <div class="stack">
           <div class="pane" id="${key}-pmain"><div class="tag main" id="${key}-tmain"></div></div>
           <div class="pane" id="${key}-pentry"><div class="tag mix" id="${key}-tentry"></div></div>
@@ -542,15 +537,6 @@ class Panel {
     this.mainBars.forEach((b, i) => { const q = this.store.get(sec(b.time)); if (q) q.state = this.mainStates[i]; });  // the hover readout's GATE
     return st;
   }
-  // your stocks: the leader, the stocks joining the basket's trend and the last to join (basket.js), as marks on this chart
-  basket() { return this.key === 'left' && day && day.left.memberSwing ? NsbBasket.of(day.left.run.sig, day.left.swing, day.left.memberSwing, this.macd.swing.lines) : null; }
-  basketMarks() {
-    const b = this.basket();
-    $('left-basket') && this.key === 'left' && ($('left-basket').hidden = !b);
-    if (this.key !== 'left') return;
-    const have = new Set(this.mainBars.map(x => sec(x.time)));
-    this.candles.setMarkers(b ? NsbBasket.marks(b.events, t => sec(bucketStart(t, opt.tf)), tk, day.d0, day.d1, 20 * opt.tf * 60).filter(m => have.has(m.time)) : []);
-  }
   draw(full) {  // the whole day
     const side = this.side, upto = Infinity;
     if (full && this.scaleW !== 64) { this.scaleW = 64; for (const o of this.charts) o.chart.applyOptions({ rightPriceScale: { minimumWidth: 64 } }); for (const p of Object.values(this.macd)) p.tagEl.style.maxWidth = ''; }  // another day, candle size or pick: each chart finds its own width again (the widest is shared above)
@@ -567,7 +553,6 @@ class Panel {
       ...Object.entries(side.swing).map(([m, bars]) => [m, live ? bars : bars.filter(b => b.end <= day.d1)])]);
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
     this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
-    this.basketMarks();  // (after the candles: a mark needs its candle)
     this.setEmas();
     for (const p of Object.values(this.macd)) { p.digits = side.macdDigits; p.update(); p.showLines(); }
     this.main.applyOptions({ watermark: { text: `${side.name} · ${tf}m` } });
@@ -595,7 +580,6 @@ class Panel {
     $(`${this.key}-val`).textContent = bar ? num(bar.close, side.digits) : '—';
     $(`${this.key}-gate`).className = 'gw ' + kind(st); $(`${this.key}-gate`).textContent = st ? WORD[st] : '—';
     $(`${this.key}-conds`).innerHTML = k !== null ? NsbGate.chips(side.run.sig, side.swing, this.macd.swing.lines, k) : '';  // the lines switched on, by timeframe
-    if (this.key === 'left') { const b = this.basket(); if (b) $('left-basket').innerHTML = NsbBasket.strip(b.at(at), tk); }
     $(`${this.key}-oname`).textContent = other.name;
     $(`${this.key}-ogate`).className = 'gw ' + kind(ost); $(`${this.key}-ogate`).textContent = ost ? WORD[ost] : '—';
     const firstState = this.firstState;
@@ -1126,7 +1110,7 @@ function setSplit(f, keep = true) {  // the left chart's share of the width (eac
 
 // ---- start ---------------------------------------------------------------------------------------------------
 // a switch: the gate again (gate.js), so the candles' states, every shading, the header's word and chips change at once
-NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { if (day) { p.restate(); p.basketMarks(); } for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } refreshText(); });
+NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { if (day) p.restate(); for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } refreshText(); });
 (async () => {
   try {
     loading('Loading the list of days…');

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nasdaq · MNQ · Indra Quant Signal Board</title>
-<meta name="description" content="The real MNQ future twice side by side, each with two baskets of your Nasdaq stocks and MNQ in three panes under it: the 1m to 15m lines on the left, the 30m to weekly waves on the right.">
+<meta name="description" content="The real MNQ future twice side by side, each with two baskets of your Nasdaq stocks and MNQ in three panes under it: the 1m to 15m lines on the left, the 30m to monthly waves on the right.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -40,7 +40,7 @@
      the same day the right's panes became the long waves only, 30m, 1h, 4h, 1D and 1W, and both MNQ charts are shaded only
      where the two sides' MNQ gates agree. 5/11/2026 (owner): the right's chart shows its Basket 1 or Basket 2 (a switch) on
      MNQ's candles, the left's stays MNQ; every pane also has MACDs, 1m to 7m on the left and 9m to 1h on the right, each with
-     a signal line switched on and off by itself.
+     a signal line switched on and off by itself. The same day (owner) the right's waves also on the 1M candles.
      The Replay page's notes: one trading day at a time (from the CME open). Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
      has the same indicators (the RDX WIP gate, the 5m EMA 8/21/47, the Entry MACD and Trend waves panes; owner
      28/10/2026, Rahul's RDX WIP Trend). */
@@ -536,19 +536,20 @@ const SIDES = ['left', 'right'];
 const PANE_KEYS = ['b1', 'b2', 'mnq'];  // the panes under each MNQ chart, top to bottom (owner 3/11/2026)
 // the right side's waves (owner 4/11/2026: "we just need the long term values such as 30 min 1 hr 4hr daily and weekly"):
 // EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 30m, 1h, 4h, 1D and 1W candles (swing.js), in the Swing pane's colors (the 30m
-// in the 15m's, which that side doesn't draw)
-const LONG = [...NsbSwing.M30, 's1a', 's1b', 's4a', 's4b', 'sDa', 'sDb', 'sWa', 'sWb'];
+// in the 15m's, which that side doesn't draw); and the 1M (owner 5/11/2026: "add monthly on the longer time frame as well")
+const LONG = [...NsbSwing.M30, 's1a', 's1b', 's4a', 's4b', 'sDa', 'sDb', 'sWa', 'sWb', 'sMa', 'sMb'];
 const LONG_OF = { left: [], right: LONG };  // each side's lines on long candles: drawn, and counted for its gate while switched on
 const TREND_OF = { left: true, right: false };  // the Trend lines (5m to 15m) drawn and counted: the left only
 // each side's MACDs (owner 5/11/2026: 1m, 2m, 3m, 5m and 7m on the left, 9m, 11m, 15m, 30m and 1h on the right, shown only); its
 // waves: the Trend lines on the left, the long waves on the right (the panes draw one or the other: paneMode)
 const MACDS_OF = { left: ['m1', 'm2', 'm3', 'm5', 'm7'], right: ['m9', 'm11', 'm15', 'm30', 'm60'] };
-const LONG_TFS = [30, 60, 240, 1440, 10080];
+const LONG_TFS = [30, 60, 240, 1440, 10080, 43200];
 // the MACDs on a scale of their own in each pane (the waves are many times their size); on the right also the 30m and 1h waves
-// (the daily ones are many times theirs; the weekly ones have their own, swing.js). 0 stays in the middle of every scale, so
+// (the daily ones are many times theirs; the weekly ones have their own, swing.js, and the monthly ones, about five times the
+// weekly, another). 0 stays in the middle of every scale, so
 // the zero line is every line's
 const SCALES_OF = { left: Object.fromEntries(MACDS_OF.left.map(m => [m, 'mc'])),
-                    right: { ...Object.fromEntries(MACDS_OF.right.map(m => [m, 'mc'])), s30a: 'hs', s30b: 'hs', s1a: 'hs', s1b: 'hs' } };
+                    right: { ...Object.fromEntries(MACDS_OF.right.map(m => [m, 'mc'])), s30a: 'hs', s30b: 'hs', s1a: 'hs', s1b: 'hs', sMa: 'mo', sMb: 'mo' } };
 // the right's chart (owner 5/11/2026: "on the right side give us the option to switch between the 2 baskets chart"): Basket 1 or
 // Basket 2, remembered in this browser; the left's is MNQ
 let rightChart = pref('rchart', 'b1') === 'b2' ? 'b2' : 'b1';
@@ -590,7 +591,7 @@ class Panel {
       <section class="panel" id="${key}">
         <div class="phead">
           ${side === 'right' ? `<span class="seg" id="right-chart" role="group" aria-label="The chart">${['b1', 'b2'].map(k => `<button type="button" data-v="${k}" aria-pressed="${k === rightChart}" title="The chart: ${BASKETS[k]}'s candles (this side's ${BASKETS[k]}, on MNQ's candles)">${BASKETS[k]}</button>`).join('')}</span>`
-            : `<span class="pname" id="${key}-name">MNQ</span>`}<span class="pval" id="${key}-val">—</span><span class="pside">${side === 'right' ? '9m–1W' : '1m–15m'}</span>
+            : `<span class="pname" id="${key}-name">MNQ</span>`}<span class="pval" id="${key}-val">—</span><span class="pside">${side === 'right' ? '9m–1M' : '1m–15m'}</span>
           <span class="gk">Gate</span><span class="gw" id="${key}-gate">—</span>
           <span class="conds" id="${key}-conds"></span>
           <span class="warm" id="${key}-warm"></span>
@@ -718,7 +719,7 @@ class Panel {
     this.setEmas();
     for (const [k, p] of Object.entries(this.macd)) { p.digits = this.ser(k).macdDigits; p.update(); p.showLines(); }
     this.setMarkers();
-    this.main.applyOptions({ watermark: { text: `${NAMES[this.chartKey]} · ${tf}m${this.key === 'right' ? ' · 9m–1W' : ''}` } });
+    this.main.applyOptions({ watermark: { text: `${NAMES[this.chartKey]} · ${tf}m${this.key === 'right' ? ' · 9m–1M' : ''}` } });
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
   }
@@ -1022,7 +1023,7 @@ function showPanes(mode) {  // the Waves or the MACD tab: the panes' lines, draw
 }
 function buildControls() {
   seg($('paneSeg'), [['Waves', 'waves'], ['MACD', 'macd']], paneMode, showPanes);
-  $('paneSeg').children[0].title = 'The panes: the waves (EMA 8 − EMA 47 and EMA 21 − EMA 47): 5m to 15m on the left, 30m to 1W on the right';
+  $('paneSeg').children[0].title = 'The panes: the waves (EMA 8 − EMA 47 and EMA 21 − EMA 47): 5m to 15m on the left, 30m to 1M on the right';
   $('paneSeg').children[1].title = 'The panes: the MACDs (12, 26) with their signal lines: 1m to 7m on the left, 9m to 1h on the right';
   $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === opt.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
   $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
