@@ -363,6 +363,7 @@ class MacdPane {
   pair() { return this.match ? this.match() : [this.stockPts, this.pts]; }
   setLines(list) {  // another choice of the pane's lines (a market with or without some): drawn whole at the next update()
     if (list.join() === this.lines.join()) return;
+    for (const m of list) if (!this.shade2[m]) this.shade2[m] = LINE[m].pair;  // (lines new to the pane: their own colors)
     for (const m of list) if (!this.series[m]) this.series[m] = this.addLine(m);
     for (const m of list) if (LINE[m].early && !this.earlys[m]) this.earlys[m] = this.addEarly(m);
     for (const m in this.earlys) if (!list.includes(m)) this.earlys[m].setData([]);
@@ -372,6 +373,13 @@ class MacdPane {
     this.lines = list; this.split = list.some(this.scaleOf);
     this.pts = []; this.store.clear(); this.lastQ = null; this.html = null;
     this.showLines();
+  }
+  setScales() {  // the lines on the price scales of this.scales again (the MNQ page's Waves and MACD tabs, 5/11/2026: a tab's lines on
+    // the pane's own scale, its labels theirs); the next update() draws them
+    const id = m => this.scaleOf(m) || 'right';
+    for (const set of [this.series, this.sigs, this.earlys]) for (const m in set) set[m].applyOptions({ priceScaleId: id(m) });
+    for (const sc of new Set(Object.keys(this.series).map(id))) if (sc !== 'right') this.chart.priceScale(sc).applyOptions({ scaleMargins: { top: 0.2, bottom: 0.06 } });
+    this.split = this.lines.some(this.scaleOf);
   }
   showLines() {
     for (const m of this.lines) this.series[m].applyOptions({ visible: show[m] });

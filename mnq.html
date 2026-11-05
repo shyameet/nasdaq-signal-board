@@ -18,7 +18,7 @@
 <script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=3"></script>
-<script src="macd.js?v=28"></script>
+<script src="macd.js?v=29"></script>
 <script src="engine.js?v=18"></script>
 <script src="swing.js?v=5"></script>
 <script src="gate.js?v=5"></script>
@@ -123,7 +123,7 @@
   .note.warn { color: var(--warn); }
 
   /* ---- the chart (owner 3/11/2026): MNQ on top, then Basket 1, Basket 2 and MNQ, each pane with the 1m to 15m lines ---- */
-  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }   /* left, and right with the long waves (4/11/2026) */
+  .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, var(--lw, 1fr)) minmax(0, var(--rw, 1fr)); position: relative; }   /* left, and right with the long waves (4/11/2026) */
   .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .panel + .panel { border-left: 1px solid var(--line-strong); }
   .pside { color: var(--faint); font: 600 10.5px var(--font-num); letter-spacing: .04em; }
@@ -213,9 +213,15 @@
   .pick-actions .msg.warn { color: var(--warn); }
   .pick-actions .go { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
   .pick-actions .go:disabled { opacity: .4; cursor: default; }
+  /* the line between the two charts (owner 5/11/2026: "move the charts left to right", as on the India and Commodities tabs) */
+  .board > .split { position: absolute; z-index: 20; top: 0; bottom: 0; width: 9px; margin-left: -5px; cursor: col-resize; touch-action: none; }
+  .board > .split::after { content: ""; position: absolute; left: 4px; top: 0; bottom: 0; width: 2px; background: transparent; transition: background .12s; }
+  .board > .split:hover::after, .board > .split.on::after { background: var(--accent); }
+  body.dragging, body.dragging * { cursor: col-resize !important; user-select: none !important; }
   @media (max-width: 1100px) {   /* the page scrolls: the two copies one under the other, each chart a height of its own */
     html, body { height: auto; }
     .board { grid-template-columns: minmax(0, 1fr); }
+    .board > .split { display: none; }
     .panel + .panel { border-left: 0; border-top: 2px solid var(--line-strong); }
     .stack { flex: none; grid-template-rows: max(320px, 46vh) repeat(3, max(230px, 31vh)); }
   }
@@ -243,6 +249,7 @@
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
   <nav class="tabs" aria-label="Pages"><a href="replay.html" aria-current="page">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a></nav>
   <div class="grp" title="Section"><div class="seg" role="group" aria-label="Section"><button type="button" aria-pressed="false" onclick="location.href='replay.html'" title="Your stocks beside XYZ100">XYZ100</button><button type="button" aria-pressed="true" title="MNQ, with two baskets of your stocks under it">MNQ</button></div></div>
+  <div class="grp"><div class="seg" id="paneSeg" role="group" aria-label="The panes' lines"></div></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
   <div class="grp"><span class="badge" id="badge" title="Right now">LOADING</span>
@@ -253,6 +260,7 @@
     <div class="how-body">
       <h3>What you see</h3>
       <p>Two sides. The <b>left</b> chart: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS). The <b>right</b> chart: that side's <b>Basket 1</b> or <b>Basket 2</b> (the switch in its header; owner 5/11/2026), drawn on MNQ's candles: each of its candles is the basket over the same minutes as MNQ's candle there (none in MNQ's daily break or at the weekend), so the two charts line up candle for candle. Both are shaded green only where <b>both</b> sides' MNQ gates are LONG and red only where both are SHORT (owner 4/11/2026: the zone only when the two match), and each has its own series' 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one). Under each chart three panes, Basket 1, Basket 2 and MNQ. The <b>left</b>'s: the 1m, 2m, 3m, 5m and 7m MACD (12, 26; shown only, on a scale of their own in each pane so the far bigger waves don't flatten them, 0 shared; the 2m and 3m also as a faint dotted line, updated every minute as if their candle closed then) and the 5m, 9m, 11m and 15m waves (EMA 8 − EMA 47 and EMA 21 − EMA 47 on each). The <b>right</b>'s: the 9m, 11m, 15m, 30m and 1h MACD (shown only) and the <b>long waves</b>, the same two on the 30-minute, 1-hour, 4-hour, daily and weekly candles (from our nightly files and the loaded minutes; the 30m and 1h on a scale of their own in each pane, as are the weekly ones, so the bigger daily ones don't flatten them, 0 shared). Every MACD has a <b>signal line</b> (the EMA 9 of it, dashed, in the MACD's color), each switched on and off by its own <b>sig</b> switch in the pane's label; shown only. A basket's weeks before one of its stocks was on Hyperliquid follow the real stock's daily closes (a stock listed nowhere before then, such as SPCX, is left out of those weeks). MNQ's bars start at its session open (17:00 Chicago), as on TradingView. Both sides scroll and zoom together.</p>
+      <p>The <b>Waves | MACD</b> switch in the top bar picks the panes' lines (owner 5/11/2026): the waves, or the MACDs with their signal lines. The gate and the green and red shading are the waves' either way. Drag the line between the two charts to make one wider (double-click it: half and half).</p>
       <p><b>Basket 1</b> and <b>Basket 2</b>: composites of your own stocks from Hyperliquid, each picked with the button on its row; each copy has its own two (the left's Basket 1 is the pick the other pages use); each stock counts equally. They are drawn on MNQ's candles: every point is the basket's line as of that MNQ candle's close. <b>MNQ</b>: MNQ's own. Each pane is shaded by its own trend.</p>
       <p>An arrow on an MNQ chart marks where an <b style="color:#ff8a3d">MNQ alone</b> stretch (MNQ's gate is LONG, that copy's Basket 1's isn't) or a <b style="color:#2bb68a">Stocks first</b> stretch (Basket 1's gate is LONG, MNQ's not yet) begins. The badge in the top bar says where the left copy stands right now (on a past day, at MNQ's last candle of it).</p>
       <h3>The gate</h3>
@@ -561,10 +569,9 @@ const PANE_KEYS = ['b1', 'b2', 'mnq'];  // the panes under each MNQ chart, top t
 const LONG = [...NsbSwing.M30, 's1a', 's1b', 's4a', 's4b', 'sDa', 'sDb', 'sWa', 'sWb'];
 const LONG_OF = { left: [], right: LONG };  // each side's lines on long candles: drawn, and counted for its gate while switched on
 const TREND_OF = { left: true, right: false };  // the Trend lines (5m to 15m) drawn and counted: the left only
-// each side's panes' lines: its MACDs (owner 5/11/2026: 1m, 2m, 3m, 5m and 7m on the left, 9m, 11m, 15m, 30m and 1h on the right,
-// shown only) and its waves, as before
+// each side's MACDs (owner 5/11/2026: 1m, 2m, 3m, 5m and 7m on the left, 9m, 11m, 15m, 30m and 1h on the right, shown only); its
+// waves: the Trend lines on the left, the long waves on the right (the panes draw one or the other: paneMode)
 const MACDS_OF = { left: ['m1', 'm2', 'm3', 'm5', 'm7'], right: ['m9', 'm11', 'm15', 'm30', 'm60'] };
-const LINES_OF = { left: [...MACDS_OF.left, ...NsbMacd.PANES.trend.lines], right: [...MACDS_OF.right, ...LONG] };
 const LONG_TFS = [30, 60, 240, 1440, 10080];
 // the MACDs on a scale of their own in each pane (the waves are many times their size); on the right also the 30m and 1h waves
 // (the daily ones are many times theirs; the weekly ones have their own, swing.js). 0 stays in the middle of every scale, so
@@ -574,6 +581,12 @@ const SCALES_OF = { left: Object.fromEntries(MACDS_OF.left.map(m => [m, 'mc'])),
 // the right's chart (owner 5/11/2026: "on the right side give us the option to switch between the 2 baskets chart"): Basket 1 or
 // Basket 2, remembered in this browser; the left's is MNQ
 let rightChart = pref('rchart', 'b1') === 'b2' ? 'b2' : 'b1';
+// the panes' two tabs (owner 5/11/2026: "two more tabs inside the MNQ section ... one tab ... only the waves and ... the second ...
+// only the MACD"): Waves or MACD, remembered in this browser; the gate and the shading are the waves' on either (a MACD tab's lines
+// on the pane's own price scale, its labels theirs)
+let paneMode = pref('panes', 'waves') === 'macd' ? 'macd' : 'waves';
+const linesOf = side => paneMode === 'macd' ? MACDS_OF[side] : side === 'left' ? NsbMacd.PANES.trend.lines : LONG;
+const scalesOf = side => paneMode === 'macd' ? {} : SCALES_OF[side];
 const NAMES = { b1: 'Basket 1', b2: 'Basket 2', mnq: 'MNQ' };
 function options(showTime, isMain, name) {
   return {
@@ -595,7 +608,7 @@ let driver = null;  // the side you are moving (pressed, scrolled or zoomed last
 class Panel {
   constructor(side) {
     const key = this.key = side, origin = CME_OPEN;
-    this.lines = LINES_OF[side];
+    this.lines = linesOf(side);
     this.chartKey = side === 'left' ? 'mnq' : rightChart;  // the series the price chart shows: MNQ, or the right's Basket 1 or 2
     this.mainBars = []; this.mainStates = []; this.zoneStates = []; this.paneStates = {}; this.kinds = []; this.src = {}; this.srcs = {}; this.store = new Map(); this.emaPts = [];
     const pane = k => `<div class="pane" id="${key}-p${k}"><div class="tag mix" id="${key}-t${k}"></div></div>`;
@@ -620,10 +633,9 @@ class Panel {
     if (side === 'right') for (const b of $('right-chart').children) b.onclick = () => showChart(b.dataset.v);
     this.main = LightweightCharts.createChart($(`${key}-pmain`), options(true, true, ''));
     NsbMacd.autoButton($(`${key}-pmain`), autoFit);  // the A button (owner 4/11/2026)
-    this.vol = this.main.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
-    this.main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.88, bottom: 0 }, visible: false });
+    // (no volume bars: owner 5/11/2026, "we don't need the volume bars")
     this.candles = this.main.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
-    this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.14 } });
+    this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.08 } });  // (no volume under them since 5/11/2026)
     const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e8 = emaLine(NsbMacd.STACK.mixed); this.e21 = emaLine(NsbMacd.STACK.mixed); this.e47 = emaLine(NsbMacd.STACK.mixed);  // the 5m EMA 8 / 21 / 47, each point colored by their stack
     this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.zoneStates[i]] || null);  // where both sides' MNQ gates agree
@@ -639,7 +651,7 @@ class Panel {
     this.macd = {};
     for (const k of PANE_KEYS) this.macd[k] = new MacdPane({
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: 'all', lines: this.lines,
-      title: k === 'mnq' ? 'MNQ' : BASKETS[k], scales: SCALES_OF[side], signals: true,
+      title: k === 'mnq' ? 'MNQ' : BASKETS[k], scales: scalesOf(side), signals: true,
       name: '', digits: 2, options: options(false, false, ''), origin, days: 'cme',
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.srcs[k] || {},
       shade: i => (this.paneStates[k] || [])[i] || null,  // each pane its own series' trend
@@ -731,7 +743,6 @@ class Panel {
     this.src = this.srcs[this.chartKey];  // the chart's own series: its 5m EMAs
     this.gateStates();
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
-    this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
     this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i], both: this.zoneStates[i] }]));
     this.setEmas();
     for (const [k, p] of Object.entries(this.macd)) { p.digits = this.ser(k).macdDigits; p.update(); p.showLines(); }
@@ -1029,7 +1040,19 @@ function seg(el, items, current, onPick) {
   el.innerHTML = items.map(([label, val]) => `<button type="button" data-v="${val}" aria-pressed="${String(val) === String(current)}">${label}</button>`).join('');
   for (const b of el.children) b.onclick = () => { onPick(b.dataset.v); for (const x of el.children) x.setAttribute('aria-pressed', String(x === b)); };
 }
+function showPanes(mode) {  // the Waves or the MACD tab: the panes' lines, drawn again at once
+  if (mode === paneMode) return;
+  paneMode = mode; save('panes', mode);
+  for (const p of Object.values(panels)) {
+    p.lines = linesOf(p.key);
+    for (const pane of Object.values(p.macd)) { pane.scales = scalesOf(p.key); pane.setScales(); pane.setLines(p.lines); }
+  }
+  if (day) render(false);
+}
 function buildControls() {
+  seg($('paneSeg'), [['Waves', 'waves'], ['MACD', 'macd']], paneMode, showPanes);
+  $('paneSeg').children[0].title = 'The panes: the waves (EMA 8 − EMA 47 and EMA 21 − EMA 47): 5m to 15m on the left, 30m to 1W on the right';
+  $('paneSeg').children[1].title = 'The panes: the MACDs (12, 26) with their signal lines: 1m to 7m on the left, 9m to 1h on the right';
   $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === opt.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
   $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
   dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Trading day (from the CME open, 17:00 Chicago: 03:30 IST, 04:30 IST in its winter time)' });  // (no signal rules on this page)
@@ -1392,6 +1415,32 @@ function buildPicker() {
   document.addEventListener('mousedown', e => { if (!$('pickPop').hidden && !$('pickPop').contains(e.target) && !e.target.closest('.bkrow .pick-btn')) openPick(null); });
 }
 
+// ---- the two charts' widths (owner 5/11/2026: "move the charts left to right", as on the India and Commodities tabs): drag the
+// line between them, remembered in this browser; double-click it: half and half. One under the other (a narrow screen): no line
+function buildSplit() {
+  const col = document.createElement('div');
+  col.className = 'split'; col.title = 'Drag to size the two charts (double-click: half and half)';
+  $('board').append(col);
+  col.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation();
+    try { col.setPointerCapture(e.pointerId); } catch (err) {}
+    col.classList.add('on'); document.body.classList.add('dragging');
+    const move = ev => { const r = $('board').getBoundingClientRect(); setSplit((ev.clientX - r.left) / r.width); };
+    const up = () => { col.removeEventListener('pointermove', move); col.classList.remove('on'); document.body.classList.remove('dragging'); };
+    col.addEventListener('pointermove', move);
+    col.addEventListener('pointerup', up, { once: true });
+    col.addEventListener('pointercancel', up, { once: true });
+  });
+  col.addEventListener('dblclick', e => { e.stopPropagation(); setSplit(0.5); });
+  setSplit(pref('split.col', 0.5), false);
+}
+function setSplit(f, keep = true) {  // the left chart's share of the width (each keeps a fifth at least)
+  f = Math.min(0.8, Math.max(0.2, +f || 0.5));
+  $('board').style.setProperty('--lw', `${f * 100}fr`); $('board').style.setProperty('--rw', `${(1 - f) * 100}fr`);
+  $('board').querySelector(':scope > .split').style.left = `${f * 100}%`;
+  if (keep) save('split.col', f);
+}
+
 // ---- start ---------------------------------------------------------------------------------------------------
 // a switch: the gate again (the candles' states, the marks, the shading, the header's word and chips, the badge), no reload
 NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { if (day) { p.gateStates(); p.setMarkers(); } for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); } refreshText(); });
@@ -1411,6 +1460,7 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { if (day) { p.g
           if (Array.isArray(a) && a.some(d => d && d.src === 'mnq2')) localStorage.setItem('nsb.draw.mnq', JSON.stringify(a.map(d => d && d.src === 'mnq2' ? { ...d, src: 'right' } : d))); } catch (e) {}
     NsbDraw.setup({ key: 'nsb.draw.mnq', when });
     for (const side of SIDES) panels[side] = new Panel(side);
+    buildSplit();
     showPicks(); buildPicker();
     await openDay(days[0]);  // today (owner 24/10/2026), updating every minute
     fillIn();  // the stocks' newest minutes from Hyperliquid (the first load showed the saved ones)
