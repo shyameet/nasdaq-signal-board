@@ -512,7 +512,8 @@ function applyValues() {
 // The A button (owner 4/11/2026: "an auto size thing ... similar to TradingView ... it says A"), in a price chart's
 // bottom-right corner under its price scale: the page's reset() puts its charts back as they opened, their prices fitted
 // top to bottom again (a dragged price scale too). While it runs, roomy() keeps a day that has only just begun from
-// stretching its few candles across the chart: at most 10 px each, the day before filling the rest
+// stretching its few candles across the chart: about 7 px a candle, the newest some two thirds across with room on its
+// right and the day before filling the left (owner 5/11/2026, from a picture: "still zoomed in too much")
 let fitting = false;
 function autoButton(el, reset) {
   const b = document.createElement('button');
@@ -523,10 +524,12 @@ function autoButton(el, reset) {
   el.appendChild(b);
   return b;
 }
-const roomy = (r, chart, live) => {  // r: the range a page's fit shows; live: the picked day is today
+const roomy = (r, chart, live) => {  // r: the range a page's fit shows (to: 3 past the newest candle); live: the picked day is today
   if (!fitting || !live) return r;
-  const least = chart.timeScale().width() / 10;
-  return r.to - r.from >= least ? r : { from: r.to - least, to: r.to };
+  const slots = chart.timeScale().width() / 7;
+  if (r.to - r.from >= slots) return r;
+  const to = r.to - 3 + slots * 0.35;
+  return { from: to - slots, to };
 };
 window.NsbMacd = { autoButton, roomy, PANES, LINES, LINE, STACK, stackColor, emaPoints, emaTag, chips, MacdPane, DayLines, Bands, Countdown, show, toggle, onToggle: fn => listeners.push(fn), points, matchAt, trendState, showValues };
 })();
