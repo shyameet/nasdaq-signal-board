@@ -23,7 +23,7 @@ const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const PANES = {
   entry: { title: 'Entry', lines: ['m1', 'm2', 'm3'] },
-  trend: { title: 'Trend', lines: ['w5a', 'w5b', 'w9a', 'w9b', 'w11a', 'w11b', 'w15a', 'w15b'] },  // 15m: owner 3/11/2026
+  trend: { title: 'Trend', lines: ['w5a', 'w5b', 'w7a', 'w7b', 'w9a', 'w9b', 'w11a', 'w11b', 'w15a', 'w15b'] },  // 15m: owner 3/11/2026; 7m: 5/11/2026
 };
 // one pane with both, the 1m to 15m lines (the MNQ page's three panes, owner 3/11/2026: "all 3 will have same macds with
 // values from 1 to 15 min")
@@ -48,6 +48,9 @@ const LINE = {
   // (the entries E1-E4 that read the 1m and 2m MACD came off the board: owner 2/11/2026)
   w5a: { tf: 5, label: '5m 8/47', v: b => b.ema8 - b.ema47, pair: ['#00E676', '#FF5252'] },
   w5b: { tf: 5, label: '5m 21/47', v: b => b.ema21 - b.ema47, pair: ['#00B8D4', '#FF9100'] },
+  // the 7m waves (owner 5/11/2026: "add 7 min timeframe ... in the trend pane"; they count for the gate too)
+  w7a: { tf: 7, label: '7m 8/47', v: b => b.ema8 - b.ema47, pair: ['#1DE9B6', '#FF4081'] },   // aqua / pink
+  w7b: { tf: 7, label: '7m 21/47', v: b => b.ema21 - b.ema47, pair: ['#B388FF', '#FFAB40'] },  // lavender / amber
   w9a: { tf: 9, label: '9m 8/47', v: b => b.ema8 - b.ema47, pair: ['#2979FF', '#FFEA00'] },
   w9b: { tf: 9, label: '9m 21/47', v: b => b.ema21 - b.ema47, pair: ['#FFFFFF', '#D500F9'] },
   w11a: { tf: 11, label: '11m 8/47', v: b => b.ema8 - b.ema47, pair: ['#76FF03', '#F50057'] },
@@ -153,8 +156,8 @@ function matchAt(a, b, lines) {  // the stocks' and the index's points at one ca
 }
 
 // The colour at one candle (owner 24/10/2026): from the Trend waves switched on, green where every one of them is above
-// 0, red where every one is below, none otherwise or with all of them off. With the 5m, 9m and 11m ones on (the 15m ones
-// off, since 3/11/2026) that is the RDX WIP trend itself (owner 28/10/2026: the 5m, 9m and 11m waves all up, which has the
+// 0, red where every one is below, none otherwise or with all of them off. With the 5m, 9m and 11m ones on (the 7m and 15m
+// ones off: 15m since 3/11/2026, 7m since 5/11/2026) that is the RDX WIP trend itself (owner 28/10/2026: the 5m, 9m and 11m waves all up, which has the
 // 5m EMA 21 above the 47). The price chart and
 // both panes use it, on every page; the gate itself is shown in words.
 function trendState(pt) {

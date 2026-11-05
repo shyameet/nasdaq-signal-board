@@ -45,7 +45,8 @@ const KEEP_BARS = 5000, KEEP_MINUTES = 7200;
 const KEEP = { bars: KEEP_BARS, minutes: KEEP_MINUTES };  // raised when older days are added from our archive (extendBack)
 // the gate: minutes -> what runs on it (EMA 8, 21 and 47: the waves). 15: the board's gate reads its waves too (gate.js;
 // owner 3/11/2026: "add 15 min timeframe as well on the trend thing"); RDX WIP's own state below stays the 5m, 9m and 11m
-const TIMEFRAMES = { 5: 'ema', 9: 'ema', 11: 'ema', 15: 'ema' };
+// 7: the 7m waves (owner 5/11/2026: "we need to add 7 min timeframe ... in the trend pane"), counted by the gate too
+const TIMEFRAMES = { 5: 'ema', 7: 'ema', 9: 'ema', 11: 'ema', 15: 'ema' };
 // what the pages also need, beyond the gate: the 1m and 2m MACD (entries E2 and E1), the 3m waves (entry E4) and the 3m
 // MACD (Entry pane only, owner 29/10/2026)
 const SHOWN = { ...TIMEFRAMES, 1: 'macd', 2: 'macd', 3: 'both' };
