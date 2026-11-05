@@ -17,7 +17,7 @@
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=27"></script>
+<script src="macd.js?v=28"></script>
 <script src="engine.js?v=18"></script>
 <script src="swing.js?v=5"></script>
 <script src="gate.js?v=5"></script>
@@ -144,6 +144,7 @@
     <span class="pick-pos" id="pickPos"></span></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
+  <div class="grp" id="hoursGrp"><div class="seg" id="hoursSeg" role="group" aria-label="Hours shown"></div></div>
   <div class="spacer"></div>
 </header>
 <main class="board" id="board"></main>
@@ -183,15 +184,54 @@ const save = (k, v) => { try { localStorage.setItem('nsb.perps.' + k, JSON.strin
 const iso = n => new Date(n * DAY).toISOString().slice(0, 10), no = k => Math.round(Date.parse(k + 'T00:00:00Z') / DAY);
 const Ist = { dayNo: t => Math.floor((t + IST) / DAY), key: t => iso(Math.floor((t + IST) / DAY)), open: k => no(k) * DAY - IST,
               next: k => iso(no(k) + 1), prev: k => iso(no(k) - 1) };
-class IstDayLines extends DayLines {  // the day lines at midnight India time, dated by the Indian date
+// ---- US market hours (owner 5/11/2026: "a button that only shows the charts between the us market hours ... not 24/7", the
+// hours the options trade, 9:30 to 16:00 New York; the stocks only): the session of New York date k, its holidays (NYSE's
+// rules: no session) and its 13:00 closes. The indicators are still worked out on every minute, 24/7: only the candles
+// outside the session are not drawn ----------------------------------------------------------------------------------
+const Us = (() => {
+  const at = (y, m, d) => iso(Math.round(Date.UTC(y, m, d) / DAY)), wd = k => new Date(k + 'T00:00:00Z').getUTCDay();
+  const nth = (y, m, w, n) => 1 + (w - new Date(Date.UTC(y, m, 1)).getUTCDay() + 7) % 7 + 7 * (n - 1);  // the n-th weekday w of month m
+  const last = (y, m, w) => { const e = new Date(Date.UTC(y, m + 1, 0)); return e.getUTCDate() - (e.getUTCDay() - w + 7) % 7; };
+  const observed = (y, m, d) => { const k = at(y, m, d), w = wd(k); return w === 6 ? at(y, m, d - 1) : w === 0 ? at(y, m, d + 1) : k; };
+  const easter = y => { const a = y % 19, b = Math.floor(y / 100), c = y % 100, h = (19 * a + b - Math.floor(b / 4) - Math.floor((b - Math.floor((b + 8) / 25) + 1) / 3) + 15) % 30,
+                               l = (32 + 2 * (b % 4) + 2 * Math.floor(c / 4) - h - c % 4) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+                         return [Math.floor((h + l - 7 * m + 114) / 31) - 1, (h + l - 7 * m + 114) % 31 + 1]; };
+  const years = new Map();
+  const yearOf = y => {
+    if (years.has(y)) return years.get(y);
+    const [em, ed] = easter(y);
+    const off = new Set([...(wd(at(y, 0, 1)) === 6 ? [] : [observed(y, 0, 1)]),  // New Year's Day on a Saturday: not moved
+      at(y, 0, nth(y, 0, 1, 3)), at(y, 1, nth(y, 1, 1, 3)), at(y, em, ed - 2), at(y, 4, last(y, 4, 1)), observed(y, 5, 19), observed(y, 6, 4),
+      at(y, 8, nth(y, 8, 1, 1)), at(y, 10, nth(y, 10, 4, 4)), observed(y, 11, 25)]);
+    const early = new Set([at(y, 10, nth(y, 10, 4, 4) + 1), at(y, 11, 24), at(y, 6, 3)].filter(k => !off.has(k) && wd(k) > 0 && wd(k) < 6));
+    const r = { off, early };
+    years.set(y, r);
+    return r;
+  };
+  // New York on summer time, by day number (the switch is a Sunday): the year last asked about kept, as the day lines ask for
+  // every candle on screen at every frame
+  let yLo = 1, yHi = 0, sLo = 0, sHi = 0;
+  const summerNo = n => {
+    if (n < yLo || n >= yHi) { const y = new Date(n * DAY).getUTCFullYear(); yLo = no(at(y, 0, 1)); yHi = no(at(y + 1, 0, 1)); sLo = no(at(y, 2, nth(y, 2, 0, 2))); sHi = no(at(y, 10, nth(y, 10, 0, 1))); }
+    return n >= sLo && n < sHi;
+  };
+  const open = k => no(k) * DAY + 9.5 * HOUR + (summerNo(no(k)) ? 4 : 5) * HOUR;  // 9:30 New York, in UTC ms
+  const trades = k => { const w = wd(k); return w > 0 && w < 6 && !yearOf(+k.slice(0, 4)).off.has(k); };
+  const close = k => open(k) + (yearOf(+k.slice(0, 4)).early.has(k) ? 3.5 : 6.5) * HOUR;  // 16:00, or 13:00
+  const dayNo = t => { const n = Math.floor((t - 5 * HOUR) / DAY); return summerNo(n) ? Math.floor((t - 4 * HOUR) / DAY) : n; };  // New York's date, as a number
+  const key = t => iso(dayNo(t));
+  return { open, close, key, trades, dayNo, inSession: t => { const k = key(t); return trades(k) && t >= open(k) && t < close(k); } };
+})();
+const usOn = () => !!opt.us && KIND === 'stocks';  // the US hours shown (the switch, on a stock)
+class IstDayLines extends DayLines {  // the day lines at midnight India time, dated by the Indian date (US hours: at each session's start, by New York's date)
   updateAllViews() {
-    const bars = this.bars(), ts = this.chart().timeScale(), out = [];
+    const bars = this.bars(), ts = this.chart().timeScale(), out = [], dayNo = usOn() ? Us.dayNo : Ist.dayNo;
     const x0 = bars.length > 1 ? ts.logicalToCoordinate(0) : null, x1 = bars.length > 1 ? ts.logicalToCoordinate(1) : null, r = ts.getVisibleLogicalRange();
     if (x0 !== null && x1 !== null && r) {
       const step = x1 - x0, lo = Math.min(bars.length - 1, Math.max(0, Math.floor(r.from) - 1)), hi = Math.min(bars.length - 1, Math.ceil(r.to) + 1);
-      let prev = Ist.dayNo(bars[lo].time);
+      let prev = dayNo(bars[lo].time);
       for (let i = lo + 1; i <= hi; i++) {
-        const k = Ist.dayNo(bars[i].time);
+        const k = dayNo(bars[i].time);
         if (k === prev) continue;
         prev = k;
         const d = new Date(k * DAY);
@@ -215,6 +255,7 @@ const closedRows = bars => { const now = Date.now(); return bars.filter(b => b.t
 // ---- settings (remembered in this browser) ----------------------------------------------------------------
 const opt = {
   tf: TFS.includes(pref('tf', 1)) ? pref('tf', 1) : 1,
+  us: pref('us', false) === true,  // the stocks' US hours only (Us)
 };
 
 // ---- data: one UTC day of 1-minute candles per market ----------------------------------------------------------
@@ -307,8 +348,10 @@ const DIGITS = new Map();  // coin -> [price, MACD] decimals, chosen at its firs
 async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const seq = ++builds, coin = COIN;
   const list = dayList.length ? dayList : listDays(), i = Math.max(0, list.indexOf(key));
-  const shownKeys = list.slice(i, i + shown), warmKey = list[i + shown];
-  const d0 = Ist.open(shownKeys[shownKeys.length - 1]), lastD0 = Ist.open(key), d1 = Ist.open(Ist.next(key));
+  const shownKeys = list.slice(i, i + shown), warmKey = list[i + shown], us = usOn();
+  // the strip: its Indian days, or (US hours) their dates' New York sessions; the candles of the UTC days they lie in are loaded either way
+  const d0 = us ? Us.open(shownKeys[shownKeys.length - 1]) : Ist.open(shownKeys[shownKeys.length - 1]), lastD0 = us ? Us.open(key) : Ist.open(key);
+  const d1 = us ? Us.close(key) : Ist.open(Ist.next(key));
   if (!quiet) loading(`Loading ${tk(coin)} · ${key}…`);
   const files = filesOf([...shownKeys, warmKey].filter(Boolean));
   const spec = swingOf(coin), ahead = NsbSwing.series(spec, []).catch(() => null);  // its long candles fetched meanwhile
@@ -319,12 +362,12 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const swing = await NsbSwing.series(spec, closedRows(m));  // the Swing pane's candles, crypto too (owner 1/11/2026)
   if (seq !== builds) return false;
   const run = runSeries({ [coin]: 1 }, { [coin]: m });
-  const inDay = b => b.t >= d0 && b.t < d1;
+  const inDay = b => b.t >= d0 && b.t < d1 && (!us || Us.inSession(b.t));  // (US hours: the indicators still run on every minute, m)
   const price = m.filter(inDay).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }));
   const px = price.length ? price[price.length - 1].close : 100;
   const [digits, macdDigits] = DIGITS.get(coin) || [px >= 10 ? 2 : px >= 1 ? 4 : 5, px >= 100 ? 2 : px >= 10 ? 3 : px >= 1 ? 4 : 6];  // a coin under $1 (DOGE) needs more decimals
   if (price.length && !DIGITS.has(coin)) DIGITS.set(coin, [digits, macdDigits]);
-  day = { key, d0, d1, lastD0, shown: shownKeys.length, more: !!warmKey,
+  day = { key, d0, d1, lastD0, us, shown: shownKeys.length, more: !!warmKey,
           stock: { name: tk(coin), coin, run, price, swing, digits, macdDigits } };
   day.end = (price.length ? price[price.length - 1].time : d0) + MIN;
   if (!quiet) loading(null);
@@ -385,7 +428,7 @@ class Panel {
                   tf: () => opt.tf, fmt: v => num(v, day && day[key] ? day[key].digits : 2) });
     this.macd = {};
     for (const k of PANE_KINDS) this.macd[k] = new MacdPane({
-      el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 2, options: options(false, false, ''), days: -IST,
+      el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 2, options: options(false, false, ''), days: t => (usOn() ? Us.dayNo(t) : Ist.dayNo(t)),  // as the chart's day lines
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src,
       shade: i => this.waveAt(i),  // every pane shaded by the gate, the Swing pane too (2/11/2026)
     });
@@ -462,9 +505,12 @@ class Panel {
     // the panes and EMAs: only bars closed by the strip's end (the UTC files run past it). The Swing candles close at their own
     // end (swing.js: a week or a month too); on today's strip the newest of each (still forming, from the closed minutes) is
     // kept for the newest candle
-    const closed = (bars, m) => bars.filter(b => bucketEnd(b.time, m) <= day.d1), live = day.d1 > Date.now();
+    // US hours: the strip's last candle closed before now (the session over) reads the lines as they were at its close, not as
+    // they are now (the minutes since are not drawn); while it is forming, as on 24/7
+    const last = this.mainBars[this.mainBars.length - 1], cut = day.us && last && bucketEnd(last.time, tf) <= Date.now() ? bucketEnd(last.time, tf) : Infinity;
+    const closed = (bars, m) => bars.filter(b => bucketEnd(b.time, m) <= Math.min(day.d1, cut)), live = day.d1 > Date.now() && cut === Infinity;
     this.src = Object.fromEntries([...Object.entries(side.run.bars).map(([m, bars]) => [m, closed(bars, +m)]),
-                                   ...Object.entries(side.swing).map(([m, bars]) => [m, live ? bars : bars.filter(b => b.end <= day.d1)])]);
+                                   ...Object.entries(side.swing).map(([m, bars]) => [m, live ? bars : bars.filter(b => b.end <= Math.min(day.d1, cut))])]);
     this.candles.applyOptions({ priceFormat: { type: 'price', precision: side.digits, minMove: 10 ** -side.digits } });
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
     this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
@@ -477,7 +523,10 @@ class Panel {
     this.align();
   }
   fit() {  // the newest day of the strip (the older ones are to the left)
-    const n = this.mainBars.length, i = this.mainBars.findIndex(b => b.time >= day.lastD0);
+    const n = this.mainBars.length;
+    let i = this.mainBars.findIndex(b => b.time >= day.lastD0);
+    // US hours on a day with no session yet (a weekend, a holiday, today before 9:30 New York): the strip's last session
+    if (i < 0 && day.us && n) { const s = Us.open(Us.key(this.mainBars[n - 1].time)); i = this.mainBars.findIndex(b => b.time >= s); }
     if (i < 0) return false;
     const r = NsbMacd.roomy({ from: i - 1, to: n + 2 }, this.main, day.d1 > Date.now());
     this.main.timeScale().setVisibleLogicalRange(r);
@@ -685,6 +734,17 @@ function buildControls() {
   $('tfs').innerHTML = TFS.map(m => `<option value="${m}"${m === opt.tf ? ' selected' : ''}>${m}m candles</option>`).join('');
   $('tfs').onchange = () => { opt.tf = +$('tfs').value; save('tf', opt.tf); render(true); };
   dayPick = DayPick($('dayPick'), { onPick: k => openDay(k), title: 'Day (India: 00:00 to 24:00 IST)' });
+  seg($('hoursSeg'), [['24/7', 'all'], ['US hours', 'us']], opt.us ? 'us' : 'all', v => showHours(v === 'us'));
+  $('hoursSeg').children[0].title = 'Every hour, around the clock';
+  $('hoursSeg').children[1].title = 'Only the US market\'s hours, when the options trade: 9:30 to 16:00 New York (13:00 on its early-close days), Monday to Friday, no holidays. The lines are still worked out on every hour';
+  hoursShown();
+}
+function hoursShown() { $('hoursGrp').style.display = KIND === 'stocks' ? '' : 'none'; }  // the stocks only
+async function showHours(on) {  // 24/7 or the US hours: the same day again
+  if (on === opt.us) return;
+  opt.us = on; save('us', on);
+  if (!day || KIND !== 'stocks') return;
+  if (await openDay(day.key) === false) { opt.us = !on; save('us', !on); seg($('hoursSeg'), [['24/7', 'all'], ['US hours', 'us']], opt.us ? 'us' : 'all', v => showHours(v === 'us')); }
 }
 async function pickKind(k) {  // Stocks / Crypto: that list, at the market last shown from it
   if (k === KIND) return;
@@ -694,7 +754,7 @@ async function pickKind(k) {  // Stocks / Crypto: that list, at the market last 
 async function showMarket(next, kind) {  // another market: its own drawings, its live candles, the same day (or its newest, when it has no such day)
   const was = COIN, wasKind = KIND, wasList = dayList;
   if (next === was) return true;
-  const use = (c, k, list) => { COIN = c; KIND = k; ALL = LISTS[k]; dayList = list || listDays(); NsbDraw.use('nsb.draw.perps.' + fileOf(c)); updatePick(); };
+  const use = (c, k, list) => { COIN = c; KIND = k; ALL = LISTS[k]; dayList = list || listDays(); NsbDraw.use('nsb.draw.perps.' + fileOf(c)); updatePick(); hoursShown(); };
   // its unfinished days stopped when you left it (the stream follows the market shown only): fetched whole again
   // (31/10/2026: the minutes away were a flat line, never filled in)
   for (const d of dayCache.values()) if (d[next] && !d[next].complete) delete d[next];

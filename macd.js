@@ -234,7 +234,8 @@ class DayLines {  // a dashed line where a new day begins, with its date along t
   // labelTop: where the date goes (px from the top), null for no date. origin: the market's session open (ms after
   // 00:00 UTC): its day begins there (owner 24/10/2026: a market's new day starts at its open, not at midnight);
   // 'cme': at the CME open, 17:00 Chicago, dated by its trading day (owner 24/10/2026: every US chart, the stock
-  // perps too); 0 or none: at midnight in the viewer's timezone
+  // perps too); 0 or none: at midnight in the viewer's timezone; a function: t -> its day's number (days since 1 Jan 1970,
+  // dated by it; the Perps tab's US hours, 5/11/2026: each session)
   constructor(chart, bars, labelTop, origin) {
     this.chart = chart; this.bars = bars; this.top = labelTop; this.origin = origin || 0; this.lines = [];
     this.views = [{ zOrder: () => 'bottom', renderer: () => ({ draw: t => this.render(t) }) }];
@@ -246,8 +247,8 @@ class DayLines {  // a dashed line where a new day begins, with its date along t
     const bars = this.bars(), ts = this.chart().timeScale(), out = [];
     const x0 = bars.length > 1 ? ts.logicalToCoordinate(0) : null, x1 = bars.length > 1 ? ts.logicalToCoordinate(1) : null, r = ts.getVisibleLogicalRange();
     if (x0 !== null && x1 !== null && r) {
-      const step = x1 - x0, o = this.origin, cme = o === 'cme';
-      const day = cme ? NsbCme.dayNo : o ? t => Math.floor((t - o) / 86400000) : t => { const d = new Date(t); return d.getFullYear() * 512 + d.getMonth() * 32 + d.getDate(); };
+      const step = x1 - x0, o = this.origin, cme = o === 'cme' || typeof o === 'function';
+      const day = typeof o === 'function' ? o : cme ? NsbCme.dayNo : o ? t => Math.floor((t - o) / 86400000) : t => { const d = new Date(t); return d.getFullYear() * 512 + d.getMonth() * 32 + d.getDate(); };
       const lo = Math.min(bars.length - 1, Math.max(0, Math.floor(r.from) - 1)), hi = Math.min(bars.length - 1, Math.ceil(r.to) + 1);  // the candles on screen
       let prev = day(bars[lo].time);
       for (let i = lo + 1; i <= hi; i++) {
