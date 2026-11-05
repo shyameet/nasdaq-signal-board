@@ -33,7 +33,7 @@ PANES.all = { title: 'Lines', lines: [...PANES.entry.lines, ...PANES.trend.lines
 // board's colors; the waves take Rahul's "Wave lines" colors.
 const LINE = {
   m1: { tf: 1, label: '1m', v: b => b.macd, pair: ['#facc15', '#8b5cf6'], tip: '1m MACD (12, 26): shown only, the gate doesn\'t use it' },   // yellow / violet
-  m2: { tf: 2, label: '2m', v: b => b.macd, pair: ['#fb7185', '#22c55e'], early: true, tip: '2m MACD (12, 26): shown only, the gate doesn\'t use it. Solid: its closed 2-minute candles; dotted: every minute, as if its candle closed then' },   // rose / green
+  m2: { tf: 2, label: '2m', v: b => b.macd, pair: ['#22c55e', '#fb7185'], early: true, tip: '2m MACD (12, 26): shown only, the gate doesn\'t use it. Solid: its closed 2-minute candles; dotted: every minute, as if its candle closed then' },   // green / rose (owner 5/11/2026: "green above 0, red below")
   m3: { tf: 3, label: '3m', v: b => b.macd, pair: ['#38bdf8', '#fb923c'], early: true, tip: '3m MACD (12, 26): shown only, the gate doesn\'t use it. Solid: its closed 3-minute candles; dotted: every minute, as if its candle closed then' },   // sky / orange (owner 29/10)
   // (the entries E1-E4 that read the 1m and 2m MACD came off the board: owner 2/11/2026)
   w5a: { tf: 5, label: '5m 8/47', v: b => b.ema8 - b.ema47, pair: ['#00E676', '#FF5252'] },
