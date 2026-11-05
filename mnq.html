@@ -103,9 +103,6 @@
   .rollnote { flex: none; padding: 5px 12px; border-bottom: 1px solid rgba(242, 179, 61, .35); background: rgba(242, 179, 61, .08);
               color: var(--warn); font-size: 12.5px; }
   .rollnote[hidden] { display: none; }
-  .topbar .how summary { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 50%; font-weight: 700; }
-  .topbar .how-body { top: calc(100% + 8px); bottom: auto; left: auto; right: 0; max-height: 75vh; overflow: auto; }
-  .how-body .credit { color: var(--muted); font-size: 11.5px; } .how-body .credit a { color: var(--muted); }
   .grp > .lbl { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
   .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
   .seg button { padding: 3px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
@@ -174,14 +171,6 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .foot { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 4px 12px; background: var(--surface);
           border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; }
-  .how { position: relative; }
-  .how summary { cursor: pointer; list-style: none; padding: 3px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); }
-  .how summary::-webkit-details-marker { display: none; }
-  .how-body { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 30; width: min(520px, calc(100vw - 32px)); padding: 14px 16px;
-              border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 12.5px;
-              line-height: 1.5; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
-  .how-body h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
-  .how-body p { margin: 0 0 8px; }
   .credit { margin-left: auto; } .credit a { color: var(--muted); }
   /* ---- basket picker ---- */
   .pick { position: relative; }
@@ -255,24 +244,6 @@
   <div class="grp"><span class="badge" id="badge" title="Right now">LOADING</span>
     <span class="note" id="dataNote"></span></div>
   <div class="spacer"></div>
-  <details class="how">
-    <summary title="How it works">?</summary>
-    <div class="how-body">
-      <h3>What you see</h3>
-      <p>Two sides. The <b>left</b> chart: the real MNQ future (CME micro Nasdaq-100, NinjaTrader on our VPS). The <b>right</b> chart: that side's <b>Basket 1</b> or <b>Basket 2</b> (the switch in its header; owner 5/11/2026), drawn on MNQ's candles: each of its candles is the basket over the same minutes as MNQ's candle there (none in MNQ's daily break or at the weekend), so the two charts line up candle for candle. Both are shaded green only where <b>both</b> sides' MNQ gates are LONG and red only where both are SHORT (owner 4/11/2026: the zone only when the two match), and each has its own series' 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one). Under each chart three panes, Basket 1, Basket 2 and MNQ. The <b>left</b>'s: the 1m, 2m, 3m, 5m and 7m MACD (12, 26; shown only, on a scale of their own in each pane so the far bigger waves don't flatten them, 0 shared; the 2m and 3m also as a faint dotted line, updated every minute as if their candle closed then) and the 5m, 7m, 9m, 11m and 15m waves (EMA 8 − EMA 47 and EMA 21 − EMA 47 on each). The <b>right</b>'s: the 9m, 11m, 15m, 30m and 1h MACD (shown only) and the <b>long waves</b>, the same two on the 30-minute, 1-hour, 4-hour, daily and weekly candles (from our nightly files and the loaded minutes; the 30m and 1h on a scale of their own in each pane, as are the weekly ones, so the bigger daily ones don't flatten them, 0 shared). Every MACD has a <b>signal line</b> (the EMA 9 of it, dashed, in the MACD's color), each switched on and off by its own <b>sig</b> switch in the pane's label; shown only. A basket's weeks before one of its stocks was on Hyperliquid follow the real stock's daily closes (a stock listed nowhere before then, such as SPCX, is left out of those weeks). MNQ's bars start at its session open (17:00 Chicago), as on TradingView. Both sides scroll and zoom together.</p>
-      <p>The <b>Waves | MACD</b> switch in the top bar picks the panes' lines (owner 5/11/2026): the waves, or the MACDs with their signal lines. The gate and the green and red shading are the waves' either way. Drag the line between the two charts to make one wider (double-click it: half and half).</p>
-      <p><b>Basket 1</b> and <b>Basket 2</b>: composites of your own stocks from Hyperliquid, each picked with the button on its row; each copy has its own two (the left's Basket 1 is the pick the other pages use); each stock counts equally. They are drawn on MNQ's candles: every point is the basket's line as of that MNQ candle's close. <b>MNQ</b>: MNQ's own. Each pane is shaded by its own trend.</p>
-      <p>An arrow on an MNQ chart marks where an <b style="color:#ff8a3d">MNQ alone</b> stretch (MNQ's gate is LONG, that copy's Basket 1's isn't) or a <b style="color:#2bb68a">Stocks first</b> stretch (Basket 1's gate is LONG, MNQ's not yet) begins. The badge in the top bar says where the left copy stands right now (on a past day, at MNQ's last candle of it).</p>
-      <h3>The gate</h3>
-      <p>From the lines switched on (click a line's name in any pane to switch it; the switch holds on every pane and every tab): LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. On the left the 5m, 7m, 9m, 11m and 15m waves count (the 1m, 2m and 3m MACD are shown only); with the 5m, 9m and 11m lines on and the 7m and 15m ones off it is RDX WIP's trend (Rahul's RDX WIP Trend). On the right the 30m, 1h, 4h, 1D and 1W waves count, only those (one with no value yet, such as a young basket's week, isn't counted). Each header shows its own side's gate; the MNQ charts' green and red are where the two sides' MNQ gates agree. It is read on candle close: a candle counts from the minute it closes (an hour's from the minute that ends it). MNQ and each basket have their own gate (a basket's: every picked stock's own lines must agree; its pane is shaded by the basket's own lines); each header shows all three at the same moment.</p>
-      <p><b>Loading</b>: a page opens at once on the saved days and on the minutes this browser saved; the newest minutes come in from Hyperliquid a moment later. A note at the bottom says when Hyperliquid is busy or not answering, and they come in once it does.</p>
-      <h3>Days</h3>
-      <p>A day is a CME trading day: it starts at the CME open, 17:00 Chicago (03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time). Saturday and Sunday trading days have no CME session: the header says <b>CME closed – weekend</b>, and as every pane follows MNQ's candles, nothing new shows until the CME opens (the stocks still trade). The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The marks cover everything loaded.</p>
-      <h3>Data</h3>
-      <p>Stocks: our daily archive of Hyperliquid's 1-minute candles and, for the last days, Hyperliquid itself; today updates every minute. MNQ: the VPS's saved 1-minute candles from 15 Oct 2026 (NinjaTrader's front month, moving to the next on its rollover date: the older candles are then moved by the gap between the two contracts so the chart runs on smoothly, a yellow mark shows the switch, and a yellow note warns on the switch day and the trading day before it; check the contract and its expiry on the platform you trade on). Each UTC day is saved shortly after it ends (00:45 UTC, 06:15 IST), so the newest MNQ candles are from the day before. Nothing is filled in: a minute with no trade has no candle.</p>
-      <p class="credit">Not investment advice · Data: Hyperliquid and NinjaTrader (via our VPS) · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
-    </div>
-  </details>
 </header>
 <div class="rollnote" id="rollNote" role="note" hidden></div>
 <main class="board" id="board"></main>
@@ -593,7 +564,7 @@ function options(showTime, isMain, name) {
     watermark: isMain ? { visible: true, text: name, color: 'rgba(232, 238, 246, 0.04)', fontSize: 40, fontStyle: '700' } : { visible: false },
     autoSize: true, handleScroll: isMain, handleScale: isMain,
     layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
-              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: isMain },  // TradingView's logo in each price chart's corner: the chart library's credit (5/11/2026: the How it works panel that carried it went)
     grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
     rightPriceScale: { borderColor: C.line, minimumWidth: 64 },
     timeScale: { visible: showTime, borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.05,  // a whole day of 1m candles fits

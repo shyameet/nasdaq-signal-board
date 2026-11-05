@@ -381,7 +381,7 @@ function options(showTime, isMain, name) {
     watermark: isMain ? { visible: true, text: name, color: 'rgba(232, 238, 246, 0.04)', fontSize: 40, fontStyle: '700' } : { visible: false },
     autoSize: true, handleScroll: isMain, handleScale: isMain,
     layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
-              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: isMain },  // TradingView's logo in each price chart's corner: the chart library's credit (5/11/2026: the How it works panel that carried it went)
     grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
     rightPriceScale: { borderColor: C.line, minimumWidth: 64 },
     timeScale: { visible: showTime, borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.05,

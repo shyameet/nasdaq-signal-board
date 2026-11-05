@@ -161,16 +161,6 @@
   .rollnote { flex: none; padding: 5px 12px; border-bottom: 1px solid rgba(242, 179, 61, .35); background: rgba(242, 179, 61, .08);
               color: var(--warn); font-size: 12.5px; }
   .rollnote[hidden] { display: none; }
-  .how { position: relative; }
-  .how summary { cursor: pointer; list-style: none; display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--line);
-                 border-radius: 50%; color: var(--muted); font-weight: 700; }
-  .how summary::-webkit-details-marker { display: none; }
-  .how-body { position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: min(560px, calc(100vw - 32px)); max-height: 75vh; overflow: auto;
-              padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text);
-              font-size: 12.5px; line-height: 1.5; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
-  .how-body h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
-  .how-body p { margin: 0 0 8px; }
-  .how-body .credit { color: var(--muted); font-size: 11.5px; } .how-body .credit a { color: var(--muted); }
   @media (max-width: 1100px) {
     html, body { height: auto; }
     .board { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: none !important; }
@@ -201,27 +191,6 @@
   <div class="grp" title="Setup"><div class="seg words" id="setupSel" role="group" aria-label="Setup"></div></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
-  <details class="how">
-    <summary title="How it works">?</summary>
-    <div class="how-body">
-      <h3>The setups</h3>
-      <p><b>Crude</b>: step 1, MCL's gate (CME micro WTI) is LONG or SHORT. Step 2, CRUDEOILM's gate (MCX mini) turns to that side after step 1 has started; if it is already on that side when step 1 starts, it doesn't count until it leaves that side and comes back. If it drops out again while the trend holds, it can sync again. Times shown are the candle's close, IST.</p>
-      <p><b>Nat Gas</b>: the same, with NG (CME natural gas) in step 1 and NATGASMINI (MCX) in step 2.</p>
-      <p><b>Gold</b>, <b>Silver</b>, <b>Copper</b>: the same again, with MGC, SIL and MHG (CME micros) in step 1 and GOLDM (MCX gold mini), SILVERM (MCX silver mini) and COPPER (MCX) in step 2. A setup shows greyed out until the VPS records both of its markets.</p>
-      <h3>The gate</h3>
-      <p>For each market on its own candles, from the lines switched on in its Trend and Swing panes (click a line's name to switch it): LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. With the 5m, 9m and 11m Trend lines on (EMA 8 − EMA 47 and EMA 21 − EMA 47 on each) and the 7m, 15m and Swing lines off, it is RDX WIP's trend (Rahul's RDX WIP Trend), the Nasdaq pages' gate. It is read on candle close: a candle counts from the minute it closes. Each indicator is warmed up on the saved days before, so it reads what it would have read live.</p>
-      <p>The <b>Swing</b> pane: the same waves on long candles, EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 1-hour, 4-hour and daily candles of each market's own hours and days (its history from our nightly files, today from its live minutes). Its lines switched on count for the gate (one with no value yet is left out), and it is shaded as the other panes.</p>
-      <h3>Trends</h3>
-      <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it.</p>
-      <h3>Charts</h3>
-      <p>The CME future (MCL or NG) on the left and the MCX mini (CRUDEOILM or NATGASMINI) on the right, side by side and scrolling together (both end at the same time and show as many candles each, so the CME's longer hours just scroll past), each with its Entry pane (the 1m, 2m and 3m MACD; the 2m and 3m also as a faint dotted line, updated every minute as if their candle closed then) and Trend pane (the 5m, 7m, 9m, 11m and 15m waves), and the 5m EMA 8, 21 and 47 on the price chart, colored by their stack (green or red stacked, yellow a shallow pullback, orange a deeper one). Drag the thin line between the two charts, or between a price chart and its MACD panes, to size them as you like (remembered; double-click a line for the default). Each chart and its panes are green where that market's gate is LONG, red where it is SHORT (the gate is shown in words, in the step chip). The chip in the CME chart's header shows step 1, the trend (point at it for the details). Candles start at each market's open, as on TradingView: the CME's at 17:00 Chicago (03:30 IST, 04:30 IST in Chicago's winter time), MCX's at 09:00 IST. Times are IST.</p>
-      <h3>Days</h3>
-      <p>A day starts at the CME open, 17:00 Chicago: 03:30 IST (04:30 IST from 2 Nov, when Chicago leaves summer time). So Monday's day begins at 03:30 IST on Monday with the Globex session that opened on Sunday evening in Chicago, and holds that whole CME session and MCX's day. The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
-      <h3>Data</h3>
-      <p>Saved 1-minute candles from our VPS, from 15 Oct 2026, one file per UTC day: MCL and NG from NinjaTrader (the front month, moving to the next on NinjaTrader's rollover date), CRUDEOILM and NATGASMINI from Dhan (the near month, moving to the next on its expiry day). At a switch the older candles are moved by the gap between the two contracts, so the chart and its indicators run on smoothly and the newest candles are the contract traded now, at its own prices; a yellow mark shows where it switched, and a yellow note warns on the switch day and the trading day before it (the chart is only a chart: check the contract and its expiry on the platform you trade on). Nothing is filled in: a minute with no trade has no candle. A trading day is listed once its own UTC file is saved (the file before it holds only its first hours); the page reads the saved files only, so reload it for what the VPS has saved since.</p>
-      <p class="credit">Not investment advice · Data: NinjaTrader and Dhan, via our VPS · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
-    </div>
-  </details>
 </header>
 <div class="rollnote" id="rollNote" role="note" hidden></div>
 <div id="parked" hidden><div class="seg words" id="viewSel" role="group" aria-label="Big chart"></div>
@@ -443,7 +412,7 @@ function options(showTime, isMain) {
     watermark: isMain ? { visible: true, text: '', color: 'rgba(232, 238, 246, 0.04)', fontSize: 36, fontStyle: '700' } : { visible: false },
     autoSize: true, handleScroll: isMain, handleScale: isMain,
     layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
-              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: isMain },  // TradingView's logo in each price chart's corner: the chart library's credit (5/11/2026: the How it works panel that carried it went)
     grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
     rightPriceScale: { borderColor: C.line, minimumWidth: 70 },
     timeScale: { visible: showTime, borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.05,

@@ -152,16 +152,6 @@
   .older { position: fixed; left: 12px; bottom: 12px; z-index: 40; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px;
            background: var(--surface); color: var(--muted); font-size: 12px; }
   .older[hidden] { display: none; }
-  .how { position: relative; }
-  .how summary { cursor: pointer; list-style: none; display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--line);
-                 border-radius: 50%; color: var(--muted); font-weight: 700; }
-  .how summary::-webkit-details-marker { display: none; }
-  .how-body { position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: min(560px, calc(100vw - 32px)); max-height: 75vh; overflow: auto;
-              padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text);
-              font-size: 12.5px; line-height: 1.5; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
-  .how-body h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
-  .how-body p { margin: 0 0 8px; }
-  .how-body .credit { color: var(--muted); font-size: 11.5px; } .how-body .credit a { color: var(--muted); }
   @media (max-width: 1100px) {
     html, body { height: auto; }
     .board { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: none !important; }
@@ -193,27 +183,6 @@
   <div class="grp"><select class="tf-sel" id="stockSel" aria-label="Stock traded" title="The stock traded (step 2)"></select></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
-  <details class="how">
-    <summary title="How it works">?</summary>
-    <div class="how-body">
-      <h3>The setups</h3>
-      <p><b>Nifty</b>: step 1, NIFTY 50 and GIFT NIFTY show the same gate (both LONG or both SHORT). Step 2, RELIANCE's gate turns to that side after step 1 has started; if RELIANCE is already on that side when step 1 starts, it doesn't count until it leaves that side and comes back (it has to be the odd man out). If it drops out again while the trend holds, it can sync again.</p>
-      <p><b>Bank Nifty</b>: the same, with NIFTY BANK alone in step 1 and HDFC BANK in step 2.</p>
-      <p><b>The stock</b> in step 2 is picked in the list beside the setup, among the index's five biggest by weight (NSE, 30 Sep 2026): Nifty HDFC BANK, ICICI BANK, RELIANCE, BHARTI AIRTEL, L&amp;T; Bank Nifty HDFC BANK, ICICI BANK, KOTAK BANK, AXIS BANK, SBI. Step 1 stays the same. A stock shows "no data yet" until the VPS records it.</p>
-      <h3>The gate</h3>
-      <p>For each market on its own candles, from the lines switched on in its Trend and Swing panes: LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. With the 5m, 9m and 11m Trend lines on (EMA 8 − EMA 47 and EMA 21 − EMA 47 on each) and the 7m, 15m and Swing lines off, it is RDX WIP's gate (Rahul's RDX WIP Trend), exactly the Nasdaq pages' gate. It is read on candle close: a candle counts from the minute it closes. Each indicator is warmed up on the saved days before, so it reads what it would have read live.</p>
-      <p>The <b>Swing</b> pane: the same waves on long candles, EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 1-hour, 4-hour and daily candles of each market's own hours and days (its history from our nightly files, today from its live minutes). Its lines switched on now count for the gate (one with no value yet doesn't), and its background is shaded as its price chart's.</p>
-      <h3>Trends</h3>
-      <p>A trend is one unbroken run of step 1 in one direction: any NO TRADE minute ends it.</p>
-      <h3>Charts</h3>
-      <p>The charts side by side, equal widths: Nifty's three (NIFTY 50, GIFT NIFTY, the stock), Bank Nifty's two; each with its Entry pane (the 1m, 2m and 3m MACD; the 2m and 3m also as a faint dotted line, updated every minute as if their candle closed then) and Trend pane (the 5m, 7m, 9m, 11m and 15m waves), and the 5m EMA 8, 21 and 47 on the price chart, colored by their stack (green or red stacked, yellow a shallow pullback, orange a deeper one). All the charts end at the same time and show as many candles each: drag or zoom any of them and the others follow (GIFT NIFTY's night hours then simply scroll past). Drag the thin lines between the charts, or between a price chart and its MACD panes, to size them as you like (remembered; double-click a line for the default). Each chart and its panes are green where its own gate is LONG, red where it is SHORT (the steps are shown in words in the step chips); GIFT NIFTY shows its whole session, 06:30 to 02:45 the next morning. The chip in the index chart's header shows step 1 and its trends (point at it for the details). Candles start at each market's session open (09:15 for NSE, 06:30 for GIFT NIFTY), as on TradingView. Times are IST.</p>
-      <h3>Days</h3>
-      <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown. The step chips count everything loaded.</p>
-      <h3>Data</h3>
-      <p>Dhan's 1-minute candles, saved by our VPS after each close, from 15 Oct 2026. Nothing is filled in: a minute with no trade has no candle. NSE stocks stop at 15:14 (the closing auction follows); the indices stay flat from 15:15 to 15:27, then move to the closing price at 15:28, as Dhan reports them. </p>
-      <p class="credit">Not investment advice · Data: Dhan, via our VPS · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
-    </div>
-  </details>
 </header>
 <div id="parked" hidden><div class="seg words" id="viewSel" role="group" aria-label="Big chart"></div>
 <div class="steps" id="steps" aria-label="Where the setup stands">
@@ -431,7 +400,7 @@ function options(showTime, isMain) {
     watermark: isMain ? { visible: true, text: '', color: 'rgba(232, 238, 246, 0.04)', fontSize: 36, fontStyle: '700' } : { visible: false },
     autoSize: true, handleScroll: isMain, handleScale: isMain,
     layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
-              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: isMain },  // TradingView's logo in each price chart's corner: the chart library's credit (5/11/2026: the How it works panel that carried it went)
     grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
     rightPriceScale: { borderColor: C.line, minimumWidth: 70 },
     timeScale: { visible: showTime, borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.05,

@@ -89,9 +89,6 @@
   /* the first load shows at once; a note while Hyperliquid's newest minutes are still coming (or it is busy) */
   .older.fill { bottom: 46px; max-width: calc(100vw - 24px); white-space: normal; }
   .older.fill.warn { color: var(--warn); border-color: rgba(242, 179, 61, .5); }
-  .topbar .how summary { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 50%; font-weight: 700; }
-  .topbar .how-body { top: calc(100% + 8px); bottom: auto; left: auto; right: 0; max-height: 75vh; overflow: auto; }
-  .how-body .credit { color: var(--muted); font-size: 11.5px; } .how-body .credit a { color: var(--muted); }
   .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
   .seg button { padding: 3px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
                 font-family: var(--font-num); font-size: 12px; }
@@ -144,14 +141,6 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .foot { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 4px 12px; background: var(--surface);
           border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; }
-  .how { position: relative; }
-  .how summary { cursor: pointer; list-style: none; padding: 3px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); }
-  .how summary::-webkit-details-marker { display: none; }
-  .how-body { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 30; width: min(520px, calc(100vw - 32px)); padding: 14px 16px;
-              border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 12.5px;
-              line-height: 1.5; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
-  .how-body h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
-  .how-body p { margin: 0 0 8px; }
   .credit { margin-left: auto; } .credit a { color: var(--muted); }
   /* ---- basket picker ---- */
   .pick { position: relative; }
@@ -227,21 +216,6 @@
       <div class="pick-actions"><span class="msg" id="pickMsg"></span><button type="button" id="pickCancel">Cancel</button><button type="button" class="go" id="pickGo">Apply</button></div>
     </div>
   </div>
-  <details class="how">
-    <summary title="How it works">?</summary>
-    <div class="how-body">
-      <h3>What you see</h3>
-      <p>One trading day at a time, from the CME open to the next (17:00 Chicago: 03:30 IST, or 04:30 IST from 2 Nov when Chicago leaves summer time; times are shown in your timezone). Left: your stocks' composite (Stocks button; the same pick as the other pages, applied to every past day). Right: the Nasdaq-100 perp, XYZ100. Both get exactly the same treatment: candles, the gate's zones, the 5m EMA 8, 21 and 47 (colored by their stack: green or red stacked, yellow a shallow pullback, orange a deeper one), the Entry pane (the 1m, 2m and 3m MACD; the 2m and 3m also as a faint dotted line, updated every minute as if their candle closed then) and the Trend pane (the 5m, 7m, 9m, 11m and 15m waves). Each indicator is warmed up on the day before, so it reads what it would have read live.</p>
-      <h3>The gate</h3>
-      <p>From the lines switched on in the Trend and Swing panes: LONG when every one of them is above 0, SHORT when every one is below, NO TRADE otherwise. With the 5m, 9m and 11m Trend lines on (EMA 8 − EMA 47 and EMA 21 − EMA 47 on each) and the 7m, 15m and Swing lines off, it is RDX WIP's gate (Rahul's RDX WIP Trend). It is read on candle close: a candle counts from the minute it closes. Each chart uses its own gate; its header also shows the other chart's gate at the same moment.</p>
-      <p>The <b>Swing</b> pane: the same waves on long candles, EMA 8 − EMA 47 and EMA 21 − EMA 47 on the 1-hour, 4-hour and daily candles of each market's own hours and days (its history from our nightly files, today from its live minutes). Its lines switched on now count for the gate (one with no value yet doesn't), and its background shows the gate, as the price chart's and the other panes' do.</p>
-      <h3>Days</h3>
-      <p>The picked day opens on its own, with the two days before it to its left; scroll to the left edge and older days load in. The calendar sets the newest day shown.</p>
-      <h3>Data</h3>
-      <p>The page opens on today's trading day, which follows Hyperliquid's live stream while the page is open (the newest candle moves with every trade, the gate at each candle's close); if you are looking at the newest candles they stay in view. Days come from our own daily archive of Hyperliquid's 1-minute candles (from 18 Oct 2026; that day only from its evening) and, for the last few days, straight from Hyperliquid, which keeps about 3.5 days of 1-minute candles. Nothing is filled in or made up: a minute with no trade is a flat bar at the last price, as on the exchange.</p>
-      <p class="credit">Not investment advice · Data: Hyperliquid · Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
-    </div>
-  </details>
 </header>
 <main class="board" id="board"></main>
 <div id="older" class="older" hidden>Loading older days…</div>
@@ -439,7 +413,7 @@ function options(showTime, isMain, name) {
     watermark: isMain ? { visible: true, text: name, color: 'rgba(232, 238, 246, 0.04)', fontSize: 40, fontStyle: '700' } : { visible: false },
     autoSize: true, handleScroll: isMain, handleScale: isMain,
     layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
-              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: isMain },  // TradingView's logo in each price chart's corner: the chart library's credit (5/11/2026: the How it works panel that carried it went)
     grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
     rightPriceScale: { borderColor: C.line, minimumWidth: 64 },
     timeScale: { visible: showTime, borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.05,  // a whole day of 1m candles fits
