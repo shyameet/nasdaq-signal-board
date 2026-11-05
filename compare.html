@@ -602,10 +602,9 @@ class Panel {
       <div class="pane" id="${key}-pswing"><div class="tag mix" id="${key}-tswing"></div></div>`;
     this.main = LightweightCharts.createChart($(`${key}-pmain`), options(true, true));
     NsbMacd.autoButton($(`${key}-pmain`), autoFit);  // the A button (owner 4/11/2026)
-    this.vol = this.main.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
-    this.main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.88, bottom: 0 }, visible: false });
+    // (no volume bars: owner 5/11/2026, "we don't need the volume bars")
     this.candles = this.main.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down });
-    this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.14 } });
+    this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.08 } });  // (no volume under them since 5/11/2026)
     const emaLine = () => this.main.addLineSeries({ color: NsbMacd.STACK.mixed, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e8 = emaLine(); this.e21 = emaLine(); this.e47 = emaLine();  // the 5m EMA 8 / 21 / 47, each point colored by their stack
     this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.waveAt(i)] || null);  // the gate
@@ -737,7 +736,6 @@ class Panel {
       ...Object.entries(side.swing).map(([m, bars]) => [m, live ? bars : bars.filter(b => b.end <= side.d1)])]);
     this.candles.applyOptions({ priceFormat: { type: 'price', precision: side.digits, minMove: 10 ** -side.digits } });
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
-    this.vol.setData(this.mainBars.map(b => ({ time: sec(b.time), value: b.volume || 0, color: b.close >= b.open ? 'rgba(43,182,138,.22)' : 'rgba(240,85,95,.22)' })));
     this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
     this.setEmas();
     for (const p of Object.values(this.macd)) { p.digits = side.macdDigits; p.update(); p.showLines(); }
