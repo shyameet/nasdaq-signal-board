@@ -78,7 +78,8 @@ const MATCH = { BULLISH: 'rgba(43, 182, 138, 0.13)', BEARISH: 'rgba(240, 85, 95,
 
 // ---- which lines are on ------------------------------------------------------------------------------
 const KEY = 'nsb.macd.show';
-const show = Object.fromEntries([...Object.keys(LINE).map(l => [l, true]), ...MACDS.map(l => [SIG(l), true]), ['early', true]]);
+// (vals: the lines' values on the panes' price scales, valuesButton)
+const show = Object.fromEntries([...Object.keys(LINE).map(l => [l, true]), ...MACDS.map(l => [SIG(l), true]), ['early', true], ['vals', true]]);
 try {
   const saved = JSON.parse(localStorage.getItem(KEY));
   if (saved && typeof saved === 'object') for (const k in show) if (typeof saved[k] === 'boolean') show[k] = saved[k];
@@ -325,7 +326,7 @@ class MacdPane {
       const a = Math.max(Math.abs(r.priceRange.minValue), Math.abs(r.priceRange.maxValue)) || 1;
       return { ...r, priceRange: { minValue: -a, maxValue: a } };
     };
-    const line = (color, extra) => chart.addLineSeries({ color, lineWidth: 2, priceFormat: fine, priceLineVisible: false,
+    const line = (color, extra) => chart.addLineSeries({ color, lineWidth: 2, priceFormat: fine, priceLineVisible: false, lastValueVisible: show.vals,
                                                          crosshairMarkerVisible: false, autoscaleInfoProvider: sym, ...extra });
     // the zero line as a series of its own (0 at every candle): always shown whichever lines are off, and it carries
     // the shading and day lines, which a hidden series would take with it
@@ -366,6 +367,7 @@ class MacdPane {
       const b = e.target.closest('[data-k]');
       if (b) { e.preventDefault(); e.stopPropagation(); toggle(b.dataset.k); }
     });
+    this.valsBtn = valuesButton(this.el);
     this.showLines();
   }
   pair() { return this.match ? this.match() : [this.stockPts, this.pts]; }
@@ -390,7 +392,10 @@ class MacdPane {
     this.split = this.lines.some(this.scaleOf);
   }
   showLines() {
-    for (const m of this.lines) this.series[m].applyOptions({ visible: show[m] });
+    for (const m of this.lines) this.series[m].applyOptions({ visible: show[m], lastValueVisible: show.vals });
+    this.valsBtn.classList.toggle('off', !show.vals);
+    this.valsBtn.setAttribute('aria-pressed', String(show.vals));
+    this.valsBtn.title = `The lines' values on the price scale, every pane: click to ${show.vals ? 'hide' : 'show'} them`;
     for (const m in this.sigs) this.sigs[m].applyOptions({ visible: this.lines.includes(m) && show[m] && show[SIG(m)] });  // a hidden line takes its signal with it
     for (const m in this.earlys) this.earlys[m].applyOptions({ visible: this.lines.includes(m) && show[m] && show.early });  // and its early line
     this.shading.update();
@@ -495,6 +500,12 @@ css.textContent = `
               border: 1px solid var(--line-strong); border-radius: 5px; background: var(--bg); color: var(--muted);
               font: 600 11px/18px var(--font-num); cursor: pointer; touch-action: manipulation; }
   .nsb-auto:hover { color: var(--text); border-color: var(--muted); }
+  /* the 123 button (valuesButton): in a pane's bottom-right corner, under its price scale; dimmed and struck through while the values are hidden */
+  .nsb-vals { position: absolute; right: 6px; bottom: 3px; z-index: 6; height: 17px; padding: 0 4px;
+              border: 1px solid var(--line-strong); border-radius: 4px; background: var(--bg); color: var(--muted);
+              font: 600 10px/15px var(--font-num); cursor: pointer; touch-action: manipulation; }
+  .nsb-vals:hover { color: var(--text); border-color: var(--muted); }
+  .nsb-vals.off { opacity: .6; text-decoration: line-through; }
 `;
 document.head.appendChild(css);
 
@@ -559,6 +570,17 @@ function autoButton(el, reset) {
   b.title = 'Fit the chart: back as it opened, its prices top to bottom';
   b.addEventListener('dblclick', e => e.stopPropagation());
   b.addEventListener('click', e => { e.stopPropagation(); fitting = true; try { reset(); } finally { fitting = false; } });
+  el.appendChild(b);
+  return b;
+}
+// The 123 button (owner 6/11/2026: "hide this and keep a button below it ... keep them on as default"), in each MACD pane's
+// bottom-right corner under its price scale: shows or hides the lines' values on the price scales of every pane, on every
+// page (show.vals, kept in this browser like the line switches); on until switched off
+function valuesButton(el) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'nsb-vals'; b.textContent = '123';
+  b.addEventListener('dblclick', e => e.stopPropagation());
+  b.addEventListener('click', e => { e.stopPropagation(); toggle('vals'); });
   el.appendChild(b);
   return b;
 }
