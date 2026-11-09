@@ -1,4 +1,4 @@
-/* Lucid paper week: the live PAPER page (owner 8/11/2026, D6: on the Signal Board site, not in its navigation, noindex).
+/* Lucid paper week: the live PAPER page (owner 8/11/2026, D6: on the Signal Board site, noindex; in the board's tab row since 9/11).
    The board's own tokens (dark, as every tab); a light set for a light-mode device. The top bar stays dark in both, so the
    logo reads as on every tab. */
 :root {
@@ -30,6 +30,12 @@ body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; back
 .topbar { position: sticky; top: 0; z-index: 30; flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px;
           padding: 5px 10px; background: #0e131a; border-bottom: 1px solid #1c2430; color: #e8eef6; }
 .brand { display: flex; align-items: center; }
+/* the board's tab row (owner 9/11/2026: a way back to the board), the same look as every tab; literal dark colours as the bar */
+.tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid #1c2430; border-radius: 8px; background: #0a0d12; }
+.tabs a { padding: 4px 9px; border-radius: 6px; color: #8d99ab; text-decoration: none; font-size: 12.5px; font-weight: 500; }
+.tabs a:hover { color: #e8eef6; }
+.tabs a[aria-current="page"] { background: #121922; color: #e8eef6; box-shadow: inset 0 0 0 1px #283240; }
+@media (max-width: 430px) { .tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; } .tabs a { flex: none; padding: 4px 4px; font-size: 11.5px; } }
 .iq-lock { height: 24px; width: auto; display: block; flex: none; }
 .ttl { font-size: 14px; font-weight: 700; letter-spacing: .01em; }
 .ttl small { margin-left: 6px; color: #8d99ab; font-size: 12px; font-weight: 500; }
