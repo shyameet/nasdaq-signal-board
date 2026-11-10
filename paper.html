@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <title>Lucid paper · Indra Quant Signal Board</title>
-<meta name="description" content="PAPER ONLY - Sim, no real money. The Lucid Flex paper week: 4 bots on NinjaTrader Sim accounts and 12 paper fleets, live.">
+<meta name="description" content="PAPER ONLY - Sim, no real money. The Lucid Flex paper week: 4 bots on NinjaTrader Sim accounts and every paper account, live.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -13,14 +13,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="paper.css?v=2">
-<script src="paper.js?v=2" defer></script>
+<link rel="stylesheet" href="paper.css?v=3">
+<script src="paper.js?v=3" defer></script>
 </head>
 <body>
 <header class="topbar" id="bar">
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="24"></a>
   <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html" aria-current="page">Paper</a></nav>
-  <span class="ttl">Lucid paper week<small>4 Sim bots · 12 paper fleets</small></span>
+  <span class="ttl">Lucid paper week<small>4 Sim bots · every paper account</small></span>
   <span class="spacer"></span>
   <span class="upd" id="upd"></span>
   <span class="lv" id="dot" title="the VPS feed"><i></i><span>Connecting…</span></span>
@@ -28,23 +28,34 @@
 <div class="band" role="note">PAPER ONLY - Sim, no real money</div>
 <div class="alert" id="alert" role="status" hidden></div>
 <main id="main">
-  <div class="sum" id="sum"></div>
-  <section id="bots-sec" aria-labelledby="h-bots">
-    <h2 id="h-bots">Real bots on NinjaTrader Sim <small>the 4 Sim accounts the paper accounts copy · today's plan and open position</small></h2>
+  <section class="sum" id="sum" aria-label="Summary"></section>
+
+  <section id="live-sec" aria-labelledby="h-live">
+    <h2 id="h-live">Live now <small id="live-sub">the 4 bots on NinjaTrader Sim</small></h2>
     <div class="bots" id="bots"><div class="empty">Waiting for the feed…</div></div>
   </section>
-  <section id="fleets-sec" aria-labelledby="h-fleets">
-    <h2 id="h-fleets">Paper fleets <small id="fleets-sub">Scalper / Gold × 50K / 25K × three buying rules</small></h2>
-    <div id="fleets"><div class="empty">Waiting for the feed…</div></div>
-  </section>
-  <section id="accts-sec" aria-labelledby="h-accts">
-    <h2 id="h-accts">Paper accounts <small id="accts-sub"></small></h2>
+
+  <section id="acc-sec" aria-labelledby="h-acc">
+    <h2 id="h-acc">All paper accounts <small id="acc-sub"></small></h2>
+    <div class="filters" role="group" aria-label="Show">
+      <div class="seg" data-f="strat"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="SC" aria-pressed="false">Scalper</button><button type="button" data-v="GT" aria-pressed="false">Gold</button></div>
+      <div class="seg" data-f="size"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="50K" aria-pressed="false">50K</button><button type="button" data-v="25K" aria-pressed="false">25K</button></div>
+    </div>
     <div id="accts"><div class="empty">Waiting for the feed…</div></div>
   </section>
-  <section id="ev-sec" aria-labelledby="h-ev">
-    <h2 id="h-ev">Last events <small>newest first · times in Chicago (CT)</small></h2>
-    <div id="evs"><div class="empty">Waiting for the feed…</div></div>
+
+  <section id="cal-sec" aria-labelledby="h-cal">
+    <h2 id="h-cal">Calendar <small>one row an account, one square a session · colour = the day's P&amp;L · tap a square for that day's trades</small></h2>
+    <div id="cal"><div class="empty">Waiting for the feed…</div></div>
+    <div class="legend" aria-hidden="true"><span><i class="sq-l down" style="--a:.9"></i><i class="sq-l down" style="--a:.45"></i><i class="sq-l zero"></i><i class="sq-l up" style="--a:.45"></i><i class="sq-l up" style="--a:.9"></i> loss … profit</span><span>▲ passed</span><span>✕ failed</span><span>◆ payout</span></div>
+    <div class="day" id="day" hidden></div>
   </section>
+
+  <section id="tr-sec" aria-labelledby="h-tr">
+    <h2 id="h-tr">Live trades <small>every entry and exit, newest first · times in Chicago (CT)</small></h2>
+    <div id="trades"><div class="empty">Waiting for the feed…</div></div>
+  </section>
+
   <p class="foot">PAPER ONLY - Sim, no real money: NinjaTrader Sim accounts and a simulator on the VPS, Lucid Flex rules. No real
     account is shown. Live numbers are provisional until the after-close final (~17:15 CT). For information only, not investment advice.</p>
 </main>

@@ -1,37 +1,56 @@
-// Lucid paper week: the live PAPER page (owner 8/11/2026, D6: on the Signal Board site, not in its navigation, noindex).
+// Lucid paper week: the live PAPER page (owner 8/11/2026, D6: on the Signal Board site, not in its navigation, noindex;
+// redesign 10/11/2026 to the owner's approved layout: summary strip, live now (the 4 Sim bots), all paper accounts,
+// calendar heatmap, live trades).
 // PAPER ONLY - Sim, no real money. It reads the VPS's paper-only feed: its address is in data/paper_feed.json {"url": ...}
 // (read again while the feed fails, so a new address needs no code change); the document there is the publisher's
-// sanitized "rdx-lucid-paper-public" v1 (4 Sim masters, 12 paper fleets, their accounts, the last events). Polled every
-// 5 s (30 s while the tab is hidden); when the feed is down the page keeps the last data, greyed, says since when, and
-// keeps retrying (5 s, then 15 s, then 30 s). A request that gets no answer in 8 s counts as down too (a feed that
-// accepts the connection and then hangs). One request at a time. Nothing is stored in the browser. Market prices are
-// shown only when the feed sends them (the publisher sends none unless the owner turns them on).
+// sanitized "rdx-lucid-paper-public" v1 (v1.1 adds the bots' live numbers, every account's day by day and the trades feed).
+// Polled every 5 s (30 s while the tab is hidden); when the feed is down the page keeps the last data, greyed, says since
+// when, and keeps retrying (5 s, then 15 s, then 30 s). A request that gets no answer in 8 s counts as down too. One
+// request at a time. A day's trades come from the feed's second document (days.json next to paper.json), fetched only when
+// a calendar square is opened and again while it is open when the feed says it changed. Nothing is stored in the browser.
+// Market prices are shown only when the feed sends them (the publisher sends none unless the owner turns them on).
 (function () {
   'use strict';
-  const POLL_MS = 5000, HIDDEN_MS = 30000, FETCH_MS = 8000, FEED_FILE = 'data/paper_feed.json', KIND = 'rdx-lucid-paper-public';
+  const POLL_MS = 5000, HIDDEN_MS = 30000, FETCH_MS = 8000, FEED_FILE = 'data/paper_feed.json';
+  const KIND = 'rdx-lucid-paper-public', KIND_DAYS = 'rdx-lucid-paper-days';
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const ok = v => typeof v === 'number' && isFinite(v);
   const int = v => ok(v) ? String(Math.round(v)) : '–';  // a count put into HTML: a number or a dash, never raw text
   const tms = s => { const t = Date.parse(s); return isFinite(t) ? t : null; };
-  let fCT, fCTd;
+  let fCT, fCTd, fCTw;
   try {
     fCT = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
     fCTd = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Chicago', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-  } catch (e) { fCT = fCTd = null; }
+    fCTw = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Chicago', weekday: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+  } catch (e) { fCT = fCTd = fCTw = null; }
   const ct = s => { const t = typeof s === 'number' ? s : tms(s); return t == null ? '–' : fCT ? fCT.format(t) : new Date(t).toISOString().slice(11, 19) + 'Z'; };
   const ctd = s => { const t = tms(s); return t == null ? '–' : fCTd ? fCTd.format(t) : new Date(t).toISOString().slice(0, 16).replace('T', ' ') + 'Z'; };
+  const ctw = s => { const t = tms(s); return t == null ? '–' : fCTw ? fCTw.format(t).replace(',', '') : new Date(t).toISOString().slice(5, 19).replace('T', ' ') + 'Z'; };
   const n2 = v => Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const usd = v => ok(v) ? (v < 0 ? '−$' : '$') + n2(v) : '–';
-  const pnl = v => ok(v) ? `<span class="num ${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${n2(v)}</span>` : '<span class="faint">–</span>';
+  const sgn = v => ok(v) ? (v > 0 ? '+' : v < 0 ? '−' : '') + n2(v) : '–';
+  const cls = v => ok(v) ? (v > 0 ? 'up' : v < 0 ? 'down' : '') : '';
+  const pnl = v => ok(v) ? `<span class="num ${cls(v)}">${sgn(v)}</span>` : '<span class="faint">–</span>';
+  const pnlUsd = v => ok(v) ? `<span class="num ${cls(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}$${n2(v)}</span>` : '<span class="faint">–</span>';
   const px = v => ok(v) ? v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '–';
-  const day = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) : '–';
+  const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  const dayOf = (s, o) => isDate(s) ? new Date(s + 'T12:00:00Z').toLocaleDateString('en-GB', Object.assign({ timeZone: 'UTC' }, o)) : '–';
+  const day = s => dayOf(s, { weekday: 'short', day: 'numeric', month: 'short' });
   const ago = msv => { const s = Math.max(0, Math.round(msv / 1000)); return s < 90 ? `${s} s` : s < 5400 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`; };
   const STATUS = { evaluation: 'Evaluation', funded: 'Funded', passed: 'Passed', failed: 'Failed', closed: 'Closed', ended: 'Ended' };
-  const stChip = s => `<span class="st ${esc(s)}">${esc(STATUS[s] || s)}</span>`;
+  const stChip = s => s ? `<span class="st ${esc(s)}">${esc(STATUS[s] || s)}</span>` : '';
+  const SIDE = s => s === 'long' ? 'LONG' : s === 'short' ? 'SHORT' : '';
+  const sideChip = (side, size) => SIDE(side) ? `<span class="pos ${side === 'long' ? 'long' : 'short'}">${SIDE(side)}${size ? ' ' + esc(size) : ''}</span>` : (size ? esc(size) : '');
+  const NAME = { SC: 'Scalper 3m', GT: 'Gold TONL' };
+  const GROUPS = [['SC', '50K'], ['SC', '25K'], ['GT', '50K'], ['GT', '25K']];
+  const stratOf = id => /^SC/.test(id) ? 'SC' : 'GT';
+  const sizeOf = id => (String(id).match(/-(50K|25K)-/) || [])[1] || '';
+  const OPEN = new Set(['evaluation', 'funded', 'passed']);
 
   let feedUrl = null, doc = null, lastOk = 0, lastGen = null, lastGenAt = 0, fails = 0, firstFail = 0, timer = 0, rendered = null, busy = false;
-  const userOpen = new Map();  // a <details> the viewer opened or closed: kept across refreshes (this page view only)
+  const filt = { strat: '', size: '' };           // the accounts table's filter (this page view only)
+  let sel = null, daysDoc = null, daysErr = false, daysBusy = null, calScrolled = false;
 
   // ---------------------------------------------------------------- the feed
   async function getJson(url, opts) {  // the answer AND its body within FETCH_MS, else it throws (AbortError)
@@ -49,6 +68,7 @@
       return j && typeof j.url === 'string' && /^https:\/\/[^\s/@]+(:\d+)?\/[^\s]*$|^http:\/\/127\.0\.0\.1:\d+\/[^\s]*$/.test(j.url) ? j.url : null;
     } catch (e) { return null; }
   }
+  const FEED_OPTS = { cache: 'no-cache', mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer' };
   async function poll() {
     if (busy) return;  // a request is still waiting: it schedules the next one itself
     busy = true; clearTimeout(timer);
@@ -56,7 +76,7 @@
       if (!feedUrl || (fails && fails % 6 === 0)) feedUrl = (await readFeed()) || feedUrl;
       if (feedUrl) {
         try {
-          const j = await getJson(feedUrl, { cache: 'no-cache', mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer' });
+          const j = await getJson(feedUrl, FEED_OPTS);
           if (!j || j.kind !== KIND || j.paper_only !== true) throw new Error('not the paper feed');
           fails = 0; firstFail = 0; lastOk = Date.now();
           if (j.generated !== lastGen) { lastGen = j.generated; lastGenAt = Date.now(); }
@@ -70,13 +90,29 @@
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 
+  // the days document (each day's trades): next to the feed, fetched only for an opened calendar square
+  const daysUrl = () => feedUrl && /paper\.json(\?|$)/.test(feedUrl) ? feedUrl.replace(/paper\.json(?=\?|$)/, 'days.json') : null;
+  function fetchDays() {
+    if (daysBusy) return daysBusy;
+    const u = daysUrl();
+    if (!u) { daysErr = true; return Promise.resolve(); }
+    daysBusy = (async () => {
+      try {
+        const j = await getJson(u, FEED_OPTS);
+        if (j && j.kind === KIND_DAYS && j.paper_only === true && !j.withheld && Array.isArray(j.accounts)) { daysDoc = j; daysErr = false; }
+        else daysErr = true;
+      } catch (e) { daysErr = true; } finally { daysBusy = null; }
+    })();
+    return daysBusy;
+  }
+
   // ---------------------------------------------------------------- the state dot, the "updated" time, the alert
   function paint() {
     const dot = $('dot'), upd = $('upd'), al = $('alert'), now = Date.now();
-    let state = 'live', word = 'Live', msg = '', cls = '';
+    let state = 'live', word = 'Live', msg = '', klass = '';
     const down = fails > 0 && (!doc || now - lastOk > 12000);
     if (down) {
-      state = 'down'; word = doc ? `Not live · last ${ago(now - lastOk)} ago` : 'Not live'; cls = 'down';
+      state = 'down'; word = doc ? `Not live · last ${ago(now - lastOk)} ago` : 'Not live'; klass = 'down';
       msg = doc ? `The feed from the VPS is down since ${ct(firstFail)} CT. Showing the last data it sent (updated ${ctd(doc.sim && doc.sim.asof || doc.generated)} CT); retrying.`
         : (feedUrl ? 'Waiting for the feed from the VPS: it does not answer yet (the simulator or its publisher may be off). Retrying.'
           : 'The feed address is not set yet. Retrying.');
@@ -99,7 +135,7 @@
     dot.className = 'lv ' + state; dot.lastChild.textContent = word;
     const asof = doc && !doc.withheld ? (doc.sim && doc.sim.asof) || doc.generated : null;
     upd.textContent = asof ? `Updated ${ct(asof)} CT · ${ago(now - tms(asof))} ago` : '';
-    al.hidden = !msg; al.textContent = msg; al.className = 'alert ' + cls;
+    al.hidden = !msg; al.textContent = msg; al.className = 'alert ' + klass;
     $('main').classList.toggle('old', down || !!(doc && doc.withheld));
     setBar();  // the top bar can wrap to two rows on a phone: the band stays under it
   }
@@ -114,149 +150,222 @@
   // ---------------------------------------------------------------- render
   function render() {
     if (!doc || doc.withheld) return;
-    renderSummary(); renderBots(); renderFleets(); renderAccounts(); renderEvents();
-  }
-  function stratLine(s) {
-    if (!s) return '';
-    if (s.live) {
-      let t = `<b>${esc(s.name)}</b> session ${esc(day(s.session))} · live · ${ok(s.bars) ? s.bars + ' bars' : 'no bar yet'}`;
-      if (s.signal && typeof s.signal.side === 'string' && s.signal.side !== 'none') {
-        t += ` · tonight ${esc(s.signal.side.toUpperCase())}${ok(s.signal.entry_px) ? ' at ' + px(s.signal.entry_px) : ''}`;
-      }
-      return `<span class="chip on">${t}</span>`;
+    renderSummary(); renderBots(); renderAccounts(); renderCal(); renderTrades();
+    if (sel) {
+      renderDay();
+      if (!daysDoc || (doc.days_at && daysDoc.generated !== doc.days_at)) fetchDays().then(renderDay);
     }
-    return `<span class="chip"><b>${esc(s.name)}</b> no live session${s.last_session ? ` · last ${esc(day(s.last_session))}` : ''}${s.final_through ? ` · final through ${esc(day(s.final_through))}` : ''}</span>`;
+  }
+
+  // 1. the summary strip
+  function summaryOf() {
+    if (doc.summary) return doc.summary;
+    const c = doc.counts || {}, fl = doc.fleets || [], sum = k => fl.reduce((a, f) => a + ((f.to_date || {})[k] || 0), 0);  // a v1 feed
+    const live = fl.filter(f => f.live);
+    return { open: c.open, evaluation: c.evaluation, funded: c.funded, waiting: c.passed, passed: sum('passed'), failed: c.failed, closed: c.closed,
+      today: live.length ? live.reduce((a, f) => a + (f.day_net || 0), 0) : null, fees: sum('fees'), recv: sum('recv'), net: sum('net') };
   }
   function renderSummary() {
-    const c = doc.counts || {}, sim = doc.sim || {};
-    const meaning = sim.buy_meaning === 'every' ? 'a new evaluation every session (or Mon / Wed / Fri)' : 'at most one a session (5 / 3 places)';
-    $('sum').innerHTML = stratLine(doc.strategies && doc.strategies.SC) + stratLine(doc.strategies && doc.strategies.GT)
-      + `<span class="chip">Open <b class="num">${int(c.open || 0)}</b>: ${int(c.evaluation || 0)} evaluation · ${int(c.funded || 0)} funded · ${int(c.passed || 0)} passed</span>`
-      + `<span class="chip">Failed <b class="num">${int(c.failed || 0)}</b>${c.closed ? ` · closed ${int(c.closed)}` : ''}${c.ended ? ` · ended ${int(c.ended)}` : ''}</span>`
-      + (sim.buy_meaning ? `<span class="chip">Buying: <b>${esc(meaning)}</b></span>` : '')
-      + (sim.start ? `<span class="chip">From <b>${esc(day(sim.start))}</b></span>` : '');
+    const s = summaryOf();
+    const tile = (lbl, val, sub) => `<div class="tile"><span class="lbl">${lbl}</span><span class="val">${val}</span><span class="sub">${sub}</span></div>`;
+    $('sum').innerHTML =
+      tile('Open', `<span class="num">${int(s.open)}</span>`, `${int(s.evaluation)} evaluation · ${int(s.funded)} funded${s.waiting ? ` · ${int(s.waiting)} passed, not yet funded` : ''}`)
+      + tile('Passed', `<span class="num up">${int(s.passed)}</span>`, 'evaluations passed to date')
+      + tile('Failed', `<span class="num${s.failed ? ' down' : ''}">${int(s.failed)}</span>`, s.closed ? `to date · ${int(s.closed)} closed` : 'to date')
+      + tile('Today\'s P&amp;L', pnlUsd(s.today), ok(s.today) ? 'all paper accounts, live' : 'no session now')
+      + tile('Net to date', pnlUsd(s.net), `fees ${usd(s.fees)} · payouts ${usd(s.recv)}`);
+  }
+
+  // 2. live now: the 4 bots
+  function instText(m) {
+    const mon = typeof m.inst === 'string' ? (m.inst.match(/ (\d{2}-\d{2})$/) || [])[1] : null;
+    return m.unit ? esc(m.unit) + (mon ? ' ' + esc(mon) : '') : esc(m.inst || '');
+  }
+  function bar(label, value, limit, stop) {
+    const v = ok(value) ? (stop ? Math.max(0, -value) : Math.max(0, value)) : 0;
+    const pct = ok(limit) && limit > 0 ? Math.min(100, v / limit * 100) : 0;
+    return `<div class="bar${stop ? ' stop' : ''}"><span class="bl">${label}</span><span class="bt"><i style="width:${pct.toFixed(1)}%"></i></span>`
+      + `<span class="bv">${Math.round(pct)}% of ${ok(limit) ? (stop ? '−' : '+') + n2(limit) : '–'}</span></div>`;
+  }
+  function botCard(m) {
+    const role = m.role === 'primary' ? '<span class="tagx prim">feeds the paper</span>' : m.role === 'standby' ? '<span class="tagx">standby</span>' : '';
+    const test = m.synthetic ? '<span class="tagx test">test data</span>' : '';
+    const head = `<div class="bh"><span class="acct">${esc(m.acct)}</span>${stChip(m.status)}${role}${test}</div>`
+      + `<div class="bsub">${esc(m.strategy)} · ${esc(m.size)}${m.inst || m.unit ? ' · ' + instText(m) : ''}</div>`;
+    if (m.state !== 'ok') return `<article class="card">${head}<div class="muted">No file from this bot this session yet.</div></article>`;
+    const kp = `<div class="kpis"><div class="kpi"><span class="lbl">Balance</span><span class="big">${usd(m.balance)}</span>`
+      + `<span class="sm">start of day ${usd(m.start_of_day)}</span></div>`
+      + `<div class="kpi"><span class="lbl">Room to the max-loss floor</span><span class="big${ok(m.room) && m.room < 0 ? ' down' : ''}">${usd(m.room)}</span>`
+      + `<span class="sm">floor ${usd(m.floor)}</span></div></div>`;
+    const open = (m.open || []).filter(o => o.side === 'long' || o.side === 'short');
+    const trades = open.length ? open.map(o => {
+      const entry = ok(o.avg_px) ? o.avg_px : o.px;
+      const prices = ok(entry) || ok(o.last_px) ? `<div class="tp"><span>entry <b>${px(entry)}</b></span><span>now <b>${px(o.last_px)}</b></span></div>` : '';
+      const exits = ok(o.stop_px) || ok(o.target_px) ? `<div class="tx">stop ${px(o.stop_px)} · target ${px(o.target_px)}</div>` : '';
+      return `<div class="trade"><div class="tl">${sideChip(o.side, o.size || (ok(o.qty) ? int(o.qty) : ''))}<span class="pnl ${cls(o.pnl)}">${ok(o.pnl) ? sgn(o.pnl) : '–'}</span></div>${prices}${exits}</div>`;
+    }).join('') : '<div class="trade flat"><div class="tl"><span class="pos flat">FLAT</span> no open trade</div></div>';
+    const today = ok(m.today) ? m.today : m.day_net;
+    const bars = `<div class="bars">${bar('Day target', today, m.day_target, false)}${bar('Day stop', today, m.day_stop, true)}</div>`;
+    const priced = m.price_t ? ` · live P&amp;L from the ${esc(ct(m.price_t).slice(0, 5))} CT minute bar` : '';
+    const foot = `<div class="bf">Today ${pnl(today)} · ${int(m.trades_today || 0)} closed${priced}${m.warns_today ? ` · <span class="down">${int(m.warns_today)} warning${m.warns_today === 1 ? '' : 's'}</span>` : ''}</div>`;
+    return `<article class="card">${head}${kp}${trades}${bars}${foot}</article>`;
   }
   function renderBots() {
     const ms = doc.masters || [];
-    if (!ms.length) { $('bots').innerHTML = '<div class="empty">No bot data.</div>'; return; }
-    $('bots').innerHTML = ms.map(m => {
-      const role = m.role === 'primary' ? '<span class="tagx prim">feeds the paper</span>' : m.role === 'standby' ? '<span class="tagx">standby</span>' : '';
-      const test = m.synthetic ? '<span class="tagx test">test data</span>' : '';
-      const sub = `${esc(m.strategy)} · ${esc(m.size)}${m.inst ? ' · ' + esc(m.inst) : ''}`;
-      if (m.state !== 'ok') {
-        return `<article class="card"><h3><span class="acct">${esc(m.acct)}</span>${role}</h3><div class="muted" style="margin-bottom:6px">${sub}</div>`
-          + '<div class="muted">No file from this bot this session yet.</div></article>';
-      }
-      const p = m.plan;
-      let plan = '–';
-      if (p) {
-        const parts = [];
-        if (p.side) parts.push(esc(`${p.side.toUpperCase()} ${p.qty != null ? p.qty : ''}`.trim()));
-        else if (p.mode) parts.push(esc(p.mode) + (ok(p.micros) ? ` · ${p.micros} micros` : ''));
-        if (p.status && p.status !== 'trade') parts.push({ reached: 'day target reached', no_room: 'no room', balance_unavailable: 'balance unreadable' }[p.status] || '');
-        plan = parts.join(' · ') + (ok(p.day_tp) || ok(p.day_sl) ? `<br><span class="muted">day target</span> ${pnl(p.day_tp)} <span class="muted">· day stop</span> ${pnl(ok(p.day_sl) ? -Math.abs(p.day_sl) : null)}` : '');
-      }
-      const pos = (m.open && m.open.length) ? m.open.map(o => `<span class="pos ${o.side === 'long' ? 'long' : 'short'}">${o.side === 'long' ? 'LONG' : 'SHORT'}${o.qty != null ? ' ' + int(o.qty) : ''}</span>`
-          + (ok(o.px) ? ` <span class="num">${px(o.px)}</span>` : '')  // prices only when the feed sends them
-          + (ok(o.stop_px) ? ` <span class="muted">stop</span> <span class="num">${px(o.stop_px)}</span>` : '')
-          + (ok(o.target_px) ? ` <span class="muted">target</span> <span class="num">${px(o.target_px)}</span>` : '')).join('<br>')
-        : '<span class="pos flat">FLAT</span>';
-      const v = m.virtual ? `#${m.virtual.n != null ? int(m.virtual.n) : '?'} · ${esc(m.virtual.status || '')}` : '–';
-      const st = m.started ? `${m.started.build ? esc(m.started.build) : 'started'}${m.started.orders === true ? ' · orders ON' : m.started.orders === false ? ' · orders OFF' : ''}` : '';
-      return `<article class="card"><h3><span class="acct">${esc(m.acct)}</span>${role}${test}</h3>`
-        + `<div class="muted" style="margin-bottom:6px">${sub}${m.session ? ' · session ' + esc(day(m.session)) : ''}</div><dl class="kv">`
-        + `<dt>Plan</dt><dd>${plan}</dd><dt>Position</dt><dd>${pos}</dd>`
-        + `<dt>Today</dt><dd>${pnl(m.day_net)}${m.trades_today ? ` <span class="muted">· ${int(m.trades_today)} closed</span>` : ''}</dd>`
-        + `<dt>Virtual</dt><dd>${v}</dd>`
-        + (st ? `<dt>Bot</dt><dd>${st}</dd>` : '')
-        + (m.warns_today ? `<dt>Warnings</dt><dd class="down">${int(m.warns_today)} today</dd>` : '')
-        + `<dt>Last line</dt><dd class="num">${esc(ct(m.last_t))} CT</dd></dl></article>`;
-    }).join('');
+    const ss = ms.map(m => m.session).filter(isDate).sort();
+    $('live-sub').textContent = (ss.length ? `session ${day(ss[ss.length - 1])} · ` : '') + 'the 4 bots on NinjaTrader Sim';
+    $('bots').innerHTML = ms.length ? ms.map(botCard).join('') : '<div class="empty">No bot data.</div>';
   }
-  const GROUPS = [['SC', '50K'], ['SC', '25K'], ['GT', '50K'], ['GT', '25K']];
-  const NAME = { SC: 'Scalper 3m', GT: 'Gold TONL' };
-  function counts(c) {
-    const out = [];
-    for (const k of ['evaluation', 'funded', 'passed']) if (c && c[k]) out.push(`${stChip(k)} <span class="num">${int(c[k])}</span>`);
-    return out.length ? `<span class="cnt">${out.join(' ')}</span>` : '<span class="faint">none open</span>';
-  }
-  function renderFleets() {
-    const fl = doc.fleets || [];
-    const head = '<thead><tr><th>Buying rule</th><th>Open</th><th class="r">Failed</th><th class="r">Today</th><th class="r">Net to date</th>'
-      + '<th class="r">Fees</th><th class="r">Payouts</th><th class="r">Bought</th><th class="r">Passed</th></tr></thead>';
-    let body = '';
-    for (const [s, z] of GROUPS) {
-      const rows = fl.filter(f => f.strat === s && f.size === z);
-      if (!rows.length) continue;
-      body += `<tr class="grp"><td colspan="9">${esc(NAME[s])} · ${esc(z)}</td></tr>`;
-      for (const f of rows) {
-        const t = f.to_date || {}, c = f.counts || {};
-        body += `<tr><td class="first" data-l="Rule">${esc(f.rule_label)}${f.after_close_differs ? ' <span class="tagx test">final differs</span>' : ''}</td>`
-          + `<td data-l="Open">${counts(c)}</td>`
-          + `<td class="r num" data-l="Failed">${int(c.failed || 0)}${c.closed ? ` <span class="faint">+${int(c.closed)} closed</span>` : ''}</td>`
-          + `<td class="r" data-l="Today">${f.live ? pnl(f.day_net) : '<span class="faint">no session</span>'}</td>`
-          + `<td class="r" data-l="Net to date">${pnl(t.net)}</td>`
-          + `<td class="r num" data-l="Fees">${usd(t.fees)}</td>`
-          + `<td class="r num" data-l="Payouts">${usd(t.recv)}</td>`
-          + `<td class="r num" data-l="Bought">${ok(t.bought) ? t.bought : '–'}</td>`
-          + `<td class="r num" data-l="Passed">${ok(t.passed) ? t.passed : '–'}</td></tr>`;
-      }
-    }
-    $('fleets').innerHTML = body ? `<table class="tbl">${head}<tbody>${body}</tbody></table>` : '<div class="empty">No fleet data.</div>';
-  }
-  function accCard(a) {
-    const rows = [];
-    rows.push(['Balance', `<span class="num">${usd(a.balance)}</span>`]);
-    rows.push([a.day_live ? 'Today' : 'Last session', pnl(a.day_net)]);
-    if (ok(a.target) || ok(a.stop)) rows.push(['Day target / stop', `${pnl(a.target)} / ${pnl(ok(a.stop) ? -Math.abs(a.stop) : null)}`]);
-    if (ok(a.size_units)) rows.push(['Size', `${a.size_units} ${a.unit === 'micros' ? 'micros' : 'MGC'}`]);
-    if (a.status === 'evaluation' && ok(a.pass_need)) rows.push(['To pass', `${usd(a.pass_need)}${ok(a.eval_days) ? ` · day ${a.eval_days}${ok(a.min_days) ? ' of ' + a.min_days + '+' : ''}` : ''}`]);
-    if (a.status === 'funded') {
-      const more = [];
-      if (ok(a.payout_more_profit) && a.payout_more_profit > 0) more.push(`${usd(a.payout_more_profit)} more profit`);
-      if (ok(a.payout_more_days) && a.payout_more_days > 0) more.push(`${a.payout_more_days} more qualifying day${a.payout_more_days === 1 ? '' : 's'}`);
-      rows.push(['Payout', (!more.length && ok(a.payout_now) && a.payout_now > 0 ? `${usd(a.payout_now)} can be taken` : 'not yet' + (more.length ? ': ' + more.join(', ') : ''))
-        + (ok(a.payouts) && a.payouts ? ` · ${a.payouts} paid` : '')]);
-    }
-    if (ok(a.floor)) rows.push(['Floor', `<span class="num">${usd(a.floor)}</span>`]);
-    if (a.halted && a.halt) rows.push(['Stopped for the day', esc(a.halt)]);
-    rows.push(['Bought', esc(day(a.bought)) + (a.passed ? ` · passed ${esc(day(a.passed))}` : '')]);
-    const flag = a.today === 'passed' ? ' <span class="st passed">today</span>' : a.today === 'failed' ? ' <span class="st failed">today</span>' : '';
-    return `<div class="acc"><div class="hd"><b>#${esc(a.n)}</b><span>${stChip(a.status)}${flag}${a.provisional ? ' <span class="faint" title="provisional until the after-close final">prov.</span>' : ''}</span></div>`
-      + rows.map(r => `<div class="row"><span>${r[0]}</span><span>${r[1]}</span></div>`).join('') + '</div>';
+
+  // 3. all paper accounts
+  function ruleOf(fid) { const f = (doc.fleets || []).find(x => x.id === fid); return f ? f.rule_label : ''; }
+  function accRow(a) {
+    const open = OPEN.has(a.status);
+    const flag = a.today === 'passed' || a.today === 'failed' ? ' <span class="faint">today</span>' : '';
+    let need = '–';
+    if (a.status === 'evaluation' && ok(a.pass_need)) need = usd(a.pass_need) + (ok(a.eval_days) ? `<span class="halt">day ${int(a.eval_days)}${ok(a.min_days) ? ' of ' + int(a.min_days) + '+' : ''}</span>` : '');
+    else if (a.status === 'passed' || (a.passed && a.status !== 'evaluation')) need = '<span class="up">passed</span>';
+    const pays = ok(a.payouts) && a.payouts ? int(a.payouts) + (ok(a.pay_recv) ? ' · ' + usd(a.pay_recv) : '') : (ok(a.pay_recv) ? usd(a.pay_recv) : '–');
+    const today = a.session && ok(a.day_net) ? pnl(a.day_net) + (a.halted && a.halt ? `<span class="halt">${esc(a.halt)}</span>` : '') : '<span class="faint">–</span>';
+    return `<tr class="row${open ? '' : ' done'}"><td class="c-id">${esc(a.id)}</td><td class="c-rule">${esc(ruleOf(a.fleet))}</td>`
+      + `<td class="c-st">${stChip(a.status)}${flag}</td><td class="c-bal r">${usd(a.balance)}</td>`
+      + `<td class="c-room r" data-l="Room">${open ? usd(a.room) : '–'}</td><td class="c-today r" data-l="Today">${today}</td>`
+      + `<td class="c-need r" data-l="To pass">${need}</td><td class="c-pay r" data-l="Payouts">${pays}</td></tr>`;
   }
   function renderAccounts() {
-    const fl = doc.fleets || [], ac = doc.accounts || [];
-    $('accts-sub').textContent = `${ac.length} in all · open ones first in each fleet`;
-    if (!fl.length) { $('accts').innerHTML = '<div class="empty">No account data.</div>'; return; }
-    $('accts').innerHTML = fl.map(f => {
-      const mine = ac.filter(a => a.fleet === f.id);
-      const open = mine.filter(a => a.status === 'evaluation' || a.status === 'funded' || a.status === 'passed');
-      const done = mine.filter(a => !open.includes(a));
-      const def = open.length > 0, isOpen = userOpen.has(f.id) ? userOpen.get(f.id) : def;
-      const dk = f.id + ':ended', dOpen = userOpen.has(dk) ? userOpen.get(dk) : false;
-      const today = f.live ? ` · today ${pnl(f.day_net)}` : '';
-      return `<details class="fl" data-k="${esc(f.id)}" data-def="${def ? 1 : 0}"${isOpen ? ' open' : ''}><summary><b>${esc(f.strategy)} ${esc(f.size)}</b>`
-        + `<span class="muted">${esc(f.rule_label)}</span><span class="muted">· ${open.length} open · ${done.filter(a => a.status === 'failed').length} failed${today}</span></summary>`
-        + (open.length ? `<div class="accts">${open.map(accCard).join('')}</div>` : '<div class="muted" style="padding:0 12px 10px">No open account.</div>')
-        + (done.length ? `<details class="ended" data-k="${esc(dk)}" data-def="0"${dOpen ? ' open' : ''}><summary>${done.length} failed or closed</summary><div class="endl">`
-          + done.map(a => `<div><b>#${esc(a.n)}</b>${stChip(a.status)}<span>${esc(day(a.ended))}${ok(a.balance) ? ' · ' + usd(a.balance) : ''}${a.end_reason ? ' · ' + esc(a.end_reason) : ''}</span></div>`).join('')
-          + '</div></details>' : '')
-        + '</details>';
-    }).join('');
+    const all = doc.accounts || [];
+    const ac = all.filter(a => (!filt.strat || stratOf(a.fleet) === filt.strat) && (!filt.size || sizeOf(a.fleet) === filt.size));
+    $('acc-sub').textContent = `${ac.length === all.length ? all.length : ac.length + ' of ' + all.length} accounts · open ones first`;
+    let body = '';
+    for (const [s, z] of GROUPS) {
+      const rows = ac.filter(a => stratOf(a.fleet) === s && sizeOf(a.fleet) === z);
+      if (!rows.length) continue;
+      const nOpen = rows.filter(a => OPEN.has(a.status)).length, nFail = rows.filter(a => a.status === 'failed').length;
+      body += `<tr class="grp"><td colspan="8">${esc(NAME[s])} · ${esc(z)}<span>${nOpen} open${nFail ? ` · ${nFail} failed` : ''}</span></td></tr>`;
+      body += rows.map(accRow).join('');
+    }
+    const head = '<thead><tr><th>Account</th><th>Buying rule</th><th>Status</th><th class="r">Balance</th><th class="r">Room</th>'
+      + '<th class="r">Today</th><th class="r">To pass</th><th class="r">Payouts</th></tr></thead>';
+    $('accts').innerHTML = body ? `<table class="atbl">${head}<tbody>${body}</tbody></table>` : `<div class="empty">${all.length ? 'No account in this filter.' : 'No paper account yet.'}</div>`;
   }
-  $('accts').addEventListener('toggle', e => {  // capture: "toggle" does not bubble
-    const d = e.target;
-    if (!(d instanceof HTMLDetailsElement) || !d.dataset.k) return;
-    if (d.open === (d.dataset.def === '1')) userOpen.delete(d.dataset.k); else userOpen.set(d.dataset.k, d.open);
-  }, true);
-  function renderEvents() {
-    const ev = (doc.events || []).slice().reverse();
-    $('evs').innerHTML = ev.length ? '<ul class="evs">' + ev.map(e => {
-      const who = e.acct || e.strategy || '';
-      return `<li class="${e.sev === 'urgent' ? 'urgent' : e.sev === 'warn' ? 'warn' : ''}"><span class="t" title="${esc(ctd(e.t))} CT">${esc(ct(e.t))}</span>`
-        + `<span class="w" title="${esc(who)}">${esc(who)}${e.src === 'bot' ? ' <span class="tagx">bot</span>' : ''}</span><span class="x">${esc(e.text)}</span></li>`;
-    }).join('') + '</ul>' : '<div class="empty">No event yet.</div>';
+  document.querySelector('.filters').addEventListener('click', e => {
+    const b = e.target.closest('.seg button');
+    if (!b) return;
+    const seg = b.parentElement;
+    filt[seg.dataset.f] = b.dataset.v;
+    for (const x of seg.querySelectorAll('button')) x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+    if (doc && !doc.withheld) renderAccounts();
+  });
+
+  // 4. the calendar heatmap
+  const MARKS = { fail: ['✕', 'failed'], pass: ['▲', 'passed'], payout: ['◆', 'payout'] };
+  function calRows() {
+    const rows = [['Bots on NinjaTrader Sim', (doc.masters || []).map(m => ({ id: m.acct, z: m.size, days: m.days || [] }))]];
+    for (const [s, z] of GROUPS) {
+      const acc = (doc.accounts || []).filter(a => stratOf(a.fleet) === s && sizeOf(a.fleet) === z);
+      if (acc.length) rows.push([`${NAME[s]} · ${z}`, acc.map(a => ({ id: a.id, z, days: a.days || [] }))]);
+    }
+    return rows;
+  }
+  function findDay(id, s) {
+    for (const [, list] of calRows()) for (const r of list) if (r.id === id) return { row: r, d: (r.days || []).find(x => x.s === s) || null };
+    return null;
+  }
+  function square(r, d, s) {
+    if (!d) return '<td><span class="sq-none"></span></td>';
+    const scale = r.z === '25K' ? 750 : 1500;  // a full colour at a day of 3% of the account
+    const k = ok(d.net) && d.net > 0 ? 'up' : ok(d.net) && d.net < 0 ? 'down' : 'zero';
+    const a = ok(d.net) ? 0.28 + 0.72 * Math.min(1, Math.abs(d.net) / scale) : 0;
+    const mk = (d.marks || []).find(x => MARKS[x]);
+    const isSel = sel && sel.a === r.id && sel.s === s;
+    const lab = `${r.id} ${day(s)} ${ok(d.net) ? sgn(d.net) : ''}${(d.marks || []).filter(x => MARKS[x]).map(x => ' ' + MARKS[x][1]).join('')}${d.live ? ' live' : ''}`;
+    return `<td><button type="button" class="sq ${k}${d.live ? ' live' : ''}${isSel ? ' sel' : ''}" style="--a:${a.toFixed(2)}" data-a="${esc(r.id)}" data-s="${esc(s)}"`
+      + ` title="${esc(lab)}" aria-label="${esc(lab)}" aria-pressed="${isSel ? 'true' : 'false'}">${mk ? MARKS[mk][0] : ''}</button></td>`;
+  }
+  function renderCal() {
+    const ss = (doc.sessions || []).filter(isDate);
+    if (!ss.length) { $('cal').innerHTML = `<div class="empty">${doc.sessions ? 'No session yet.' : 'The calendar needs the updated feed (v1.1).'}</div>`; return; }
+    const liveS = new Set((doc.masters || []).concat(doc.accounts || []).flatMap(x => (x.days || []).filter(d => d.live).map(d => d.s)));
+    const head = '<thead><tr><th></th>' + ss.map(s => `<th class="${liveS.has(s) ? 'now' : ''}" title="${esc(day(s))}">${esc(dayOf(s, { weekday: 'short' }))}<br>${esc(dayOf(s, { day: 'numeric' }))}</th>`).join('') + '</tr></thead>';
+    let body = '';
+    for (const [g, list] of calRows()) {
+      body += `<tr class="grp"><th colspan="${ss.length + 1}">${esc(g)}</th></tr>`;
+      for (const r of list) {
+        const by = new Map((r.days || []).map(d => [d.s, d]));
+        body += `<tr><th class="hl" scope="row">${esc(r.id)}</th>${ss.map(s => square(r, by.get(s), s)).join('')}</tr>`;
+      }
+    }
+    const old = document.querySelector('#cal .cal-scroll');
+    const left = old ? old.scrollLeft : null;
+    $('cal').innerHTML = `<div class="cal-scroll"><table class="hm">${head}<tbody>${body}</tbody></table></div>`;
+    const sc = document.querySelector('#cal .cal-scroll');
+    if (left != null) sc.scrollLeft = left; else if (!calScrolled) { sc.scrollLeft = sc.scrollWidth; calScrolled = true; }  // the newest sessions in view
+  }
+  $('cal').addEventListener('click', e => {
+    const b = e.target.closest('button.sq');
+    if (!b) return;
+    const same = sel && sel.a === b.dataset.a && sel.s === b.dataset.s;
+    sel = same ? null : { a: b.dataset.a, s: b.dataset.s };
+    for (const x of document.querySelectorAll('#cal .sq.sel')) { x.classList.remove('sel'); x.setAttribute('aria-pressed', 'false'); }
+    if (sel) { b.classList.add('sel'); b.setAttribute('aria-pressed', 'true'); }
+    renderDay();
+    if (sel) {
+      if (!daysDoc || (doc.days_at && daysDoc.generated !== doc.days_at)) fetchDays().then(renderDay);
+      $('day').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  });
+  $('day').addEventListener('click', e => {
+    if (!e.target.closest('button.x')) return;
+    sel = null; renderDay();
+    for (const x of document.querySelectorAll('#cal .sq.sel')) { x.classList.remove('sel'); x.setAttribute('aria-pressed', 'false'); }
+  });
+  const HOW = { open: 'still open', exit: 'closed', closed: 'closed' };
+  function renderDay() {
+    const box = $('day');
+    if (!sel || !doc) { box.hidden = true; box.innerHTML = ''; return; }
+    const f = findDay(sel.a, sel.s);
+    const d = f && f.d;
+    const marks = d ? (d.marks || []).filter(x => MARKS[x]).map(x => `<span class="${x === 'fail' ? 'down' : 'up'}">${MARKS[x][0]} ${MARKS[x][1]}</span>`).join(' ') : '';
+    let html = `<div class="dh"><b>${esc(sel.a)}</b><span>${esc(day(sel.s))}${d && d.live ? ' · live' : ''}</span>`
+      + (d ? `<span>day ${pnl(d.net)}</span><span class="muted">end balance <span class="num">${usd(d.bal)}</span></span>${marks}` : '')
+      + '<button type="button" class="x" aria-label="Close">×</button></div>';
+    const acc = daysDoc && (daysDoc.accounts || []).find(x => x.id === sel.a);
+    const dd = acc && (acc.days || []).find(x => x.s === sel.s);
+    const trades = dd ? dd.trades || [] : null;
+    if (trades && trades.length) {
+      const hasPx = trades.some(t => 'px_in' in t);
+      html += '<table class="dtbl"><thead><tr><th>In (CT)</th><th>Out (CT)</th><th>Trade</th>' + (hasPx ? '<th>Entry → exit</th>' : '')
+        + '<th class="r">Result</th><th>How it ended</th></tr></thead><tbody>'
+        + trades.map(t => `<tr><td class="tin">${esc(ct(t.tin))}</td><td class="tout">${t.tout ? esc(ct(t.tout)) : '–'}</td>`
+          + `<td class="sd">${sideChip(t.side, t.size)}</td>` + (hasPx ? `<td class="pxs">${px(t.px_in)} → ${t.tout ? px(t.px_out) : '…'}</td>` : '')
+          + `<td class="res r">${pnl(t.net)}</td><td class="how">${esc(HOW[t.how] || t.how || '')}</td></tr>`).join('')
+        + '</tbody></table>';
+      const sum = trades.reduce((a, t) => a + (ok(t.net) ? t.net : 0), 0);
+      if (d && d.final && ok(d.net) && trades.every(t => ok(t.net)) && Math.abs(sum - d.net) > 0.5)
+        html += `<div class="note">The trades are as the simulator saw them live (${sgn(sum)}); the after-close final for the day is ${sgn(d.net)}.</div>`;
+    } else if (trades) html += '<div class="muted">No trade that day.</div>';
+    else if (daysBusy || (!daysDoc && !daysErr)) html += '<div class="muted">Loading the trades…</div>';
+    else html += '<div class="muted">The trades of this day are not available from the feed right now.</div>';
+    box.innerHTML = html; box.hidden = false;
+  }
+
+  // 5. live trades
+  function renderTrades() {
+    if (!doc.trades) {  // a v1 feed: its entry / exit events
+      const ev = (doc.events || []).filter(e => e.ev === 'entry' || e.ev === 'exit').slice().reverse();
+      $('trades').innerHTML = ev.length ? '<ul class="trl">' + ev.map(e => `<li><span class="t" title="${esc(ctd(e.t))} CT">${esc(ctw(e.t))}</span>`
+        + `<span class="e ${e.ev}">${e.ev === 'entry' ? 'ENTRY' : 'EXIT'}</span><span class="x">${esc(e.text)}</span><span class="w">${esc(e.acct || '')}${e.src === 'bot' ? ' · bot' : ''}</span></li>`).join('') + '</ul>'
+        : '<div class="empty">No trade yet.</div>';
+      return;
+    }
+    const tr = doc.trades.slice().reverse();
+    $('trades').innerHTML = tr.length ? '<ul class="trl">' + tr.map(r => {
+      const what = r.ev === 'exit' ? `${pnl(r.net)}${r.how ? ' <span class="muted">' + esc(r.how) + '</span>' : ''}${ok(r.px) ? ' <span class="muted">· out</span> <b>' + px(r.px) + '</b>' : ''}`
+        : (ok(r.px) ? '<span class="muted">in</span> <b>' + px(r.px) + '</b>' : '');
+      const who = (r.accts || []).map(esc).join(' · ') + (r.src === 'bot' ? ' · bot on Sim' : '');
+      return `<li><span class="t" title="${esc(ctd(r.t))} CT">${esc(ctw(r.t))}</span><span class="e ${r.ev === 'entry' ? 'entry' : 'exit'}">${r.ev === 'entry' ? 'ENTRY' : 'EXIT'}</span>`
+        + `<span class="x">${sideChip(r.side, r.size)} ${what}</span><span class="w">${who}</span></li>`;
+    }).join('') + '</ul>' : '<div class="empty">No trade yet.</div>';
   }
 
   function start() { setBar(); paint(); poll(); }
