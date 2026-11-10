@@ -89,9 +89,11 @@
     else { const i = a.findIndex(x => x.t >= b.t); if (a[i].t === b.t) a[i] = b; else a.splice(i, 0, b); }
   }
   const tell = (kind, s) => { for (const fn of listeners) try { fn(kind, s); } catch (e) { /* one page's bug stays its own */ } };
+  const raws = [];  // every message as it came (onMsg: the India tab's 15-second candles and options, PROTOCOL_OPTIONS.md, 10/11/2026)
   function handle(m) {
     if (m.type === 'snapshot' && m.login) { refused(m); return; }  // no prices: the stream wants the password (below)
     lastMsg = Date.now(); failingSince = 0;
+    for (const fn of raws) try { fn(m); } catch (e) { /* one page's bug stays its own */ }
     if ((m.type === 'bar' || m.type === 'form' || m.type === 'tick') && m.s) priceAt[m.s] = lastMsg;  // a price, not the heartbeat
     if (m.type === 'snapshot') {
       if (ask) { ask = null; pwShow(); }  // let in
@@ -231,5 +233,16 @@
     bars(s) { const x = store[s]; return x ? x.bars.concat(forming(x) ? [x.cur] : []) : []; },  // closed + forming
     cur(s) { return store[s] ? forming(store[s]) : null; },
     has(s) { return !!(store[s] && (store[s].bars.length || store[s].cur)); },
+    // (10/11/2026, the India tab's options and 15-second candles; nothing changes for a page that doesn't use them)
+    onMsg(fn) { raws.push(fn); },  // fn(message): every message the stream sends, as it came (after a refused login: none)
+    send(obj) {  // one ask to the stream (after its snapshot): false while it isn't open or wants the password
+      if (!ws || ws.readyState !== WebSocket.OPEN || ask) return false;
+      try { ws.send(JSON.stringify(obj)); return true; } catch (e) { return false; }
+    },
+    put(s, rows, cur) {  // candles another message brought (an option's "osub"): into the store, as a snapshot's
+      const x = S(s);
+      for (const r of rows || []) upsert(x.bars, row(r));
+      if (cur !== undefined) x.cur = row(cur);
+    },
   };
 })();

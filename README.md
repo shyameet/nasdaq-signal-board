@@ -17,7 +17,7 @@ Each series gets a gate, checked every second on the bars still forming:
 
 The **Nasdaq** tab runs the gate on the stocks you pick: the ten largest Nasdaq-100 stocks that trade on Hyperliquid by default, plus AVGO, TSM and INTC to add, any 1 to 13 of them. Each picked stock gets its own gate on its own candles, and the page's gate is LONG only when every picked stock is LONG, SHORT only when every one is SHORT, NO TRADE otherwise. The chart is the picked stocks combined with equal weights (1000 = the 10/05/2026 close; each minute 1000 x the average of the stocks' moves since then). Its candles: each minute's close as above, open = the previous close, volume = the stocks' dollar volume; coloured by the Trend waves (green where every 5m/7m/9m/11m/15m MACD switched on is above 0, red where every one is below), with the composite's 3m EMA 21/47, and the Entry (2m/3m) and Trend (5m/7m/9m/11m/15m) MACD panes.
 
-It shows that composite beside the Nasdaq-100 perp `xyz:XYZ100` (`replay.html`) or beside the CME MNQ future (`mnq.html`), picked in the tab's XYZ100 / MNQ switch. The **India** tab replays the Nifty and Bank Nifty setups on Dhan's saved 1-minute candles, and the **Commodities** tab the Crude (MCL with CRUDEOILM) and Nat Gas (NG with NATGASMINI) setups.
+It shows that composite beside the Nasdaq-100 perp `xyz:XYZ100` (`replay.html`) or beside the CME MNQ future (`mnq.html`), picked in the tab's XYZ100 / MNQ switch. The **India** tab shows the option signals of the Nifty and Bank Nifty setups (each market's trend from its 1h, 5m, 7m, 9m and 11m waves and the 5m EMA stack, the groups agreeing as the shading, the 1m and 2m MACD entries with their exits, and the ATM option of the trend's side in a floating window) on Dhan's saved 1-minute candles and the live stream, and the **Commodities** tab the Crude (MCL with CRUDEOILM) and Nat Gas (NG with NATGASMINI) setups.
 
 On every US chart a new day starts at the CME open, 17:00 Chicago: 03:30 IST, or 04:30 IST while Chicago is on winter time (first Sunday of November to the second Sunday of March).
 
@@ -31,7 +31,8 @@ Hyperliquid or TradingView.
 | `index.html` | opens the Nasdaq tab (the Stocks tab was removed on 27/10/2026) |
 | `replay.html` | Nasdaq tab, XYZ100 section: one CME trading day at a time (from the CME open), your stocks' composite beside XYZ100, the gate, the 2m/3m entry signals with per-trend / gap / one-trend-per-day boxes; reads `data/1m/` and Hyperliquid's last ~3.5 days |
 | `mnq.html` | Nasdaq tab, MNQ section: the composite beside CME MNQ (`data/futures/1m/`), both with the gate, tinted where the two gates disagree |
-| `india-replay.html` | the India tab: one Indian trading day at a time from `data/india/1m/`; the Nifty setup (NIFTY 50 + GIFT NIFTY trend, then RELIANCE syncs as the odd man out, then its 2m/3m entry) and the Bank Nifty setup (NIFTY BANK, then HDFC BANK), candles aligned to each session's open as on TradingView |
+| `india-replay.html` | the India tab: one Indian trading day at a time from `data/india/1m/`, today live; the Nifty setup (NIFTY 50, GIFT NIFTY and a stock of Nifty's top 5) and the Bank Nifty setup (NIFTY BANK and a stock of its top 5): each market's trend, the shading where its group agrees (Nifty: NIFTY 50, GIFT NIFTY and the top 5 stocks; Bank Nifty: NIFTY BANK and its top 5; a stock: the stock and its index), the 1m and 2m MACD entries and their exits, candles aligned to each session's open as on TradingView |
+| `options.js` | the India tab's option window (the rolling ATM call or put of the trend's side, and "Our trade" while an entry is open) and its 15-second candles (the 30-second MACD the 1m entries exit on), from `data/india/options/`, `data/india/15s/` and the VPS's stream |
 | `commodities.html` | the Commodities tab: MCL / NG (CME, NinjaTrader on the VPS) in step 1 with CRUDEOILM / NATGASMINI (MCX, Dhan) in steps 2 and 3, from `data/futures/1m/` |
 | `engine.js` | the signal calculation |
 | `cme.js` | the CME trading day: where a US chart's day starts, whichever clock Chicago is on |
@@ -43,7 +44,9 @@ Hyperliquid or TradingView.
 | `live.js` | today's live candles of MNQ, MCL, NG, the India markets and the MCX minis from the VPS's stream, the live dot every page shows, and the password box for live prices |
 | `basket.json` | the stocks on offer (the default 10 and the extra 3) and their reference prices |
 | `data/1m/` | Hyperliquid 1-minute candles of the board's markets, one file per UTC day, from the VPS's daily archive (from 18 Oct 2026, that day only from its evening) |
-| `data/india/1m/` | Dhan 1-minute candles of NIFTY, BANKNIFTY, GIFTNIFTY, RELIANCE and HDFCBANK, one file per Indian trading day, from 15 Oct 2026 |
+| `data/india/1m/` | Dhan 1-minute candles of NIFTY, BANKNIFTY, GIFTNIFTY and the eight stocks, one file per Indian trading day, from 15 Oct 2026 |
+| `data/india/options/` | 1-minute candles of the nearest NIFTY and BANKNIFTY option series near the money (from the VPS hub's own bars), and the stocks' (from the VPS's stream's records), one file per root and Indian trading day, from 15 Oct 2026 (the stocks from 11 Nov 2026) |
+| `data/india/15s/` | the 15-second closes of the India markets (the VPS's stream's records), one file per Indian trading day, from 11 Nov 2026 |
 | `data/futures/1m/` | 1-minute candles of MNQ, MCL and NG (NinjaTrader's front month) and CRUDEOILM, NATGASMINI (Dhan, the near month, moving to the next on its expiry day), one file per UTC day, from 15 Oct 2026, with the contract behind each stretch; `rolls.json`: each contract switch, the price gap between the two contracts, and the next switch |
 | `data/live.json` | the address of the VPS's live stream of these markets (`live.js` reads it; the VPS rewrites it when its tunnel restarts) |
 | `divergence.html` | the old Divergence page's address, which now opens the Nasdaq tab's MNQ section |

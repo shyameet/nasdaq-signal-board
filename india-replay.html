@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>India · Indra Quant Signal Board</title>
-<meta name="description" content="Replay past Indian market days: the Nifty setup (NIFTY + GIFT NIFTY, then RELIANCE) and the Bank Nifty setup (BANK NIFTY, then HDFC BANK), with the RDX WIP gate and the sync.">
+<meta name="description" content="Indian option signals: the Nifty and Bank Nifty groups' trend, the 1m and 2m MACD entries and their exits, and the ATM option of the trend's side.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -22,8 +22,9 @@
 <script src="swing.js?v=5"></script>
 <script src="gate.js?v=5"></script>
 <script src="daypick.js?v=3"></script>
-<script src="live.js?v=3"></script>
+<script src="live.js?v=4"></script>
 <script src="draw.js?v=10"></script>
+<script src="options.js?v=1"></script>
 <script src="install.js?v=2"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
@@ -32,10 +33,10 @@
             font: 500 12px var(--font-num); cursor: pointer; }
   .tf-sel:hover { border-color: var(--line-strong); }   /* the official Indra Quant lockup (logo + wordmark), as is */
   .brand .board-name { font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
-  /* India Replay: one Indian trading day at a time, from the VPS's saved Dhan 1-minute candles (data/india/1m/).
-     Nifty setup: NIFTY 50 and GIFT NIFTY must show the same gate (step 1); RELIANCE, which must not already be on that
-     side when step 1 starts, then turns to it (step 2) (the entries E1-E4, step 3, came off: owner 2/11/2026). Each
-     market's gate is from the lines switched on in its Trend and Swing panes (gate.js). Bank Nifty setup: the same with NIFTY BANK alone, then HDFC BANK. */
+  /* India: the owner's option signals (10/11/2026), from the VPS's saved Dhan 1-minute candles (data/india/1m/) and the
+     live stream. Each market's trend from its 1h, 5m, 7m, 9m and 11m waves; the green/red shading = its group agreeing
+     (Nifty: NIFTY 50, GIFT NIFTY and the top 5 stocks; Bank Nifty: NIFTY BANK and its top 5; a stock: the stock and its
+     index); the 1m and 2m MACD entries and their exits on each traded chart; the ATM option window (options.js). */
   :root {
     color-scheme: dark;
     --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
@@ -88,7 +89,12 @@
   .chip .v { font-weight: 600; color: var(--muted); }
   .chip .v.bull { color: var(--up); } .chip .v.bear { color: var(--down); }
   .chip .d { display: none; }
-  #s2 { display: none; }   /* owner 26/10/2026: no step 2 (sync) chip; the steps still run as before */
+  #s2 { display: none; }   /* owner 26/10/2026: no step 2 (sync) chip */
+  /* the chart's own controls in its header (10/11/2026): the option window's button; HDFC Bank and ICICI Bank's check index */
+  .pctl { display: inline-flex; align-items: center; gap: 5px; flex: none; }
+  .pctl .seg button { padding: 1px 6px; font-size: 11px; }
+  .pctl .vs { color: var(--faint); font-size: 11px; }
+  .tag .note30 { color: var(--warn); font-family: var(--font-ui); }
 
   /* ---- the charts ---- */
   /* one big chart, the others as small tiles on the right (owner 24/10/2026); click a tile (or 1 / 2 / 3) to swap */
@@ -107,6 +113,7 @@
   .panel.big .pname { display: none; }   /* the switch in its header shows the name */
   /* drag handles: between the charts, between the tiles, and between a price chart and its MACD panes (double-click: back to the default) */
   .split { position: absolute; z-index: 20; touch-action: none; }
+  .panel > .ow { z-index: 21; }   /* the option window over the handles (options.js) */
   .split::after { content: ""; position: absolute; background: transparent; transition: background .12s; }
   .split:hover::after, .split.on::after { background: var(--accent); }
   .split.col { top: 0; bottom: 0; width: 9px; margin-left: -5px; cursor: col-resize; }
@@ -181,7 +188,7 @@
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
   <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html" aria-current="page">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html">Paper</a></nav>
   <div class="grp" title="Setup"><div class="seg words" id="setupSel" role="group" aria-label="Setup"></div></div>
-  <div class="grp"><select class="tf-sel" id="stockSel" aria-label="Stock traded" title="The stock traded (step 2)"></select></div>
+  <div class="grp"><select class="tf-sel" id="stockSel" aria-label="Stock chart" title="The stock chart (stock trades: HDFC Bank, ICICI Bank, Reliance, Airtel, L&T)"></select></div>
   <div class="grp"><div id="dayPick"></div></div>
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
 </header>
@@ -233,6 +240,41 @@ const SETUPS = {
   nifty: { label: 'Nifty', index: 'NIFTY', gift: 'GIFTNIFTY', get stock() { return pickedStock('nifty'); } },
   bank: { label: 'Bank Nifty', index: 'BANKNIFTY', gift: null, get stock() { return pickedStock('bank'); } },
 };
+// ---- the owner's option signals (10/11/2026: "implement exactly, nothing extra") ---------------------------------------
+// TREND, each market on its own candles, read on candle close: LONG where the waves EMA 8 − EMA 47 and EMA 21 − EMA 47 on the
+// 1-hour, 5m, 7m, 9m and 11m candles are ALL above 0, and the 5m EMA stack too (EMA 21 above EMA 47), SHORT where all are
+// below, NO TRADE otherwise. A wave switched off in the Trend pane stops counting (as every tab since 1/11/2026; the stack
+// always counts); the 15m waves and the Swing pane are shown only here.
+const { LINE, show: SHOW } = NsbMacd;
+LINE.w60a = { tf: 60, label: '1h 8/47', v: b => b.ema8 - b.ema47, pair: ['#FFD180', '#448AFF'] };     // light orange / blue
+LINE.w60b = { tf: 60, label: '1h 21/47', v: b => b.ema21 - b.ema47, pair: ['#A7FFEB', '#FF8A80'] };   // pale aqua / salmon
+LINE.m30s = { tf: 0.5, label: '30s', v: b => b.macd, pair: ['#F8FAFC', '#94A3B8'] };                   // white / slate
+{ let saved = {}; try { saved = JSON.parse(localStorage.getItem('nsb.macd.show')) || {}; } catch (e) {}
+  for (const k of ['w60a', 'w60b', 'm30s']) if (typeof SHOW[k] !== 'boolean') SHOW[k] = typeof saved[k] === 'boolean' ? saved[k] : true; }
+const TREND_LINES = ['w60a', 'w60b', 'w5a', 'w5b', 'w7a', 'w7b', 'w9a', 'w9b', 'w11a', 'w11b'];
+const TREND_PANE = [...NsbMacd.PANES.trend.lines, 'w60a', 'w60b'];  // the Trend pane: 5m to 15m, and the 1h (on a scale of its own)
+for (const l of TREND_LINES) LINE[l].tip = `${LINE[l].label.replace(' ', ' EMA ').replace('/', ' − EMA ')} (left color above 0, right color below): counts for the trend while switched on`;
+for (const l of ['w15a', 'w15b']) LINE[l].tip = `${LINE[l].label.replace(' ', ' EMA ').replace('/', ' − EMA ')}: shown only (not part of this tab's trend)`;
+for (const l of NsbSwing.ALL) if (LINE[l]) LINE[l].tip = `${LINE[l].label.split(' ')[0]} EMA ${LINE[l].label.endsWith('8/47') ? 8 : 21} − EMA 47: shown only on this tab`;
+LINE.m1.tip = '1m MACD (12, 26): the 1m entries (with the 2m and 3m), and the 2m entries\' exit';
+LINE.m2.tip = '2m MACD (12, 26): the 2m entries, and the 1m entries\' 1m > 2m > 3m. Solid: its closed 2-minute candles; dotted: every minute, as if its candle closed then';
+LINE.m3.tip = '3m MACD (12, 26): both entries compare with it. Solid: its closed 3-minute candles; dotted: every minute, as if its candle closed then';
+LINE.m30s.tip = '30-second MACD (12, 26), at each candle\'s close: the 1m entries\' exit (Board Live\'s 15-second candles, from 11/11/2026)';
+// GROUPS: the green/red shading. Nifty trades: NIFTY 50, GIFT NIFTY and Nifty's top 5 stocks by weight all on one side;
+// Bank Nifty trades: NIFTY BANK and its top 5. Stock trades (Nifty's top 5): the stock and its index; HDFC Bank and ICICI
+// Bank compare with Nifty 50 or Nifty Bank (a switch on their chart, each setup its own), the others with Nifty 50
+const GROUPS = { nifty: ['NIFTY', 'GIFTNIFTY', 'HDFCBANK', 'ICICIBANK', 'RELIANCE', 'BHARTIARTL', 'LT'],
+                 bank: ['BANKNIFTY', 'HDFCBANK', 'ICICIBANK', 'KOTAKBANK', 'AXISBANK', 'SBIN'] };
+const TRADE_STOCKS = ['HDFCBANK', 'ICICIBANK', 'RELIANCE', 'BHARTIARTL', 'LT'], CHECK_SWITCH = ['HDFCBANK', 'ICICIBANK'];
+const checkIndex = (setup, stock) => {  // the index a stock's trades check against
+  if (!CHECK_SWITCH.includes(stock)) return 'NIFTY';
+  const v = pref(`check.${setup}.${stock}`, SETUPS[setup].index);
+  return v === 'NIFTY' || v === 'BANKNIFTY' ? v : SETUPS[setup].index;
+};
+const SHORT_NAME = { NIFTY: 'NIFTY', BANKNIFTY: 'BANK', GIFTNIFTY: 'GIFT', HDFCBANK: 'HDFC', ICICIBANK: 'ICICI', RELIANCE: 'REL', BHARTIARTL: 'AIRTEL',
+                     LT: 'L&T', KOTAKBANK: 'KOTAK', AXISBANK: 'AXIS', SBIN: 'SBI' };
+// the entries' and exits' marks: the 1m entries in the board's old 1m MACD colors, the 2m in its 2m ones
+const MARK = { 1: { BULLISH: '#00E5FF', BEARISH: '#FF9100', exit: '#80DEEA' }, 2: { BULLISH: '#00C853', BEARISH: '#FF1744', exit: '#B0BEC5' } };
 const WARM_DAYS = 3;  // saved days before the oldest one shown, for the indicators to settle
 const SHOW_DAYS = 3, MORE_DAYS = 3;  // days shown when a day is picked (it is the newest); days added each time you scroll to the left edge
 const $ = id => document.getElementById(id);
@@ -281,16 +323,34 @@ async function loadFile(key) {  // -> { market: [{ t (ms), o, h, l, c, v }] }
 function runMarket(market, rows, swing) {  // rows: its 1-minute candles over the warm-up days and the day, oldest first; swing: its Swing candles
   const sig = new TrendSignal({ [market]: 1 }, SHOWN, MARKETS[market].origin);
   for (const b of rows) sig.onMemberBar(market, b.t, b.c, b.v);
-  return { sig, swing, gate: () => NsbGate.states(sig, swing, NsbSwing.LINES),
+  return { sig, swing, gate: () => trendOf(sig, swing),
            bars: Object.fromEntries(Object.entries(sig.tfs).map(([m, tf]) => [m, tf.bars])) };
 }
+// The market's TREND (above), minute by minute: Map(minute -> 'BULLISH' | 'BEARISH' | 'NEUTRAL') at each minute's close, from
+// the candles CLOSED by then (the 1h too: its candle counts from the minute that closes it). Worked out again after a switch.
+let toggles = 0;  // bumped by every line switch
+function trendOf(sig, swing) {
+  const h = (swing && swing[60]) || [], key = `${toggles}|${sig.trace.length}|${(sig.trace[sig.trace.length - 1] || {}).t}|${h.length}`;
+  if (sig.trendKey === key) return sig.trendMap;
+  // (the 5m EMA stack, 21 vs 47, counts whatever the switches: "the 5-minute EMA stack still counts")
+  const on = TREND_LINES.filter(l => SHOW[l]), eng = on.filter(l => LINE[l].tf !== 60), hr = on.filter(l => LINE[l].tf === 60), map = new Map(), n = on.length + 1;
+  let k = -1;
+  for (const e of sig.trace) {
+    if (e.state === null) continue;  // the engine not warmed up yet: no trend
+    while (k + 1 < h.length && h[k + 1].end <= e.t + MIN) k++;
+    const b5 = e.b[5], stack = b5 && ok(b5.ema21) && ok(b5.ema47) ? b5.ema21 - b5.ema47 : null;
+    let up = stack > 0 ? 1 : 0, down = stack < 0 ? 1 : 0, bad = !ok(stack);
+    if (!bad) for (const l of eng) { const b = e.b[LINE[l].tf], x = b ? LINE[l].v(b) : null; if (!ok(x)) { bad = true; break; } if (x > 0) up += 1; else if (x < 0) down += 1; }
+    if (!bad) for (const l of hr) { const x = k >= 0 ? LINE[l].v(h[k]) : null; if (!ok(x)) { bad = true; break; } if (x > 0) up += 1; else if (x < 0) down += 1; }
+    map.set(e.t, bad ? 'NEUTRAL' : up === n ? 'BULLISH' : down === n ? 'BEARISH' : 'NEUTRAL');
+  }
+  sig.trendKey = key; sig.trendMap = map;
+  return map;
+}
 
-// ---- the setup ----------------------------------------------------------------------------------------------
-// Each index minute: step 1 (the index trend: NIFTY and GIFT NIFTY's gates agree, or BANK NIFTY's gate), its trend
-// number (trendsOf), and step 2 (the stock synced: on the trend's side, after having been off it since the trend began).
-// A trend: one run of step 1 in one direction. A NO TRADE minute or a turn ends it, and so does a break of more than an
-// hour without candles (overnight, a session break). A quiet minute with no trade (no candle) does not: it is not a
-// NO TRADE reading (owner 24/10/2026; NG often skips minutes).
+// ---- the groups ---------------------------------------------------------------------------------------------
+// A trend run: one stretch of the group agreeing on one side. A NO TRADE minute or a turn ends it, and so does a break of
+// more than an hour without candles (overnight, a session break); a quiet minute with no trade does not (owner 24/10/2026)
 const SESSION_BREAK = 60 * MIN;
 function trendsOf(stateAt) {
   const id = new Map(), keys = [...stateAt.keys()].sort((a, b) => a - b);
@@ -298,47 +358,85 @@ function trendsOf(stateAt) {
   for (const t of keys) {
     const s = stateAt.get(t);
     if (s !== 'BULLISH' && s !== 'BEARISH') { cur = null; continue; }
-    if (!cur || cur.dir !== s || t - cur.last > SESSION_BREAK) cur = { dir: s, id: ++n };
+    if (!cur || cur.dir !== s || t - cur.last > SESSION_BREAK) cur = { dir: s, id: ++n, t };
     cur.last = t;
-    id.set(t, cur.id);
+    id.set(t, cur);
   }
   return id;
 }
-function latestState(gate, t, within = 15) {  // a market's gate at minute t, or its last one shortly before (GIFT can skip quiet minutes)
+function latestState(gate, t, within = 15) {  // a market's trend at minute t, or its last one shortly before (GIFT can skip quiet minutes; the stocks stop at 15:14)
   for (let k = t; k >= t - within * MIN; k -= MIN) { const s = gate.get(k); if (s) return s; }
   return null;
 }
-// Built again after a line switch (each market's gate changes), from the data already loaded
-function setupOf(S, runs, indexMinutes) {
-  const idx = runs[S.index].gate(), gift = S.gift ? runs[S.gift].gate() : null, stk = runs[S.stock].gate();
-  const trend = new Map();  // minute -> step 1 state
-  for (const t of indexMinutes) {
-    const a = idx.get(t);
-    if (!a) continue;
-    if (!gift) { trend.set(t, a); continue; }
-    const b = latestState(gift, t);
-    if (b) trend.set(t, a === b ? a : 'NEUTRAL');
+// members' trends agreeing at minute t: 'BULLISH' all LONG, 'BEARISH' all SHORT, 'NEUTRAL' otherwise, null when none has a
+// trend then (each member's latest within 15 minutes)
+class Align {
+  constructor(members) { this.members = members; this.maps = members.map(m => day.runs[m].gate()); this.memo = new Map(); }
+  at(t) {
+    let s = this.memo.get(t);
+    if (s !== undefined) return s;
+    let got = 0;
+    s = null;
+    for (const g of this.maps) { const x = latestState(g, t); if (x) got += 1; s = s === null ? (x || 'NEUTRAL') : s === x ? s : 'NEUTRAL'; }
+    if (!got) s = null;
+    this.memo.set(t, s);
+    return s;
   }
-  const ids = trendsOf(trend), at = new Map(), syncs = [], starts = [];
-  let cur = null;  // the trend being followed: { id, dir, start, last, armed, synced, since, told }
-  for (const t of indexMinutes) {
-    const id = ids.get(t), s = stk.get(t) || 'NEUTRAL';  // no stock candle (after 15:14): off the trend's side
-    if (cur && id === undefined) cur = null;  // a NO TRADE minute ends the trend
-    if (id !== undefined && (!cur || cur.id !== id)) {  // a new trend: the stock must be the odd man out first
-      cur = { id, dir: trend.get(t), start: t, last: t, armed: s !== trend.get(t), synced: false, since: null, told: false };
-      starts.push({ t, dir: cur.dir });
+  each(t) { return this.members.map((m, i) => [m, t === null ? null : latestState(this.maps[i], t)]); }
+}
+let alignVer = 0;
+function alignAll() {  // the group and the stock's check, from the markets' trends now
+  const S = day.setup;
+  day.align = { group: new Align(GROUPS[opt.setup]),
+                stock: TRADE_STOCKS.includes(S.stock) ? new Align([S.stock, checkIndex(opt.setup, S.stock)]) : null };
+  alignVer += 1;
+}
+// The entries on one market's chart, read at each minute's close on the MACD 12/26 LINE of the closed candles (the Entry
+// pane's solid lines), only while its trend (alignAt: the group) is on that side:
+//   1m entry  LONG: the 1m line crosses above 0 while 1m > 2m > 3m; SHORT: crosses below 0 while 1m < 2m < 3m
+//   2m entry  LONG: the 2m line crosses above 0 (at its candle's close) while 2m > 3m; SHORT: the mirror
+// Exits: a 1m entry's where the 30-second MACD line crosses back through 0 after it (NsbSub; none until 30 s data exists:
+// the entry is shown alone), a 2m entry's where the 1m line does. One trade of each kind at a time: an entry while one is
+// open is skipped. -> [{ kind: 1 | 2, dir, t: the entry's minute (ms), exit: { t: when (ms), m: its candle's minute } | null,
+// noExit: no 30 s data then, end: the last minute it is open (Infinity: still open) }], in time order
+const cross = (x, p) => !ok(x) || !ok(p) ? null : x > 0 && p <= 0 ? 'BULLISH' : x < 0 && p >= 0 ? 'BEARISH' : null;
+function signalsOf(market, alignAt) {
+  const tr = day.runs[market].sig.trace, s30 = NsbSub.bars(market), out = [];
+  const exit30 = (dir, T) => {  // when the 30 s line crosses back after T (ms); null: not yet; undefined: no 30 s data at T
+    let lo = 0, hi = s30.length - 1, k = -1;
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (s30[mid].end <= T) { k = mid; lo = mid + 1; } else hi = mid - 1; }
+    if (k < 0 || T - s30[k].end >= MIN || !ok(s30[k].macd)) return undefined;
+    let prev = s30[k].macd;
+    for (let i = k + 1; i < s30.length; i++) { const x = s30[i].macd, c = cross(x, prev); if (c && c !== dir) return s30[i].end; prev = x; }
+    return null;
+  };
+  let p1 = null, p2 = null, b2was = null, open1 = null, open2 = null;
+  for (const e of tr) {
+    const b1 = e.b[1], b2 = e.b[2], b3 = e.b[3], m1 = b1 ? b1.macd : null, m2 = b2 ? b2.macd : null, m3 = b3 ? b3.macd : null, T = e.t + MIN;
+    const c1 = cross(m1, p1);
+    if (open2 && c1 && c1 !== open2.dir) { open2.exit = { t: T, m: e.t }; open2 = null; }
+    if (open1 && open1.exit && open1.exit.t <= T) open1 = null;
+    if (c1 && ok(m2) && ok(m3) && (c1 === 'BULLISH' ? m1 > m2 && m2 > m3 : m1 < m2 && m2 < m3) && alignAt(e.t) === c1 && !open1) {
+      const x = exit30(c1, T), sg = { kind: 1, dir: c1, t: e.t, exit: x ? { t: x, m: Math.floor((x - 1) / MIN) * MIN } : null, noExit: x === undefined };
+      out.push(sg);
+      if (!sg.noExit) open1 = sg;
     }
-    if (cur) {  // inside a gap the stock is still followed: if the trend resumes, what it did meanwhile counts
-      if (s !== cur.dir) { cur.armed = true; cur.synced = false; cur.told = false; }
-      else if (cur.armed && !cur.synced) { cur.synced = true; cur.since = t; }
-      if (id !== undefined) cur.last = t;
+    p1 = m1;
+    if (b2 && b2 !== b2was) {
+      const c2 = cross(m2, p2);
+      if (c2 && ok(m3) && (c2 === 'BULLISH' ? m2 > m3 : m2 < m3) && alignAt(e.t) === c2 && !open2) { open2 = { kind: 2, dir: c2, t: e.t, exit: null, noExit: false }; out.push(open2); }
+      p2 = m2; b2was = b2;
     }
-    const on = id !== undefined;
-    if (on && cur.synced && !cur.told) { cur.told = true; syncs.push({ t, dir: cur.dir }); }  // a sync counts while step 1 is on
-    at.set(t, { trend: trend.get(t) || null, step1: on ? cur.dir : null, id: on ? id : null, synced: on && cur.synced,
-                since: on && cur.synced ? cur.since : null, start: on ? cur.start : null });
   }
-  return { trend, at, syncs, starts };
+  // the last minute each is open: its exit's; a 1m entry without 30 s data: until the next 1m entry or its session's end
+  const ones = out.filter(x => x.kind === 1);
+  for (const x of out) {
+    if (x.exit) { x.end = x.exit.m; continue; }
+    if (!x.noExit) { x.end = Infinity; continue; }
+    const next = ones.find(y => y.t > x.t), close = istMidnight(new Date(x.t + IST).toISOString().slice(0, 10)) + 15 * 3600000 + 29 * MIN;
+    x.end = Math.min(next ? next.t - MIN : Infinity, close);
+  }
+  return out;
 }
 
 // ---- building a day -----------------------------------------------------------------------------------------
@@ -350,8 +448,10 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const seq = ++builds, i = DAYS.indexOf(key), first = Math.max(0, i - shown + 1), keys = DAYS.slice(Math.max(0, first - WARM_DAYS), i + 1);
   if (!quiet) loading(`Loading ${key}…`);
   const ahead = Promise.all(liveMarkets().map(m => NsbSwing.series(swingOf(m), []).catch(() => null)));  // the Swing pane's long candles fetched meanwhile
+  const subs = NsbSub.load(keys).catch(() => null);  // the 15 s candles (the 1m entries' exits), where saved
   let files = null, err = null;
   try { files = await Promise.all(keys.map(loadFile)); } catch (e) { err = e; }
+  await subs;
   if (seq !== builds) return false;  // stale: dropped, even its error
   if (err) throw err;
   const S = { ...SETUPS[opt.setup] };
@@ -359,7 +459,7 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   // (reading 'filter'))": a picked stock that had no candles when the page opened - the saved day slow or failing to load -
   // turned up with the live stream, and the day was built for it while the stock chart still showed the first stock)
   if (panels.stock) S.stock = panels.stock.market;
-  const markets = [S.index, S.gift, S.stock].filter(Boolean);
+  const markets = neededMarkets(opt.setup, S.stock);
   const rows = {};
   for (const m of markets) {
     const byT = new Map();
@@ -377,8 +477,8 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const open = k => istMidnight(k) + 6 * 3600000 + 30 * MIN;
   const d0 = open(DAYS[first]), lastD0 = open(key), d1 = lastD0 + DAY;
   const indexMinutes = rows[S.index].map(b => b.t);
-  day = { key, d0, d1, lastD0, shown: i - first + 1, more: first > 0, setup: S, rows, runs, indexMinutes, warm: keys.length - 1 - (i - first), swing };
-  day.setupRun = setupOf(S, runs, indexMinutes);
+  day = { key, d0, d1, lastD0, shown: i - first + 1, more: first > 0, setup: S, rows, runs, indexMinutes, warm: keys.length - 1 - (i - first), swing, keys };
+  alignAll();
   const inDay = b => b.t >= d0 && b.t < d1;
   day.price = Object.fromEntries(markets.map(m => [m, rows[m].filter(inDay).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }))]));
   day.nse = day.price[S.index].length > 0;
@@ -421,7 +521,7 @@ class Panel {
     $('board').insertAdjacentHTML('beforeend', `
       <section class="panel ${cls}" id="${key}">
         <div class="phead">
-          <span class="pname">${MARKETS[market].name}</span><span class="pval" id="${key}-val">—</span>
+          <span class="pname">${MARKETS[market].name}</span><span class="pval" id="${key}-val">—</span><span class="pctl" id="${key}-ctl"></span>
           <span class="gk">Gate</span><span class="gw" id="${key}-gate">—</span>
           <span class="conds" id="${key}-conds"></span>
           <span class="warm" id="${key}-warm"></span>
@@ -458,7 +558,27 @@ class Panel {
       el: $(`${key}-p${k}`), tagEl: $(`${key}-t${k}`), kind: k, name: '', digits: 3, options: options(false, false), origin: this.origin,
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.src,
       shade: i => this.waveAt(i),  // every pane as its price chart (owner 2/11/2026)
+      // the Trend pane: the 1h waves too, on a scale of their own (their size flattened the others); the Entry pane: the 30 s line once it has data
+      ...(k === 'trend' ? { lines: TREND_PANE, scales: { w60a: 'hs', w60b: 'hs' } } : k === 'entry' ? { widths: { m30s: 1 } } : {}),
     });
+    // the traded charts (10/11/2026): Nifty and Bank Nifty, and Nifty's top 5 stocks; their option window (options.js)
+    this.traded = role === 'index' || (role === 'stock' && TRADE_STOCKS.includes(market));
+    this.signals = [];
+    if (this.traded) {
+      const ctl = $(`${key}-ctl`);
+      if (role === 'stock' && CHECK_SWITCH.includes(market)) {
+        ctl.insertAdjacentHTML('beforeend', `<span class="vs">vs</span><span class="seg words" id="${key}-chk" title="The index ${MARKETS[market].name}'s trades check against"></span>`);
+        seg($(`${key}-chk`), [['Nifty 50', 'NIFTY'], ['Nifty Bank', 'BANKNIFTY']], checkIndex(opt.setup, market), v => {
+          save(`check.${opt.setup}.${market}`, v);
+          if (!day || !day.runs[v]) return;
+          alignAll(); restateAll();
+        });
+      }
+      ctl.insertAdjacentHTML('beforeend', `<button type="button" class="owbtn" id="${key}-ob">Option</button>`);
+      this.win = new NsbOpt.Window($(key), `${opt.setup}.${role}`, MARKETS[market].name, market, {
+        options, digits: MARKETS[market].digits, origin: this.origin, tf: () => opt.tf, btn: $(`${key}-ob`),
+        alignAt: t => this.alignAt(t), dirAt: t => this.dirAt(t), num, hhmm });
+    }
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
     this.main.timeScale().subscribeVisibleLogicalRangeChange(r => {
       for (const p of Object.values(this.macd)) p.sync(r);
@@ -528,26 +648,53 @@ class Panel {
   // chart was shaded before 2/11/2026 (its own Trend waves), now with the Swing lines switched on too (the setup's states,
   // mainStates, stay for the readout)
   waveAt(i) { return (this.gates || [])[i] || null; }
-  remove() { this.gone = true; for (const x of this.prims) try { this.candles.detachPrimitive(x); } catch (e) {} this.drawing.remove(); this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
-  shadeAt(t, gate) {  // the state a candle is shaded by, at minute t (gate: the market's gate, for GIFT NIFTY)
-    if (this.role === 'gift') return gate.get(t) || null;
-    const s = day.setupRun.at.get(t);
-    if (!s) return null;
-    if (this.role === 'index') return s.trend;
-    return s.synced ? s.step1 : null;  // the stock: where step 2 holds
+  remove() { this.gone = true; if (this.win) this.win.remove(); for (const x of this.prims) try { this.candles.detachPrimitive(x); } catch (e) {} this.drawing.remove(); this.main.remove(); for (const p of Object.values(this.macd)) p.chart.remove(); $(this.key).remove(); }
+  // the trend this chart is shaded by and its entries need, at minute t: NIFTY 50 and GIFT NIFTY the Nifty group, NIFTY BANK
+  // the Bank Nifty group, a traded stock the stock with its index, another stock (Kotak, Axis, SBI) its own trend
+  alignAt(t) {
+    if (!day || !day.align) return null;
+    if (this.role === 'index' || this.role === 'gift') return day.align.group.at(t);
+    if (day.align.stock && this.traded) return day.align.stock.at(t);
+    return day.runs[this.market] ? latestState(day.runs[this.market].gate(), t) : null;
   }
-  restate() {  // each candle's state at its last finished minute: on a draw and after a line switch (the gates change)
+  dirAt(t) {  // the last LONG or SHORT of alignAt at or before t (the option window's side when there is no trend now)
+    if (!this.dirList || this.dirVer !== alignVer) {
+      this.dirList = []; this.dirVer = alignVer;
+      for (const b of day.rows[this.market] || []) { const s = this.alignAt(b.t); if (s === 'BULLISH' || s === 'BEARISH') this.dirList.push([b.t, s]); }
+    }
+    const a = this.dirList;
+    let lo = 0, hi = a.length - 1, hit = null;
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (a[mid][0] <= t) { hit = a[mid][1]; lo = mid + 1; } else hi = mid - 1; }
+    return hit;
+  }
+  restate() {  // each candle's state at its last finished minute: on a draw and after a line switch (the trends change)
     const tf = opt.tf, o = this.origin, gate = day.runs[this.market].gate();
-    this.mainStates = this.mainBars.map(b => {
-      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { const s = this.shadeAt(t, gate); if (s) return s; }
+    this.gates = this.mainBars.map(b => {  // the shading: alignAt at the candle's last finished minute
+      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { const s = this.alignAt(t); if (s) return s === 'NEUTRAL' ? null : s; }
       return null;
     });
-    this.gates = this.mainBars.map(b => {  // the market's own gate at the candle's last finished minute (the shading)
-      for (let t = bucketEnd(b.time, tf, o) - MIN; t >= b.time; t -= MIN) { const s = gate.get(t); if (s) return s; }
-      return null;
-    });
+    this.mainStates = this.gates;
     this.mainBars.forEach((b, i) => { const q = this.store.get(sec(b.time)); if (q) q.state = this.mainStates[i]; });
+    this.signals = this.traded ? signalsOf(this.market, t => this.alignAt(t)) : [];
     return gate;
+  }
+  setMarkers() {  // the entries (arrows: 1m and 2m) and their exits (×), on the traded charts
+    const m = [], at = t => sec(bucketStart(t, opt.tf, this.origin)), has = t => this.store.has(t);
+    for (const x of this.signals) {
+      const up = x.dir === 'BULLISH', t = at(x.t);
+      if (has(t)) m.push({ time: t, position: up ? 'belowBar' : 'aboveBar', color: MARK[x.kind][x.dir], shape: up ? 'arrowUp' : 'arrowDown', text: `${x.kind}m` });
+      if (x.exit) { const u = at(x.exit.m); if (has(u)) m.push({ time: u, position: up ? 'aboveBar' : 'belowBar', color: MARK[x.kind].exit, shape: 'circle', text: '×' }); }
+    }
+    m.sort((a, b) => a.time - b.time);
+    this.candles.setMarkers(m);
+  }
+  has30() { return NsbSub.bars(this.market).some(b => b.time >= day.d0 && b.time < day.d1 && ok(b.macd)); }
+  winUpdate() {  // the option window: the strip's minutes, its days, the entries
+    if (!this.win) return;
+    const today = day.key === TODAY_KEY() ? day.key : null;
+    this.win.update({ under: (day.rows[this.market] || []).map(b => ({ time: b.t, close: b.c })), keys: day.keys, shownFrom: day.d0, today,
+                      trades: this.signals.map(x => ({ ...x, color: MARK[x.kind][x.dir] })),
+                      note: this.role === 'stock' ? `${MARKETS[this.market].name} options: recorded from ${NsbOpt.FIRST.slice(8)}/${+NsbOpt.FIRST.slice(5, 7)}` : `No ${MARKETS[this.market].name} option candles for these days` });
   }
   draw() {
     const upto = Infinity, tf = opt.tf, o = this.origin;
@@ -563,8 +710,13 @@ class Panel {
     this.src = Object.fromEntries([
       ...Object.entries(run.bars).map(([m, bars]) => [m, bars.filter(b => b.time < day.d1 && bucketEnd(b.time, +m, o) <= upto)]),
       ...Object.entries(day.swing[this.market] || {}).map(([m, bars]) => [m, live ? bars : bars.filter(b => b.end <= day.d1)])]);
+    // the 30-second MACD (NsbSub), for the Entry pane's 30 s line: shown once the strip has some
+    this.src[0.5] = NsbSub.bars(this.market).filter(b => b.end <= day.d1);
+    if (this.macd.entry) this.macd.entry.setLines(this.has30() ? ['m1', 'm2', 'm3', 'm30s'] : ['m1', 'm2', 'm3']);
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
     this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
+    this.setMarkers();
+    this.winUpdate();
     this.setEmas();
     for (const p of Object.values(this.macd)) { p.digits = MARKETS[this.market].macdDigits; p.update(); p.showLines(); }
     this.main.applyOptions({ watermark: { text: `${MARKETS[this.market].name} · ${tf}m` } });
@@ -598,10 +750,8 @@ class Panel {
     const firstBar = day.price[this.market].length ? day.price[this.market][0].time : Infinity;
     $(`${this.key}-warm`).textContent = first === Infinity && firstBar < Infinity ? 'not enough earlier days for the indicators'
       : first > firstBar ? `warming up until ${hhmm(first)}` : '';
-    if (this.role === 'index') {
-      const s = day.setupRun.at.get(at) || day.setupRun.at.get(nearestIndexMinute(at));
-      $(`${this.key}-extra`).innerHTML = day.setup.gift ? `Step 1 <span class="gw ${kind(s && s.trend)}">${s && s.trend ? WORD[s.trend] : '—'}</span>` : '';
-    } else $(`${this.key}-extra`).innerHTML = '';
+    $(`${this.key}-extra`).innerHTML = '';  // (owner 10/11/2026: no LONG/SHORT label; the shading shows the trend)
+    if (this.win) this.win.at(t);
   }
   tags(t) {
     const b = t !== undefined ? this.store.get(t) : this.mainBars.length ? { ...this.mainBars[this.mainBars.length - 1], state: this.mainStates[this.mainStates.length - 1] } : null;
@@ -611,7 +761,8 @@ class Panel {
       for (const p of this.emaPts) if (p.time <= sec(b.time)) e = p; else break;
       $(`${this.key}-tmain`).innerHTML = `<b>${MARKETS[this.market].name}</b><span>${opt.tf}m</span>${t !== undefined ? `<span>${when(b.time)}</span>` : ''}`
         + `<span>O <b>${num(b.open, d)}</b> H <b>${num(b.high, d)}</b> L <b>${num(b.low, d)}</b> C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close, d)}</b></span>`
-        + (e ? NsbMacd.emaTag(e, v => num(v, d)) : '');
+        + (e ? NsbMacd.emaTag(e, v => num(v, d)) : '')
+        + (this.traded && !this.has30() ? `<span class="note30" title="The 1m entries exit on the 30-second MACD: Board Live records 15-second candles from 11/11/2026, so the 1m entries before then show no exit">30s exit: data from ${NsbOpt.FIRST.slice(8)}/${+NsbOpt.FIRST.slice(5, 7)}</span>` : '');
     } else $(`${this.key}-tmain`).innerHTML = `<b>${MARKETS[this.market].name}</b><span>no candles this day</span>`;
     for (const p of Object.values(this.macd)) { p.name = MARKETS[this.market].name; p.tag(t); }
   }
@@ -818,30 +969,29 @@ function select(key) {  // another chart big, on the same view
   showView(v);
 }
 
-// ---- the strip: where the setup stands -----------------------------------------------------------------------
+// ---- the strip: the group's trend --------------------------------------------------------------------------------
 const stamp = t => day.shown > 1 ? `${WKD[new Date(t + IST).getUTCDay()]} ${hhmm(t)}` : hhmm(t);  // a time, with its day on a strip of days
 function showStrip(t) {
-  const S = day.setup, st = day.setupRun, names = S.gift ? 'NIFTY + GIFT' : 'BANK NIFTY', stock = MARKETS[S.stock].name;
-  const set = (k, cls, v, d) => { $(`${k}v`).className = 'v ' + cls; $(`${k}v`).textContent = v; $(`${k}d`).textContent = d;
-                                  $(k).title = `Step ${k[1]} · ${['Trend', 'Sync'][k[1] - 1]}: ${v}${d ? ' · ' + d : ''}`; };
-  if (!day.nse) { set('s1', 'wait', 'NSE closed', 'no NSE candles this day'); set('s2', 'wait', '—', ''); return; }
-  if (t === undefined) {  // the day as a whole
-    const inDay = x => x.t >= day.d0 && x.t < day.d1;
-    const trends = st.starts.filter(inDay), syncs = st.syncs.filter(inDay);
-    set('s1', 'wait', `${trends.length} trend${trends.length === 1 ? '' : 's'}`, trends.map(x => `${WORD[x.dir]} ${stamp(x.t)}`).join(' · ') || `${names}: no trend`);
-    set('s2', 'wait', `${syncs.length} sync${syncs.length === 1 ? '' : 's'}`, syncs.map(x => `${WORD[x.dir]} ${stamp(x.t)}`).join(' · ') || `${stock} never synced`);
+  const g = day.align.group, name = `${day.setup.label} group`;
+  const set = (cls, v, d) => { $('s1v').className = 'v ' + cls; $('s1v').textContent = v; $('s1d').textContent = d; $('s1').title = `${name} · ${v}${d ? ' · ' + d : ''}`; };
+  if (!day.nse) { set('wait', 'NSE closed', 'no NSE candles this day'); return; }
+  if (t === undefined) {  // the days shown: each stretch of the whole group on one side
+    const at = new Map(day.indexMinutes.filter(x => x >= day.d0 && x < day.d1).map(x => [x, g.at(x)]));
+    const runs = [...new Set(trendsOf(at).values())];
+    set('wait', `${runs.length} trend${runs.length === 1 ? '' : 's'}`, runs.map(x => `${x.dir === 'BULLISH' ? '▲' : '▼'} ${stamp(x.t)}–${hhmm(x.last + MIN)}`).join(' · ') || 'the group never agreed');
     return;
   }
-  const at = t, k = nearestIndexMinute(at), s = k !== null ? st.at.get(k) : null;
-  if (!s || !s.step1) {
-    set('s1', 'wait', s && s.trend ? WORD[s.trend] : 'No trend', s && S.gift ? `NIFTY ${WORD[day.runs.NIFTY.gate().get(k)] || '—'} · GIFT ${WORD[latestState(day.runs.GIFTNIFTY.gate(), k)] || '—'}` : '');
-    set('s2', 'wait', 'Needs step 1', '');
-  } else {
-    set('s1', kind(s.step1), WORD[s.step1], `${names} since ${hhmm(s.start)}${s.trend !== s.step1 ? ' · now NO TRADE (gap)' : ''}`);
-    const ss = day.runs[S.stock].gate().get(k);
-    if (s.synced) set('s2', kind(s.step1), `${stock} synced`, `at ${hhmm(s.since)}`);
-    else set('s2', 'wait', `Waiting for ${stock}`, `${stock}: ${ss ? WORD[ss] : 'no candle'}${ss === s.step1 ? ' (was already on this side: must leave first)' : ''}`);
+  const k = nearestIndexMinute(t), s = k !== null ? g.at(k) : null;
+  set(kind(s), s === 'BULLISH' ? 'Group ▲' : s === 'BEARISH' ? 'Group ▼' : 'No trend',
+      g.each(k).map(([m, x]) => `${SHORT_NAME[m] || m} ${x === 'BULLISH' ? '▲' : x === 'BEARISH' ? '▼' : '◆'}`).join(' '));
+}
+function restateAll() {  // the trends changed (a switch, a stock's check index): shading, entries, marks, windows, headers
+  for (const p of Object.values(panels)) {
+    if (day && p.mainBars.length) { p.restate(); p.setMarkers(); p.winUpdate(); }
+    for (const pane of Object.values(p.macd)) pane.showLines();
+    p.zones.update();
   }
+  refreshText();
 }
 
 // ---- drawing --------------------------------------------------------------------------------------------------
@@ -872,7 +1022,7 @@ function refit() {  // the whole day again once the charts have their final size
   go(); requestAnimationFrame(() => requestAnimationFrame(go)); setTimeout(go, 150);
 }
 function refreshText() {
-  for (const p of Object.values(panels)) { p.tags(); p.head(); }
+  for (const p of Object.values(panels)) { p.tags(); p.head(); if (p.win) p.win.place(); }  // (the window's default place is under the chart's label)
   showStrip();
 }
 // ---- controls ----------------------------------------------------------------------------------------------
@@ -933,7 +1083,14 @@ async function openDay(key, quiet = false) {
 // the day). Its newest candle moves with every tick; when a minute closes the day is rebuilt with it, so the gate and the
 // steps change only at a candle's close (owner 25/10). The dot in the top bar says if the stream is live.
 let liveTextAt = 0, liveTimer = 0, liveSoon = 0;
-function liveMarkets() { const S = SETUPS[opt.setup]; return [S.index, S.gift, S.stock].filter(Boolean); }
+// every market a setup needs: its charts', the group's, and a traded stock's check index (HDFC Bank, ICICI Bank: both indices)
+function neededMarkets(setup, stock) {
+  const S = SETUPS[setup], out = [S.index, S.gift, stock, ...GROUPS[setup]];
+  if (TRADE_STOCKS.includes(stock)) out.push(...(CHECK_SWITCH.includes(stock) ? ['NIFTY', 'BANKNIFTY'] : ['NIFTY']));
+  return [...new Set(out.filter(Boolean))];
+}
+function liveMarkets() { return neededMarkets(opt.setup, panels.stock ? panels.stock.market : SETUPS[opt.setup].stock); }
+function chartMarkets() { const S = SETUPS[opt.setup]; return [S.index, S.gift, panels.stock ? panels.stock.market : S.stock].filter(Boolean); }
 function liveAddToday() {  // true when today was added (and opened, if you were on the newest day)
   const k = TODAY_KEY();
   if (!k || DAYS.includes(k) || !liveMarkets().some(m => NsbLive.has(m))) return false;
@@ -948,6 +1105,7 @@ function liveForming(m) {  // market m's forming minute, drawn on top of today's
   return [{ time: cur.t, open: cur.o, high: cur.h, low: cur.l, close: cur.c, volume: cur.v }];
 }
 function liveTick(s) {  // the newest candle of the charts showing market s, at its latest price, between rebuilds
+  if (!Object.values(panels).some(p => p.market === s)) return;  // (an option's or another market's tick)
   const cur = NsbLive.cur(s);
   if (!cur || !day || day.key !== TODAY_KEY()) return;
   for (const p of Object.values(panels)) {
@@ -1011,9 +1169,20 @@ const loading = text => {
 // a switch: each market's gate again (gate.js), so the steps and trends (from the data already loaded), every shading,
 // the strip and the headers change at once
 NsbMacd.onToggle(() => {
-  if (day) day.setupRun = setupOf(day.setup, day.runs, day.indexMinutes);
-  for (const p of Object.values(panels)) { if (day && p.mainBars.length) p.restate(); for (const pane of Object.values(p.macd)) pane.showLines(); p.zones.update(); }
-  refreshText();
+  toggles += 1;
+  if (day) alignAll();
+  restateAll();
+});
+// live (today): a 15-second candle closed (the 1m entries' exits, the 30 s line), an option's candles moved (the window)
+let subSoon = 0;
+NsbSub.on(s => {
+  if (!day || day.key !== TODAY_KEY() || !chartMarkets().includes(s) || subSoon) return;
+  subSoon = setTimeout(() => { subSoon = 0; if (!day || olderBusy || loadingNow) return; for (const p of Object.values(panels)) if (p.mainBars.length) p.draw(); refreshText(); }, 2000);
+});
+let optSoon = 0;
+NsbOpt.onLive(() => {
+  if (!day || day.key !== TODAY_KEY() || optSoon) return;
+  optSoon = setTimeout(() => { optSoon = 0; for (const p of Object.values(panels)) if (p.win) p.winUpdate(); }, 3000);
 });
 (async () => {
   try {
@@ -1028,6 +1197,7 @@ NsbMacd.onToggle(() => {
     buildPanels();
     await openDay(DAYS[DAYS.length - 1]);
     NsbLive.start('VPS live stream', liveMarkets); everyMinute();  // and today, live
+    NsbSub.live(chartMarkets());  // and the charts' 15-second candles (asked again after each reconnect)
   } catch (e) {
     loading(`Couldn't load the India data (${e.message}). Reload the page to try again.`);
   }
