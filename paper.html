@@ -13,8 +13,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="paper.css?v=3">
-<script src="paper.js?v=3" defer></script>
+<link rel="stylesheet" href="paper.css?v=4">
+<script src="paper.js?v=4" defer></script>
 </head>
 <body>
 <header class="topbar" id="bar">
@@ -44,16 +44,24 @@
     <div id="accts"><div class="empty">Waiting for the feed…</div></div>
   </section>
 
+  <section id="rules-sec" aria-labelledby="h-rules">
+    <h2 id="h-rules">Buying rules <small id="rules-sub"></small></h2>
+    <div class="leg" aria-hidden="true"><span><i class="sw got"></i>bought</span><span><i class="sw plan"></i>planned</span><span>– no buy that session</span>
+      <span>Each buy is one evaluation of each kind: Scalper 50K, Scalper 25K, Gold 50K, Gold 25K.</span></div>
+    <div class="rules" id="rules"><div class="empty">Waiting for the feed…</div></div>
+  </section>
+
   <section id="cal-sec" aria-labelledby="h-cal">
-    <h2 id="h-cal">Calendar <small>one row an account, one square a session · colour = the day's P&amp;L · tap a square for that day's trades</small></h2>
-    <div id="cal"><div class="empty">Waiting for the feed…</div></div>
-    <div class="legend" aria-hidden="true"><span><i class="sq-l down" style="--a:.9"></i><i class="sq-l down" style="--a:.45"></i><i class="sq-l zero"></i><i class="sq-l up" style="--a:.45"></i><i class="sq-l up" style="--a:.9"></i> loss … profit</span><span>▲ passed</span><span>✕ failed</span><span>◆ payout</span></div>
+    <h2 id="h-cal">Calendar <small>one block a buying rule · tap a day for its trades</small></h2>
+    <div class="leg" aria-hidden="true"><span><i class="sw k-up"></i>up day</span><span><i class="sw k-down"></i>down day</span><span><i class="sw k-flat"></i>no trade yet</span>
+      <span><i class="sw nb"></i>not bought yet</span><span>A session runs from 17:00 CT the evening before to 16:00 CT: Mon = Sun 17:00 to Mon 16:00.</span></div>
+    <div id="cal" class="calr"><div class="empty">Waiting for the feed…</div></div>
     <div class="day" id="day" hidden></div>
   </section>
 
   <section id="tr-sec" aria-labelledby="h-tr">
-    <h2 id="h-tr">Live trades <small>every entry and exit, newest first · times in Chicago (CT)</small></h2>
-    <div id="trades"><div class="empty">Waiting for the feed…</div></div>
+    <h2 id="h-tr">Live trades <small>one row a whole trade, newest session first · times in Chicago (CT)</small></h2>
+    <div id="trades" class="trs"><div class="empty">Waiting for the feed…</div></div>
   </section>
 
   <p class="foot">PAPER ONLY - Sim, no real money: NinjaTrader Sim accounts and a simulator on the VPS, Lucid Flex rules. No real

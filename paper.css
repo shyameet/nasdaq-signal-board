@@ -1,6 +1,6 @@
 /* Lucid paper week: the live PAPER page (owner 8/11/2026, D6: on the Signal Board site, noindex; in the board's tab row since 9/11;
    redesign 10/11/2026, the owner's approved layout: summary strip, live now (the 4 bots), all paper accounts, calendar heatmap,
-   live trades). The board's own tokens (dark, as every tab); a light set for a light-mode device. The top bar stays dark in both,
+   live trades; 10/11/2026 the owner's picks from the design canvas: Rules A, Calendar A, Trades A). The board's own tokens (dark, as every tab); a light set for a light-mode device. The top bar stays dark in both,
    so the logo reads as on every tab. */
 :root {
   color-scheme: dark;
@@ -137,31 +137,86 @@ h2 small { font-size: 11.5px; font-weight: 500; letter-spacing: 0; text-transfor
 .atbl tr.done td.c-id { color: var(--muted); }
 .atbl .halt { display: block; color: var(--faint); font: 500 10.5px var(--font-ui); }
 
-/* ---- 4. the calendar heatmap ---- */
-.cal-scroll { width: fit-content; max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
-.hm { border-collapse: separate; border-spacing: 3px; padding: 4px 6px; font-size: 12px; }
-.hm th { font-weight: 500; }
-.hm thead th { padding: 2px 0 4px; color: var(--muted); font-size: 10.5px; line-height: 1.2; text-align: center; min-width: 28px; }
-.hm thead th.now { color: var(--text); font-weight: 700; }
-.hm th.hl { position: sticky; left: 0; z-index: 1; padding: 0 10px 0 2px; background: var(--surface); color: var(--text);
-            font: 500 11.5px var(--font-num); text-align: left; white-space: nowrap; }
-.hm tr.grp th { padding: 8px 2px 2px; background: var(--surface); color: var(--muted); font: 700 10.5px var(--font-ui);
-                letter-spacing: .06em; text-transform: uppercase; text-align: left; position: sticky; left: 0; }
-.hm td { padding: 0; }
-.sq { display: flex; align-items: center; justify-content: center; width: 34px; height: 26px; padding: 0; border: 0; border-radius: 5px;
-      background: var(--tile-2); color: var(--text); font-size: 12px; font-weight: 700; line-height: 1; cursor: pointer;
-      text-shadow: 0 0 3px rgba(0, 0, 0, .55); }
-.sq.up { background: rgba(var(--up-rgb), var(--a, .5)); }
-.sq.down { background: rgba(var(--down-rgb), var(--a, .5)); }
-.sq.zero { background: var(--tile-2); }
-.sq.live { box-shadow: inset 0 0 0 1px var(--muted); }
-.sq.sel { outline: 2px solid var(--accent); outline-offset: 1px; }
-.sq-none { display: block; width: 34px; height: 26px; border-radius: 5px; border: 1px dashed var(--line); }
-.hm thead th { min-width: 34px; }
-.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; color: var(--muted); font-size: 11.5px; }
-.legend span { display: inline-flex; align-items: center; gap: 3px; }
-.sq-l { display: inline-block; width: 14px; height: 12px; border-radius: 3px; }
-.sq-l.up { background: rgba(var(--up-rgb), var(--a)); } .sq-l.down { background: rgba(var(--down-rgb), var(--a)); } .sq-l.zero { background: var(--tile-2); }
+/* ---- shared by the rules, the calendar and the trades (10/11/2026 the owner's picks: Rules A, Calendar A, Trades A) ---- */
+.lbl2 { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.lbl2.r, .r { text-align: right; }
+.lbl2.warn { color: var(--warn); }
+.leg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin-bottom: 10px; color: var(--muted); font-size: 12px; }
+.leg span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { display: inline-block; flex: none; width: 16px; height: 12px; border-radius: 3px; border: 1px solid var(--line-strong); }
+.sw.got { background: rgba(91, 140, 255, .16); border-color: var(--accent); }
+.sw.plan, .sw.nb { border-style: dashed; border-color: var(--muted); }
+.sw.k-up { background: rgba(var(--up-rgb), .14); border-color: rgba(var(--up-rgb), .5); }
+.sw.k-down { background: rgba(var(--down-rgb), .14); border-color: rgba(var(--down-rgb), .55); }
+.sw.k-flat { background: var(--tile); }
+
+/* ---- 3b. the buying rules: three cards ---- */
+.rules { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+.rcard { min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 10px;
+         background: var(--surface); }
+.rc-h { display: flex; flex-direction: column; gap: 6px; }
+.rk { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.rc-h h3 { margin: 0; font-size: 18px; font-weight: 600; text-wrap: balance; }
+.rc-h p { margin: 0; min-height: 5.8em; color: var(--muted); }
+.rc-w { display: flex; flex-direction: column; gap: 6px; }
+.strip { display: grid; grid-template-columns: 64px repeat(5, minmax(0, 1fr)); gap: 6px; align-items: center; }
+.strip .dh { text-align: center; color: var(--muted); font-size: 11px; }
+.strip .dh.now { color: var(--text); font-weight: 600; }
+.strip .sn { color: var(--muted); font-size: 12px; }
+.strip .b { display: flex; align-items: center; justify-content: center; height: 26px; border-radius: 6px; color: var(--muted); }
+.strip .b.got { background: rgba(91, 140, 255, .16); border: 1px solid var(--accent); color: var(--text); }
+.strip .b.plan { border: 1px dashed var(--muted); }
+.rc-s { display: flex; flex-direction: column; }
+.kv { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.kv .k { color: var(--muted); }
+.kv .v { font-weight: 500; font-size: 13px; }
+.kv .v.big { font-size: 15px; }
+.rc-n { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: auto; padding: 10px 12px; border-radius: 8px;
+        background: var(--tile); }
+.rc-n b { font-weight: 500; text-align: right; }
+
+/* ---- 4. the calendar: one block a buying rule ---- */
+.calr { display: flex; flex-direction: column; gap: 12px; }
+.cr { min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 10px;
+      background: var(--surface); }
+.cr-h { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.cr-t { display: flex; flex-direction: column; gap: 3px; max-width: 40rem; min-width: 0; }
+.cr-t h3 { margin: 0; font-size: 17px; font-weight: 600; }
+.cr-t p { margin: 0; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: flex; flex-direction: column; gap: 1px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--tile); }
+.chip .k { color: var(--muted); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+.chip .v { font-weight: 500; font-size: 13px; }
+.cg-scroll { overflow-x: auto; }
+.cg { display: flex; flex-direction: column; gap: 8px; min-width: 720px; }
+.cg-row { display: grid; grid-template-columns: minmax(0, 3fr) repeat(var(--n, 5), minmax(0, 1fr)) minmax(0, 2fr) minmax(0, 2fr); gap: 8px; align-items: center; }
+.cg-row > :last-child { padding-left: 14px; }
+.cg-head { padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.cg-head .now { color: var(--text); }
+.cg-a { display: flex; flex-direction: column; min-width: 0; }
+.cg-a .nm { font-weight: 500; }
+.cg-a .sub { color: var(--muted); font-size: 11px; }
+.dc { display: flex; flex-direction: column; justify-content: center; gap: 1px; width: 100%; min-height: 42px; padding: 4px 6px; border: 1px solid var(--line);
+      border-radius: 6px; background: none; color: var(--text); text-align: left; font: inherit; }
+button.dc { cursor: pointer; }
+.dc.nb { border-style: dashed; border-color: var(--line-strong); color: var(--muted); font-size: 10px; }
+.dc.k-up { background: rgba(var(--up-rgb), .14); border-color: rgba(var(--up-rgb), .5); }
+.dc.k-down { background: rgba(var(--down-rgb), .14); border-color: rgba(var(--down-rgb), .55); }
+.dc.k-flat { background: var(--tile); border-color: var(--line-strong); }
+.dc.open { border-color: var(--warn); }
+.dc.sel { outline: 2px solid var(--accent); outline-offset: 1px; }
+.dc .n { font: 500 12px var(--font-num); font-variant-numeric: tabular-nums; }
+.dc .g { color: var(--muted); font-size: 10px; }
+.dc .g.warn { color: var(--warn); }
+.dc .g.up { color: var(--up); } .dc .g.down { color: var(--down); }
+.tpb { display: flex; flex-direction: column; gap: 4px; }
+.pbar { display: block; height: 6px; border-radius: 6px; background: var(--tile-2); overflow: hidden; }
+.pbar i { display: block; height: 6px; border-radius: 6px; background: var(--accent); }
+.pbar.ok i { background: var(--up); }
+.tpl { color: var(--muted); font-size: 11px; }
+.tpl b { color: var(--text); font-weight: 500; }
+.tpl.up, .tpl.down { font-weight: 600; }
+.tpl.up { color: var(--up); } .tpl.down { color: var(--down); }
 .day { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); }
 .day[hidden] { display: none; }
 .day .dh { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 8px; font-size: 13px; }
@@ -176,7 +231,32 @@ h2 small { font-size: 11.5px; font-weight: 500; letter-spacing: 0; text-transfor
 .dtbl tr:last-child td { border-bottom: 0; }
 .day .note { margin-top: 6px; color: var(--faint); font-size: 11.5px; }
 
-/* ---- 5. live trades ---- */
+/* ---- 5. live trades: open trades on top, then one block a session, one row a whole trade ---- */
+.trs { display: flex; flex-direction: column; gap: 12px; }
+.ocard { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 32px; padding: 14px 16px;
+         border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 10px; background: var(--surface); }
+.oc-a { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.oc-t { font-size: 16px; font-weight: 600; }
+.oc-kv { display: flex; flex-wrap: wrap; gap: 8px 28px; }
+.okv { display: flex; flex-direction: column; }
+.okv .num { font-size: 14px; }
+.oc-r { display: flex; flex-direction: column; align-items: flex-end; }
+.oc-pl { font-size: 20px; font-weight: 600; }
+.tsec { display: flex; flex-direction: column; gap: 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.ts-h { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; margin-bottom: 8px; }
+.ts-h h3 { margin: 0; font-size: 17px; font-weight: 600; }
+.tr { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr); gap: 8px;
+      align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.tr:last-child { border-bottom: 0; }
+.tr.th { padding-top: 0; }
+.c-t, .c-px { display: flex; flex-direction: column; font-size: 12px; }
+.c-tr { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.c-res { text-align: right; font-weight: 500; }
+.c-acc { color: var(--muted); font-size: 12px; min-width: 0; }
+.pill { display: inline-block; padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: 999px; color: var(--muted);
+        font-size: 10px; letter-spacing: .04em; white-space: nowrap; }
+.pill.bot { border-color: var(--accent); color: var(--accent); }
+.tnote { margin: 0; color: var(--muted); font-size: 12px; }
 .trl { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
 .trl li { display: grid; grid-template-columns: 96px 54px minmax(0, 1fr); gap: 1px 10px; padding: 6px 10px; border-bottom: 1px solid var(--line);
           font-size: 12.5px; align-items: baseline; }
@@ -227,6 +307,20 @@ main.old .sum, main.old section { opacity: .55; }
   .dtbl td.how { grid-area: 2 / 3; text-align: right; }
   .trl li { grid-template-columns: 86px 46px minmax(0, 1fr); gap: 1px 8px; padding: 6px 8px; }
   .trl .t { font-size: 11px; }
-  .sq, .sq-none { width: 30px; height: 24px; }
-  .hm thead th { min-width: 30px; }
+  /* the buying rules: one card under the other */
+  .rules { grid-template-columns: minmax(0, 1fr); }
+  .rc-h p { min-height: 0; }
+  /* the calendar: scrolls sideways inside its block, the account names stay in view */
+  .cr { padding: 12px; }
+  .cg { min-width: 780px; }
+  .cg-row { grid-template-columns: 112px repeat(var(--n, 5), minmax(0, 1fr)) 84px 96px; }
+  .cg-a { position: sticky; left: 0; z-index: 1; align-self: stretch; justify-content: center; background: var(--surface); }
+  /* the trades: each on three short lines */
+  .tsec { padding: 12px; }
+  .tr.th { display: none; }
+  .tr { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "tr res" "t how" "px px" "acc acc"; gap: 2px 8px; padding: 8px 0; }
+  .c-tr { grid-area: tr; } .c-res { grid-area: res; } .c-how { grid-area: how; text-align: right; color: var(--muted); font-size: 12px; }
+  .c-t { grid-area: t; flex-direction: row; gap: 8px; } .c-px { grid-area: px; flex-direction: row; gap: 8px; } .c-acc { grid-area: acc; }
+  .oc-r { align-items: flex-start; }
 }
+@media (min-width: 761px) and (max-width: 900px) { .rules { grid-template-columns: minmax(0, 1fr); } .rc-h p { min-height: 0; } }
