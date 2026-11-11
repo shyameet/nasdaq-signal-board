@@ -14,6 +14,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="paper.css?v=7">
+<style>/* the market switch (owner 11/11/2026): US futures (Lucid) | India options (paper-india.html) */
+.mkt { margin-top: 14px; }
+.mkt a { padding: 4px 12px; border-radius: 6px; color: var(--muted); font-size: 12.5px; font-weight: 600; text-decoration: none; }
+.mkt a:hover { color: var(--text); }
+.mkt a[aria-current="page"] { background: var(--tile-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }</style>
 <script src="paper.js?v=6" defer></script>
 </head>
 <body>
@@ -28,6 +33,7 @@
 <div class="band" role="note">PAPER ONLY - Sim, no real money</div>
 <div class="alert" id="alert" role="status" hidden></div>
 <main id="main">
+  <nav class="seg mkt" aria-label="Market"><a href="paper.html" aria-current="page">US futures (Lucid)</a><a href="paper-india.html">India options</a></nav>
   <section class="sum" id="sum" aria-label="Summary"></section>
 
   <nav class="views seg" id="views" aria-label="Views">

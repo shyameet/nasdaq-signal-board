@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>India options paper · Indra Quant Signal Board</title>
+<meta name="description" content="PAPER ONLY - no real money. The India tab's option signals on paper: 1 lot every entry at real NSE option prices, live.">
+<meta name="theme-color" content="#0a0d12">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="paper.css?v=6">
+<link rel="stylesheet" href="paper-india.css?v=1">
+<script src="lightweight-charts.js"></script>
+<script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load</script>
+<script src="paper-india.js?v=1" defer></script>
+</head>
+<body>
+<header class="topbar" id="bar">
+  <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="24"></a>
+  <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html" aria-current="page">Paper</a><a href="whatif.html" title="Paper prop-firm replays: futures firms and the forex paper test">What If</a></nav>
+  <span class="ttl">India options paper<small>1 lot every entry · real option prices</small></span>
+  <span class="spacer"></span>
+  <span class="upd" id="upd"></span>
+  <span class="lv" id="dot" title="the VPS feed"><i></i><span>Connecting…</span></span>
+</header>
+<div class="band" role="note">PAPER ONLY - no real money</div>
+<div class="alert" id="alert" role="status" hidden></div>
+<main class="bx none" id="main">
+  <nav class="seg mkt" aria-label="Market">
+    <a href="paper.html">US futures (Lucid)</a>
+    <a href="paper-india.html" aria-current="page">India options</a>
+  </nav>
+
+  <div class="b-top">
+    <div class="b-main">
+    <section class="b-hero-sec" aria-labelledby="b-h-open">
+      <div class="b-heroc" id="b-heroc">
+        <div class="b-eb"><h2 id="b-h-open">Open now</h2><span class="b-note" id="b-rule">live price from the stream · stop −6% / target +4% of the entry price</span></div>
+        <div class="b-chips" id="b-chips" hidden></div>
+        <div id="b-hero"><div class="b-empty">Waiting for the feed…</div></div>
+      </div>
+    </section>
+
+  <section class="b-days-sec" aria-labelledby="b-h-days">
+    <div class="b-sh"><h2 id="b-h-days">Every day</h2><span class="b-note">tap a day for its trades</span>
+      <span class="b-leg" aria-hidden="true"><span><i class="b-sw up"></i>up day</span><span><i class="b-sw down"></i>down day</span><span><i class="b-sw"></i>no trade</span></span></div>
+    <div class="b-days" id="b-days"></div>
+    <div class="b-day" id="b-day" hidden>
+      <div class="b-dh"><b id="b-day-t"></b><span class="muted" id="b-day-s"></span><button type="button" class="x" id="b-day-x">close</button></div>
+      <div class="b-list" id="b-dayl"></div>
+      <p class="b-skip" id="b-day-skip"></p>
+      <p class="b-skip" id="b-day-gaps"></p>
+    </div>
+  </section>
+    </div>
+    <div class="b-rail">
+      <section class="b-kpis" id="b-kpis" aria-label="Summary"></section>
+      <section class="b-today" aria-labelledby="b-h-today">
+        <div class="b-sh"><h2 id="b-h-today">Today's trades</h2><span class="b-note" id="b-today-sub"></span></div>
+        <div class="b-list" id="b-today"><div class="b-empty" style="border:0">Waiting for the feed…</div></div>
+        <p class="b-skip" id="b-skip"></p>
+        <p class="b-skip" id="b-gaps"></p>
+      </section>
+    </div>
+  </div>
+
+  <p class="foot">PAPER ONLY - no real money. Entries are the India tab's signals; prices are real NSE option prices from the live stream
+    (Board Live, Dhan). 1 lot per entry, never two open trades on the same stock; charges included (brokerage, STT, exchange, SEBI, stamp, GST).
+    Times in India (IST). For information only, not investment advice.</p>
+</main>
+</body>
+</html>
