@@ -9,6 +9,7 @@
 // request at a time. Times in India (IST). Nothing is stored in the browser.
 (function () {
   'use strict';
+  const SCALE_STOP_TARGET = false;   // the owner's call: true = the open trade's chart always has its stop and target lines in view
   const POLL_MS = 3000, HIDDEN_MS = 30000, FETCH_MS = 8000, FEED_FILE = 'data/india_paper_feed.json';
   const KIND = 'rdx-india-paper-public', KIND_DAYS = 'rdx-india-paper-days', KIND_C = 'rdx-india-paper-candles';
   const IST = 19800, M = '−';
@@ -184,6 +185,7 @@
     $('b-rule').textContent = `live price from the stream · stop ${M}${sp}% / target +${tp}% of the entry price`;
     return r.exit || '15:29';
   }
+  const SETUP_ORDER = ['Nifty', 'Bank Nifty'];
   const WHY = { kind_open: 'a trade of the same kind was still open', after_exit: 'seen after the exit time', no_price: 'no option price yet', other: 'not traded' };
   const MISS = { not_running: 'the paper engine was not running yet', late: 'seen too late, after a gap in the live data', other: 'not traded' };
   function skipText(skips) {
@@ -192,7 +194,14 @@
     const out = [];
     for (const [k, ss] of g) {
       const [st, why] = k.split('|');
-      const list = ss.map(s => `${nameOf(s.u)} ${ok(s.kind) ? s.kind : '–'}m at ${s.signal || '–'}`).join(', ');   // set as text, not HTML
+      const one = new Map();   // the same entry from both of a stock's setups (Nifty and Bank Nifty) in the same minute: one item
+      for (const s of ss) {
+        const id = `${s.u}|${s.kind}|${s.signal}`;
+        if (!one.has(id)) one.set(id, { s, setups: [] });
+        if (s.setup && !one.get(id).setups.includes(s.setup)) one.get(id).setups.push(s.setup);
+      }
+      const list = [...one.values()].map(({ s, setups }) => `${nameOf(s.u)} ${ok(s.kind) ? s.kind : '–'}m at ${s.signal || '–'}` +
+        (setups.length > 1 ? ` (${setups.sort((a, b) => SETUP_ORDER.indexOf(a) - SETUP_ORDER.indexOf(b)).join(' + ')} setups)` : '')).join(', ');   // set as text, not HTML
       const reason = st === 'skipped' && why === 'open' ? (ss.every(s => isStock(s.u)) ? 'that stock already had an open trade' : 'it already had an open trade')
         : ((st === 'missed' ? MISS : WHY)[why] || 'not traded');
       out.push(`${st === 'missed' ? 'Missed' : 'Not taken'}: ${list} (${reason}).`);
@@ -228,8 +237,13 @@
       rightPriceScale: { borderColor: css('--line'), scaleMargins: { top: 0.14, bottom: 0.12 } },
       timeScale: { borderColor: css('--line'), timeVisible: true, secondsVisible: false, rightOffset: o.live ? 5 : 2, fixLeftEdge: true },
       crosshair: { mode: 0 }, handleScroll: { vertTouchDrag: false } });
-    const s = c.addCandlestickSeries({ upColor: up, downColor: dn, wickUpColor: up, wickDownColor: dn, borderVisible: false,
-      lastValueVisible: !!o.live, priceLineVisible: false });
+    const s = c.addCandlestickSeries(Object.assign({ upColor: up, downColor: dn, wickUpColor: up, wickDownColor: dn, borderVisible: false,
+      lastValueVisible: !!o.live, priceLineVisible: false }, o.live && SCALE_STOP_TARGET && ok(t.stop) && ok(t.target) ? {
+      autoscaleInfoProvider: orig => {   // the price scale reaches the stop and the target as well as the candles
+        const r = orig(), lo = Math.min(t.stop, t.target), hi = Math.max(t.stop, t.target);
+        if (!r || !r.priceRange) return { priceRange: { minValue: lo, maxValue: hi } };
+        return Object.assign({}, r, { priceRange: { minValue: Math.min(r.priceRange.minValue, lo), maxValue: Math.max(r.priceRange.maxValue, hi) } });
+      } } : {}));
     const from = o.live ? t.tin - 30 * 60 : -Infinity;
     const rows = (src || []).filter(r => r[0] >= from && r[3] > 0);
     const data = rows.map(r => ({ time: r[0] + IST, open: r[1], high: r[2], low: r[3], close: r[4] }));
