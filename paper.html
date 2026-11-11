@@ -13,8 +13,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="paper.css?v=4">
-<script src="paper.js?v=4" defer></script>
+<link rel="stylesheet" href="paper.css?v=5">
+<script src="paper.js?v=5" defer></script>
 </head>
 <body>
 <header class="topbar" id="bar">
@@ -30,12 +30,17 @@
 <main id="main">
   <section class="sum" id="sum" aria-label="Summary"></section>
 
-  <section id="live-sec" aria-labelledby="h-live">
+  <nav class="views seg" id="views" aria-label="Views">
+    <button type="button" data-view="main" aria-pressed="true">Overview</button>
+    <button type="button" data-view="trades" aria-pressed="false">Live trades <span class="vc" id="tr-count"></span></button>
+  </nav>
+
+  <section id="live-sec" data-view="main" aria-labelledby="h-live">
     <h2 id="h-live">Live now <small id="live-sub">the 4 bots on NinjaTrader Sim</small></h2>
     <div class="bots" id="bots"><div class="empty">Waiting for the feed…</div></div>
   </section>
 
-  <section id="acc-sec" aria-labelledby="h-acc">
+  <section id="acc-sec" data-view="main" aria-labelledby="h-acc">
     <h2 id="h-acc">All paper accounts <small id="acc-sub"></small></h2>
     <div class="filters" role="group" aria-label="Show">
       <div class="seg" data-f="strat"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="SC" aria-pressed="false">Scalper</button><button type="button" data-v="GT" aria-pressed="false">Gold</button></div>
@@ -44,14 +49,14 @@
     <div id="accts"><div class="empty">Waiting for the feed…</div></div>
   </section>
 
-  <section id="rules-sec" aria-labelledby="h-rules">
+  <section id="rules-sec" data-view="main" aria-labelledby="h-rules">
     <h2 id="h-rules">Buying rules <small id="rules-sub"></small></h2>
     <div class="leg" aria-hidden="true"><span><i class="sw got"></i>bought</span><span><i class="sw plan"></i>planned</span><span>– no buy that session</span>
       <span>Each buy is one evaluation of each kind: Scalper 50K, Scalper 25K, Gold 50K, Gold 25K.</span></div>
     <div class="rules" id="rules"><div class="empty">Waiting for the feed…</div></div>
   </section>
 
-  <section id="cal-sec" aria-labelledby="h-cal">
+  <section id="cal-sec" data-view="main" aria-labelledby="h-cal">
     <h2 id="h-cal">Calendar <small>one block a buying rule · tap a day for its trades</small></h2>
     <div class="leg" aria-hidden="true"><span><i class="sw k-up"></i>up day</span><span><i class="sw k-down"></i>down day</span><span><i class="sw k-flat"></i>no trade yet</span>
       <span><i class="sw nb"></i>not bought yet</span><span>A session runs from 17:00 CT the evening before to 16:00 CT: Mon = Sun 17:00 to Mon 16:00.</span></div>
@@ -59,8 +64,9 @@
     <div class="day" id="day" hidden></div>
   </section>
 
-  <section id="tr-sec" aria-labelledby="h-tr">
-    <h2 id="h-tr">Live trades <small>one row a whole trade, newest session first · times in Chicago (CT)</small></h2>
+  <section id="tr-sec" data-view="trades" aria-labelledby="h-tr" hidden>
+    <h2 id="h-tr">Live trades <small>one row a whole trade, one session at a time · times in Chicago (CT)</small></h2>
+    <div class="seg tsess" id="tr-sess" role="group" aria-label="Session" hidden></div>
     <div id="trades" class="trs"><div class="empty">Waiting for the feed…</div></div>
   </section>
 

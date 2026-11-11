@@ -270,6 +270,15 @@ button.dc { cursor: pointer; }
 .trl .w { grid-column: 3; min-width: 0; color: var(--muted); font: 500 11.5px var(--font-num); overflow-wrap: anywhere; }
 
 main.old .sum, main.old section { opacity: .55; }
+/* owner 11/11/2026: the page's two views (bots, accounts and calendar | live trades) and the live trades' session picker */
+.views { display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; margin-top: 16px; }
+.views button { padding: 7px 16px; font-size: 13.5px; }
+.vc { margin-left: 6px; padding: 0 6px; border-radius: 5px; background: var(--tile); color: var(--muted); font-size: 11px; font-weight: 600; }
+.vc:empty { display: none; }
+.seg button[aria-pressed="true"] .vc { background: rgba(91, 140, 255, .16); color: var(--accent); }
+.tsess { display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; margin-bottom: 10px; }
+#views + section { margin-top: 14px; }
+.bh .st.passed { cursor: help; }
 .foot { margin-top: 22px; padding: 10px 12px; border-top: 1px solid var(--line); color: var(--faint); font-size: 11.5px; text-align: center; }
 
 /* ---- narrower ---- */

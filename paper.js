@@ -58,6 +58,9 @@
   let feedUrl = null, doc = null, lastOk = 0, lastGen = null, lastGenAt = 0, fails = 0, firstFail = 0, timer = 0, rendered = null, busy = false;
   const filt = { strat: '', size: '' };           // the accounts table's filter (this page view only)
   let sel = null, daysDoc = null, daysErr = false, daysBusy = null;
+  // owner 11/11/2026: the live trades are their own view (the page no longer grows with them), one session at a time;
+  // #trades opens that view (a bookmark or a link), the overview is the page without a hash
+  let view = location.hash === '#trades' ? 'trades' : 'main', trSess = null;
 
   // ---------------------------------------------------------------- the feed
   async function getJson(url, opts) {  // the answer AND its body within FETCH_MS, else it throws (AbortError)
@@ -156,6 +159,19 @@
   window.addEventListener('resize', setBar);
 
   // ---------------------------------------------------------------- render
+  function setView(v, push) {
+    view = v === 'trades' ? 'trades' : 'main';
+    for (const s of document.querySelectorAll('main > section[data-view]')) s.hidden = s.dataset.view !== view;
+    for (const b of document.querySelectorAll('#views button')) b.setAttribute('aria-pressed', b.dataset.view === view ? 'true' : 'false');
+    if (push) {
+      try { history.replaceState(null, '', view === 'trades' ? '#trades' : location.pathname + location.search); } catch (e) { /* the view still switches */ }
+      window.scrollTo(0, 0);
+    }
+  }
+  $('views').addEventListener('click', e => { const b = e.target.closest('button[data-view]'); if (b) setView(b.dataset.view, true); });
+  window.addEventListener('hashchange', () => setView(location.hash === '#trades' ? 'trades' : 'main', false));
+  setView(view, false);
+
   function render() {
     if (!doc || doc.withheld) return;
     renderSummary(); renderBots(); renderAccounts(); renderRules(); renderCal(); renderTrades();
@@ -196,7 +212,14 @@
   function botCard(m) {
     const role = m.role === 'primary' ? '<span class="tagx prim">feeds the paper</span>' : m.role === 'standby' ? '<span class="tagx">standby</span>' : '';
     const test = m.synthetic ? '<span class="tagx test">test data</span>' : '';
-    const head = `<div class="bh"><span class="acct">${esc(m.acct)}</span>${stChip(m.status)}${role}${test}</div>`
+    // owner 11/11/2026: a bot that passed and bought its next evaluation says so ("Passed #1 (Tue 10)" = the session
+    // that earned it); the feed's last_end = its latest ended purchase, so a later fail drops the chip
+    const le = m.last_end, nNow = m.virtual && ok(m.virtual.n) ? m.virtual.n : null;
+    const passed = le && le.how === 'pass' && isDate(le.s) && m.status === 'evaluation' && !(ok(le.n) && nNow != null && le.n >= nNow)
+      ? `<span class="st passed" title="${esc(`Purchase${ok(le.n) ? ' #' + int(le.n) : ''} reached the target on the ${day(le.s)} session`
+        + `${ok(le.best_pct) ? ` (best day ${le.best_pct.toFixed(3)}% of the profit)` : ''}; the bot now runs its next evaluation${nNow != null ? ', #' + int(nNow) : ''}.`)}">`
+        + `Passed${ok(le.n) ? ' #' + int(le.n) : ''} (${esc(short(le.s))})</span>` : '';
+    const head = `<div class="bh"><span class="acct">${esc(m.acct)}</span>${stChip(m.status)}${passed}${role}${test}</div>`
       + `<div class="bsub">${esc(m.strategy)} · ${esc(m.size)}${m.inst || m.unit ? ' · ' + instText(m) : ''}</div>`;
     if (m.state !== 'ok') return `<article class="card">${head}<div class="muted">No file from this bot this session yet.</div></article>`;
     const kp = `<div class="kpis"><div class="kpi"><span class="lbl">Balance</span><span class="big">${usd(m.balance)}</span>`
@@ -548,16 +571,26 @@
   }
   function renderTrades() {
     if (!daysDoc) {
+      $('tr-sess').hidden = true;
       if (daysErr) renderTradesList();
       else $('trades').innerHTML = '<div class="empty">Loading the trades…</div>';
       return;
     }
     const rows = wholeTrades(), liveS = liveSet(), open = rows.filter(r => r.open), done = rows.filter(r => !r.open);
     const ss = [...new Set(done.map(r => r.s).concat(open.map(r => r.s)))].filter(isDate).sort().reverse();
+    // one session at a time (owner 11/11/2026): the newest by default, the others one tap away
+    if (!ss.includes(trSess)) trSess = ss[0] || null;
+    const cs = curSess(), nNow = cs ? rows.filter(r => r.s === cs).length : 0;
+    $('tr-count').textContent = nNow ? `${nNow} this session` : '';
+    $('tr-sess').innerHTML = ss.map(s => {
+      const n = rows.filter(r => r.s === s).length;
+      return `<button type="button" data-s="${esc(s)}" aria-pressed="${s === trSess ? 'true' : 'false'}">${esc(short(s))}<span class="vc">${int(n)}</span></button>`;
+    }).join('');
+    $('tr-sess').hidden = ss.length < 2;
     let html = open.map(openCard).join('');
     const head = '<div class="tr th"><span class="lbl2">Time, CT</span><span class="lbl2">Trade</span><span class="lbl2">Price</span>'
       + '<span class="lbl2">Ended by</span><span class="lbl2 r">Result</span><span class="lbl2">Accounts</span></div>';
-    for (const s of ss) {
+    for (const s of ss.filter(x => x === trSess)) {
       const list = done.filter(r => r.s === s);
       const span = `${dayOf(addD(s, -1), { weekday: 'short' })} 17:00 to ${dayOf(s, { weekday: 'short' })} 16:00 CT. ${liveS.has(s) ? 'Still open' : 'Closed'}.`;
       html += `<section class="tsec"><div class="ts-h"><h3>${esc(day(s))} session</h3><span class="muted">${esc(span)} ${list.length} trade${list.length === 1 ? '' : 's'}.</span></div>`
@@ -567,6 +600,12 @@
       + 'has no exit price in the feed, so the row says so. The result is for each account.</p>';
     $('trades').innerHTML = rows.length ? html : '<div class="empty">No trade yet.</div>';
   }
+  $('tr-sess').addEventListener('click', e => {
+    const b = e.target.closest('button[data-s]');
+    if (!b || b.dataset.s === trSess) return;
+    trSess = b.dataset.s;
+    if (doc && !doc.withheld) renderTrades();
+  });
   function renderTradesList() {  // the days document is not available: the feed's own entry / exit rows
     if (!doc.trades) {  // a v1 feed: its entry / exit events
       const ev = (doc.events || []).filter(e => e.ev === 'entry' || e.ev === 'exit').slice().reverse();
