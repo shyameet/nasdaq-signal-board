@@ -342,8 +342,17 @@
       const ds = (doc.accounts || []).filter(a => ruleOfAcct(a) === rule).map(a => (a.days || []).find(d => d.s === cs)).filter(d => d && ok(d.net));
       if (ds.length) today = ds.reduce((a, d) => a + d.net, 0);
     }
+    // owner 11/11/2026: the rule's whole record, not just today: every evaluation it passed / failed since the start (the
+    // summary tile's "passed to date" meaning: passed, funded, passed today, or a pass mark on any day) and its accounts'
+    // trading P&L to date (every day's result of every account, fees not included)
+    const accs = (doc.accounts || []).filter(a => ruleOfAcct(a) === rule);
+    const mark = (a, m) => (a.days || []).some(d => (d.marks || []).includes(m));
+    const passed = accs.filter(a => a.passed || a.status === 'passed' || a.status === 'funded' || a.today === 'passed' || mark(a, 'pass')).length;
+    const failed = accs.filter(a => a.status === 'failed' || a.today === 'failed' || mark(a, 'fail')).length;
+    const pls = accs.flatMap(a => (a.days || []).map(d => d.net)).filter(ok);
+    const pl = pls.length ? Math.round(pls.reduce((a, v) => a + v, 0) * 100) / 100 : null;
     return { bought: td('bought'), fees: td('fees'), recv: td('recv'), net: td('net'), today, todayLab: lab, live: live.length > 0,
-      passed: cn('passed'), failed: cn('failed'), funded: cn('funded') };
+      passed, failed, funded: cn('funded'), pl };
   }
   function nextBuy(rule) {
     const cs = curSess();
@@ -378,8 +387,8 @@
         + `<div class="rc-w"><span class="lbl2">Buys this week</span>${strip(rule)}</div>`
         + '<div class="rc-s">'
         + kv('Bought so far', int(st.bought), '', true)
-        + kv('Passed', int(st.passed), st.passed ? 'up' : 'muted')
-        + kv('Failed', int(st.failed), st.failed ? 'down' : 'muted')
+        + kv('Passed to date', int(st.passed), st.passed ? 'up' : 'muted')
+        + kv('Failed to date', int(st.failed), st.failed ? 'down' : 'muted')
         + kv('Funded', int(st.funded), st.funded ? 'up' : 'muted')
         + kv('Fees paid', n2(st.fees))
         + kv('Payouts received', n2(st.recv), cls(st.recv))
@@ -444,8 +453,9 @@
             + `<span class="sub">bought ${esc(short(a.bought))}</span></div>${cols.map(s2 => cell(a, s2, cs)).join('')}`
             + `<div class="r num">${ok(a.balance) ? n2(a.balance) : '–'}</div><div>${toPass(a)}</div></div>`;
       html += `<section class="cr"><div class="cr-h"><div class="cr-t"><h3>${esc(name)}</h3>${text ? `<p>${esc(text)}</p>` : ''}</div>`
-        + `<div class="chips">${chip('Accounts', int(st.bought))}${chip('Fees paid', n2(st.fees))}`
-        + `${chip(st.live ? 'Today so far' : esc(st.todayLab), sgn(st.today), cls(st.today))}${chip('Passed', int(st.passed), st.passed ? 'up' : '')}</div></div>`
+        + `<div class="chips">${chip('Accounts', int(st.bought))}${chip('Passed to date', int(st.passed), st.passed ? 'up' : '')}`
+        + `${chip('Failed to date', int(st.failed), st.failed ? 'down' : '')}${chip('P&amp;L to date', sgn(st.pl), cls(st.pl))}`
+        + `${chip(st.live ? 'Today so far' : esc(st.todayLab), sgn(st.today), cls(st.today))}${chip('Fees paid', n2(st.fees))}</div></div>`
         + `<div class="cg-scroll"><div class="cg">${head}${rows || '<div class="muted">No account yet.</div>'}</div></div></section>`;
     }
     $('cal').innerHTML = html;
