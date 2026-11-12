@@ -21,8 +21,8 @@ img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
   background: #0e131a; border-bottom: 1px solid #1c2430; color: #e8eef6; font: 13px/1.3 "IBM Plex Sans", "Segoe UI", system-ui, sans-serif }
 .sb-top .sb-brand { display: flex; align-items: center }
 .sb-top .sb-lock { height: 24px; width: auto; display: block; flex: none }
-.sb-top .sb-tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid #1c2430; border-radius: 8px; background: #0a0d12; min-width: 0; max-width: 100% }
-.sb-top .sb-tabs a { padding: 4px 9px; border-radius: 6px; color: #8d99ab; text-decoration: none; font-size: 12.5px; font-weight: 500; white-space: nowrap }
+.sb-top .sb-tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid #1c2430; border-radius: 8px; background: #0a0d12; min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none }
+.sb-top .sb-tabs a { flex: none; padding: 4px 9px; border-radius: 6px; color: #8d99ab; text-decoration: none; font-size: 12.5px; font-weight: 500; white-space: nowrap }
 .sb-top .sb-tabs a:hover { color: #e8eef6 }
 .sb-top .sb-tabs a[aria-current="page"] { background: #121922; color: #e8eef6; box-shadow: inset 0 0 0 1px #283240 }
 .sb-top .sb-tabs a:focus-visible { outline: 2px solid #5b8cff; outline-offset: 1px }
@@ -38,7 +38,7 @@ img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
 <body>
 <header class="sb-top" id="sb-top">
   <a class="sb-brand" href="replay.html" title="Indra Quant Signal Board"><img class="sb-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="24"></a>
-  <nav class="sb-tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html">Paper</a><a href="whatif.html" aria-current="page" title="Paper prop-firm replays: futures firms and the forex paper test">What If</a></nav>
+  <nav class="sb-tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html">Paper</a><a href="whatif.html" aria-current="page" title="Paper prop-firm replays: futures firms and the forex paper test">What If</a><a href="devices.html">Devices</a></nav>
   <span class="sb-ttl">What If<small>paper prop-firm replays · no real money</small></span>
   <span class="sb-sp"></span>
   <span class="sb-upd">updated 12/11/2026 00:47 CT</span>

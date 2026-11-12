@@ -233,13 +233,13 @@
     .topbar .spacer { flex: 1 1 0; min-width: 0; }
     .lv.live > span { display: none; }       /* Live: the green dot says it (other states keep their words) */
   }
-  @media (max-width: 430px) { .topbar .tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; } .topbar .tabs a { flex: none; padding: 4px 4px; font-size: 11.5px; } }   /* six tabs fit a phone (Paper tab, 8/11/2026) */
+  @media (max-width: 490px) { .topbar .tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; } .topbar .tabs a { flex: none; padding: 4px 4px; font-size: 11.5px; } }   /* six tabs fit a phone (Paper tab, 8/11/2026) */
 </style>
 </head>
 <body>
 <header class="topbar">
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
-  <nav class="tabs" aria-label="Pages"><a href="replay.html" aria-current="page">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html">Paper</a><a href="whatif.html" title="Paper prop-firm replays: futures firms and the forex paper test">What If</a></nav>
+  <nav class="tabs" aria-label="Pages"><a href="replay.html" aria-current="page">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html">Paper</a><a href="whatif.html" title="Paper prop-firm replays: futures firms and the forex paper test">What If</a><a href="devices.html">Devices</a></nav>
   <div class="grp" title="Section"><div class="seg" role="group" aria-label="Section"><button type="button" aria-pressed="false" onclick="location.href='replay.html'" title="Your stocks beside XYZ100">XYZ100</button><button type="button" aria-pressed="true" title="MNQ, with two baskets of your stocks under it">MNQ</button></div></div>
   <div class="grp"><div class="seg" id="paneSeg" role="group" aria-label="The panes' lines"></div></div>
   <div class="grp"><div id="dayPick"></div></div>

@@ -1,0 +1,82 @@
+/* Devices: the RDX bus machines (owner 12/11/2026, the approved layout: a top line "Bus OK" / "N devices offline", then
+   4 cards VPS, SUMEET-PC, SUMEET-LT, RAHUL-PC, each with two lights (Machine on, Claude listening), last seen, unread
+   messages and how long the oldest has waited, when its Claude was last started automatically; no message text).
+   paper.css's tokens and look: dark as every tab, a light set for a light-mode device; the top bar stays dark in both. */
+:root {
+  color-scheme: dark;
+  --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
+  --text: #e8eef6; --muted: #8d99ab; --faint: #5c6879; --up: #2bb68a; --down: #f0555f; --accent: #5b8cff; --warn: #f2b33d;
+  --up-rgb: 43, 182, 138; --down-rgb: 240, 85, 95;
+  --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f5f7fa; --surface: #ffffff; --tile: #eef2f7; --tile-2: #e5eaf1; --line: #dbe1ea; --line-strong: #c3ccd9;
+    --text: #111821; --muted: #556172; --faint: #8592a3; --up: #0f8a60; --down: #cf3442; --accent: #3b6ef0; --warn: #a96d0b;
+    --up-rgb: 15, 138, 96; --down-rgb: 207, 52, 66;
+  }
+}
+:root[data-theme="dark"] { color-scheme: dark; }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); color: var(--text);
+       font: 13px/1.45 var(--font-ui); -webkit-font-smoothing: antialiased;
+       padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---- top bar (dark in both themes, as on every tab) ---- */
+.topbar { position: sticky; top: 0; z-index: 30; flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px;
+          padding: 5px 10px; background: #0e131a; border-bottom: 1px solid #1c2430; color: #e8eef6; }
+.brand { display: flex; align-items: center; }
+.tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid #1c2430; border-radius: 8px; background: #0a0d12; max-width: 100%;
+        overflow-x: auto; scrollbar-width: none; }
+.tabs a { flex: none; padding: 4px 9px; border-radius: 6px; color: #8d99ab; text-decoration: none; font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+.tabs a:hover { color: #e8eef6; }
+.tabs a[aria-current="page"] { background: #121922; color: #e8eef6; box-shadow: inset 0 0 0 1px #283240; }
+@media (max-width: 430px) { .tabs a { padding: 4px 4px; font-size: 11.5px; } }
+.iq-lock { height: 24px; width: auto; display: block; flex: none; }
+.ttl { font-size: 14px; font-weight: 700; letter-spacing: .01em; }
+
+/* ---- layout ---- */
+main { flex: 1; width: 100%; max-width: 1480px; margin: 0 auto; padding: 4px 12px 24px; }
+
+/* the top line: Bus OK / N devices offline */
+.bus { display: flex; align-items: center; gap: 9px; margin: 16px 0 0; font-size: 18px; font-weight: 600; }
+.bus:empty { display: none; }
+.bus i { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--faint); }
+.bus.ok i { background: var(--up); box-shadow: 0 0 0 3px rgba(var(--up-rgb), .18); }
+.bus.off i { background: var(--down); }
+.bus.na { font-size: 14px; font-weight: 500; color: var(--muted); }
+.bus.na i { display: none; }
+.age { margin: 4px 0 0; color: var(--warn); font-size: 12px; }
+.age[hidden] { display: none; }
+
+/* ---- the 4 device cards ---- */
+.devs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.devs:empty { display: none; }
+.card { min-width: 0; display: flex; flex-direction: column; gap: 10px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px;
+        background: var(--surface); }
+.card h2 { margin: 0; font: 600 14px var(--font-num); letter-spacing: .02em; overflow-wrap: anywhere; }
+.lts { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.lt { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.lt i { width: 10px; height: 10px; border-radius: 50%; flex: none; background: transparent; border: 1.5px solid var(--faint); }
+.lt.on i { background: var(--up); border-color: var(--up); box-shadow: 0 0 0 3px rgba(var(--up-rgb), .18); }
+.lt.off i { background: var(--down); border-color: var(--down); }
+.lt.none { color: var(--muted); }
+.kvs { display: flex; flex-direction: column; }
+.kv { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 10px; padding: 5px 0; border-top: 1px solid var(--line); }
+.kv .k { flex: none; color: var(--muted); font-size: 12px; }
+.kv .v { min-width: 0; text-align: right; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.kv .v small { display: block; color: var(--muted); font-size: 11.5px; font-weight: 400; }
+.kv .v.na { color: var(--muted); }
+
+/* ---- narrower ---- */
+@media (max-width: 1180px) { .devs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) {
+  main { padding: 2px 12px 20px; }
+  .devs { grid-template-columns: minmax(0, 1fr); }
+  .bus { font-size: 17px; }
+}
