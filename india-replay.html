@@ -262,7 +262,8 @@ LINE.m3.tip = '3m MACD (12, 26): both entries compare with it. Solid: its closed
 LINE.m30s.tip = '30-second MACD (12, 26), at each candle\'s close: the 1m entries\' exit (Board Live\'s 15-second candles, from 11/11/2026)';
 // GROUPS: the green/red shading. Nifty trades: NIFTY 50, GIFT NIFTY and Nifty's top 5 stocks by weight all on one side;
 // Bank Nifty trades: NIFTY BANK and its top 5. Stock trades (Nifty's top 5): the stock and its index; HDFC Bank and ICICI
-// Bank compare with Nifty 50 or Nifty Bank (a switch on their chart, each setup its own), the others with Nifty 50
+// Bank compare with Nifty 50 or Nifty Bank (a switch on their chart, each setup its own), the others with Nifty 50; a
+// stock checked against Nifty 50 also needs GIFT NIFTY on the same side (owner 12/11/2026: stock + Nifty 50 + GIFT NIFTY)
 const GROUPS = { nifty: ['NIFTY', 'GIFTNIFTY', 'HDFCBANK', 'ICICIBANK', 'RELIANCE', 'BHARTIARTL', 'LT'],
                  bank: ['BANKNIFTY', 'HDFCBANK', 'ICICIBANK', 'KOTAKBANK', 'AXISBANK', 'SBIN'] };
 const TRADE_STOCKS = ['HDFCBANK', 'ICICIBANK', 'RELIANCE', 'BHARTIARTL', 'LT'], CHECK_SWITCH = ['HDFCBANK', 'ICICIBANK'];
@@ -270,6 +271,10 @@ const checkIndex = (setup, stock) => {  // the index a stock's trades check agai
   if (!CHECK_SWITCH.includes(stock)) return 'NIFTY';
   const v = pref(`check.${setup}.${stock}`, SETUPS[setup].index);
   return v === 'NIFTY' || v === 'BANKNIFTY' ? v : SETUPS[setup].index;
+};
+const checkMembers = (setup, stock) => {  // the markets a stock's trades need on its side: the stock, its index (+ GIFT with Nifty 50)
+  const ix = checkIndex(setup, stock);
+  return ix === 'NIFTY' ? [stock, 'NIFTY', 'GIFTNIFTY'] : [stock, ix];
 };
 const SHORT_NAME = { NIFTY: 'NIFTY', BANKNIFTY: 'BANK', GIFTNIFTY: 'GIFT', HDFCBANK: 'HDFC', ICICIBANK: 'ICICI', RELIANCE: 'REL', BHARTIARTL: 'AIRTEL',
                      LT: 'L&T', KOTAKBANK: 'KOTAK', AXISBANK: 'AXIS', SBIN: 'SBI' };
@@ -388,7 +393,7 @@ let alignVer = 0;
 function alignAll() {  // the group and the stock's check, from the markets' trends now
   const S = day.setup;
   day.align = { group: new Align(GROUPS[opt.setup]),
-                stock: TRADE_STOCKS.includes(S.stock) ? new Align([S.stock, checkIndex(opt.setup, S.stock)]) : null };
+                stock: TRADE_STOCKS.includes(S.stock) ? new Align(checkMembers(opt.setup, S.stock)) : null };
   alignVer += 1;
 }
 // The entries on one market's chart, read at each minute's close on the MACD 12/26 LINE of the closed candles (the Entry
@@ -1086,7 +1091,7 @@ let liveTextAt = 0, liveTimer = 0, liveSoon = 0;
 // every market a setup needs: its charts', the group's, and a traded stock's check index (HDFC Bank, ICICI Bank: both indices)
 function neededMarkets(setup, stock) {
   const S = SETUPS[setup], out = [S.index, S.gift, stock, ...GROUPS[setup]];
-  if (TRADE_STOCKS.includes(stock)) out.push(...(CHECK_SWITCH.includes(stock) ? ['NIFTY', 'BANKNIFTY'] : ['NIFTY']));
+  if (TRADE_STOCKS.includes(stock)) out.push(...(CHECK_SWITCH.includes(stock) ? ['NIFTY', 'BANKNIFTY'] : ['NIFTY']), 'GIFTNIFTY');
   return [...new Set(out.filter(Boolean))];
 }
 function liveMarkets() { return neededMarkets(opt.setup, panels.stock ? panels.stock.market : SETUPS[opt.setup].stock); }
