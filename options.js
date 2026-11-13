@@ -479,15 +479,21 @@ class Window {
     const run = this.run, bars = run ? run.bars : [];
     let i = bars.length - 1;
     while (i >= 0 && bars[i].time > ref) i--;
-    const b = i >= 0 ? bars[i] : null, d = this.api.digits;
+    let b = i >= 0 ? bars[i] : null;
+    const d = this.api.digits;
+    // a series is never shown on a day after it ended (13/11/2026: NIFTY 50 showed "exp 9 Nov ... CE 0.05 15:29" on 12 and
+    // 13 Nov, whose option candles were not saved: the last candle known was the expired series')
+    const bd = b && this.daysMap[b.key];
+    if (bd && bd.expiry && bd.expiry < istKey(ref)) b = null;
     this.sideEl.textContent = SIDE_WORD[side]; this.sideEl.className = 'ow-s ' + (now === 'BULLISH' ? 'bull' : now === 'BEARISH' ? 'bear' : '');
     this.sideEl.title = now === 'BULLISH' || now === 'BEARISH' ? `The trend's side: the ${side === 'CE' ? 'call' : 'put'}` : `No trend now: the last trend's side (${side === 'CE' ? 'call' : 'put'})`;
     const day0 = b && this.daysMap[b.key];
     this.nameEl.textContent = day0 && day0.expiry ? `exp ${+day0.expiry.slice(8)} ${MON[+day0.expiry.slice(5, 7) - 1]}` : '';
     this.subNow.innerHTML = b ? `<div><span class="k">ATM now</span> <b>${b.k} ${side}</b></div><div><b>${this.api.num(b.raw, 2)}</b> <span class="k">${this.api.hhmm(b.time)}</span></div>`
       : `<div><span class="k">ATM now</span> —</div><div>&nbsp;</div>`;
-    const empty = !bars.length;
-    this.msg.hidden = !empty; this.msg.textContent = empty ? (ctx.note || 'No option candles for these days') : '';
+    // nothing to chart: none at all (the page's note), or only from the warm-up days before the strip
+    const empty = !bars.length || !this.bars.length;
+    this.msg.hidden = !empty; this.msg.textContent = empty ? (bars.length ? `No ${this.name} option candles for these days` : (ctx.note || 'No option candles for these days')) : '';
     if (empty !== this.el.classList.contains('empty')) { this.el.classList.toggle('empty', empty); this.place(); }
     // Our trade: the newest entry still open at ref
     const open = (ctx.trades || []).filter(x => x.t <= ref && ref <= x.end).sort((a, c) => c.t - a.t);

@@ -1,0 +1,22 @@
+/* Indra Quant Signal Board: room for the status bar in the installed app (owner 13/11/2026: "when I am using the website
+   on the tab and I am on a call ... the status bar is visible on the website ... I can't switch the tabs").
+
+   The app opens fullscreen on the tablet (brand/site.webmanifest, owner 30/10/2026). During a call Android lays its
+   status bar over a fullscreen app and tells the page nothing (no resize, no inset), so the page can't make room only
+   then. Inside the installed app on a touch screen the page therefore always starts a status bar's height down (26 px,
+   or the camera cut-out's inset where that is bigger), and the tab row stays clear of it. A desktop browser, the
+   tablet's browser tab and the iPad (no fullscreen apps) are unchanged. Every board page links this file; the What If
+   page's builder adds it to that page (its strip and its sticky switch row move with it). */
+@media (display-mode: fullscreen) and (pointer: coarse) {
+  :root { padding-top: 0 !important; }
+  body { padding-top: max(env(safe-area-inset-top, 0px), 26px) !important; }
+  body::before { height: max(env(safe-area-inset-top, 0px), 26px) !important; }
+  .switches { top: max(env(safe-area-inset-top, 0px), 26px) !important; }
+}
+/* an app installed before the fullscreen setting goes fullscreen at the first tap (install.js): the same room then */
+@media (pointer: coarse) {
+  :root:fullscreen { padding-top: 0 !important; }
+  :root:fullscreen body { padding-top: max(env(safe-area-inset-top, 0px), 26px) !important; }
+  :root:fullscreen body::before { height: max(env(safe-area-inset-top, 0px), 26px) !important; }
+  :root:fullscreen .switches { top: max(env(safe-area-inset-top, 0px), 26px) !important; }
+}
