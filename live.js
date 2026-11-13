@@ -74,8 +74,14 @@
   // ---- the VPS stream ----
   const store = {};  // instrument -> { bars: closed 1-minute candles {t, o, h, l, c, v} oldest first, cur: the forming one }
   const listeners = [];
+  // ver(names): bumped whenever those instruments' closed candles change (a snapshot, a closed minute, put()); a page that
+  // built its day with ver v and sees v again has nothing new to draw (13/11/2026: the pages built the same day twice at
+  // every minute and on load). ready(ms): resolves at the first snapshot, or after ms, so a first build can take today's minutes
+  let ver = 0, snapped = false;
+  const vers = {}, bump = s => { vers[s] = (vers[s] || 0) + 1; };
+  const waiters = [];
   const priceAt = {};  // instrument -> ms of its last price (a bar, form or tick: not the heartbeat)
-  let ws = null, lastMsg = 0, openedAt = 0, failingSince = 0, started = false;
+  let ws = null, lastMsg = 0, openedAt = 0, failingSince = 0, started = false, hello = null;
   let dials = 0, dialT = 0;  // connect() calls so far (only the newest one opens a socket), the timer of the next one
   const S = s => store[s] || (store[s] = { bars: [], cur: null });
   const forming = x => x.cur && (!x.bars.length || x.cur.t > x.bars[x.bars.length - 1].t) ? x.cur : null;  // cur, unless its minute has closed since
@@ -97,16 +103,18 @@
     if ((m.type === 'bar' || m.type === 'form' || m.type === 'tick') && m.s) priceAt[m.s] = lastMsg;  // a price, not the heartbeat
     if (m.type === 'snapshot') {
       if (ask) { ask = null; pwShow(); }  // let in
-      for (const [s, rows] of Object.entries(m.candles || {})) { const x = S(s); for (const r of rows || []) upsert(x.bars, row(r)); }
+      for (const [s, rows] of Object.entries(m.candles || {})) { const x = S(s); for (const r of rows || []) upsert(x.bars, row(r)); bump(s); }
       for (const [s, r] of Object.entries(m.forming || {})) {  // null clears a forming minute kept from before a reconnect (owner 27/10: its price stuck on the closed candle)
         const b = row(r); S(s).cur = b;
         if (b) priceAt[s] = lastMsg;
       }
+      ver += 1; snapped = true; for (const f of waiters.splice(0)) f();
       tell('snapshot');
     } else if (m.type === 'bar' && m.s) {
       const x = S(m.s), b = row(m);
       upsert(x.bars, b);
       if (x.cur && b && x.cur.t <= b.t) x.cur = null;
+      ver += 1; bump(m.s);
       tell('bar', m.s);
     } else if (m.type === 'tick' && m.s && ok(+m.p)) {
       const x = S(m.s), p = +m.p, t = Math.floor((ok(+m.x) ? +m.x : Date.now()) / MIN) * MIN;
@@ -131,8 +139,15 @@
     const sock = ws = new WebSocket(url);
     sock.onopen = () => {
       openedAt = Date.now(); sentPw = null;
-      const p = pw.get();  // the first message, over TLS only: never in the URL (a stream with no password set ignores it)
-      if (p && safeForPw(url)) { sentPw = p; try { sock.send(JSON.stringify({ pw: p })); } catch (e) { /* closing */ } }
+      // the first message (the "hello"): the password, over TLS only, never in the URL (a stream with no password set ignores
+      // it), and the page's own names (13/11/2026, owner: "takes time to load"): with {want, since} Board Live sends the
+      // snapshot at once (it waits 2 s for a first message) with only those names' candles from `since` on, and then only
+      // their live minutes; a page that gives none gets every name, 2 s on, as before
+      const p = pw.get(), h = typeof hello === 'function' ? hello() : hello, first = {};
+      if (p && safeForPw(url)) { sentPw = p; first.pw = p; }
+      if (h && Array.isArray(h.want) && h.want.length) first.want = h.want;
+      if (h && ok(h.since)) first.since = h.since;
+      if (Object.keys(first).length) try { sock.send(JSON.stringify(first)); } catch (e) { /* closing */ }
     };
     sock.onmessage = e => { if (ws !== sock) return; try { handle(JSON.parse(e.data)); } catch (x) { /* not JSON */ } };  // (a socket replaced by a redial: no more)
     sock.onclose = () => {  // re-reads the address: it may have changed; asked/waiting: a slow poll, so the page notices
@@ -218,8 +233,10 @@
     if (ws && ws.readyState === WebSocket.OPEN && Date.now() - Math.max(lastMsg, openedAt) > 20000) ws.close();
   }, 5000);
   window.NsbLive = {
-    start(name = 'VPS live stream', markets = null) {  // markets(): the instruments the page shows, for its dot (all of them when not given)
-      if (started) return; started = true;
+    // markets(): the instruments the page shows, for its dot (all of them when not given); hi(): { want: [every name the page
+    // may show live, any setup], since: ms } for the hello (above), asked again at each reconnect
+    start(name = 'VPS live stream', markets = null, hi = null) {
+      if (started) return; started = true; hello = hi;
       connect();
       NsbStatus.add(name, () => {
         if (ask) return { state: 'locked', last: lastMsg };  // no prices until the password is typed
@@ -243,6 +260,9 @@
       const x = S(s);
       for (const r of rows || []) upsert(x.bars, row(r));
       if (cur !== undefined) x.cur = row(cur);
+      ver += 1; bump(s);
     },
+    ver: names => names ? names.reduce((a, s) => a + (vers[s] || 0), 0) : ver,
+    ready(ms) { return snapped ? Promise.resolve(true) : new Promise(r => { const t = setTimeout(() => r(false), ms); waiters.push(() => { clearTimeout(t); r(true); }); }); },
   };
 })();

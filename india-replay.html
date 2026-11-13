@@ -18,14 +18,14 @@
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=33"></script>
+<script src="macd.js?v=34"></script>
 <script src="engine.js?v=19"></script>
 <script src="swing.js?v=5"></script>
 <script src="gate.js?v=5"></script>
 <script src="daypick.js?v=3"></script>
-<script src="live.js?v=4"></script>
+<script src="live.js?v=5"></script>
 <script src="draw.js?v=10"></script>
-<script src="options.js?v=2"></script>
+<script src="options.js?v=4"></script>
 <script src="install.js?v=2"></script>
 <style>
   .iq-lock { height: 26px; width: auto; display: block; flex: none; }
@@ -91,6 +91,7 @@
   .chip .v.bull { color: var(--up); } .chip .v.bear { color: var(--down); }
   .chip .d { display: none; }
   #s2 { display: none; }   /* owner 26/10/2026: no step 2 (sync) chip */
+  #steps { display: none !important; }   /* owner 13/11/2026: no "1 · 3 trends" chip beside the chart's name ("keep it clean"); the steps still run */
   /* the chart's own controls in its header (10/11/2026): the option window's button; HDFC Bank and ICICI Bank's check index */
   .pctl { display: inline-flex; align-items: center; gap: 5px; flex: none; }
   .pctl .seg button { padding: 1px 6px; font-size: 11px; }
@@ -200,7 +201,7 @@
 </div></div>
 <main class="board" id="board"></main>
 <div id="older" class="older" hidden>Loading older days…</div>
-<div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
+<div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div><a href="https://www.tradingview.com/" target="_blank" rel="noopener" style="margin-top:18px;font-size:11px;color:var(--muted);text-decoration:none">Charts: TradingView Lightweight Charts™</a></div>
 <script>
 'use strict';
 const DAY = 86400000, MIN = 60000, IST = 19800000;  // IST = UTC + 5:30
@@ -493,7 +494,7 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   // turned up with the live stream, and the day was built for it while the stock chart still showed the first stock)
   if (panels.stock) S.stock = panels.stock.market;
   const markets = neededMarkets(opt.setup, S.stock);
-  const rows = {};
+  const rows = {}, liveVer = NsbLive.ver(markets);  // (the stream's candles as of now: liveRebuild skips a build with nothing new)
   for (const m of markets) {
     const byT = new Map();
     for (const f of files) for (const b of f[m] || []) byT.set(b.t, b);
@@ -510,7 +511,7 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   const open = k => istMidnight(k) + 6 * 3600000 + 30 * MIN;
   const d0 = open(DAYS[first]), lastD0 = open(key), d1 = lastD0 + DAY;
   const indexMinutes = rows[S.index].map(b => b.t);
-  day = { key, d0, d1, lastD0, shown: i - first + 1, more: first > 0, setup: S, rows, runs, indexMinutes, warm: keys.length - 1 - (i - first), swing, keys };
+  day = { key, d0, d1, lastD0, shown: i - first + 1, more: first > 0, setup: S, rows, runs, indexMinutes, warm: keys.length - 1 - (i - first), swing, keys, liveVer };
   alignAll();
   const inDay = b => b.t >= d0 && b.t < d1;
   day.price = Object.fromEntries(markets.map(m => [m, rows[m].filter(inDay).map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v }))]));
@@ -534,7 +535,7 @@ function options(showTime, isMain) {
     watermark: isMain ? { visible: true, text: '', color: 'rgba(232, 238, 246, 0.04)', fontSize: 36, fontStyle: '700' } : { visible: false },
     autoSize: true, handleScroll: isMain, handleScale: isMain,
     layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
-              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: isMain },  // TradingView's logo in each price chart's corner: the chart library's credit (5/11/2026: the How it works panel that carried it went)
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },  // no TradingView logo on the charts (owner 13/11/2026: "remove the trading view logo"); the library's credit and link are on the loading screen
     grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
     rightPriceScale: { borderColor: C.line, minimumWidth: 70 },
     timeScale: { visible: showTime, borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.05,
@@ -729,6 +730,16 @@ class Panel {
     this.candles.setMarkers(m);
   }
   has30() { return NsbSub.bars(this.market).some(b => b.time >= day.d0 && b.time < day.d1 && ok(b.macd)); }
+  subDraw() {  // a new 30 s candle (live): its line in the Entry pane, the 1m entries' exits (they read it) and the window; only when its count moved
+    const s30 = NsbSub.bars(this.market).filter(b => b.end <= day.d1);
+    if (s30.length === this.n30) return;
+    this.n30 = s30.length;
+    this.src[0.5] = s30;
+    const e = this.macd.entry;
+    if (e) { e.setLines(this.has30() ? ['m1', 'm2', 'm3', 'm30s'] : ['m1', 'm2', 'm3']); e.update(); e.showLines(); e.sync(this.main.timeScale().getVisibleLogicalRange()); }
+    if (this.traded) { this.signals = signalsOf(this.market, t => this.alignAt(t)); this.setMarkers(); }
+    this.winUpdate();
+  }
   winUpdate() {  // the option window: the strip's minutes, its days, the entries
     if (!this.win) return;
     const today = day.key === TODAY_KEY() ? day.key : null;
@@ -751,7 +762,7 @@ class Panel {
       ...Object.entries(run.bars).map(([m, bars]) => [m, bars.filter(b => b.time < day.d1 && bucketEnd(b.time, +m, o) <= upto)]),
       ...Object.entries(day.swing[this.market] || {}).map(([m, bars]) => [m, live ? bars : bars.filter(b => b.end <= day.d1)])]);
     // the 30-second MACD (NsbSub), for the Entry pane's 30 s line: shown once the strip has some
-    this.src[0.5] = NsbSub.bars(this.market).filter(b => b.end <= day.d1);
+    this.src[0.5] = NsbSub.bars(this.market).filter(b => b.end <= day.d1); this.n30 = this.src[0.5].length;
     if (this.macd.entry) this.macd.entry.setLines(this.has30() ? ['m1', 'm2', 'm3', 'm30s'] : ['m1', 'm2', 'm3']);
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
     this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
@@ -1159,10 +1170,11 @@ function liveTick(s) {  // the newest candle of the charts showing market s, at 
     const s0 = p.store.get(sec(b.time));
     if (s0) Object.assign(s0, { close: b.close, high: b.high, low: b.low }); else p.store.set(sec(b.time), { ...b, state: null });
   }
-  if (!hoverHeld() && Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }
+  if (!hoverHeld() && Date.now() - liveTextAt > 1000) { liveTextAt = Date.now(); refreshText(); }
 }
 async function liveRebuild() {  // today again with the minutes closed since, the view kept on the newest candles
   if (!day || olderBusy || loadingNow || day.key !== TODAY_KEY()) return;
+  if (day.liveVer === NsbLive.ver(Object.keys(day.rows))) return;  // no candle closed since this day was built (13/11/2026: every minute was built twice)
   const was = day.key, before = Object.values(panels).filter(q => q.mode !== 'tile').map(q => {
     const r = q.main.timeScale().getVisibleLogicalRange(), n = q.mainBars.length;
     return [q, r, n, !r || r.to >= n - 2];
@@ -1176,14 +1188,18 @@ async function liveRebuild() {  // today again with the minutes closed since, th
     } finally { syncing = false; }
   } catch (e) { /* the next minute tries again */ }
 }
+// a minute closed in market s: built at once when every market of the charts has that minute too, else 2.5 s on (one that
+// had no trade that minute); 13/11/2026: each market's bar, coming a second or so apart, built the whole day again
+const closedT = m => { const a = NsbLive.bars(m), cur = NsbLive.cur(m); for (let i = a.length - 1; i >= 0; i--) if (a[i] !== cur) return a[i].t; return 0; };
+function onBar(s) { const t = closedT(s); liveSoonRebuild(liveMarkets().every(m => !NsbLive.has(m) || closedT(m) >= t) ? 100 : 2500); }
 function liveSoonRebuild(ms) { clearTimeout(liveSoon); liveSoon = setTimeout(() => { if (!liveAddToday()) liveRebuild(); }, ms); }
-function everyMinute() {  // 2 s past each minute: its bars are in
+function everyMinute() {  // 6 s past each minute: a fallback (the bars build the minute as they come, onBar)
   clearTimeout(liveTimer);
-  liveTimer = setTimeout(() => { liveSoonRebuild(0); everyMinute(); }, MIN - Date.now() % MIN + 2000);
+  liveTimer = setTimeout(() => { liveSoonRebuild(0); everyMinute(); }, MIN - Date.now() % MIN + 6000);  // (6 s: after the bars' own build, which it then finds nothing new for; 13/11/2026)
 }
-NsbLive.on((kind, s) => {
-  if (kind === 'tick') liveTick(s);
-  else if (kind === 'snapshot') {
+const calmTick = NsbMacd.calm(s => liveTick(s), 500);  // (a market's ticks drawn twice a second)
+let booted = false;  // the first day drawn: the stream's messages before it are taken in by the first build (13/11/2026)
+function onSnapshot() {
     const n = HAVE.size;
     findStocks().then(() => {
       if (HAVE.size === n) return;
@@ -1192,8 +1208,12 @@ NsbLive.on((kind, s) => {
       if (day && panels.stock && panels.stock.market !== SETUPS[opt.setup].stock) { buildPanels(); openDay(day.key); }
     });
     liveSoonRebuild(0);
-  }
-  else if (kind === 'bar' && liveMarkets().includes(s)) liveSoonRebuild(700);  // a minute closed: once the others' bars are in too
+}
+NsbLive.on((kind, s) => {
+  if (!booted) return;
+  if (kind === 'tick') calmTick(s);
+  else if (kind === 'snapshot') onSnapshot();
+  else if (kind === 'bar' && liveMarkets().includes(s)) onBar(s);  // a minute closed: once the others' bars are in too
 });
 // The loading screen covers the page only when the wait is long enough to notice (owner 25/10/2026: smooth switching;
 // a day or setup that is ready in a moment used to flash it); the page's first load shows it at once, from the HTML.
@@ -1214,29 +1234,53 @@ NsbMacd.onToggle(() => {
   restateAll();
 });
 // live (today): a 15-second candle closed (the 1m entries' exits, the 30 s line), an option's candles moved (the window)
+// (13/11/2026, owner: "laggy": every 15 s candle of any chart's market redrew all three charts whole; now only the charts of
+// a market whose 30 s line has a new candle, and only what that line touches: the Entry pane, the entries' exits, the window)
 let subSoon = 0;
+const subDue = new Set();
 NsbSub.on(s => {
-  if (!day || day.key !== TODAY_KEY() || !chartMarkets().includes(s) || subSoon) return;
-  subSoon = setTimeout(() => { subSoon = 0; if (!day || olderBusy || loadingNow) return; for (const p of Object.values(panels)) if (p.mainBars.length) p.draw(); refreshText(); }, 2000);
+  if (!day || day.key !== TODAY_KEY() || !chartMarkets().includes(s)) return;
+  subDue.add(s);
+  if (subSoon) return;
+  subSoon = setTimeout(() => {
+    subSoon = 0; const due = new Set(subDue); subDue.clear();
+    if (!day || olderBusy || loadingNow) return;
+    for (const p of Object.values(panels)) if (p.mainBars.length && due.has(p.market)) p.subDraw();
+  }, 2000);
 });
 let optSoon = 0;
-NsbOpt.onLive(() => {
-  if (!day || day.key !== TODAY_KEY() || optSoon) return;
-  optSoon = setTimeout(() => { optSoon = 0; for (const p of Object.values(panels)) if (p.win) p.winUpdate(); }, 3000);
+const optDue = new Set();
+// (a forming minute's move: only the window's newest candle, about once a second; anything else: the window whole, 3 s on)
+const calmWin = NsbMacd.calm(root => { for (const p of Object.values(panels)) if (p.win && p.market === root) p.win.tick(); }, 1000);
+NsbOpt.onLive((root, kind) => {
+  if (!day || day.key !== TODAY_KEY()) return;
+  if (kind === 'tick') { calmWin(root); return; }
+  optDue.add(root);
+  if (optSoon) return;
+  optSoon = setTimeout(() => { optSoon = 0; const due = new Set(optDue); optDue.clear(); for (const p of Object.values(panels)) if (p.win && (due.has(p.market) || due.has(undefined))) p.winUpdate(); }, 3000);
 });
 (async () => {
   try {
     loading('Loading the list of days…');
+    // the live stream from the start (13/11/2026, owner: "takes time to load"): when its snapshot, today so far, is in before
+    // the first build, that build has today in it (it drew the newest saved day, then today again)
+    // (the hello: every India name, any setup or stock, and only today's candles, from 00:00 IST: older days come from the files)
+    NsbLive.start('VPS live stream', liveMarkets, () => { const k = TODAY_KEY(); return { want: Object.keys(MARKETS), since: k ? istMidnight(k) : undefined }; });
+    const streamReady = NsbLive.ready(1500);  // (the snapshot, at once now: before the first build, so that build has today)
     const j = await (await fetch('data/india/1m/index.json', { cache: 'no-cache' })).json();
     DAYS = (Array.isArray(j) ? j : j.dates || []).map(String).sort();
     SAVED = new Set(DAYS);
     if (!DAYS.length) throw new Error('no saved days yet');
+    await streamReady;
     await findStocks();
     buildControls();
     NsbDraw.setup({ key: 'nsb.draw.india.' + opt.setup, when });
     buildPanels();
+    const today = TODAY_KEY();
+    if (today && !DAYS.includes(today) && liveMarkets().some(m => NsbLive.has(m))) DAYS = [...DAYS, today].sort();
     await openDay(DAYS[DAYS.length - 1]);
-    NsbLive.start('VPS live stream', liveMarkets); everyMinute();  // and today, live
+    booted = true; everyMinute();  // and today, live
+    if (NsbLive.ver()) onSnapshot();  // a snapshot that came meanwhile (nothing is built again when the day has it already)
     NsbSub.live(chartMarkets());  // and the charts' 15-second candles (asked again after each reconnect)
   } catch (e) {
     loading(`Couldn't load the India data (${e.message}). Reload the page to try again.`);

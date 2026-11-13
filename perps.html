@@ -18,7 +18,7 @@
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load (owner 27/10: "LightweightCharts is not defined")</script>
 <script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
-<script src="macd.js?v=33"></script>
+<script src="macd.js?v=34"></script>
 <script src="engine.js?v=19"></script>
 <script src="swing.js?v=5"></script>
 <script src="gate.js?v=5"></script>
@@ -151,7 +151,7 @@
 </header>
 <main class="board" id="board"></main>
 <div id="older" class="older" hidden>Loading older days…</div>
-<div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
+<div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div><a href="https://www.tradingview.com/" target="_blank" rel="noopener" style="margin-top:18px;font-size:11px;color:var(--muted);text-decoration:none">Charts: TradingView Lightweight Charts™</a></div>
 <script>
 'use strict';
 const DAY = 86400000, MIN = 60000, HOUR = 3600000, IST = 19800000;  // India: UTC+5:30 all year
@@ -383,7 +383,7 @@ function options(showTime, isMain, name) {
     watermark: isMain ? { visible: true, text: name, color: 'rgba(232, 238, 246, 0.04)', fontSize: 40, fontStyle: '700' } : { visible: false },
     autoSize: true, handleScroll: isMain, handleScale: isMain,
     layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11,
-              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: isMain },  // TradingView's logo in each price chart's corner: the chart library's credit (5/11/2026: the How it works panel that carried it went)
+              fontFamily: '"IBM Plex Mono", ui-monospace, Consolas, monospace', attributionLogo: false },  // no TradingView logo on the charts (owner 13/11/2026: "remove the trading view logo"); the library's credit and link are on the loading screen
     grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
     rightPriceScale: { borderColor: C.line, minimumWidth: 64 },
     timeScale: { visible: showTime, borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.05,
@@ -856,8 +856,9 @@ function liveCandle(r) {
   const a = e.bars;
   if (a.length && a[a.length - 1].t === b.t) a[a.length - 1] = b; else if (!a.length || b.t > a[a.length - 1].t) a.push(b); else return;
   if (r.s !== COIN || !day || day.key !== Ist.key(Date.now())) return;  // looking at an older day: nothing on screen moves
-  if (b.t === thisMinute()) liveTick();
+  if (b.t === thisMinute()) calmTick();
 }
+const calmTick = NsbMacd.calm(() => liveTick(), 500);  // (trades drawn twice a second, 13/11/2026)
 function everyMinute() {  // 1.5 s past each minute: the minute just closed joins the chart
   clearTimeout(liveTimer);
   liveTimer = setTimeout(() => { liveRebuild(); everyMinute(); }, MIN - Date.now() % MIN + 1500);
@@ -876,7 +877,7 @@ function liveTick() {  // the newest candle at the latest price, between rebuild
     if (s) Object.assign(s, { close: last.close, high: last.high, low: last.low });
     p.candles.update({ time: sec(last.time), open: last.open, high: last.high, low: last.low, close: last.close });
   }
-  if ((!hoverHeld() || newestHeld) && Date.now() - liveTextAt > 250) { liveTextAt = Date.now(); refreshText(); }  // (31/10/2026: under the crosshair it flipped to the newest candle and back; the newest one held moves with the price)
+  if ((!hoverHeld() || newestHeld) && Date.now() - liveTextAt > 1000) { liveTextAt = Date.now(); refreshText(); }  // (31/10/2026: under the crosshair it flipped to the newest candle and back; the newest one held moves with the price)
 }
 async function liveRebuild() {  // a minute closed: today again with it
   if (refreshing || olderBusy || opening || !day) return;

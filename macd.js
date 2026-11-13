@@ -395,7 +395,8 @@ class MacdPane {
     for (const m of this.lines) this.series[m].applyOptions({ visible: show[m], lastValueVisible: show.vals });
     this.valsBtn.classList.toggle('off', !show.vals);
     this.valsBtn.setAttribute('aria-pressed', String(show.vals));
-    this.valsBtn.title = `The lines' values on the price scale, every pane: click to ${show.vals ? 'hide' : 'show'} them`;
+    this.valsBtn.title = `L: the lines' values on the price scale, every pane (now ${show.vals ? 'shown' : 'hidden'}): click to ${show.vals ? 'hide' : 'show'} them`;
+    this.valsBtn.setAttribute('aria-label', this.valsBtn.title);
     for (const m in this.sigs) this.sigs[m].applyOptions({ visible: this.lines.includes(m) && show[m] && show[SIG(m)] });  // a hidden line takes its signal with it
     for (const m in this.earlys) this.earlys[m].applyOptions({ visible: this.lines.includes(m) && show[m] && show.early });  // and its early line
     this.shading.update();
@@ -500,12 +501,14 @@ css.textContent = `
               border: 1px solid var(--line-strong); border-radius: 5px; background: var(--bg); color: var(--muted);
               font: 600 11px/18px var(--font-num); cursor: pointer; touch-action: manipulation; }
   .nsb-auto:hover { color: var(--text); border-color: var(--muted); }
-  /* the 123 button (valuesButton): in a pane's bottom-right corner, under its price scale; dimmed and struck through while the values are hidden */
-  .nsb-vals { position: absolute; right: 6px; bottom: 3px; z-index: 6; height: 17px; padding: 0 4px;
-              border: 1px solid var(--line-strong); border-radius: 4px; background: var(--bg); color: var(--muted);
-              font: 600 10px/15px var(--font-num); cursor: pointer; touch-action: manipulation; }
+  /* the L button (valuesButton; owner 13/11/2026: "L or something like that instead of 1, 2, 3 ... and please fix its sizing"):
+     in a pane's bottom-right corner, under its price scale, the A button's size; dimmed and crossed out while the values are hidden */
+  .nsb-vals { position: absolute; right: 6px; bottom: 3px; z-index: 6; min-width: 22px; height: 20px; padding: 0 5px;
+              border: 1px solid var(--line-strong); border-radius: 5px; background: var(--bg); color: var(--muted);
+              font: 600 11px/18px var(--font-num); text-align: center; cursor: pointer; touch-action: manipulation; }
   .nsb-vals:hover { color: var(--text); border-color: var(--muted); }
-  .nsb-vals.off { opacity: .6; text-decoration: line-through; }
+  .nsb-vals.off { opacity: .65; background-image: linear-gradient(to top right, transparent calc(50% - .8px), currentColor calc(50% - .8px),
+                  currentColor calc(50% + .8px), transparent calc(50% + .8px)); }
 `;
 document.head.appendChild(css);
 
@@ -573,12 +576,12 @@ function autoButton(el, reset) {
   el.appendChild(b);
   return b;
 }
-// The 123 button (owner 6/11/2026: "hide this and keep a button below it ... keep them on as default"), in each MACD pane's
+// The values button, "L" since 13/11/2026 (was "123"; owner 6/11/2026: "hide this and keep a button below it ... keep them on as default"), in each MACD pane's
 // bottom-right corner under its price scale: shows or hides the lines' values on the price scales of every pane, on every
 // page (show.vals, kept in this browser like the line switches); on until switched off
 function valuesButton(el) {
   const b = document.createElement('button');
-  b.type = 'button'; b.className = 'nsb-vals'; b.textContent = '123';
+  b.type = 'button'; b.className = 'nsb-vals'; b.textContent = 'L';
   b.addEventListener('dblclick', e => e.stopPropagation());
   b.addEventListener('click', e => { e.stopPropagation(); toggle('vals'); });
   el.appendChild(b);
@@ -591,5 +594,17 @@ const roomy = (r, chart, live) => {  // r: the range a page's fit shows (to: 3 p
   const to = r.to - 3 + slots * 0.35;
   return { from: to - slots, to };
 };
-window.NsbMacd = { autoButton, roomy, PANES, LINES, LINE, STACK, stackColor, emaPoints, emaTag, chips, MacdPane, DayLines, Bands, Countdown, show, toggle, onToggle: fn => listeners.push(fn), points, matchAt, trendState, showValues };
+// calm(fn, ms): fn at most once every ms for each first argument (a market, a chart), always with the last call's arguments
+// (trailing), for the live candles: 13/11/2026 (owner: "laggy") every price tick, up to 4 a second a market, redrew its
+// charts; now about 3 times a second, the newest price never more than ms late
+function calm(fn, ms) {
+  const due = new Map();
+  return (...args) => {
+    const k = args[0], d = due.get(k) || { last: 0, timer: 0, args: null };
+    d.args = args; due.set(k, d);
+    if (d.timer) return;
+    d.timer = setTimeout(() => { d.timer = 0; d.last = Date.now(); fn(...d.args); }, Math.max(0, d.last + ms - Date.now()));
+  };
+}
+window.NsbMacd = { calm, autoButton, roomy, PANES, LINES, LINE, STACK, stackColor, emaPoints, emaTag, chips, MacdPane, DayLines, Bands, Countdown, show, toggle, onToggle: fn => listeners.push(fn), points, matchAt, trendState, showValues };
 })();

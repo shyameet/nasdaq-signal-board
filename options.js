@@ -149,7 +149,7 @@ const Live = (() => {
   const sent = new Set(), chained = new Set();  // asked since the last snapshot (a chain with "none" comes by itself later)
   const subs = [];
   let ver = 0;
-  const tell = root => { ver += 1; for (const fn of subs) fn(root); };
+  const tell = (root, kind) => { ver += 1; for (const fn of subs) fn(root, kind); };  // kind: 'tick' (a forming minute moved), 'bar', 'chain', 'osub'
   function chain(root) {
     if (!window.NsbLive || !NsbLive.send) return;
     if (!wanted[root]) wanted[root] = new Set();
@@ -170,16 +170,16 @@ const Live = (() => {
         sent.clear(); chained.clear();
         for (const root of Object.keys(wanted)) { chain(root); const names = [...wanted[root]]; if (names.length) { NsbLive.send({ osub: names }); for (const n of names) sent.add(n); } }
       }
-      else if ((kind === 'bar' || kind === 'tick') && s && s.startsWith('NFO:')) { const root = s.slice(4).split('-')[0]; if (chains[root]) tell(root); }
+      else if ((kind === 'bar' || kind === 'tick') && s && s.startsWith('NFO:')) { const root = s.slice(4).split('-')[0]; if (chains[root]) tell(root, kind); }
     });
     NsbLive.onMsg(m => {
       if (m.type === 'chain' && m.u && m.ok !== false && Array.isArray(m.rows)) {
         const rows = new Map(m.rows.map(([k, ce, pe]) => [+k, { CE: ce || null, PE: pe || null }]));
         chains[m.u] = { expiry: m.expiry || null, rows, at: Date.now() };
-        tell(m.u);
+        tell(m.u, 'chain');
       } else if (m.type === 'osub' && m.s && m.ok !== false) {
         NsbLive.put(m.s, m.candles || [], m.forming === undefined ? undefined : m.forming);
-        tell(m.u || m.s.slice(4).split('-')[0]);
+        tell(m.u || m.s.slice(4).split('-')[0], 'osub');
       } else if (m.type === 'osub' && m.s && m.ok === false) sent.delete(m.s);
     });
   }
@@ -428,7 +428,7 @@ class Window {
   show(on, keep = true) {
     this.open = on; this.el.hidden = !on;
     if (this.btn) { this.btn.setAttribute('aria-pressed', String(on)); this.btn.title = on ? 'Hide the option window' : 'Show the option window'; }
-    if (on) { this.place(); if (this.pending) { this.pending = false; this.at(this.t, true); } }
+    if (on) { this.place(); if (this.pending) { this.pending = false; if (this.ctx) this.update(this.ctx); } }  // (closed, it took nothing in: 13/11/2026)
     if (keep) this.keep();
   }
   place() {  // inside the chart's panel, below its header, clear of its price scale
@@ -457,6 +457,7 @@ class Window {
   // note: text when there is nothing to show yet }; then at(t) for the minute shown (hovered, or the newest)
   async update(ctx) {
     this.ctx = ctx; this.ver += 1;
+    if (!this.open) { this.pending = true; return; }  // a closed window does nothing until it opens (13/11/2026, owner: "laggy")
     const my = this.ver;
     if (this.root && ctx.today && Live.has && !Live.has(this.root)) Live.chain(this.root);
     const days = {};
@@ -466,6 +467,21 @@ class Window {
     this.run = null;
     if (!this.open) { this.pending = true; return; }
     this.at(this.t, true);
+  }
+  // live (13/11/2026, owner: "laggy"): the forming minute of the strike shown moved. Only its candle moves;
+  // a closed minute, a new strike or the chain build the window whole (update), as before
+  tick() {
+    if (!this.open || !this.run || !this.bars.length || this.t !== undefined || !this.ctx || !this.ctx.today) return;  // (hovering: the minute shown stays)
+    const d = this.daysMap && this.daysMap[this.ctx.today], last = this.run.bars[this.run.bars.length - 1];
+    if (!d || !d.live || !d.names || !last || last.key !== this.ctx.today) return;
+    const nm = d.names.get(last.k), name = nm && nm[this.side], cur = name && window.NsbLive && NsbLive.cur(name);
+    if (!cur || cur.t < last.time) return;
+    const gap = last.c - last.raw, s = this.bucket(cur.t), b = this.bars[this.bars.length - 1];
+    if (s === b.time) { b.close = cur.c + gap; b.high = Math.max(b.high, cur.h + gap); b.low = Math.min(b.low, cur.l + gap); }
+    else if (s > b.time) this.bars.push({ time: s, open: cur.o + gap, high: cur.h + gap, low: cur.l + gap, close: cur.c + gap });
+    else return;
+    const n = this.bars[this.bars.length - 1];
+    this.candles.update({ time: sec(n.time), open: n.open, high: n.high, low: n.low, close: n.close });  // (the "ATM now" text stays the last closed minute's, as at())
   }
   // the minute shown: t (hovered) or the newest; the side, ATM now and Our trade as of then
   at(t, force = false) {
@@ -502,8 +518,8 @@ class Window {
     if (tr && this.tradeRun) this.tradeText(tr, ref, open.length - 1);
     if (this.colTrade.hidden !== !tr) { this.colTrade.hidden = !tr; this.place(); if (tr) this.fitTrade(); }
     // the crosshair on the minute shown
-    if (t !== undefined && b) { const s = this.bucket(b.time); const v = this.bars.find(x => x.time === s); if (v) this.chart.setCrosshairPosition(v.close, sec(s), this.candles); }
-    else this.chart.clearCrosshairPosition();
+    if (t !== undefined && b) { const s = this.bucket(b.time); const v = this.bars.find(x => x.time === s); if (v) { this.chart.setCrosshairPosition(v.close, sec(s), this.candles); this.crossOn = true; } }
+    else if (this.crossOn) { this.chart.clearCrosshairPosition(); this.crossOn = false; }  // (only when one is set: each clear redrew the chart, 13/11/2026)
   }
   bucket(t) { const tf = this.api.tf(), o = this.api.origin, d0 = t - ((t - o) % DAY + DAY) % DAY; return d0 + Math.floor((t - d0) / (tf * MIN)) * tf * MIN; }
   build() {  // the rolling ATM of this.side over the strip, its indicators, marks and shading
