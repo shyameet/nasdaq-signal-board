@@ -1,18 +1,21 @@
-// Devices: the RDX bus machines (owner 12/11/2026, the approved layout: a top line "Bus OK" when every device is online,
-// else "N devices offline"; 4 cards VPS, SUMEET-PC, SUMEET-LT, RAHUL-PC with two lights (Machine on, Claude listening),
-// last seen, unread messages and how long the oldest has waited, when its Claude was last started automatically). No
-// message text anywhere: the status file carries none and the page shows none.
-// It reads the VPS's status file (rdx-bus-devices v1) from the rdx-bus-status repo every 60 s; times there are absolute
-// (ISO UTC) and the page works out every age itself, so a stale file still shows true ages. A device is online when its
-// machine was seen within offline_after_min; machine.last_seen null = never set up. Until the first good read the page says
-// "Status not available yet"; after that a failed read keeps the last data (its ages keep growing). When the file's
-// "generated" is more than 15 min old, one small line says how old it is. Nothing is stored in the browser.
-// Preview/tests only: devices.html?src=<url> reads another file (same site, localhost/127.0.0.1, or a shyameet
+// Devices: the RDX bus machines (owner 12/11/2026; clearer layout 14/11/2026: "it has 4 devices and its kind of confusing
+// and hard to know whether its working or not ... make it a bit better and more responsive").
+// One answer per device first: WORKING (its machine checked in within offline_after_min), OFFLINE (it did, longer ago)
+// or NOT SET UP (it never did). Then the details in plain words: Claude on the bus, unread messages, the last automatic
+// Claude start (and whether it failed, when the file says). The top line counts the working devices and names the rest.
+// No message text anywhere: the status file carries none and the page shows none. Nothing is stored in the browser.
+//
+// Feed: the VPS's live feed (Tailscale Funnel /devices, rebuilt every 10 s) is read every 15 s. When it does not answer the
+// page falls back to the 5-minute copy on GitHub (rdx-bus-status, which GitHub's cache can hold up to 5 min more) and
+// keeps trying the live feed. Times in the file are absolute (ISO UTC) and the page works out every age itself, so an
+// old file still shows true ages; the line under the top line says which feed is shown and how old it is.
+// Preview/tests only: devices.html?src=<url> reads another live feed (same site, localhost/127.0.0.1, or a shyameet
 // raw.githubusercontent.com file); any other src reads nothing.
 (function () {
   'use strict';
-  const SRC = 'https://raw.githubusercontent.com/shyameet/rdx-bus-status/main/devices.json';
-  const KIND = 'rdx-bus-devices', POLL_MS = 60000, PAINT_MS = 15000, FETCH_MS = 10000, OLD_FILE_MIN = 15;
+  const LIVE = 'https://server.tail103b42.ts.net:8443/devices/devices.json';
+  const COPY = 'https://raw.githubusercontent.com/shyameet/rdx-bus-status/main/devices.json';
+  const KIND = 'rdx-bus-devices', LIVE_MS = 15000, COPY_MS = 60000, PAINT_MS = 5000, FETCH_MS = 8000, OLD_FILE_MIN = 15;
   const ORDER = ['VPS', 'SUMEET-PC', 'SUMEET-LT', 'RAHUL-PC'];
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -30,9 +33,11 @@
     if (!fT) return new Date(t).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
     return (fDay.format(t) === fDay.format(now) ? fT.format(t) : fD.format(t).replace(',', '')) + ' CT';
   }
-  function dur(ms) {  // "under 1 min", "2 min", "3 h", "6 days"
-    const m = Math.floor(Math.max(0, ms) / 60000);
-    if (m < 1) return 'under 1 min';
+  function dur(ms) {  // "5 s", "40 s", "2 min", "3 h", "6 days"
+    const s = Math.floor(Math.max(0, ms) / 1000);
+    if (s < 10) return Math.max(1, s) + ' s';
+    if (s < 90) return Math.round(s / 5) * 5 + ' s';
+    const m = Math.floor(s / 60);
     if (m < 90) return m + ' min';
     const h = Math.floor(m / 60);
     if (h < 48) return h + ' h';
@@ -42,7 +47,7 @@
 
   function srcUrl() {
     const p = new URLSearchParams(location.search).get('src');
-    if (!p) return SRC;
+    if (!p) return LIVE;
     try {
       const u = new URL(p, location.href);
       const fine = u.origin === location.origin || (/^https?:$/.test(u.protocol) && /^(localhost|127\.0\.0\.1)$/.test(u.hostname)) ||
@@ -50,85 +55,117 @@
       return fine ? u.href : null;
     } catch (e) { return null; }
   }
-  const src = srcUrl();
+  const live = srcUrl();
 
-  let doc = null, busy = false, timer = 0;
+  // doc = the newest good file; via = 'live' or 'copy'; lastLive = when the live feed last answered
+  let doc = null, via = '', busy = false, timer = 0, lastCopy = 0;
   async function getJson(url) {  // the answer and its body within FETCH_MS, else it throws
     const c = typeof AbortController === 'function' ? new AbortController() : null;
     const t = c ? setTimeout(() => c.abort(), FETCH_MS) : 0;
     try {
-      const r = await fetch(url, { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer', signal: c ? c.signal : undefined });
+      const r = await fetch(url + (url.indexOf('?') < 0 ? '?' : '&') + 't=' + Date.now(),
+        { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer', signal: c ? c.signal : undefined });
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      return await r.json();
+      const j = await r.json();
+      if (!(j && j.kind === KIND && Array.isArray(j.devices))) throw new Error('not a status file');
+      return j;
     } finally { clearTimeout(t); }
   }
+  const newer = j => !doc || (tms(j.generated) || 0) >= (tms(doc.generated) || 0);
   async function poll() {
     if (busy) return;
     busy = true; clearTimeout(timer);
+    let liveOk = false;
     try {
-      if (src) {
-        const j = await getJson(src + (src.indexOf('?') < 0 ? '?' : '&') + 't=' + Date.now());
-        if (j && j.kind === KIND && Array.isArray(j.devices)) doc = j;
-      }
-    } catch (e) { /* not there yet, refused, no answer, not JSON: keep what we have */ }
-    finally { busy = false; }
-    timer = setTimeout(poll, POLL_MS);
+      if (live) { const j = await getJson(live); liveOk = true; if (newer(j)) { doc = j; via = 'live'; } }
+    } catch (e) { /* the live feed did not answer: the GitHub copy below */ }
+    if (!liveOk && Date.now() - lastCopy >= COPY_MS - 1000) {
+      lastCopy = Date.now();
+      try { const j = await getJson(COPY); if (newer(j)) { doc = j; via = 'copy'; } } catch (e) { /* keep what we have */ }
+    }
+    busy = false;
+    timer = setTimeout(poll, LIVE_MS);
     paint();
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 
-  // ---------------------------------------------------------------- render
-  const light = (state, label) => `<span class="lt ${state}"><i aria-hidden="true"></i>${label}<span class="sr">: ${state === 'on' ? 'yes' : state === 'off' ? 'no' : 'not known'}</span></span>`;
-  const kv = (k, v, sub, na) => `<div class="kv"><span class="k">${k}</span><span class="v${na ? ' na' : ''}">${v}${sub ? `<small>${sub}</small>` : ''}</span></div>`;
+  // ---------------------------------------------------------------- one device
+  const row = (k, v, sub, cls) => `<div class="row"><dt>${k}</dt><dd${cls ? ` class="${cls}"` : ''}>${v}${sub ? `<small>${sub}</small>` : ''}</dd></div>`;
 
   function device(id, d, offMs, now) {
     const seen = d ? tms(d.machine && d.machine.last_seen) : null;
-    const online = seen != null && now - seen <= offMs;
+    const state = !d || seen == null ? 'none' : now - seen <= offMs ? 'ok' : 'off';
     const cl = (d && d.claude) || {}, inbox = (d && d.inbox) || {}, auto = (d && d.auto) || {};
-    let mLight = 'none', cLight = 'none', seenRow;
-    if (!d) seenRow = kv('Last seen', 'not in the status file', '', true);
-    else if (seen == null) seenRow = kv('Last seen', 'never set up', '', true);
-    else {
-      mLight = online ? 'on' : 'off';
-      const cSeen = tms(cl.last_seen);
-      cLight = online && cl.listening === true && (cSeen == null || now - cSeen <= offMs) ? 'on' : 'off';
-      seenRow = kv('Last seen', esc(dur(now - seen)) + ' ago', esc(ct(seen, now)));
-    }
+    const pill = { ok: 'Working', off: 'Offline', none: 'Not set up' }[state];
+
+    let main;
+    if (!d) main = 'Not in the status file.';
+    else if (state === 'none') main = 'Never checked in: the bus setup has not been run on this machine.';
+    else if (state === 'ok') main = `Checked in <b>${esc(dur(now - seen))} ago</b> <span class="at">${esc(ct(seen, now))}</span>`;
+    else main = `Last check-in <b>${esc(dur(now - seen))} ago</b> <span class="at">${esc(ct(seen, now))}</span>`;
+
+    // Claude on the bus: listening (a Claude session there watches the bus) or not; auto-start on/off says whether a
+    // message would start one by itself
+    const cSeen = tms(cl.last_seen);
+    const listening = state === 'ok' && cl.listening === true && (cSeen == null || now - cSeen <= offMs);
+    const autoTxt = auto.enabled === true ? 'auto-start on' : auto.enabled === false ? 'auto-start off' : '';
+    const claudeRow = !d || state === 'none' ? row('Claude on the bus', '–', '', 'na')
+      : row('Claude on the bus', listening ? 'listening' : 'not listening', autoTxt, listening ? 'good' : 'na');
+
     const unread = d && ok(inbox.unread) ? Math.max(0, Math.round(inbox.unread)) : null, oldest = tms(inbox.oldest_at);
-    const unreadRow = unread == null ? kv('Unread messages', '–', '', true)
-      : kv('Unread messages', String(unread), unread > 0 && oldest != null ? 'oldest waiting ' + esc(dur(now - oldest)) : '');
-    const st = tms(auto.last_start);
-    const autoRow = !d ? kv('Claude auto-started', '–', '', true)
-      : st == null ? kv('Claude auto-started', 'never', '', true) : kv('Claude auto-started', esc(dur(now - st)) + ' ago', esc(ct(st, now)));
-    return { online, html: `<article class="card" aria-label="${esc(id)}"><h2>${esc(id)}</h2>` +
-      `<div class="lts">${light(mLight, 'Machine on')}${light(cLight, 'Claude listening')}</div>` +
-      `<div class="kvs">${seenRow}${unreadRow}${autoRow}</div></article>` };
+    const unreadRow = unread == null ? row('Unread messages', '–', '', 'na')
+      : row('Unread messages', String(unread), unread > 0 && oldest != null ? 'oldest waiting ' + esc(dur(now - oldest)) : '', unread > 0 ? 'warn' : '');
+
+    const st = tms(auto.last_start), en = tms(auto.last_end);
+    const rc = auto.last_rc == null ? null : String(auto.last_rc);
+    let autoRow;
+    if (!d || state === 'none') autoRow = row('Last auto-start', '–', '', 'na');
+    else if (st == null) autoRow = row('Last auto-start', 'never', '', 'na');
+    else if (auto.running === true) autoRow = row('Last auto-start', esc(dur(now - st)) + ' ago', 'running now', 'good');
+    else if (rc != null && rc !== '0' && (en == null || en >= st)) autoRow = row('Last auto-start', esc(ct(st, now)), 'failed', 'bad');
+    else autoRow = row('Last auto-start', esc(dur(now - st)) + ' ago', esc(ct(st, now)));
+
+    return { state, id, seen, html: `<article class="card ${state}" aria-label="${esc(id)}: ${pill}">` +
+      `<header><h2>${esc(id)}</h2><span class="pill">${pill}</span></header>` +
+      `<p class="main">${main}</p>` +
+      `<dl class="rows">${claudeRow}${unreadRow}${autoRow}</dl></article>` };
   }
 
-  let shown = '';
-  function setBus(klass, text) {  // only when it changes: the line is a live region, so no re-announcing every 15 s
-    const bus = $('bus');
-    if (bus.className !== klass) bus.className = klass;
-    if (bus.textContent !== text) bus.innerHTML = '<i aria-hidden="true"></i>' + esc(text);
-  }
+  // ---------------------------------------------------------------- the page
+  let shownCards = '', shownTop = '';
   function paint() {
-    const age = $('age'), devs = $('devs'), now = Date.now();
+    const sum = $('sum'), devs = $('devs'), now = Date.now();
     if (!doc) {
-      setBus('bus na', 'Status not available yet');
-      age.hidden = true; devs.innerHTML = ''; shown = '';
+      const t = '<p class="big na">Status not available yet</p><p class="fresh">Waiting for the first answer…</p>';
+      if (t !== shownTop) { sum.innerHTML = t; shownTop = t; }
+      if (shownCards) { devs.innerHTML = ''; shownCards = ''; }
       return;
     }
     const offMin = ok(doc.offline_after_min) && doc.offline_after_min > 0 ? doc.offline_after_min : 10;
     const byId = {};
     for (const d of doc.devices) if (d && typeof d.id === 'string' && !byId[d.id]) byId[d.id] = d;
     const cards = ORDER.map(id => device(id, byId[id] || null, offMin * 60000, now));
-    const off = cards.filter(c => !c.online).length;
-    setBus('bus ' + (off ? 'off' : 'ok'), off ? `${off} ${off === 1 ? 'device' : 'devices'} offline` : 'Bus OK');
-    const gen = tms(doc.generated);
-    age.hidden = !(gen != null && now - gen > OLD_FILE_MIN * 60000);
-    if (!age.hidden) age.textContent = `The status file is ${dur(now - gen)} old.`;
+    const good = cards.filter(c => c.state === 'ok').length;
+
+    // top line: "All 4 devices working" / "2 of 4 devices working", then a chip per device
+    const klass = good === cards.length ? 'ok' : good === 0 ? 'off' : 'part';
+    const big = good === cards.length ? `All ${cards.length} devices working` : `${good} of ${cards.length} devices working`;
+    const chips = cards.map(c => {
+      const why = c.state === 'ok' ? '' : c.state === 'none' ? ' · not set up' : ' · offline ' + esc(dur(now - c.seen));
+      return `<li class="chip ${c.state}"><i aria-hidden="true"></i>${esc(c.id)}${why}</li>`;
+    }).join('');
+
+    // which feed and how old: green "Live" when the live feed answers and the file is fresh
+    const gen = tms(doc.generated), age = gen == null ? null : now - gen;
+    let fresh;
+    if (age != null && age > OLD_FILE_MIN * 60000) fresh = `<p class="fresh old"><i aria-hidden="true"></i>Status is ${esc(dur(age))} old: the VPS has not updated it (is the VPS down?)</p>`;
+    else if (via === 'live') fresh = `<p class="fresh live"><i aria-hidden="true"></i>Live · updated ${age == null ? '–' : esc(dur(age)) + ' ago'} · checks every 15 s</p>`;
+    else fresh = `<p class="fresh copy"><i aria-hidden="true"></i>5-minute copy · updated ${age == null ? '–' : esc(dur(age)) + ' ago'} (live feed not answering)</p>`;
+
+    const top = `<p class="big ${klass}"><i aria-hidden="true"></i>${big}</p><ul class="chips">${chips}</ul>${fresh}`;
+    if (top !== shownTop) { sum.innerHTML = top; shownTop = top; }
     const html = cards.map(c => c.html).join('');
-    if (html !== shown) { devs.innerHTML = html; shown = html; }
+    if (html !== shownCards) { devs.innerHTML = html; shownCards = html; }
   }
 
   // on a phone the tab row scrolls inside itself and Devices is its last tab: start it scrolled so Devices shows
@@ -138,5 +175,6 @@
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(showCur);  // the web font changes the tabs' widths
 
   setInterval(paint, PAINT_MS);
+  paint();
   poll();
 })();
