@@ -60,7 +60,9 @@
   let sel = null, daysDoc = null, daysErr = false, daysBusy = null;
   // owner 11/11/2026: the live trades are their own view (the page no longer grows with them), one session at a time;
   // #trades opens that view (a bookmark or a link), the overview is the page without a hash
-  let view = location.hash === '#trades' ? 'trades' : 'main', trSess = null;
+  // owner 15/11/2026: #plans = the plan fleets view
+  const VIEWS = { '#trades': 'trades', '#plans': 'plans' };
+  let view = VIEWS[location.hash] || 'main', trSess = null;
 
   // ---------------------------------------------------------------- the feed
   async function getJson(url, opts) {  // the answer AND its body within FETCH_MS, else it throws (AbortError)
@@ -160,16 +162,18 @@
 
   // ---------------------------------------------------------------- render
   function setView(v, push) {
-    view = v === 'trades' ? 'trades' : 'main';
+    view = v === 'trades' || v === 'plans' ? v : 'main';
     for (const s of document.querySelectorAll('main > section[data-view]')) s.hidden = s.dataset.view !== view;
     for (const b of document.querySelectorAll('#views button')) b.setAttribute('aria-pressed', b.dataset.view === view ? 'true' : 'false');
+    $('sum').hidden = view === 'plans';  // the Lucid summary strip is not about the plan fleets
     if (push) {
-      try { history.replaceState(null, '', view === 'trades' ? '#trades' : location.pathname + location.search); } catch (e) { /* the view still switches */ }
+      try { history.replaceState(null, '', view === 'main' ? location.pathname + location.search : '#' + view); } catch (e) { /* the view still switches */ }
       window.scrollTo(0, 0);
     }
+    if (view === 'plans' && plansReady) loadPlans();  // plansReady: set once the plans block below has run
   }
   $('views').addEventListener('click', e => { const b = e.target.closest('button[data-view]'); if (b) setView(b.dataset.view, true); });
-  window.addEventListener('hashchange', () => setView(location.hash === '#trades' ? 'trades' : 'main', false));
+  window.addEventListener('hashchange', () => setView(VIEWS[location.hash] || 'main', false));
   setView(view, false);
 
   function render() {
@@ -634,6 +638,108 @@
     }).join('') + '</ul>' : '<div class="empty">No trade yet.</div>';
   }
 
-  function start() { setBar(); paint(); poll(); }
+  // ---------------------------------------------------------------- the plan fleets (owner 15/11/2026, PAPER_FLEETS.md v2)
+  // Every plan of the 14 Nov plan list (Nasdaq Scalper W4 wait1; gold funded 100% with buying one and wait1) plus the test
+  // fleets, each a fresh paper fleet of 5 places from 0 accounts with the 16 Nov 2026 session, replayed on the VPS after the
+  // close. The publisher's plans.json next to paper.json; fetched when this view opens, then every 60 s while it is open.
+  var plansReady = false;
+  let plDoc = null, plansErr = false, plansBusy = false, plansAt = 0, plOpen = null;
+  const plFilt = { grp: '', strat: '', mkt: '', size: '' };
+  const plansUrl = () => feedUrl && /paper\.json(\?|$)/.test(feedUrl) ? feedUrl.replace(/paper\.json(?=\?|$)/, 'plans.json') : null;
+  async function loadPlans() {
+    if (plansBusy) return;
+    plansBusy = true;
+    try {
+      if (!feedUrl) feedUrl = await readFeed();
+      const u = plansUrl();
+      if (!u) plansErr = true;
+      else {
+        const j = await getJson(u, FEED_OPTS);
+        if (j && j.kind === 'plans' && j.paper === true && Array.isArray(j.fleets)) { plDoc = j; plansErr = false; } else plansErr = true;
+      }
+    } catch (e) { plansErr = true; } finally { plansBusy = false; plansAt = Date.now(); }
+    renderPlans();
+  }
+  setInterval(() => { if (view === 'plans' && !document.hidden && Date.now() - plansAt > 60000) loadPlans(); }, 5000);
+  const PL_GRP = [['twin', 'S1 · the twin'], ['pick', 'Picks · the one best plan per firm (15 Nov)'], ['test', 'Test fleets · S2–S5, G3–G5'], ['rest', 'Every other plan']];
+  const plGrp = f => f.twin ? 'twin' : f.pick ? 'pick' : f.extra ? 'test' : 'rest';
+  const plMk = f => `${f.strategy} ${f.market} ${f.size}${f.kind === 'direct' ? ' · direct' : ''}`;
+  const plDay = s => { const t = Date.parse(s + 'T12:00:00Z'); return isFinite(t) ? new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) : '–'; };
+  function plKeep(f) {
+    const g = plFilt.grp;
+    return (!g || (g === 'pick' ? (f.pick || f.twin) : (f.extra || f.twin))) && (!plFilt.strat || f.strategy === plFilt.strat)
+      && (!plFilt.mkt || f.market === plFilt.mkt) && (!plFilt.size || f.size === plFilt.size);
+  }
+  function plDetail(f) {
+    const days = (f.days || []).filter(d => d[1] || d[2] || d[3] || d[4] || d[5] || d[6] || d[7]);
+    const dh = days.length ? '<table class="ptbl pdays"><thead><tr><th>Session</th><th class="r">P&amp;L</th><th class="r">Fees</th><th class="r">Received</th>'
+      + '<th class="r">Bought</th><th class="r">Passed</th><th class="r">Failed</th></tr></thead><tbody>'
+      + days.map(d => `<tr><td>${esc(plDay(d[0]))}</td><td class="r num ${cls(d[1])}">${sgn(d[1])}</td><td class="r num">${d[2] ? usd(d[2]) : ''}</td>`
+        + `<td class="r num">${d[3] ? usd(d[3]) : ''}</td><td class="r">${d[4] ? int(d[4]) : ''}</td><td class="r">${d[5] ? int(d[5]) : ''}</td><td class="r">${d[6] ? int(d[6]) : ''}</td></tr>`).join('')
+      + '</tbody></table>' : '<div class="empty">No trading day yet.</div>';
+    const ac = (f.accounts || []).map(a => {
+      const [n, b, p, e, why, now, ed, fd, cost, pays] = a;
+      const got = (pays || []).reduce((s, q) => s + (q[1] || 0), 0);
+      const st = why ? `${esc(why)} ${esc(plDay(e))}` : `open · ${esc(now || '')}`;
+      return `<li><b>#${int(n)}</b> bought ${esc(plDay(b))}${p ? ` · passed ${esc(plDay(p))}` : ''} · ${st} · ${int(ed)} eval / ${int(fd)} funded days`
+        + `${(pays || []).length ? ` · ${int(pays.length)} payout${pays.length > 1 ? 's' : ''} ${usd(got)}` : ''} <span class="muted">· cost ${usd(cost)}</span></li>`;
+    }).join('');
+    return `<div class="pl-det">${f.price ? `<p class="muted">Price: ${esc(f.price)}</p>` : ''}${dh}`
+      + `<h3>Accounts</h3>${ac ? '<ul class="pacc">' + ac + '</ul>' : '<div class="empty">No account bought yet.</div>'}</div>`;
+  }
+  function renderPlans() {
+    const box = $('plans'), sub = $('pl-sub');
+    if (!plDoc) { box.innerHTML = `<div class="empty">${plansErr ? 'The plan fleets are not in the feed yet. Retrying every minute.' : 'Loading the plan fleets…'}</div>`; return; }
+    if (plDoc.withheld) { box.innerHTML = '<div class="empty">The VPS held the plan fleets back (its safety check found something that must not be public).</div>'; return; }
+    const all = plDoc.fleets || [];
+    const ns = (plDoc.sessions || []).length;
+    sub.textContent = all.length ? `${all.length} paper fleets · ${ns} session${ns === 1 ? '' : 's'} from ${plDay(plDoc.start)} through ${plDay(plDoc.through)} · replayed after each close`
+      : 'every plan of the 14 Nov list, paper fleets from the 16 Nov session';
+    if (!all.length) {
+      box.innerHTML = `<div class="empty">No session yet. Every fleet starts from 0 accounts with the 16 Nov 2026 session; the first numbers come after its close (Mon 16 Nov, about 6:50 PM CT).</div>`;
+      return;
+    }
+    const fl = all.filter(plKeep);
+    let body = '';
+    for (const [g, name] of PL_GRP) {
+      const rows = fl.filter(f => plGrp(f) === g);
+      if (!rows.length) continue;
+      const net = rows.reduce((s, f) => s + (f.net || 0), 0);
+      body += `<tr class="grp"><td colspan="9">${esc(name)}<span>${int(rows.length)} fleet${rows.length > 1 ? 's' : ''} · net <b class="${cls(net)}">${sgn(net)}</b></span></td></tr>`;
+      body += rows.map(f => {
+        const flag = f.twin ? '<span class="pfl tw">S1 · twin</span>' : f.extra ? `<span class="pfl">${esc(f.extra)}</span>` : f.pick ? '<span class="pfl pk">pick</span>' : '';
+        const open = plOpen === f.id;
+        return `<tr class="prow${open ? ' on' : ''}" data-id="${esc(f.id)}" tabindex="0" aria-expanded="${open}"><td class="pl-n"><b>${esc(f.plan)}</b>${flag}<br><span class="muted">${esc(plMk(f))} · ${esc(f.setting)}</span></td>`
+          + `<td class="r num ${cls(f.net)}"><b>${sgn(f.net)}</b></td><td>${esc(f.buying)}</td><td class="r">${int(f.bought)}</td><td class="r">${int(f.passed)}</td>`
+          + `<td class="r">${int((f.failed_eval || 0) + (f.failed_funded || 0))}</td><td class="r">${int(f.payouts)}</td><td class="r num">${usd(f.fees)}</td><td class="r num">${usd(f.recv)}</td></tr>`
+          + (open ? `<tr class="pdet"><td colspan="9">${plDetail(f)}</td></tr>` : '');
+      }).join('');
+    }
+    const head = '<thead><tr><th>Plan</th><th class="r">Net</th><th>Buying</th><th class="r">Bought</th><th class="r">Passed</th><th class="r">Failed</th>'
+      + '<th class="r">Payouts</th><th class="r">Fees</th><th class="r">Received</th></tr></thead>';
+    box.innerHTML = body ? `<div class="ptw"><table class="ptbl">${head}<tbody>${body}</tbody></table></div>`
+      + `<p class="foot">Built ${esc(plDoc.built_ct || '')} CT. Net = payouts received − every fee paid. Paper only: each plan replayed after the close on the VPS; nothing here trades.</p>`
+      : '<div class="empty">No fleet in this filter.</div>';
+  }
+  $('pl-filt').addEventListener('click', e => {
+    const b = e.target.closest('button[data-v]'), s = b && b.closest('.seg[data-pf]');
+    if (!s) return;
+    plFilt[s.dataset.pf] = b.dataset.v;
+    for (const x of s.querySelectorAll('button')) x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+    renderPlans();
+  });
+  $('plans').addEventListener('click', e => {
+    const r = e.target.closest('tr.prow');
+    if (!r) return;
+    plOpen = plOpen === r.dataset.id ? null : r.dataset.id;
+    renderPlans();
+  });
+  $('plans').addEventListener('keydown', e => {
+    const r = e.target.closest('tr.prow');
+    if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); plOpen = plOpen === r.dataset.id ? null : r.dataset.id; renderPlans(); }
+  });
+  plansReady = true;
+
+  function start() { setBar(); paint(); poll(); if (view === 'plans') loadPlans(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

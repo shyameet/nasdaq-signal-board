@@ -14,13 +14,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="paper.css?v=7">
+<link rel="stylesheet" href="paper.css?v=8">
 <style>/* the market switch (owner 11/11/2026): US futures (Lucid) | India options (paper-india.html) */
 .mkt { margin-top: 14px; }
 .mkt a { padding: 4px 12px; border-radius: 6px; color: var(--muted); font-size: 12.5px; font-weight: 600; text-decoration: none; }
 .mkt a:hover { color: var(--text); }
 .mkt a[aria-current="page"] { background: var(--tile-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }</style>
-<script src="paper.js?v=6" defer></script>
+<script src="paper.js?v=7" defer></script>
 </head>
 <body>
 <header class="topbar" id="bar">
@@ -40,6 +40,7 @@
   <nav class="views seg" id="views" aria-label="Views">
     <button type="button" data-view="main" aria-pressed="true">Overview</button>
     <button type="button" data-view="trades" aria-pressed="false">Live trades <span class="vc" id="tr-count"></span></button>
+    <button type="button" data-view="plans" aria-pressed="false">Plan fleets</button>
   </nav>
 
   <section id="live-sec" data-view="main" aria-labelledby="h-live">
@@ -75,6 +76,17 @@
     <h2 id="h-tr">Live trades <small>one row a whole trade, one session at a time · times in Chicago (CT)</small></h2>
     <div class="seg tsess" id="tr-sess" role="group" aria-label="Session" hidden></div>
     <div id="trades" class="trs"><div class="empty">Waiting for the feed…</div></div>
+  </section>
+
+  <section id="pl-sec" data-view="plans" aria-labelledby="h-pl" hidden>
+    <h2 id="h-pl">Plan fleets <small id="pl-sub">every plan of the 14 Nov list, paper fleets from the 16 Nov session</small></h2>
+    <div class="filters" id="pl-filt">
+      <div class="seg" data-pf="grp"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="pick" aria-pressed="false">Picks</button><button type="button" data-v="test" aria-pressed="false">Tests</button></div>
+      <div class="seg" data-pf="strat"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="Nasdaq" aria-pressed="false">Nasdaq</button><button type="button" data-v="Gold" aria-pressed="false">Gold</button></div>
+      <div class="seg" data-pf="mkt"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="futures" aria-pressed="false">Futures</button><button type="button" data-v="forex" aria-pressed="false">Forex</button></div>
+      <div class="seg" data-pf="size"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="50K" aria-pressed="false">50K</button><button type="button" data-v="25K" aria-pressed="false">25K</button></div>
+    </div>
+    <div id="plans"><div class="empty">Loading the plan fleets…</div></div>
   </section>
 
   <p class="foot">PAPER ONLY - Sim, no real money: NinjaTrader Sim accounts and a simulator on the VPS, Lucid Flex rules. No real
