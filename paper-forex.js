@@ -318,6 +318,7 @@
     const cards = [];   // owner 16/11/2026: one price card a firm, no NinjaTrader (bot) card
     for (const f of doc.firms || []) if (!filt.firm || f.firm === filt.firm) cards.push(firmCard(f));
     $('bots').innerHTML = cards.length ? cards.join('') : '<div class="empty">No data yet.</div>';
+    $('bots').dataset.n = String(cards.length);   // 5 cards: one row of five on a wide screen (CSS)
   }
 
   // 3. the accounts: one table, plan by plan, a Calendar button on each plan
