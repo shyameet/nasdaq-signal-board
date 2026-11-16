@@ -367,12 +367,12 @@ main.old .sum, main.old section { opacity: .55; }
 .ptbl td.c-buy { white-space: normal; min-width: 110px; font-size: 12px; }
 .pcal { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; max-width: 760px; }
 .pcal-h { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 0 4px; }
-.pcal-d { min-height: 64px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--tile); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pcal-d { min-height: 64px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--tile); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .pcal-d.off { background: none; border-style: dashed; opacity: .55; }
 .pcal-d.lv { box-shadow: inset 0 0 0 1px var(--accent); }
 .pcal-d .dn { color: var(--muted); font-size: 11px; }
 .pcal-d b { font: 600 13px var(--font-num); }
-.pcal-d i { font-style: normal; font-size: 10.5px; line-height: 1.3; overflow-wrap: anywhere; }
+.pcal-d i { display: block; font-style: normal; font-size: 10.5px; line-height: 1.45; overflow-wrap: anywhere; }
 .pcal-d i.cb { color: var(--accent); } .pcal-d i.cp { color: var(--up); } .pcal-d i.cf { color: var(--down); } .pcal-d i.cy { color: var(--warn); }
 .pgrid-w { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; max-width: 100%; }
 .pgrid { border-collapse: separate; border-spacing: 0; font: 500 11px var(--font-num); }
