@@ -10,7 +10,7 @@
 (function () {
   'use strict';
   const SCALE_STOP_TARGET = false;   // the owner's call: true = the open trade's chart always has its stop and target lines in view
-  // paper-mcx.html (<html data-market="mcx">, owner 15/11/2026): the same view for the MCX mini crude / mini natgas
+  // paper-mcx.html (<html data-market="mcx">, owner 15/11/2026): the same view for the MCX mini crude / natgas / gold / silver
   // options paper bot (the India rules; its own feed, MCX hours 09:00-23:55 IST)
   const MCX = document.documentElement.dataset.market === 'mcx';
   const EXCH = MCX ? 'MCX' : 'NSE', OPEN_AT = MCX ? '09:00' : '09:15', CLOSE_AT = MCX ? '23:54' : '15:29';
@@ -39,7 +39,7 @@
   let fIST;
   try { fIST = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); } catch (e) { fIST = null; }
   const istNow = ms => fIST ? fIST.format(ms) : new Date(ms + IST * 1000).toISOString().slice(11, 16);
-  const NAME = MCX ? { CRUDEOILM: 'Crude oil mini', NATGASMINI: 'Natural gas mini' }
+  const NAME = MCX ? { CRUDEOILM: 'Crude oil mini', NATGASMINI: 'Natural gas mini', GOLDM: 'Gold mini', SILVERM: 'Silver mini' }   // + gold / silver (owner 16/11/2026)
     : { NIFTY: 'NIFTY 50', BANKNIFTY: 'NIFTY BANK', HDFCBANK: 'HDFC Bank', ICICIBANK: 'ICICI Bank', RELIANCE: 'Reliance', BHARTIARTL: 'Airtel', LT: 'L&T',
         KOTAKBANK: 'Kotak Bank', AXISBANK: 'Axis Bank', SBIN: 'SBI' };   // + Bank Nifty's other 3 (owner 16/11/2026)
   const nameOf = u => NAME[u] || u;
@@ -191,7 +191,7 @@
     $('b-rule').textContent = `live price from the stream · stop ${M}${sp}% / target +${tp}% of the entry price`;
     return r.exit || CLOSE_AT;
   }
-  const SETUP_ORDER = MCX ? ['US crude', 'US natgas'] : ['Nifty', 'Bank Nifty'];
+  const SETUP_ORDER = MCX ? ['US crude', 'US natgas', 'US gold', 'US silver'] : ['Nifty', 'Bank Nifty'];
   const WHY = { kind_open: 'a trade of the same kind was still open', after_exit: 'seen after the exit time', no_price: 'no option price yet', other: 'not traded' };
   const MISS = { not_running: 'the paper engine was not running yet', late: 'seen too late, after a gap in the live data', other: 'not traded' };
   function skipText(skips) {
