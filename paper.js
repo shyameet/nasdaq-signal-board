@@ -644,7 +644,7 @@
   // close. The publisher's plans.json next to paper.json; fetched when this view opens, then every 60 s while it is open.
   var plansReady = false;
   let plDoc = null, plansErr = false, plansBusy = false, plansAt = 0, plOpen = null;
-  const plFilt = { grp: '', strat: '', mkt: '', size: '' };
+  const plFilt = { grp: '', strat: '', mkt: '', size: '', buy: '' };
   const plansUrl = () => feedUrl && /paper\.json(\?|$)/.test(feedUrl) ? feedUrl.replace(/paper\.json(?=\?|$)/, 'plans.json') : null;
   async function loadPlans() {
     if (plansBusy) return;
@@ -665,27 +665,88 @@
   const plGrp = f => f.twin ? 'twin' : f.pick ? 'pick' : f.extra ? 'test' : 'rest';
   const plMk = f => `${f.strategy} ${f.market} ${f.size}${f.kind === 'direct' ? ' · direct' : ''}`;
   const plDay = s => { const t = Date.parse(s + 'T12:00:00Z'); return isFinite(t) ? new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) : '–'; };
+  // owner 16/11/2026: the buying rules in plain words (the record's ids: wait1 / one / demo)
+  const BUY = { wait1: ['1 a day, wait 1 day after a fail', 'At most one new evaluation a day, and none on the day after an evaluation failed'],
+    one: ['1 a day', 'At most one new evaluation a day'], demo: ['as the demo', 'Every free place (of 5) is refilled the next day, as the demo fund does'] };
+  const buyTxt = b => (BUY[b] || [b])[0], buyTip = b => (BUY[b] || [b, b])[1];
   function plKeep(f) {
     const g = plFilt.grp;
     return (!g || (g === 'pick' ? (f.pick || f.twin) : (f.extra || f.twin))) && (!plFilt.strat || f.strategy === plFilt.strat)
-      && (!plFilt.mkt || f.market === plFilt.mkt) && (!plFilt.size || f.size === plFilt.size);
+      && (!plFilt.mkt || f.market === plFilt.mkt) && (!plFilt.size || f.size === plFilt.size) && (!plFilt.buy || f.buying === plFilt.buy);
+  }
+  const whole = v => !ok(v) ? '–' : (v > 0.5 ? '+' : v < -0.5 ? '−' : '') + Math.round(Math.abs(v)).toLocaleString('en-US');
+  const k$ = v => !ok(v) ? '' : Math.abs(v) >= 999.5 ? (v < 0 ? '−' : '+') + (Math.abs(v) / 1000).toFixed(Math.abs(v) >= 9995 ? 0 : 1) + 'k' : (v > 0.5 ? '+' : v < -0.5 ? '−' : '') + Math.round(Math.abs(v));
+  const dLong = s => { const t = Date.parse(s + 'T12:00:00Z'); return isFinite(t) ? new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '–'; };
+  const addDay = (s, n) => new Date(Date.parse(s + 'T12:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+  const wd = s => new Date(Date.parse(s + 'T12:00:00Z')).getUTCDay();  // 0 Sun .. 6 Sat
+  const EVW = { PASS: 'passed', FAIL_EVAL: 'failed the evaluation', FAIL_FUNDED: 'failed funded', PAYOUT: 'payout', PAYOUT_LAST: 'last payout (closed)' };
+  // the fleet's calendar: one square a weekday, the day's P&L of every account and what happened (bought, passed, failed, paid)
+  function plCal(f) {
+    const D = new Map((f.days || []).map(d => [d[0], d]));
+    const ss = (plDoc.sessions || []).length ? plDoc.sessions : (f.days || []).map(d => d[0]);
+    if (!ss.length) return '<div class="empty">No session yet.</div>';
+    let d0 = ss[0]; while (wd(d0) !== 1) d0 = addDay(d0, -1);
+    let d1 = ss[ss.length - 1]; while (wd(d1) !== 5) d1 = addDay(d1, 1);
+    let html = '<div class="pcal"><div class="pcal-h">Mon</div><div class="pcal-h">Tue</div><div class="pcal-h">Wed</div><div class="pcal-h">Thu</div><div class="pcal-h">Fri</div>';
+    for (let d = d0; d <= d1; d = addDay(d, 1)) {
+      if (wd(d) === 0 || wd(d) === 6) continue;
+      const x = D.get(d), lv = plDoc.live && f.live && (plDoc.live.provisional_sessions || []).includes(d);
+      if (!x) { html += `<div class="pcal-d off"><span class="dn">${esc(plDay(d).replace(/^\w+ /, ''))}</span></div>`; continue; }
+      const ch = (x[4] ? `<i class="cb" title="${int(x[4])} evaluation(s) bought">+${int(x[4])} bought</i>` : '') + (x[5] ? `<i class="cp" title="passed">✓ ${int(x[5])} passed</i>` : '')
+        + (x[6] ? `<i class="cf" title="failed">✗ ${int(x[6])} failed</i>` : '') + (x[7] ? `<i class="cy" title="payouts">$ ${int(x[7])} paid ${usd(x[3])}</i>` : '');
+      html += `<div class="pcal-d${lv ? ' lv' : ''}" title="${esc(dLong(d))}: P&amp;L ${esc(sgn(x[1]))}, fees ${esc(usd(x[2]))}, received ${esc(usd(x[3]))}${lv ? ' (live, provisional)' : ''}">`
+        + `<span class="dn">${esc(plDay(d).replace(/^\w+ /, ''))}${lv ? ' · live' : ''}</span><b class="${cls(x[1])}">${whole(x[1])}</b>${ch}</div>`;
+    }
+    return html + '</div>';
+  }
+  // every account by day: E = evaluation day, F = funded day, ✓ passed, ✗ failed, $ paid; the number = that account's P&L that day
+  function plAccGrid(f) {
+    const A = f.accounts || [];
+    const ss = (plDoc.sessions || []).length ? plDoc.sessions : (f.days || []).map(d => d[0]);
+    if (!A.length || !ss.length) return '';
+    const head = '<tr><th class="sticky">Account</th>' + ss.map(d => `<th title="${esc(dLong(d))}">${esc(plDay(d).replace(/ \w+$/, ''))}</th>`).join('') + '</tr>';
+    const rows = A.map(a => {
+      const [n, b, p, e, why, now, , , , pays, days] = a;
+      const by = new Map((days || []).map(x => [x[0], x]));
+      const paid = new Set((pays || []).map(q => q[0]));
+      return `<tr><th class="sticky">#${int(n)}</th>` + ss.map(d => {
+        const x = by.get(d);
+        let c = '', t = '', s = '';
+        if (x) {
+          c = x[2] === 'F' ? 'fu' : 'ev';
+          s = (x[3] === 'PASS' ? '✓' : x[3] === 'FAIL_EVAL' || x[3] === 'FAIL_FUNDED' ? '✗' : x[3] === 'PAYOUT' || x[3] === 'PAYOUT_LAST' || paid.has(d) ? '$' : '');
+          t = `#${n} ${dLong(d)}: ${x[2] === 'F' ? 'funded' : 'evaluation'} day ${sgn(x[1])}, balance ${sgn(x[4])}${x[3] ? ' · ' + (EVW[x[3]] || x[3]) : ''}`;
+          return `<td class="${c}${s === '✗' ? ' fx' : ''}${d === b ? ' b0' : ''}" title="${esc((d === b ? 'bought this day · ' : '') + t)}"><span class="${cls(x[1])}">${esc(k$(x[1]))}</span>${s ? `<em>${s}</em>` : ''}</td>`;
+        }
+        if (d === b) return `<td class="by" title="${esc(`#${n} bought ${dLong(d)}`)}">bought</td>`;
+        if (e && d === e) return `<td class="fx" title="${esc(`#${n} ${why || 'ended'} ${dLong(d)}`)}"><em>✗</em></td>`;
+        if (p && d === p) return `<td class="ev" title="${esc(`#${n} passed ${dLong(d)}`)}"><em>✓</em></td>`;
+        const alive = d >= b && (!e || d < e);
+        return `<td class="${alive ? 'idle' : ''}" title="${alive ? esc(`#${n} no trade ${dLong(d)}`) : ''}"></td>`;
+      }).join('') + '</tr>';
+    }).join('');
+    return `<div class="pgrid-w"><table class="pgrid"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`
+      + '<p class="pkey"><span class="b0k">|</span> bought that day · <span class="ev">E</span> evaluation day <span class="fu">F</span> funded day <em>✓</em> passed <em>✗</em> failed <em>$</em> payout · the number is that account\'s P&amp;L that day</p>';
   }
   function plDetail(f) {
-    const days = (f.days || []).filter(d => d[1] || d[2] || d[3] || d[4] || d[5] || d[6] || d[7]);
-    const dh = days.length ? '<table class="ptbl pdays"><thead><tr><th>Session</th><th class="r">P&amp;L</th><th class="r">Fees</th><th class="r">Received</th>'
-      + '<th class="r">Bought</th><th class="r">Passed</th><th class="r">Failed</th></tr></thead><tbody>'
-      + days.map(d => `<tr><td>${esc(plDay(d[0]))}</td><td class="r num ${cls(d[1])}">${sgn(d[1])}</td><td class="r num">${d[2] ? usd(d[2]) : ''}</td>`
-        + `<td class="r num">${d[3] ? usd(d[3]) : ''}</td><td class="r">${d[4] ? int(d[4]) : ''}</td><td class="r">${d[5] ? int(d[5]) : ''}</td><td class="r">${d[6] ? int(d[6]) : ''}</td></tr>`).join('')
-      + '</tbody></table>' : '<div class="empty">No trading day yet.</div>';
-    const ac = (f.accounts || []).map(a => {
+    const A = f.accounts || [];
+    const ac = A.map(a => {
       const [n, b, p, e, why, now, ed, fd, cost, pays] = a;
       const got = (pays || []).reduce((s, q) => s + (q[1] || 0), 0);
-      const st = why ? `${esc(why)} ${esc(plDay(e))}` : `open · ${esc(now || '')}`;
-      return `<li><b>#${int(n)}</b> bought ${esc(plDay(b))}${p ? ` · passed ${esc(plDay(p))}` : ''} · ${st} · ${int(ed)} eval / ${int(fd)} funded days`
-        + `${(pays || []).length ? ` · ${int(pays.length)} payout${pays.length > 1 ? 's' : ''} ${usd(got)}` : ''} <span class="muted">· cost ${usd(cost)}</span></li>`;
+      const res = why ? `<span class="${/fail/.test(why) ? 'down' : 'muted'}">${esc(why)}</span>` : `<span class="up">open · ${esc(now || '')}</span>`;
+      return `<tr><td class="c-id">#${int(n)}</td><td>${esc(dLong(b))}</td><td>${p ? esc(dLong(p)) : '<span class="muted">–</span>'}</td>`
+        + `<td>${e ? esc(dLong(e)) : '<span class="muted">–</span>'}</td><td>${res}</td><td class="r">${int(ed)}</td><td class="r">${int(fd)}</td>`
+        + `<td>${(pays || []).length ? (pays || []).map(q => `${esc(plDay(q[0]))} ${usd(q[1])}`).join('<br>') : '<span class="muted">–</span>'}</td>`
+        + `<td class="r num">${(pays || []).length ? usd(got) : ''}</td><td class="r num">${usd(cost)}</td></tr>`;
     }).join('');
-    return `<div class="pl-det">${f.price ? `<p class="muted">Price: ${esc(f.price)}</p>` : ''}${dh}`
-      + `<h3>Accounts</h3>${ac ? '<ul class="pacc">' + ac + '</ul>' : '<div class="empty">No account bought yet.</div>'}</div>`;
+    const nF = A.filter(a => /fail/.test(a[4] || '')).length, nO = A.filter(a => !a[4]).length;
+    return `<div class="pl-det"><p class="muted">Buying: <b>${esc(buyTxt(f.buying))}</b> (${esc(buyTip(f.buying))}).${f.price ? ` Price: ${esc(f.price)}.` : ''}`
+      + ` ${int(A.length)} accounts bought · ${int(f.passed)} passed · ${int(nF)} failed · ${int(nO)} still open.</p>`
+      + `<h3>Calendar</h3>${plCal(f)}`
+      + `<h3>Every account by day</h3>${plAccGrid(f) || '<div class="empty">No account bought yet.</div>'}`
+      + `<h3>Accounts</h3>${ac ? '<div class="ptw"><table class="ptbl pacct"><thead><tr><th>#</th><th>Bought</th><th>Passed</th><th>Ended</th><th>How it ended</th>'
+        + '<th class="r">Eval days</th><th class="r">Funded days</th><th>Payouts</th><th class="r">Paid</th><th class="r">Cost</th></tr></thead><tbody>' + ac + '</tbody></table></div>'
+        : '<div class="empty">No account bought yet.</div>'}</div>`;
   }
   function renderPlans() {
     const box = $('plans'), sub = $('pl-sub');
@@ -714,7 +775,7 @@
           + (f.live ? '<span class="pfl lv" title="provisional: today\'s session so far">live</span>' : '');
         const open = plOpen === f.id, td = today(f);
         return `<tr class="prow${open ? ' on' : ''}" data-id="${esc(f.id)}" tabindex="0" aria-expanded="${open}"><td class="pl-n"><b>${esc(f.plan)}</b>${flag}<br><span class="muted">${esc(plMk(f))} · ${esc(f.setting)}</span></td>`
-          + `<td class="r num ${cls(f.net)}"><b>${sgn(f.net)}</b></td><td class="r num ${cls(td)}">${td == null ? '' : sgn(td)}</td><td>${esc(f.buying)}</td><td class="r">${int(f.bought)}</td><td class="r">${int(f.passed)}</td>`
+          + `<td class="r num ${cls(f.net)}"><b>${sgn(f.net)}</b></td><td class="r num ${cls(td)}">${td == null ? '' : sgn(td)}</td><td class="c-buy" title="${esc(buyTip(f.buying))}">${esc(buyTxt(f.buying))}</td><td class="r">${int(f.bought)}</td><td class="r">${int(f.passed)}</td>`
           + `<td class="r">${int((f.failed_eval || 0) + (f.failed_funded || 0))}</td><td class="r">${int(f.payouts)}</td><td class="r num">${usd(f.fees)}</td><td class="r num">${usd(f.recv)}</td></tr>`
           + (open ? `<tr class="pdet"><td colspan="10">${plDetail(f)}</td></tr>` : '');
       }).join('');
@@ -723,10 +784,17 @@
       + '<th class="r">Payouts</th><th class="r">Fees</th><th class="r">Received</th></tr></thead>';
     const banner = lv ? `<div class="pl-live"><b>Live · ${esc(plDay(lv.session))} session so far</b> · as of ${esc(tm(lv.asof_ct))} CT, last bar ${esc(tm(lv.last_bar_ct))} CT · `
       + `the twin and ${int((lv.fleets || 1) - 1)} pick fleets <span class="muted">· ${esc(lv.note)}</span></div>` : '';
-    box.innerHTML = body ? `${banner}<div class="ptw"><table class="ptbl">${head}<tbody>${body}</tbody></table></div>`
+    const key = '<p class="pkey">Buying: <b>1 a day</b> = at most one new evaluation a day · <b>1 a day, wait 1 day after a fail</b> = the same, but none on the day after an evaluation failed · <b>as the demo</b> = every free place refilled the next day. Tap a plan for its calendar and every account&#39;s dates.</p>';
+    box.innerHTML = body ? `${banner}${key}<div class="ptw"><table class="ptbl">${head}<tbody>${body}</tbody></table></div>`
       + `<p class="foot">Built ${esc(plDoc.built_ct || '')} CT. Net = payouts received − every fee paid. Paper only: each plan replayed after the close on the VPS; nothing here trades.</p>`
       : '<div class="empty">No fleet in this filter.</div>';
+    plFit();
   }
+  function plFit() {  // an opened plan's detail spans the visible part of the table box, not the whole (wider) table
+    const w = $('plans').querySelector('.ptw');
+    if (w) w.style.setProperty('--ptw-w', w.clientWidth + 'px');
+  }
+  window.addEventListener('resize', plFit);
   $('pl-filt').addEventListener('click', e => {
     const b = e.target.closest('button[data-v]'), s = b && b.closest('.seg[data-pf]');
     if (!s) return;
