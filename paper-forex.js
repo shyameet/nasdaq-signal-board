@@ -1,7 +1,7 @@
 // Forex props paper: the live PAPER page (owner 11/11/2026: the forex prop paper test in real time, "like the futures one").
 // PAPER ONLY - no real money, no order is ever sent. The Scalper 3m bot's own trades (NinjaTrader Sim, one open at a time) on
 // FTMO and FundedNext paper accounts, filled and marked at each firm's own MT5 bid / ask; the forex test's plans, sizes and rules.
-// Laid out as the Lucid paper page (paper.html): summary strip, live now (the bot + the two firm feeds), all paper accounts per
+// Laid out as the Lucid paper page (paper.html): summary strip, live now (the two firm feeds), all paper accounts per
 // firm and plan, the calendar, live trades. Times in Chicago (CT).
 // It reads the VPS's paper-only feed: its address is in data/forex_paper_feed.json {"url": ...} (read again while the feed fails,
 // so a new address needs no code change); the document there is the publisher's sanitized "rdx-forex-paper-public" v1.
@@ -222,27 +222,10 @@
       + tile('Net to date', pnlUsd(s.net), `fees ${usd(s.fees)} · payouts ${usd(s.paid)}${s.refunds ? ' · refunds ' + usd(s.refunds) : ''}`);
   }
 
-  // 2. live now: the bot and the two firm feeds
+  // 2. live now: the two firm feeds
   function chipState(st, word) {
     const k = st === 'ok' ? 'okx' : st === 'replay' || st === 'off hours' ? 'offx' : 'warnx';
     return `<span class="st ${k}">${esc(word)}</span>`;
-  }
-  function botCard(sg) {
-    const SST = { ok: 'Live', quiet: 'Quiet', 'off hours': 'Off hours', replay: 'Replay' };
-    const head = `<div class="bh"><span class="acct">${esc(sg.bot)}</span>${chipState(sg.state, SST[sg.state] || sg.state)}<span class="tagx prim">the signal</span></div>`
-      + `<div class="bsub">${esc(sg.name)} · NinjaTrader Sim · its own trades, no day limits</div>`;
-    const tr = sg.trades || [], open = tr.filter(t => !t.tout), done = tr.filter(t => t.tout);
-    const kp = `<div class="kpis"><div class="kpi"><span class="lbl">Trades this session</span><span class="big">${int(tr.length)}</span>`
-      + `<span class="sm">${int(done.length)} closed · ${int(open.length)} open</span></div>`
-      + `<div class="kpi"><span class="lbl">Last 1-minute bar</span><span class="big">${sg.last_bar ? esc(ct5(sg.last_bar)) : '–'}</span>`
-      + `<span class="sm">${sg.last_bar ? 'CT' : doc.mode === 'replay' ? 'replay: recorded trades' : 'no bar this session yet'}</span></div></div>`;
-    const ot = open.length ? open.map(t => `<div class="trade"><div class="tl">${sideChip(t.side, '1 MNQ')}<span class="muted">since ${esc(ct5(t.tin))} CT</span></div>`
-      + (ok(t.px_in) ? `<div class="tp"><span>entry <b>${px(t.px_in)}</b></span></div>` : '') + '</div>').join('')
-      : '<div class="trade flat"><div class="tl"><span class="pos flat">FLAT</span> no open trade</div></div>';
-    const sb = sg.standby || {};
-    const foot = `<div class="bf">Standby ${esc(sb.bot || '')}: ${sb.last_bar ? (sb.quiet ? 'quiet' : 'live') : '–'}${sg.build ? ' · build ' + esc(sg.build) : ''}`
-      + `${(sg.blind || []).length ? ` · <span class="down">${int(sg.blind.length)} blind window${sg.blind.length === 1 ? '' : 's'}</span>` : ''}</div>`;
-    return `<article class="card">${head}${kp}${ot}${foot}</article>`;
   }
   function firmCard(f) {
     const fd = f.feed || {}, td = f.today || {};
@@ -272,9 +255,8 @@
   }
   function renderLive() {
     const cs = curSess();
-    $('live-sub').textContent = (cs ? `session ${day(cs)} · ` : '') + 'the Scalper 3m bot and the two firms\' prices';
-    const cards = [];
-    if (doc.signal) cards.push(botCard(doc.signal));
+    $('live-sub').textContent = (cs ? `session ${day(cs)} · ` : '') + 'the two firms\' prices';
+    const cards = [];   // owner 16/11/2026: no NinjaTrader (bot) card in Live now - the two firms only
     for (const f of doc.firms || []) cards.push(firmCard(f));
     $('bots').innerHTML = cards.length ? cards.join('') : '<div class="empty">No data yet.</div>';
   }

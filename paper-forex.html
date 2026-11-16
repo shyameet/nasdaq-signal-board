@@ -21,7 +21,7 @@
 .mkt a:hover { color: var(--text); }
 .mkt a[aria-current="page"] { background: var(--tile-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
 /* the forex page's few extras on the Lucid page's look */
-.bots.fx { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.bots.fx { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .st.lost { background: rgba(var(--down-rgb), .10); color: var(--down); }
 .st.warnx { background: rgba(242, 179, 61, .16); color: var(--warn); }
 .st.okx { background: rgba(var(--up-rgb), .18); color: var(--up); }
@@ -32,7 +32,7 @@
 .c-px .muted b { font-weight: 500; }
 @media (max-width: 1180px) { .bots.fx { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .bots.fx { grid-template-columns: minmax(0, 1fr); } }</style>
-<script src="paper-forex.js?v=1" defer></script>
+<script src="paper-forex.js?v=2" defer></script>
 </head>
 <body>
 <header class="topbar" id="bar">
@@ -56,7 +56,7 @@
   </nav>
 
   <section id="live-sec" data-view="main" aria-labelledby="h-live">
-    <h2 id="h-live">Live now <small id="live-sub">the Scalper 3m bot and the two firms' prices</small></h2>
+    <h2 id="h-live">Live now <small id="live-sub">the two firms' prices</small></h2>
     <div class="bots fx" id="bots"><div class="empty">Waiting for the feed…</div></div>
   </section>
 
