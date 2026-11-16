@@ -692,32 +692,38 @@
     if (!plDoc) { box.innerHTML = `<div class="empty">${plansErr ? 'The plan fleets are not in the feed yet. Retrying every minute.' : 'Loading the plan fleets…'}</div>`; return; }
     if (plDoc.withheld) { box.innerHTML = '<div class="empty">The VPS held the plan fleets back (its safety check found something that must not be public).</div>'; return; }
     const all = plDoc.fleets || [];
-    const ns = (plDoc.sessions || []).length;
-    sub.textContent = all.length ? `${all.length} paper fleets · ${ns} session${ns === 1 ? '' : 's'} from ${plDay(plDoc.start)} through ${plDay(plDoc.through)} · replayed after each close`
+    const ns = (plDoc.sessions || []).length, lv = plDoc.live || null;  // lv (16/11): the twin + picks with today's session so far
+    const tm = s => String(s || '').slice(11, 16);
+    sub.textContent = all.length ? (plDoc.through ? `${all.length} paper fleets · ${ns} session${ns === 1 ? '' : 's'} from ${plDay(plDoc.start)} through ${plDay(plDoc.through)} · replayed after each close`
+      : `${all.length} paper fleets live · the after-close record starts with the 16 Nov session`)
       : 'every plan of the 14 Nov list, paper fleets from the 16 Nov session';
     if (!all.length) {
       box.innerHTML = `<div class="empty">No session yet. Every fleet starts from 0 accounts with the 16 Nov 2026 session; the first numbers come after its close (Mon 16 Nov, about 6:50 PM CT).</div>`;
       return;
     }
+    const today = f => { if (!lv || !f.live) return null; const d = (f.days || []).find(x => x[0] === lv.session); return d ? d[1] : 0; };
     const fl = all.filter(plKeep);
     let body = '';
     for (const [g, name] of PL_GRP) {
       const rows = fl.filter(f => plGrp(f) === g);
       if (!rows.length) continue;
       const net = rows.reduce((s, f) => s + (f.net || 0), 0);
-      body += `<tr class="grp"><td colspan="9">${esc(name)}<span>${int(rows.length)} fleet${rows.length > 1 ? 's' : ''} · net <b class="${cls(net)}">${sgn(net)}</b></span></td></tr>`;
+      body += `<tr class="grp"><td colspan="10">${esc(name)}<span>${int(rows.length)} fleet${rows.length > 1 ? 's' : ''} · net <b class="${cls(net)}">${sgn(net)}</b></span></td></tr>`;
       body += rows.map(f => {
-        const flag = f.twin ? '<span class="pfl tw">S1 · twin</span>' : f.extra ? `<span class="pfl">${esc(f.extra)}</span>` : f.pick ? '<span class="pfl pk">pick</span>' : '';
-        const open = plOpen === f.id;
+        const flag = (f.twin ? '<span class="pfl tw">S1 · twin</span>' : f.extra ? `<span class="pfl">${esc(f.extra)}</span>` : f.pick ? '<span class="pfl pk">pick</span>' : '')
+          + (f.live ? '<span class="pfl lv" title="provisional: today\'s session so far">live</span>' : '');
+        const open = plOpen === f.id, td = today(f);
         return `<tr class="prow${open ? ' on' : ''}" data-id="${esc(f.id)}" tabindex="0" aria-expanded="${open}"><td class="pl-n"><b>${esc(f.plan)}</b>${flag}<br><span class="muted">${esc(plMk(f))} · ${esc(f.setting)}</span></td>`
-          + `<td class="r num ${cls(f.net)}"><b>${sgn(f.net)}</b></td><td>${esc(f.buying)}</td><td class="r">${int(f.bought)}</td><td class="r">${int(f.passed)}</td>`
+          + `<td class="r num ${cls(f.net)}"><b>${sgn(f.net)}</b></td><td class="r num ${cls(td)}">${td == null ? '' : sgn(td)}</td><td>${esc(f.buying)}</td><td class="r">${int(f.bought)}</td><td class="r">${int(f.passed)}</td>`
           + `<td class="r">${int((f.failed_eval || 0) + (f.failed_funded || 0))}</td><td class="r">${int(f.payouts)}</td><td class="r num">${usd(f.fees)}</td><td class="r num">${usd(f.recv)}</td></tr>`
-          + (open ? `<tr class="pdet"><td colspan="9">${plDetail(f)}</td></tr>` : '');
+          + (open ? `<tr class="pdet"><td colspan="10">${plDetail(f)}</td></tr>` : '');
       }).join('');
     }
-    const head = '<thead><tr><th>Plan</th><th class="r">Net</th><th>Buying</th><th class="r">Bought</th><th class="r">Passed</th><th class="r">Failed</th>'
+    const head = '<thead><tr><th>Plan</th><th class="r">Net</th><th class="r" title="the live session so far (provisional)">Today</th><th>Buying</th><th class="r">Bought</th><th class="r">Passed</th><th class="r">Failed</th>'
       + '<th class="r">Payouts</th><th class="r">Fees</th><th class="r">Received</th></tr></thead>';
-    box.innerHTML = body ? `<div class="ptw"><table class="ptbl">${head}<tbody>${body}</tbody></table></div>`
+    const banner = lv ? `<div class="pl-live"><b>Live · ${esc(plDay(lv.session))} session so far</b> · as of ${esc(tm(lv.asof_ct))} CT, last bar ${esc(tm(lv.last_bar_ct))} CT · `
+      + `the twin and ${int((lv.fleets || 1) - 1)} pick fleets <span class="muted">· ${esc(lv.note)}</span></div>` : '';
+    box.innerHTML = body ? `${banner}<div class="ptw"><table class="ptbl">${head}<tbody>${body}</tbody></table></div>`
       + `<p class="foot">Built ${esc(plDoc.built_ct || '')} CT. Net = payouts received − every fee paid. Paper only: each plan replayed after the close on the VPS; nothing here trades.</p>`
       : '<div class="empty">No fleet in this filter.</div>';
   }

@@ -356,3 +356,6 @@ main.old .sum, main.old section { opacity: .55; }
 .pl-det .pdays { width: auto; min-width: 420px; border: 1px solid var(--line); border-radius: 8px; }
 .pacc { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.6; }
 #pl-sec .foot { margin-top: 8px; }
+.pfl.lv { background: var(--accent); color: #fff; }
+.pl-live { margin: 0 0 8px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--tile); font-size: 12.5px; line-height: 1.5; }
+.pl-live b { color: var(--text); }
