@@ -219,7 +219,8 @@
 
   function render() {
     if (!doc || doc.withheld) return;
-    if (!(doc.rules || []).some(r => r.key === filt.rule) && (doc.rules || []).length) filt.rule = doc.rules[0].key;
+    if (!Array.isArray(doc.rules)) doc.rules = [{ key: '1', label: '1 at a time' }];   // a feed from before fx_live5: its first rule only
+    if (!doc.rules.some(r => r.key === filt.rule) && doc.rules.length) filt.rule = doc.rules[0].key;
     if (filt.firm && !firmList().includes(filt.firm)) filt.firm = '';
     renderFirms(); renderSummary(); renderRules(); renderLive(); renderAccounts(); renderTrades();
     if (daysStale() && !daysBusy) fetchDays().then(() => { if (doc && !doc.withheld) { renderTrades(); renderDay(); } });
@@ -251,8 +252,10 @@
         line = `<b>${esc(filt.firm)}</b> · ${priceWord(f)}${f && f.symbol ? ` (${esc(f.symbol)})` : ''} · $${f && ok(f.lot_usd_pt) ? int(f.lot_usd_pt) : '–'} a point a lot · ${pauseTxt(f)}`
           + ` · ${np} plan${np === 1 ? '' : 's'}${nw ? ` live, ${nw} waiting for a size pick` : ''} · totals for <b>${esc(ruleLabel(filt.rule))}</b>`;
       } else {
-        const brw = (doc.firms || []).filter(f => f.borrowed).map(f => f.firm);
-        line = `<b>All five firms</b> at the firms' own MT5 prices${brw.length ? ` (FundedNext's for ${esc(brw.join(', '))})` : ''} · totals for <b>${esc(ruleLabel(filt.rule))}</b>`;
+        const lend = {};                                  // the feed each borrowing firm uses (today FundedNext's)
+        for (const f of doc.firms || []) if (f.borrowed) (lend[f.price_feed] = lend[f.price_feed] || []).push(f.firm);
+        const brw = Object.keys(lend).map(k => `${esc(k)}'s for ${esc(lend[k].join(', '))}`).join('; ');
+        line = `<b>All ${names.length} firms</b> at the firms' own MT5 prices${brw ? ` (${brw})` : ''} · totals for <b>${esc(ruleLabel(filt.rule))}</b>`;
       }
     }
     $('fsub').innerHTML = line;
@@ -260,7 +263,7 @@
   function renderSummary() {
     const by = (doc.summary_by || {})[filt.rule] || {};
     const s = by[filt.firm || 'All'] || (filt.firm ? {} : doc.summary || {});
-    const who = filt.firm ? `${filt.firm}'s paper accounts` : 'all paper accounts';
+    const who = filt.firm ? `${filt.firm} paper accounts` : 'all paper accounts';
     const tile = (lbl, val, sub) => `<div class="tile"><span class="lbl">${lbl}</span><span class="val">${val}</span><span class="sub">${sub}</span></div>`;
     $('sum').innerHTML =
       tile('Open', `<span class="num">${int(s.open)}</span>`, `${int(s.evaluation)} evaluation · ${int(s.funded)} funded`)
