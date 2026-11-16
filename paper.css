@@ -391,3 +391,12 @@ main.old .sum, main.old section { opacity: .55; }
 .pkey .fu { background: rgba(var(--up-rgb), .18); }
 .ptbl.pacct td { font-size: 12px; }
 @media (max-width: 560px) { .pcal-d { min-height: 58px; padding: 4px; } .pcal-d i { font-size: 9.5px; } .pcal-d b { font-size: 12px; } }
+
+/* plan fleets, 16/11 (2): market switch, one section per buying rule */
+.pmkt { margin: 0 0 10px; }
+.pmkt button { padding: 6px 16px; font-size: 13.5px; }
+.psec { margin: 14px 0 18px; }
+.psec h3 { margin: 0 0 4px; font-size: 15px; color: var(--text); }
+.psec h3 small { margin-left: 8px; color: var(--muted); font-size: 12px; font-weight: 500; }
+.ptbl td .pl-w { color: var(--text); font-size: 12px; font-weight: 600; }
+.ptbl td.pl-n { min-width: 260px; max-width: 420px; }

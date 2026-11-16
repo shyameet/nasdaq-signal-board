@@ -644,7 +644,7 @@
   // close. The publisher's plans.json next to paper.json; fetched when this view opens, then every 60 s while it is open.
   var plansReady = false;
   let plDoc = null, plansErr = false, plansBusy = false, plansAt = 0, plOpen = null;
-  const plFilt = { grp: '', strat: '', mkt: '', size: '', buy: '' };
+  const plFilt = { grp: '', strat: '', mkt: 'futures', size: '' };
   const plansUrl = () => feedUrl && /paper\.json(\?|$)/.test(feedUrl) ? feedUrl.replace(/paper\.json(?=\?|$)/, 'plans.json') : null;
   async function loadPlans() {
     if (plansBusy) return;
@@ -672,7 +672,7 @@
   function plKeep(f) {
     const g = plFilt.grp;
     return (!g || (g === 'pick' ? (f.pick || f.twin) : (f.extra || f.twin))) && (!plFilt.strat || f.strategy === plFilt.strat)
-      && (!plFilt.mkt || f.market === plFilt.mkt) && (!plFilt.size || f.size === plFilt.size) && (!plFilt.buy || f.buying === plFilt.buy);
+      && (!plFilt.mkt || f.market === plFilt.mkt) && (!plFilt.size || f.size === plFilt.size);
   }
   const whole = v => !ok(v) ? '–' : (v > 0.5 ? '+' : v < -0.5 ? '−' : '') + Math.round(Math.abs(v)).toLocaleString('en-US');
   const k$ = v => !ok(v) ? '' : Math.abs(v) >= 999.5 ? (v < 0 ? '−' : '+') + (Math.abs(v) / 1000).toFixed(Math.abs(v) >= 9995 ? 0 : 1) + 'k' : (v > 0.5 ? '+' : v < -0.5 ? '−' : '') + Math.round(Math.abs(v));
@@ -740,60 +740,113 @@
         + `<td class="r num">${(pays || []).length ? usd(got) : ''}</td><td class="r num">${usd(cost)}</td></tr>`;
     }).join('');
     const nF = A.filter(a => /fail/.test(a[4] || '')).length, nO = A.filter(a => !a[4]).length;
-    return `<div class="pl-det"><p class="muted">Buying: <b>${esc(buyTxt(f.buying))}</b> (${esc(buyTip(f.buying))}).${f.price ? ` Price: ${esc(f.price)}.` : ''}`
-      + ` ${int(A.length)} accounts bought · ${int(f.passed)} passed · ${int(nF)} failed · ${int(nO)} still open.</p>`
+    return `<div class="pl-det"><p class="muted">Settings: <b>${esc(setTxt(f))}</b>.<br>Buying: <b>${esc(buyTxt(f.buying))}</b> (${esc(buyTip(f.buying))}).${f.price ? ` Price: ${esc(f.price)}.` : ''}`
+      + `<br>${int(A.length)} accounts bought · ${int(f.passed)} passed · ${int(nF)} failed · ${int(nO)} still open.</p>`
       + `<h3>Calendar</h3>${plCal(f)}`
       + `<h3>Every account by day</h3>${plAccGrid(f) || '<div class="empty">No account bought yet.</div>'}`
       + `<h3>Accounts</h3>${ac ? '<div class="ptw"><table class="ptbl pacct"><thead><tr><th>#</th><th>Bought</th><th>Passed</th><th>Ended</th><th>How it ended</th>'
         + '<th class="r">Eval days</th><th class="r">Funded days</th><th>Payouts</th><th class="r">Paid</th><th class="r">Cost</th></tr></thead><tbody>' + ac + '</tbody></table></div>'
         : '<div class="empty">No account bought yet.</div>'}</div>`;
   }
+  // owner 16/11/2026 (2): settings in plain words, one section per buying rule, futures and forex apart, money named clearly
+  const usd0 = v => !ok(v) ? '–' : (v < 0 ? '−$' : '$') + Math.round(Math.abs(v)).toLocaleString('en-US');
+  const sgn0 = v => !ok(v) ? '–' : (v > 0.5 ? '+$' : v < -0.5 ? '−$' : '$') + Math.round(Math.abs(v)).toLocaleString('en-US');
+  const pct = x => Math.round(parseFloat(x) * 100) + '%';
+  function setTxt(f) {  // the record's setting code -> words; a direct account has no evaluation whatever its code says
+    const t = setTxt0(f);
+    return f.kind === 'direct' && !/^Direct account/.test(t) ? 'Direct account (no evaluation) · ' + t.replace(/^[^·]*· /, '') : t;
+  }
+  function setTxt0(f) {  // the record's setting code -> words (the plan study's codes)
+    const s = String(f.setting || '');
+    let m;
+    if (f.strategy === 'Nasdaq') {
+      m = /^e([\d.]+)\|m([\d.]+)(?:s([\d.]+)w(\d+)|w(\d+)s([\d.]+))$/.exec(s);
+      if (m) {
+        const e = +m[1], fm = +m[2], st = +(m[3] || m[6]), w = +(m[4] || m[5]);
+        if (f.market === 'forex') return `Evaluation ${e === 1 ? 'full size' : Math.round(e * 100) + '% size'} · funded ${fm === 1 ? 'full size' : Math.round(fm * 100) + '% size'}, the day stops after ${w} winning trades or a ${st}-point loss`;
+        return `${e ? `Evaluation ${e} micros` : 'Direct account (no evaluation)'} · funded ${fm} micros, the day stops after ${w} winning trades (+${usd0(w * 33.1 * fm * 0.98)}) or a ${st}-point loss (−${usd0(st * 2 * fm)})`;
+      }
+    } else {
+      m = /^e(?:([\d.]+)m(\d+)|0)\|f([\d.]+)n(\d+)$/.exec(s);
+      if (m) return `${m[1] ? `Evaluation risks ${pct(m[1])} of the room to the loss limit, up to ${m[2]} micros` : 'Direct account (no evaluation)'} · funded risks ${pct(m[3])} of the room, up to ${m[4]} micros`;
+    }
+    return s;
+  }
+  const trading = f => (f.days || []).reduce((a, d) => a + (d[1] || 0), 0);
+  const RULE_SEC = [['wait1', '1 a day, wait 1 day after a fail', 'At most one new evaluation a day, and none on the day after an evaluation failed. Every plan runs this.'],
+    ['one', '1 a day', 'At most one new evaluation a day. Gold plans also run this, to compare with the rule above.'],
+    ['test', 'Test fleets', 'S2–S5 (Topstep 50K) and G3–G5 (Tradeify Growth 50K gold): other buying rules and sizes for comparison.']];
   function renderPlans() {
     const box = $('plans'), sub = $('pl-sub');
     if (!plDoc) { box.innerHTML = `<div class="empty">${plansErr ? 'The plan fleets are not in the feed yet. Retrying every minute.' : 'Loading the plan fleets…'}</div>`; return; }
     if (plDoc.withheld) { box.innerHTML = '<div class="empty">The VPS held the plan fleets back (its safety check found something that must not be public).</div>'; return; }
     const all = plDoc.fleets || [];
-    const ns = (plDoc.sessions || []).length, lv = plDoc.live || null;  // lv (16/11): the twin + picks with today's session so far
+    const ns = (plDoc.sessions || []).length, lv = plDoc.live || null;
     const tm = s => String(s || '').slice(11, 16);
-    sub.textContent = all.length ? (plDoc.through ? `${all.length} paper fleets · ${ns} session${ns === 1 ? '' : 's'} from ${plDay(plDoc.start)} through ${plDay(plDoc.through)} · replayed after each close`
-      : `${all.length} paper fleets live · the after-close record starts with the 16 Nov session`)
+    sub.textContent = all.length ? (plDoc.through ? `${all.length} paper fleets · ${ns} session${ns === 1 ? '' : 's'} from ${plDay(plDoc.start)} through ${plDay(plDoc.through)}`
+      : `${all.length} paper fleets · the after-close record starts with the 16 Nov session`)
       : 'every plan of the 14 Nov list, paper fleets from the 16 Nov session';
+    for (const b of document.querySelectorAll('#pl-mkt button')) {
+      const n = all.filter(f => f.market === b.dataset.v).length;
+      b.querySelector('span').textContent = n ? String(n) : '';
+      b.setAttribute('aria-pressed', b.dataset.v === plFilt.mkt ? 'true' : 'false');
+    }
     if (!all.length) {
       box.innerHTML = `<div class="empty">No session yet. Every fleet starts from 0 accounts with the 16 Nov 2026 session; the first numbers come after its close (Mon 16 Nov, about 6:50 PM CT).</div>`;
       return;
     }
     const today = f => { if (!lv || !f.live) return null; const d = (f.days || []).find(x => x[0] === lv.session); return d ? d[1] : 0; };
     const fl = all.filter(plKeep);
-    let body = '';
-    for (const [g, name] of PL_GRP) {
-      const rows = fl.filter(f => plGrp(f) === g);
+    const head = '<thead><tr><th>Plan and its settings</th><th class="r" title="payouts received minus every fee paid: the real money so far">Cash result</th>'
+      + '<th class="r" title="what the accounts made or lost trading (not cash until paid out)">Trading P&amp;L</th>'
+      + (lv ? '<th class="r" title="the live session so far (provisional)">Today</th>' : '')
+      + '<th class="r">Fees paid</th><th class="r">Payouts received</th><th class="r">Bought</th><th class="r">Passed</th><th class="r">Failed</th></tr></thead>';
+    const ncol = lv ? 9 : 8;
+    const row = f => {
+      const flag = (f.twin ? '<span class="pfl tw">S1 · the twin</span>' : f.extra ? `<span class="pfl">${esc(f.extra)}</span>` : f.pick ? '<span class="pfl pk">pick</span>' : '')
+        + (f.live ? '<span class="pfl lv" title="provisional: today&#39;s session so far">live</span>' : '');
+      const open = plOpen === f.id, td = today(f), tp = trading(f);
+      const what = `${f.strategy === 'Gold' ? 'Gold' : 'Nasdaq'} ${f.size}${f.kind === 'direct' ? ' · direct' : ''}${f.extra ? ' · ' + buyTxt(f.buying) : ''}`;
+      return `<tr class="prow${open ? ' on' : ''}" data-id="${esc(f.id)}" tabindex="0" aria-expanded="${open}"><td class="pl-n"><b>${esc(f.plan)}</b>${flag}`
+        + `<br><span class="pl-w">${esc(what)}</span><br><span class="muted">${esc(setTxt(f))}</span></td>`
+        + `<td class="r num ${cls(f.net)}"><b>${sgn0(f.net)}</b></td><td class="r num ${cls(tp)}">${sgn0(tp)}</td>`
+        + (lv ? `<td class="r num ${cls(td)}">${td == null ? '' : sgn0(td)}</td>` : '')
+        + `<td class="r num">${usd0(f.fees)}</td><td class="r num">${usd0(f.recv)}</td><td class="r">${int(f.bought)}</td><td class="r">${int(f.passed)}</td>`
+        + `<td class="r">${int((f.failed_eval || 0) + (f.failed_funded || 0))}</td></tr>`
+        + (open ? `<tr class="pdet"><td colspan="${ncol}">${plDetail(f)}</td></tr>` : '');
+    };
+    let html = '';
+    for (const [rule, name, what] of RULE_SEC) {
+      const rows = fl.filter(f => rule === 'test' ? !!f.extra : (!f.extra && f.buying === rule));
       if (!rows.length) continue;
-      const net = rows.reduce((s, f) => s + (f.net || 0), 0);
-      body += `<tr class="grp"><td colspan="10">${esc(name)}<span>${int(rows.length)} fleet${rows.length > 1 ? 's' : ''} · net <b class="${cls(net)}">${sgn(net)}</b></span></td></tr>`;
-      body += rows.map(f => {
-        const flag = (f.twin ? '<span class="pfl tw">S1 · twin</span>' : f.extra ? `<span class="pfl">${esc(f.extra)}</span>` : f.pick ? '<span class="pfl pk">pick</span>' : '')
-          + (f.live ? '<span class="pfl lv" title="provisional: today\'s session so far">live</span>' : '');
-        const open = plOpen === f.id, td = today(f);
-        return `<tr class="prow${open ? ' on' : ''}" data-id="${esc(f.id)}" tabindex="0" aria-expanded="${open}"><td class="pl-n"><b>${esc(f.plan)}</b>${flag}<br><span class="muted">${esc(plMk(f))} · ${esc(f.setting)}</span></td>`
-          + `<td class="r num ${cls(f.net)}"><b>${sgn(f.net)}</b></td><td class="r num ${cls(td)}">${td == null ? '' : sgn(td)}</td><td class="c-buy" title="${esc(buyTip(f.buying))}">${esc(buyTxt(f.buying))}</td><td class="r">${int(f.bought)}</td><td class="r">${int(f.passed)}</td>`
-          + `<td class="r">${int((f.failed_eval || 0) + (f.failed_funded || 0))}</td><td class="r">${int(f.payouts)}</td><td class="r num">${usd(f.fees)}</td><td class="r num">${usd(f.recv)}</td></tr>`
-          + (open ? `<tr class="pdet"><td colspan="10">${plDetail(f)}</td></tr>` : '');
-      }).join('');
+      const cash = rows.reduce((a, f) => a + (f.net || 0), 0), tp = rows.reduce((a, f) => a + trading(f), 0);
+      let body = '';
+      for (const [g] of PL_GRP) {
+        if (g === 'test') continue;
+        const rr = rule === 'test' ? (g === 'rest' ? rows : []) : rows.filter(f => plGrp(f) === g);
+        if (!rr.length) continue;
+        if (rule !== 'test') body += `<tr class="grp"><td colspan="${ncol}">${esc(g === 'pick' ? 'Picks · the best plan per firm (15 Nov)' : g === 'twin' ? 'S1 · the twin (Topstep 50K)' : 'Every other plan')}<span>${int(rr.length)}</span></td></tr>`;
+        body += rr.map(row).join('');
+      }
+      html += `<section class="psec"><h3>${esc(name)} <small>${int(rows.length)} fleet${rows.length > 1 ? 's' : ''} · cash result <b class="${cls(cash)}">${sgn0(cash)}</b> · trading P&amp;L <b class="${cls(tp)}">${sgn0(tp)}</b></small></h3>`
+        + `<p class="pkey">${esc(what)}</p><div class="ptw"><table class="ptbl">${head}<tbody>${body}</tbody></table></div></section>`;
     }
-    const head = '<thead><tr><th>Plan</th><th class="r">Net</th><th class="r" title="the live session so far (provisional)">Today</th><th>Buying</th><th class="r">Bought</th><th class="r">Passed</th><th class="r">Failed</th>'
-      + '<th class="r">Payouts</th><th class="r">Fees</th><th class="r">Received</th></tr></thead>';
-    const banner = lv ? `<div class="pl-live"><b>Live · ${esc(plDay(lv.session))} session so far</b> · as of ${esc(tm(lv.asof_ct))} CT, last bar ${esc(tm(lv.last_bar_ct))} CT · `
-      + `the twin and ${int((lv.fleets || 1) - 1)} pick fleets <span class="muted">· ${esc(lv.note)}</span></div>` : '';
-    const key = '<p class="pkey">Buying: <b>1 a day</b> = at most one new evaluation a day · <b>1 a day, wait 1 day after a fail</b> = the same, but none on the day after an evaluation failed · <b>as the demo</b> = every free place refilled the next day. Tap a plan for its calendar and every account&#39;s dates.</p>';
-    box.innerHTML = body ? `${banner}${key}<div class="ptw"><table class="ptbl">${head}<tbody>${body}</tbody></table></div>`
-      + `<p class="foot">Built ${esc(plDoc.built_ct || '')} CT. Net = payouts received − every fee paid. Paper only: each plan replayed after the close on the VPS; nothing here trades.</p>`
+    const banner = lv ? `<div class="pl-live"><b>Live · ${esc(plDay(lv.session))} session so far</b> · as of ${esc(tm(lv.asof_ct))} CT, last bar ${esc(tm(lv.last_bar_ct))} CT <span class="muted">· ${esc(lv.note)}</span></div>` : '';
+    const key = '<p class="pkey"><b>Cash result</b> = payouts received − fees paid: the real money so far. Until a payout comes it is just minus the fees, which is why it can look like the Fees column. '
+      + '<b>Trading P&amp;L</b> = what the accounts made or lost on the charts; it only becomes cash through payouts. Tap a plan for its calendar and every account&#39;s dates.</p>';
+    box.innerHTML = html ? `${banner}${key}${html}<p class="foot">Built ${esc(plDoc.built_ct || '')} CT. Paper only: each plan is replayed on the VPS; nothing here trades.</p>`
       : '<div class="empty">No fleet in this filter.</div>';
     plFit();
   }
-  function plFit() {  // an opened plan's detail spans the visible part of the table box, not the whole (wider) table
-    const w = $('plans').querySelector('.ptw');
-    if (w) w.style.setProperty('--ptw-w', w.clientWidth + 'px');
+  function plFit() {  // an opened plan's detail spans the visible part of its table box, not the whole (wider) table
+    for (const w of $('plans').querySelectorAll('.ptw')) w.style.setProperty('--ptw-w', w.clientWidth + 'px');
   }
+  $('pl-mkt').addEventListener('click', e => {
+    const b = e.target.closest('button[data-v]');
+    if (!b) return;
+    plFilt.mkt = b.dataset.v; plOpen = null;
+    renderPlans();
+  });
   window.addEventListener('resize', plFit);
   $('pl-filt').addEventListener('click', e => {
     const b = e.target.closest('button[data-v]'), s = b && b.closest('.seg[data-pf]');

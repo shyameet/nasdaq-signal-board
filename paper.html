@@ -7,29 +7,30 @@
 <title>Lucid paper · Indra Quant Signal Board</title>
 <meta name="description" content="PAPER ONLY - Sim, no real money. The Lucid Flex paper week: 4 bots on NinjaTrader Sim accounts and every paper account, live.">
 <meta name="theme-color" content="#0a0d12">
-<link rel="stylesheet" href="appbar.css?v=1">  <!-- room for the status bar in the tablet app (owner 13/11/2026) -->
+<link rel="stylesheet" href="appbar.css?v=2">  <!-- room for the status bar in the tablet app (owner 13/11/2026) -->
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="paper.css?v=11">
+<link rel="stylesheet" href="paper.css?v=12">
 <style>/* the market switch (owner 11/11/2026): US futures (Lucid) | India options (paper-india.html) */
 .mkt { margin-top: 14px; }
 .mkt a { padding: 4px 12px; border-radius: 6px; color: var(--muted); font-size: 12.5px; font-weight: 600; text-decoration: none; }
 .mkt a:hover { color: var(--text); }
 .mkt a[aria-current="page"] { background: var(--tile-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }</style>
-<script src="paper.js?v=9" defer></script>
+<script src="paper.js?v=10" defer></script>
 </head>
 <body>
 <header class="topbar" id="bar">
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="24"></a>
-  <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html" aria-current="page">Paper</a><a href="whatif.html" title="Paper prop-firm replays: futures firms and the forex paper test">What If</a><a href="devices.html">Devices</a></nav>
+  <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html" aria-current="page">Paper</a><a href="whatif.html" title="Paper prop-firm replays: futures firms and the forex paper test">What If</a></nav>
   <span class="ttl">Lucid paper week<small>4 Sim bots · every paper account</small></span>
   <span class="spacer"></span>
   <span class="upd" id="upd"></span>
   <span class="lv" id="dot" title="the VPS feed"><i></i><span>Connecting…</span></span>
+  <a class="devtab" href="devices.html" title="The machines and the bus">Devices</a>
 </header>
 <div class="band" role="note">PAPER ONLY - Sim, no real money</div>
 <div class="alert" id="alert" role="status" hidden></div>
@@ -80,12 +81,11 @@
 
   <section id="pl-sec" data-view="plans" aria-labelledby="h-pl" hidden>
     <h2 id="h-pl">Plan fleets <small id="pl-sub">every plan of the 14 Nov list, paper fleets from the 16 Nov session</small></h2>
+    <nav class="seg pmkt" id="pl-mkt" aria-label="Market"><button type="button" data-v="futures" aria-pressed="true">Futures <span class="vc"></span></button><button type="button" data-v="forex" aria-pressed="false">Forex <span class="vc"></span></button></nav>
     <div class="filters" id="pl-filt">
       <div class="seg" data-pf="grp"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="pick" aria-pressed="false">Picks</button><button type="button" data-v="test" aria-pressed="false">Tests</button></div>
       <div class="seg" data-pf="strat"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="Nasdaq" aria-pressed="false">Nasdaq</button><button type="button" data-v="Gold" aria-pressed="false">Gold</button></div>
-      <div class="seg" data-pf="mkt"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="futures" aria-pressed="false">Futures</button><button type="button" data-v="forex" aria-pressed="false">Forex</button></div>
       <div class="seg" data-pf="size"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="50K" aria-pressed="false">50K</button><button type="button" data-v="25K" aria-pressed="false">25K</button></div>
-      <div class="seg" data-pf="buy" title="Buying rule"><button type="button" data-v="" aria-pressed="true">Any buying</button><button type="button" data-v="one" aria-pressed="false">1 a day</button><button type="button" data-v="wait1" aria-pressed="false">Wait 1 day after a fail</button></div>
     </div>
     <div id="plans"><div class="empty">Loading the plan fleets…</div></div>
   </section>

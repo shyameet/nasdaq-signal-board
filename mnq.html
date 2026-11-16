@@ -6,7 +6,7 @@
 <title>Nasdaq · MNQ · Indra Quant Signal Board</title>
 <meta name="description" content="The real MNQ future twice side by side, each with two baskets of your Nasdaq stocks and MNQ in three panes under it: the 1m to 15m lines on the left, the 30m to monthly waves on the right.">
 <meta name="theme-color" content="#0a0d12">
-<link rel="stylesheet" href="appbar.css?v=1">  <!-- room for the status bar in the tablet app (owner 13/11/2026) -->
+<link rel="stylesheet" href="appbar.css?v=2">  <!-- room for the status bar in the tablet app (owner 13/11/2026) -->
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
@@ -240,7 +240,7 @@
 <body>
 <header class="topbar">
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
-  <nav class="tabs" aria-label="Pages"><a href="replay.html" aria-current="page">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html">Paper</a><a href="whatif.html" title="Paper prop-firm replays: futures firms and the forex paper test">What If</a><a href="devices.html">Devices</a></nav>
+  <nav class="tabs" aria-label="Pages"><a href="replay.html" aria-current="page">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html">Paper</a><a href="whatif.html" title="Paper prop-firm replays: futures firms and the forex paper test">What If</a></nav>
   <div class="grp" title="Section"><div class="seg" role="group" aria-label="Section"><button type="button" aria-pressed="false" onclick="location.href='replay.html'" title="Your stocks beside XYZ100">XYZ100</button><button type="button" aria-pressed="true" title="MNQ, with two baskets of your stocks under it">MNQ</button></div></div>
   <div class="grp"><div class="seg" id="paneSeg" role="group" aria-label="The panes' lines"></div></div>
   <div class="grp"><div id="dayPick"></div></div>
@@ -248,6 +248,7 @@
   <div class="grp"><span class="badge" id="badge" title="Right now">LOADING</span>
     <span class="note" id="dataNote"></span></div>
   <div class="spacer"></div>
+  <a class="devtab" href="devices.html" title="The machines and the bus">Devices</a>
 </header>
 <div class="rollnote" id="rollNote" role="note" hidden></div>
 <main class="board" id="board"></main>

@@ -6,7 +6,7 @@
 <title>Perps · Indra Quant Signal Board</title>
 <meta name="description" content="Every stock perp Hyperliquid trades (picked in a finder with sector groups) and ten crypto coins, one at a time on Hyperliquid's own prices, with the RDX WIP gate, the Entry, Trend and Swing panes.">
 <meta name="theme-color" content="#0a0d12">
-<link rel="stylesheet" href="appbar.css?v=1">  <!-- room for the status bar in the tablet app (owner 13/11/2026) -->
+<link rel="stylesheet" href="appbar.css?v=2">  <!-- room for the status bar in the tablet app (owner 13/11/2026) -->
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
@@ -138,7 +138,7 @@
 <body>
 <header class="topbar">
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
-  <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" aria-current="page" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html">Paper</a><a href="whatif.html" title="Paper prop-firm replays: futures firms and the forex paper test">What If</a><a href="devices.html">Devices</a></nav>
+  <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" aria-current="page" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html">Paper</a><a href="whatif.html" title="Paper prop-firm replays: futures firms and the forex paper test">What If</a></nav>
   <div class="grp"><div class="seg" id="kindSeg" role="group" aria-label="Stocks or crypto"></div>
     <button type="button" class="step-btn" id="prevBtn" title="The previous market in the group" aria-label="Previous market">‹</button>
     <button type="button" class="nf-btn" id="pickBtn" aria-haspopup="dialog" aria-expanded="false" title="Pick a market (or press /)"><b id="pickTk">—</b><span id="pickCo"></span><i>▼</i></button>
@@ -148,6 +148,7 @@
   <div class="grp"><select class="tf-sel" id="tfs" aria-label="Candle size" title="Candle size"></select></div>
   <div class="grp" id="hoursGrp"><div class="seg" id="hoursSeg" role="group" aria-label="Hours shown"></div></div>
   <div class="spacer"></div>
+  <a class="devtab" href="devices.html" title="The machines and the bus">Devices</a>
 </header>
 <main class="board" id="board"></main>
 <div id="older" class="older" hidden>Loading older days…</div>
