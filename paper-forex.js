@@ -1,14 +1,16 @@
-// Forex props paper: the live PAPER page (owner 11/11/2026: the forex prop paper test in real time, "like the futures one").
+// Forex props paper: the live PAPER page (owner 11/11/2026: the forex prop paper test in real time, "like the futures one";
+// owner 16/11/2026: five firms - FTMO, FundedNext, FundingPips, The5ers, Tradeify FX - and a cleaner page).
 // PAPER ONLY - no real money, no order is ever sent. The Scalper 3m bot's own trades (NinjaTrader Sim, one open at a time) on
-// FTMO and FundedNext paper accounts, filled and marked at each firm's own MT5 bid / ask; the forex test's plans, sizes and rules.
-// Laid out as the Lucid paper page (paper.html): summary strip, live now (the two firm feeds), all paper accounts per
-// firm and plan, the calendar, live trades. Times in Chicago (CT).
-// It reads the VPS's paper-only feed: its address is in data/forex_paper_feed.json {"url": ...} (read again while the feed fails,
-// so a new address needs no code change); the document there is the publisher's sanitized "rdx-forex-paper-public" v1.
-// Polled every 3 s (30 s while the tab is hidden); when the feed is down the page keeps the last data, greyed, says since when,
-// and keeps retrying (3 s, then 15 s, then 30 s). A request that gets no answer in 8 s counts as down too. One request at a time.
-// Every account's trades come from the second document (days.json next to state.json), fetched again whenever the feed says it
-// changed (days_at). Nothing is stored in the browser.
+// paper accounts at five forex prop firms, filled and marked at the firms' own MT5 bid / ask (FundedNext's for FundingPips,
+// The5ers and Tradeify FX, and for FTMO once its free trial ends: the feed says which), each firm with its own rules.
+// Layout (owner-approved 16/11/2026): one row of firm buttons; the chosen firm's totals; the buying rule ("1 at a time" + a
+// placeholder for the study's winner, both from the feed); Live now = one price card a firm ("prices from FundedNext" where the
+// feed is borrowed); the accounts plan by plan in one table, a Calendar button on each plan; Live trades with the bot's own rows.
+// Times in Chicago (CT). It reads the VPS's paper-only feed: its address is in data/forex_paper_feed.json {"url": ...} (read again
+// while the feed fails); the document there is the publisher's sanitized "rdx-forex-paper-public" v1 (fx_live5 keys: firms[].price_feed
+// / borrowed, rules, rule_pending, plans_pending, summary_by). Polled every 3 s (30 s while hidden); when the feed is down the page
+// keeps the last data, greyed, and retries. Every account's trades come from days.json, fetched again when days_at changes.
+// Nothing is stored in the browser.
 (function () {
   'use strict';
   const POLL_MS = 3000, HIDDEN_MS = 30000, FETCH_MS = 8000, FEED_FILE = 'data/forex_paper_feed.json';
@@ -47,8 +49,8 @@
   const weekOf = s => { const mon = addD(s, -((wdOf(s) + 6) % 7)); return [0, 1, 2, 3, 4].map(i => addD(mon, i)); };
   const SIDE = s => s === 'long' ? 'LONG' : s === 'short' ? 'SHORT' : '';
   const sideChip = (side, size) => SIDE(side) ? `<span class="pos ${side === 'long' ? 'long' : 'short'}">${SIDE(side)}${size ? ' ' + esc(size) : ''}</span>` : (size ? esc(size) : '');
-  const PLANS = [['FTMO', '2-Step'], ['FTMO', '1-Step'], ['FTMO', 'Instant'], ['FundedNext', '1-Step'], ['FundedNext', '2-Step'], ['FundedNext', 'Lite'], ['FundedNext', 'Instant']];
-  const RULE = { '1': '1 at a time', '3': '3 at a time' };
+  const FIRMS0 = ['FTMO', 'FundedNext', 'FundingPips', 'The5ers', 'Tradeify FX'];       // until the feed says otherwise
+  const CODE0 = { FTMO: 'FT', FundedNext: 'FN', FundingPips: 'FP', The5ers: 'T5', 'Tradeify FX': 'TF' };
   const STATUS = { evaluation: 'Evaluation', funded: 'Funded', failed: 'Failed', lost: 'Funded, lost' };
   const OPEN = new Set(['evaluation', 'funded']);
   const FEEDTXT = {
@@ -70,11 +72,11 @@
   const WHY = { 'trade open': 'a trade was open (one at a time)', 'firm pause': "the firm's pause", 'no price': 'no firm price then' };
   const EVTXT = { 1: 'passed phase', 2: 'PASSED', 3: 'failed: max loss', 4: 'failed: daily loss', 5: 'failed: no room', 6: 'target hit, waiting days',
     7: 'minimum day', 8: 'payout', 9: 'funded lost: max loss', 10: 'funded lost: daily loss' };
-  const firmCode = f => f === 'FTMO' ? 'ft' : 'fn';
   const etToCt = s => { const m = /^(\d{2}):(\d{2})$/.exec(s || ''); return m ? `${String((+m[1] + 23) % 24).padStart(2, '0')}:${m[2]}` : s; };  // Chicago = New York - 1 h, all year
 
   let feedUrl = null, doc = null, lastOk = 0, lastGen = null, lastGenAt = 0, fails = 0, firstFail = 0, timer = 0, rendered = null, busy = false;
-  const filt = { firm: '', rule: '' };
+  const filt = { firm: '', rule: '1' };
+  const calOpen = new Set();                 // plan keys whose calendar is open
   let sel = null, daysDoc = null, daysErr = false, daysBusy = null;
   let view = location.hash === '#trades' ? 'trades' : 'main', trSess = null;
 
@@ -132,12 +134,18 @@
   const daysStale = () => !daysDoc || !!(doc && doc.days_at != null && daysDoc._at !== doc.days_at);
 
   // ---------------------------------------------------------------- the state dot, the "updated" time, the alert
-  function feedTrouble() {  // a live session with a firm's prices missing: say which and why
+  function feedTrouble() {  // a live session with a price feed missing: say which feed, which firms use it, and why
     if (!doc || doc.mode === 'replay' || !doc.session || doc.session.status !== 'live') return '';
-    const bad = (doc.firms || []).filter(f => f.feed && f.feed.state !== 'ok');
-    if (!bad.length) return '';
-    return bad.map(f => `${f.firm} prices: ${FEEDLONG[f.feed.state] || FEEDTXT[f.feed.state] || f.feed.state}`).join('. ')
-      + '. Its paper accounts take no new trade until its prices come back.';
+    const byFeed = {};
+    for (const f of doc.firms || []) {
+      if (!f.feed || f.feed.state === 'ok') continue;
+      const k = f.price_feed || f.firm;
+      (byFeed[k] = byFeed[k] || { st: f.feed.state, firms: [] }).firms.push(f.firm);
+    }
+    const ks = Object.keys(byFeed);
+    if (!ks.length) return '';
+    return ks.map(k => `${k} prices (${byFeed[k].firms.join(', ')}): ${FEEDLONG[byFeed[k].st] || FEEDTXT[byFeed[k].st] || byFeed[k].st}`).join('. ')
+      + '. Those paper accounts take no new trade until the prices come back.';
   }
   function paint() {
     const dot = $('dot'), upd = $('upd'), al = $('alert'), now = Date.now();
@@ -153,7 +161,7 @@
       msg = 'The VPS held this update back (its safety check found something that must not be public). Nothing is shown until the next clean one.';
     } else if (doc && doc.mode === 'replay') {
       state = 'stale'; word = 'Replay';
-      msg = `Replay of a past session from the firms' MT5 minute bars and the bot's recorded trades, as of ${ctd(doc.engine && doc.engine.asof)} CT. Not live.`;
+      msg = `Replay of past sessions from the firms' MT5 minute bars and the bot's recorded trades, as of ${ctd(doc.engine && doc.engine.asof)} CT. Not live.`;
     } else if (doc && now - lastGenAt > 30000) {
       state = 'stale'; word = 'Not updating';
       msg = `The feed answers but has not changed for ${ago(now - lastGenAt)}.`;
@@ -183,7 +191,7 @@
   setInterval(paint, 1000);
   window.addEventListener('resize', setBar);
 
-  // ---------------------------------------------------------------- render
+  // ---------------------------------------------------------------- views, firm and rule switches
   function setView(v, push) {
     view = v === 'trades' ? 'trades' : 'main';
     for (const s of document.querySelectorAll('main > section[data-view]')) s.hidden = s.dataset.view !== view;
@@ -196,33 +204,79 @@
   $('views').addEventListener('click', e => { const b = e.target.closest('button[data-view]'); if (b) setView(b.dataset.view, true); });
   window.addEventListener('hashchange', () => setView(location.hash === '#trades' ? 'trades' : 'main', false));
   setView(view, false);
+  $('firms').addEventListener('click', e => {
+    const b = e.target.closest('button[data-v]');
+    if (!b || b.dataset.v === filt.firm) return;
+    filt.firm = b.dataset.v; sel = null;
+    if (doc && !doc.withheld) render(); else renderFirms();
+  });
+  $('rules').addEventListener('click', e => {
+    const b = e.target.closest('button[data-v]');
+    if (!b || b.disabled || b.dataset.v === filt.rule) return;
+    filt.rule = b.dataset.v; sel = null;
+    if (doc && !doc.withheld) render();
+  });
 
   function render() {
     if (!doc || doc.withheld) return;
-    renderSummary(); renderLive(); renderAccounts(); renderCal(); renderTrades();
-    if (sel) renderDay();
+    if (!(doc.rules || []).some(r => r.key === filt.rule) && (doc.rules || []).length) filt.rule = doc.rules[0].key;
+    if (filt.firm && !firmList().includes(filt.firm)) filt.firm = '';
+    renderFirms(); renderSummary(); renderRules(); renderLive(); renderAccounts(); renderTrades();
     if (daysStale() && !daysBusy) fetchDays().then(() => { if (doc && !doc.withheld) { renderTrades(); renderDay(); } });
   }
+  const firmList = () => doc && (doc.firms || []).length ? doc.firms.map(f => f.firm) : FIRMS0;
+  const firmOf = name => (doc && (doc.firms || []).find(f => f.firm === name)) || null;
+  const codeOf = name => { const f = firmOf(name); return (f && f.code) || CODE0[name] || ''; };
+  const pillCls = name => codeOf(name).toLowerCase();
   const sessList = () => (doc.sessions || []).filter(isDate).slice().sort();
   const curSess = () => (doc.session && isDate(doc.session.s)) ? doc.session.s : (sessList().slice(-1)[0] || null);
   const isLive = () => !!(doc && doc.session && doc.session.status === 'live');
-  const acctName = a => `${Math.round(a.size / 1000)}K · ${RULE[a.rule] || a.rule} #${int(a.n)}`;
+  const ruleLabel = k => ((doc && doc.rules || []).find(r => r.key === k) || {}).label || k;
+  const acctName = a => `${Math.round(a.size / 1000)}K #${int(a.n)}`;
   const stageTxt = a => a.status === 'evaluation' ? (a.phases > 1 ? `Phase ${int(a.phase)} of ${int(a.phases)}` : 'Evaluation') : (STATUS[a.status] || a.status);
   const stChip = a => `<span class="st ${esc(a.status)}">${esc(stageTxt(a))}</span>`;
+  const shown = () => (doc.accounts || []).filter(a => (!filt.firm || a.firm === filt.firm) && a.rule === filt.rule);
+  const priceWord = f => f ? (f.borrowed ? `at ${esc(f.price_feed)}'s MT5 prices` : 'at its own MT5 prices') : '';
+  const pauseTxt = f => f && (f.pause || []).length === 2 ? `pause ${esc(f.pause.map(etToCt).join('-'))} CT${f.pause_assumed ? ' (assumed)' : ''}` : '';
 
-  // 1. the summary strip
+  // 1. the firm row, its line, the totals, the buying rule
+  function renderFirms() {
+    const names = firmList();
+    $('firms').innerHTML = [''].concat(names).map(n => `<button type="button" data-v="${esc(n)}" aria-pressed="${n === filt.firm ? 'true' : 'false'}">${n ? esc(n) : 'All'}</button>`).join('');
+    let line = '';
+    if (doc && !doc.withheld) {
+      if (filt.firm) {
+        const f = firmOf(filt.firm);
+        const np = f ? (f.plans || []).length : 0, nw = f ? (f.pending || []).length : 0;
+        line = `<b>${esc(filt.firm)}</b> · ${priceWord(f)}${f && f.symbol ? ` (${esc(f.symbol)})` : ''} · $${f && ok(f.lot_usd_pt) ? int(f.lot_usd_pt) : '–'} a point a lot · ${pauseTxt(f)}`
+          + ` · ${np} plan${np === 1 ? '' : 's'}${nw ? ` live, ${nw} waiting for a size pick` : ''} · totals for <b>${esc(ruleLabel(filt.rule))}</b>`;
+      } else {
+        const brw = (doc.firms || []).filter(f => f.borrowed).map(f => f.firm);
+        line = `<b>All five firms</b> at the firms' own MT5 prices${brw.length ? ` (FundedNext's for ${esc(brw.join(', '))})` : ''} · totals for <b>${esc(ruleLabel(filt.rule))}</b>`;
+      }
+    }
+    $('fsub').innerHTML = line;
+  }
   function renderSummary() {
-    const s = doc.summary || {};
+    const by = (doc.summary_by || {})[filt.rule] || {};
+    const s = by[filt.firm || 'All'] || (filt.firm ? {} : doc.summary || {});
+    const who = filt.firm ? `${filt.firm}'s paper accounts` : 'all paper accounts';
     const tile = (lbl, val, sub) => `<div class="tile"><span class="lbl">${lbl}</span><span class="val">${val}</span><span class="sub">${sub}</span></div>`;
     $('sum').innerHTML =
       tile('Open', `<span class="num">${int(s.open)}</span>`, `${int(s.evaluation)} evaluation · ${int(s.funded)} funded`)
       + tile('Passed', `<span class="num up">${int(s.passed)}</span>`, 'evaluations passed to date')
       + tile('Failed', `<span class="num${s.failed ? ' down' : ''}">${int(s.failed)}</span>`, s.lost ? `to date · ${int(s.lost)} funded lost` : 'to date')
-      + tile('Today\'s P&amp;L', pnlUsd(s.today), ok(s.today) ? (isLive() ? 'all paper accounts, live' : `all paper accounts, the ${short(curSess())} session`) : 'no session now')
+      + tile('Today\'s P&amp;L', pnlUsd(s.today), ok(s.today) ? (isLive() ? `${who}, live` : `${who}, the ${short(curSess())} session`) : 'no trade now')
       + tile('Net to date', pnlUsd(s.net), `fees ${usd(s.fees)} · payouts ${usd(s.paid)}${s.refunds ? ' · refunds ' + usd(s.refunds) : ''}`);
   }
+  function renderRules() {
+    const rs = doc.rules || [];
+    const pend = doc.rule_pending;
+    $('rules').innerHTML = rs.map(r => `<button type="button" data-v="${esc(r.key)}" aria-pressed="${r.key === filt.rule ? 'true' : 'false'}">${esc(r.label)}</button>`).join('')
+      + (pend && pend.label ? `<button type="button" disabled title="${esc(pend.note || '')}">${esc(pend.label)} · ${esc(pend.note ? 'owner picks' : 'to come')}</button>` : '');
+  }
 
-  // 2. live now: the two firm feeds
+  // 2. live now: one price card a firm
   function chipState(st, word) {
     const k = st === 'ok' ? 'okx' : st === 'replay' || st === 'off hours' ? 'offx' : 'warnx';
     return `<span class="st ${k}">${esc(word)}</span>`;
@@ -230,8 +284,10 @@
   function firmCard(f) {
     const fd = f.feed || {}, td = f.today || {};
     const st = fd.state || 'unknown';
-    const head = `<div class="bh"><span class="acct">${esc(f.firm)}</span>${chipState(st, FEEDTXT[st] || st)}${fd.algo_on ? '<span class="tagx test">Algo Trading on</span>' : ''}</div>`
-      + `<div class="bsub">${esc(f.symbol || '')} · $${ok(f.lot_usd_pt) ? int(f.lot_usd_pt) : '–'} a point a lot · pause ${esc((f.pause || []).map(etToCt).join('-'))} CT</div>`;
+    const head = `<div class="bh"><span class="acct">${esc(f.firm)}</span>${chipState(st, FEEDTXT[st] || st)}`
+      + `${f.borrowed ? `<span class="tagx brw" title="this firm has no MT5 feed here: its paper accounts use ${esc(f.price_feed)}'s bid and ask">prices from ${esc(f.price_feed)}</span>` : ''}`
+      + `${fd.algo_on ? '<span class="tagx test">Algo Trading on</span>' : ''}</div>`
+      + `<div class="bsub">${esc(f.symbol || '')}${f.borrowed ? ` (${esc(f.price_feed)}'s)` : ''} · $${ok(f.lot_usd_pt) ? int(f.lot_usd_pt) : '–'} a point a lot · ${pauseTxt(f)}</div>`;
     const q = td.quote || {};
     const bid = ok(fd.bid) ? fd.bid : q.bid, ask = ok(fd.ask) ? fd.ask : q.ask, qt = fd.t || q.t;
     const spr = ok(fd.spread) ? fd.spread : ok(bid) && ok(ask) ? ask - bid : null;
@@ -250,20 +306,37 @@
     }).join('') : '<div class="trade flat"><div class="tl"><span class="pos flat">FLAT</span> no open trade</div></div>';
     const nd = (td.trades || []).filter(t => t.tout).length, nsk = (td.skips || []).length;
     const foot = `<div class="bf">${int(nd)} closed this session${nsk ? ` · ${int(nsk)} signal${nsk === 1 ? '' : 's'} not taken` : ''}`
-      + `${st !== 'ok' && FEEDLONG[st] && doc.mode !== 'replay' ? ` · <span class="down">${esc(FEEDLONG[st])}</span>` : ''}</div>`;
+      + `${st !== 'ok' && FEEDLONG[st] && doc.mode !== 'replay' ? ` · <span class="down">${esc(f.borrowed ? f.price_feed + ': ' : '')}${esc(FEEDLONG[st])}</span>` : ''}</div>`;
     return `<article class="card">${head}${kp}${ot}${foot}</article>`;
   }
   function renderLive() {
     const cs = curSess();
-    $('live-sub').textContent = (cs ? `session ${day(cs)} · ` : '') + 'the two firms\' prices';
-    const cards = [];   // owner 16/11/2026: no NinjaTrader (bot) card in Live now - the two firms only
-    for (const f of doc.firms || []) cards.push(firmCard(f));
+    $('live-sub').textContent = (cs ? `session ${day(cs)} · ` : '') + (filt.firm ? `${filt.firm}'s prices` : 'each firm\'s prices');
+    const cards = [];   // owner 16/11/2026: one price card a firm, no NinjaTrader (bot) card
+    for (const f of doc.firms || []) if (!filt.firm || f.firm === filt.firm) cards.push(firmCard(f));
     $('bots').innerHTML = cards.length ? cards.join('') : '<div class="empty">No data yet.</div>';
   }
 
-  // 3. all paper accounts: one group a firm and plan
-  const accsOf = (firm, plan) => (doc.accounts || []).filter(a => a.firm === firm && a.plan === plan)
-    .sort((x, y) => x.size - y.size || String(x.rule).localeCompare(String(y.rule)) || x.n - y.n);
+  // 3. the accounts: one table, plan by plan, a Calendar button on each plan
+  function planList() {   // [{firm, plan, key, pending}] in the feed's order (firms, then fx_rules' plans)
+    const out = [];
+    for (const name of firmList()) {
+      if (filt.firm && name !== filt.firm) continue;
+      for (const p of doc.plans || []) if (p.firm === name) out.push({ firm: name, plan: p.plan, key: name + '|' + p.plan, p });
+      for (const p of doc.plans_pending || []) if (p.firm === name) out.push({ firm: name, plan: p.plan, key: name + '|' + p.plan, pending: p });
+    }
+    return out;
+  }
+  const accsOf = (firm, plan) => shown().filter(a => a.firm === firm && a.plan === plan)
+    .sort((x, y) => x.size - y.size || x.n - y.n);
+  function planText(p) {
+    if (!p) return '';
+    const ph = p.instant ? 'no evaluation' : (p.phases || []).map(x => x + '%').join(' then ') + ' target';
+    const mt = { static: 'static', trail_eod: 'trailing (end of day)', trail_closed_lock: 'trailing, locks at the start', trail_closed: 'trailing' }[p.max_type] || '';
+    return `${ph} · max loss ${p.max_loss}% ${mt}${ok(p.daily) ? ` · daily ${p.daily}%` : ''}${p.min_days ? ` · min ${p.min_days} days` : ''}`
+      + `${p.prof_days ? ` · ${p.prof_days} profitable days` : ''}${ok(p.consistency) ? ` · best day ≤ ${p.consistency}%` : ''} · funded split ${p.split}%`
+      + `${p.provisional ? ' · rules provisional' : ''}`;
+  }
   function accRow(a) {
     const open = OPEN.has(a.status), t = a.today;
     let need = '–';
@@ -276,32 +349,54 @@
       + `<td class="c-room r" data-l="Room">${open ? usd(a.room) : '–'}</td><td class="c-today r" data-l="Today">${today}</td>`
       + `<td class="c-need r" data-l="To pass">${need}</td><td class="c-pay r" data-l="Payouts">${pays}</td></tr>`;
   }
-  function renderAccounts() {
-    const all = doc.accounts || [];
-    const ac = all.filter(a => (!filt.firm || a.firm === filt.firm) && (!filt.rule || a.rule === filt.rule));
-    $('acc-sub').textContent = `${ac.length === all.length ? all.length : ac.length + ' of ' + all.length} accounts · every size of each plan`;
+  function renderAccounts() { renderAccountsTable(); renderDay(); }   // the day box lives inside the table: fill it each time
+  function renderAccountsTable() {
+    const all = shown();
+    const nAll = (doc.accounts || []).filter(a => !filt.firm || a.firm === filt.firm).length;
+    $('acc-sub').textContent = `${all.length} account${all.length === 1 ? '' : 's'} · ${ruleLabel(filt.rule)}${nAll !== all.length ? ` (${nAll} under every rule)` : ''} · plan by plan · tap Calendar for the days`;
     let body = '';
-    for (const [firm, plan] of PLANS) {
-      const rows = accsOf(firm, plan).filter(a => ac.includes(a));
-      if (!rows.length) continue;
+    for (const pl of planList()) {
+      const name = filt.firm ? esc(pl.plan) : `${esc(pl.firm)} ${esc(pl.plan)}`;
+      if (pl.pending) {
+        body += `<tr class="grp"><td colspan="8"><span class="gname">${name}</span><span>${pl.pending.instant ? 'instant' : 'evaluation'}</span></td></tr>`
+          + `<tr class="pend"><td colspan="8">No paper account yet: ${esc(pl.pending.why || 'not picked')}. Its sizes are picked with the same method as the other firms', then it joins.</td></tr>`;
+        continue;
+      }
+      const rows = accsOf(pl.firm, pl.plan);
       const nOpen = rows.filter(a => OPEN.has(a.status)).length, nFail = rows.filter(a => a.status === 'failed' || a.status === 'lost').length;
-      body += `<tr class="grp"><td colspan="8">${esc(firm)} ${esc(plan)}<span>${nOpen} open${nFail ? ` · ${nFail} failed` : ''}</span></td></tr>`;
+      const isOpen = calOpen.has(pl.key);
+      body += `<tr class="grp"><td colspan="8"><button type="button" class="calb" data-k="${esc(pl.key)}" aria-expanded="${isOpen ? 'true' : 'false'}">${isOpen ? 'Hide calendar' : 'Calendar'}</button>`
+        + `<span class="gname">${name}</span><span>${rows.length} account${rows.length === 1 ? '' : 's'} · ${nOpen} open${nFail ? ` · ${nFail} failed` : ''}</span>`
+        + `<span class="rl">${esc(planText(pl.p))}</span></td></tr>`;
       body += rows.map(accRow).join('');
+      if (isOpen) body += `<tr class="calrow"><td colspan="8">${calendar(pl, rows)}</td></tr>`;
     }
     const head = '<thead><tr><th>Account</th><th>Bought</th><th>Status</th><th class="r">Balance</th><th class="r">Room</th>'
       + '<th class="r">Today</th><th class="r">To pass</th><th class="r">Payouts</th></tr></thead>';
-    $('accts').innerHTML = body ? `<table class="atbl">${head}<tbody>${body}</tbody></table>` : `<div class="empty">${all.length ? 'No account in this filter.' : 'No paper account yet.'}</div>`;
+    $('accts').innerHTML = body ? `<table class="atbl">${head}<tbody>${body}</tbody></table>` : `<div class="empty">${(doc.accounts || []).length ? 'No account in this choice.' : 'No paper account yet.'}</div>`;
   }
-  document.querySelector('.filters').addEventListener('click', e => {
-    const b = e.target.closest('.seg button');
-    if (!b) return;
-    const seg = b.parentElement;
-    filt[seg.dataset.f] = b.dataset.v;
-    for (const x of seg.querySelectorAll('button')) x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
-    if (doc && !doc.withheld) { renderAccounts(); renderCal(); }
+  $('accts').addEventListener('click', e => {
+    const cb = e.target.closest('button.calb');
+    if (cb) {
+      const k = cb.dataset.k;
+      if (calOpen.has(k)) { calOpen.delete(k); if (sel && sel.k === k) sel = null; } else calOpen.add(k);
+      if (doc && !doc.withheld) renderAccounts();
+      return;
+    }
+    const b = e.target.closest('button.dc');
+    if (b) {
+      const same = sel && sel.a === b.dataset.a && sel.s === b.dataset.s;
+      sel = same ? null : { a: b.dataset.a, s: b.dataset.s, k: b.dataset.k };
+      renderAccounts();
+      if (sel && daysStale()) fetchDays().then(renderDay);
+      const box = $('day');
+      if (sel && box) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      return;
+    }
+    if (e.target.closest('#day button.x')) { sel = null; renderAccounts(); }
   });
 
-  // 4. the calendar: one block a firm and plan, one row an account, one square a session
+  // the calendar of one plan: one row an account, one square a session; a day's trades below it
   function calCols() {
     const ss = sessList();
     if (!ss.length) return [];
@@ -309,20 +404,12 @@
     for (let d = weekOf(ss[0])[0], end = weekOf(ss[ss.length - 1])[4]; d <= end; d = addD(d, 1)) if (isWd(d)) set.add(d);
     return [...set].sort();
   }
-  function planText(firm, plan) {
-    const p = (doc.plans || []).find(x => x.firm === firm && x.plan === plan);
-    if (!p) return '';
-    const ph = p.instant ? 'no evaluation' : (p.phases || []).map(x => x + '%').join(' then ') + ' target';
-    const mt = { static: 'static', trail_eod: 'trailing (end of day)', trail_closed_lock: 'trailing, locks at the start', trail_closed: 'trailing' }[p.max_type] || '';
-    return `${ph} · max loss ${p.max_loss}% ${mt}${ok(p.daily) ? ` · daily ${p.daily}%` : ''}${p.min_days ? ` · min ${p.min_days} days` : ''}`
-      + `${ok(p.consistency) ? ` · best day ≤ ${p.consistency}%` : ''} · funded split ${p.split}%`;
-  }
-  function cell(a, s, cs) {
+  const openNow = firm => { const f = firmOf(firm); return !!(f && f.today && f.today.open); };
+  function cell(a, s, cs, k) {
     if (isDate(a.bought) && s < a.bought) return '<div class="dc nb">not bought</div>';
     const d = s > cs ? null : (a.days || []).find(x => x.s === s);
     if (!d) return '<div class="dc fut"></div>';
     const live = d.live && a.today, net = live && ok(a.today.net) ? a.today.net : d.net;
-    const k = 'k-' + (cls(net) || 'flat');
     let tag = '', tc = '';
     if (d.code === 2 || d.code === 1) { tag = d.code === 2 ? 'PASS' : 'phase passed'; tc = 'up'; }
     else if ([3, 4, 5, 9, 10].includes(d.code)) { tag = 'FAIL'; tc = 'down'; }
@@ -332,11 +419,10 @@
     else tag = d.n ? `${int(d.n)} trade${d.n === 1 ? '' : 's'}` : (d.live ? 'no trade yet' : 'no trade');
     const isSel = sel && sel.a === a.id && sel.s === s;
     const lab = `${a.firm} ${a.plan} ${acctName(a)}, ${day(s)}: ${ok(net) ? sgn(net) : 'no number'}, ${tag}${d.live ? ', live' : ''}`;
-    return `<button type="button" class="dc ${k}${live && a.today && !a.today.halted && openNow(a.firm) ? ' open' : ''}${isSel ? ' sel' : ''}" data-a="${esc(a.id)}" data-s="${esc(s)}"`
+    return `<button type="button" class="dc k-${cls(net) || 'flat'}${live && a.today && !a.today.halted && openNow(a.firm) ? ' open' : ''}${isSel ? ' sel' : ''}" data-a="${esc(a.id)}" data-s="${esc(s)}" data-k="${esc(k)}"`
       + ` title="${esc(lab)}" aria-label="${esc(lab)}" aria-pressed="${isSel ? 'true' : 'false'}">`
       + `<span class="n ${cls(net)}">${ok(net) ? sgn(net) : '–'}</span><span class="g ${tc}">${esc(tag)}</span></button>`;
   }
-  const openNow = firm => { const f = (doc.firms || []).find(x => x.firm === firm); return !!(f && f.today && f.today.open); };
   function toPass(a) {
     if (a.status === 'funded') return `<div class="tpb"><span class="tpl up">FUNDED${a.payouts ? ' · ' + int(a.payouts) + ' paid' : ''}</span></div>`;
     if (a.status === 'failed') return '<div class="tpb"><span class="tpl down">FAILED</span></div>';
@@ -347,55 +433,34 @@
       + `<span class="tpl">${a.phases > 1 ? 'phase ' + int(a.phase) + ' ' : ''}needs <b class="num">${ok(nd) ? n2(nd) : '–'}</b></span></div>`;
   }
   const chip = (k, v, c) => `<div class="chip"><span class="k">${k}</span><span class="v num${c ? ' ' + c : ''}">${v}</span></div>`;
-  function renderCal() {
+  function calendar(pl, accs) {
     const cols = calCols(), cs = curSess();
-    if (!cols.length) { $('cal').innerHTML = '<div class="empty">No session yet.</div>'; return; }
+    if (!cols.length || !accs.length) return '<div class="muted">No session yet.</div>';
     const n = `style="--n:${cols.length}"`;
     const head = `<div class="cg-row cg-head" ${n}><span class="lbl2">Account</span>`
       + cols.map(s => `<span class="lbl2${s === cs && isLive() ? ' now' : ''}">${esc(short(s))}</span>`).join('')
       + '<span class="lbl2 r">Balance</span><span class="lbl2">To pass</span></div>';
-    let html = '';
-    for (const [firm, plan] of PLANS) {
-      if (filt.firm && filt.firm !== firm) continue;
-      const accs = accsOf(firm, plan).filter(a => !filt.rule || a.rule === filt.rule);
-      if (!accs.length) continue;
-      const pls = accs.flatMap(a => (a.days || []).map(d => d.live && a.today && ok(a.today.net) ? a.today.net : d.net)).filter(ok);
-      const pl = pls.length ? pls.reduce((x, v) => x + v, 0) : null;
-      const td = accs.map(a => a.today && ok(a.today.net) ? a.today.net : null).filter(ok);
-      const today = td.length ? td.reduce((x, v) => x + v, 0) : null;
-      const passed = accs.filter(a => a.passed).length, failed = accs.filter(a => a.status === 'failed' || a.status === 'lost').length;
-      const fees = accs.reduce((x, a) => x + (ok(a.price) ? a.price : 0), 0);
-      const rows = accs.map(a => `<div class="cg-row" ${n}><div class="cg-a"><span class="nm">${esc(acctName(a))}</span>`
-        + `<span class="sub">bought ${esc(short(a.bought))}</span></div>${cols.map(s2 => cell(a, s2, cs)).join('')}`
-        + `<div class="r num">${ok(a.balance) ? n2(a.balance) : '–'}</div><div>${toPass(a)}</div></div>`).join('');
-      html += `<section class="cr"><div class="cr-h"><div class="cr-t"><h3>${esc(firm)} ${esc(plan)}</h3><p class="rl">${esc(planText(firm, plan))}</p></div>`
-        + `<div class="chips">${chip('Accounts', int(accs.length))}${chip('Passed to date', int(passed), passed ? 'up' : '')}`
-        + `${chip('Failed to date', int(failed), failed ? 'down' : '')}${chip('P&amp;L to date', sgn(pl), cls(pl))}`
-        + `${chip(isLive() ? 'Today so far' : `${dayOf(cs, { weekday: 'short' })} session`, sgn(today), cls(today))}${chip('Fees paid', n2(fees))}</div></div>`
-        + `<div class="cg-scroll"><div class="cg">${head}${rows}</div></div></section>`;
-    }
-    $('cal').innerHTML = html || '<div class="empty">No account in this filter.</div>';
+    const pls = accs.flatMap(a => (a.days || []).map(d => d.live && a.today && ok(a.today.net) ? a.today.net : d.net)).filter(ok);
+    const plv = pls.length ? pls.reduce((x, v) => x + v, 0) : null;
+    const td = accs.map(a => a.today && ok(a.today.net) ? a.today.net : null).filter(ok);
+    const today = td.length ? td.reduce((x, v) => x + v, 0) : null;
+    const passed = accs.filter(a => a.passed).length, failed = accs.filter(a => a.status === 'failed' || a.status === 'lost').length;
+    const fees = accs.reduce((x, a) => x + (ok(a.price) ? a.price : 0), 0);
+    const rows = accs.map(a => `<div class="cg-row" ${n}><div class="cg-a"><span class="nm">${esc(acctName(a))}</span>`
+      + `<span class="sub">bought ${esc(short(a.bought))}</span></div>${cols.map(s2 => cell(a, s2, cs, pl.key)).join('')}`
+      + `<div class="r num">${ok(a.balance) ? n2(a.balance) : '–'}</div><div>${toPass(a)}</div></div>`).join('');
+    const leg = '<div class="leg" aria-hidden="true"><span><i class="sw k-up"></i>up day</span><span><i class="sw k-down"></i>down day</span>'
+      + '<span><i class="sw k-flat"></i>no trade yet</span><span><i class="sw nb"></i>not bought yet</span>'
+      + '<span>A session runs from 17:00 CT the evening before to 16:00 CT. Tap a day for its trades.</span></div>';
+    const box = sel && sel.k === pl.key ? '<div class="day" id="day"></div>' : '';
+    return `<div class="chips">${chip('Accounts', int(accs.length))}${chip('Passed to date', int(passed), passed ? 'up' : '')}`
+      + `${chip('Failed to date', int(failed), failed ? 'down' : '')}${chip('P&amp;L to date', sgn(plv), cls(plv))}`
+      + `${chip(isLive() ? 'Today so far' : `${dayOf(cs, { weekday: 'short' })} session`, sgn(today), cls(today))}${chip('Fees paid', n2(fees))}</div>`
+      + leg + `<div class="cg-scroll"><div class="cg">${head}${rows}</div></div>${box}`;
   }
-  $('cal').addEventListener('click', e => {
-    const b = e.target.closest('button.dc');
-    if (!b) return;
-    const same = sel && sel.a === b.dataset.a && sel.s === b.dataset.s;
-    sel = same ? null : { a: b.dataset.a, s: b.dataset.s };
-    for (const x of document.querySelectorAll('#cal .dc.sel')) { x.classList.remove('sel'); x.setAttribute('aria-pressed', 'false'); }
-    if (sel) { b.classList.add('sel'); b.setAttribute('aria-pressed', 'true'); }
-    renderDay();
-    if (sel) {
-      if (daysStale()) fetchDays().then(renderDay);
-      $('day').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
-  });
-  $('day').addEventListener('click', e => {
-    if (!e.target.closest('button.x')) return;
-    sel = null; renderDay();
-    for (const x of document.querySelectorAll('#cal .dc.sel')) { x.classList.remove('sel'); x.setAttribute('aria-pressed', 'false'); }
-  });
   function renderDay() {
     const box = $('day');
+    if (!box) return;
     if (!sel || !doc) { box.hidden = true; box.innerHTML = ''; return; }
     const a = (doc.accounts || []).find(x => x.id === sel.a);
     const d = a && (a.days || []).find(x => x.s === sel.s);
@@ -421,33 +486,52 @@
     box.innerHTML = html; box.hidden = false;
   }
 
-  // 5. live trades: one row a whole trade on each firm (and the bot's own), open ones on top
-  function takers(firm, s, tin) {  // the paper accounts that took this firm trade that session
+  // 4. live trades: one row a whole trade, the bot's own and the firms' (firms with the very same fills share a row)
+  function takers(firm, s, tin) {  // the paper accounts (of the chosen rule) that took this firm trade that session
     if (!daysDoc) return null;
+    const pre = codeOf(firm) + '-', suf = new RegExp(`-${filt.rule.replace(/[^a-z0-9]/gi, '')}-\\d+$`);
     let n = 0;
     for (const acc of daysDoc.accounts || []) {
-      if (!String(acc.id).startsWith(firm === 'FTMO' ? 'FT-' : 'FN-')) continue;
+      if (!String(acc.id).startsWith(pre) || !suf.test(String(acc.id))) continue;
       const dd = (acc.days || []).find(x => x.s === s);
       if (dd && (dd.trades || []).some(t => t.tin === tin)) n++;
     }
     return n;
   }
-  function openCard(f, t) {
+  const fillKey = t => [t.side, t.tin, t.tout || '', ok(t.px_in) ? t.px_in : '', ok(t.px_out) ? t.px_out : '', t.how || '', ok(t.pts) ? t.pts : ''].join('|');
+  function firmTrades(s) {   // [{firms: [...], t}] the firms' trades of session s, the same fill once
+    const groups = new Map();
+    for (const f of doc.firms || []) {
+      if (filt.firm && f.firm !== filt.firm) continue;
+      const fdays = daysDoc ? ((daysDoc.firms || []).find(x => x.firm === f.firm) || {}).days || [] : [];
+      const fd = fdays.find(x => x.s === s);
+      const tr = s === curSess() && f.today ? f.today.trades : fd ? fd.trades : [];
+      for (const t of tr || []) {
+        const k = fillKey(t);
+        if (!groups.has(k)) groups.set(k, { firms: [], t });
+        groups.get(k).firms.push(f.firm);
+      }
+    }
+    return [...groups.values()];
+  }
+  function openCard(g) {
+    const t = g.t, f = firmOf(g.firms[0]) || {};
     const fd = f.feed || {}, q = (f.today || {}).quote || {};
     const now = t.side === 'long' ? (ok(fd.bid) ? fd.bid : q.bid) : (ok(fd.ask) ? fd.ask : q.ask);
     const pl = ok(now) && ok(t.px_in) ? (t.side === 'long' ? now - t.px_in : t.px_in - now) : null;
-    const nAcc = takers(f.firm, curSess(), t.tin);
+    const ns = g.firms.map(x => takers(x, curSess(), t.tin));
+    const nAcc = ns.every(v => v == null) ? null : ns.reduce((x, v) => x + (v || 0), 0);
     const kvs = [['In', t.px_in], ['Bot in', t.bot_in], ['Now', now]].filter(([, v]) => ok(v))
       .map(([k, v]) => `<div class="okv"><span class="lbl2">${k}</span><span class="num">${px(v)}</span></div>`).join('');
     return `<article class="ocard"><div class="oc-a"><span class="lbl2 warn">Open now</span>`
-      + `<span class="oc-t">${esc(f.firm)} ${esc(t.side)}, ${esc(f.symbol || '')}</span>`
-      + `<span class="muted">In since ${esc(ctw(t.tin).slice(0, -3))} CT${nAcc != null ? `. Taken by ${int(nAcc)} paper account${nAcc === 1 ? '' : 's'}` : ''}.</span></div>`
+      + `<span class="oc-t">${esc(g.firms.join(', '))} ${esc(t.side)}, ${esc(f.symbol || '')}</span>`
+      + `<span class="muted">In since ${esc(ctw(t.tin).slice(0, -3))} CT${nAcc != null ? `. Taken by ${int(nAcc)} paper account${nAcc === 1 ? '' : 's'} (${esc(ruleLabel(filt.rule))})` : ''}.</span></div>`
       + (kvs ? `<div class="oc-kv">${kvs}</div>` : '')
       + `<div class="oc-r"><span class="lbl2">So far, a lot</span><span class="oc-pl num ${cls(pl)}">${ok(pl) ? pts(pl) : '–'}</span></div></article>`;
   }
   function tradeRow(r) {
     const t = r.t;
-    const pill = r.src === 'bot' ? '<span class="pill bot">BOT</span>' : `<span class="pill ${firmCode(r.firm)}">${esc(r.firm)}</span>`;
+    const pill = r.src === 'bot' ? '<span class="pill bot">BOT</span>' : r.firms.map(f => `<span class="pill ${esc(pillCls(f))}">${esc(f)}</span>`).join('');
     const what = r.src === 'bot' ? `${esc(t.side)}, 1 MNQ` : `${esc(t.side)}, 1 lot`;
     const outPx = ok(t.px_out) ? px(t.px_out) : (t.how === 'open' ? '…' : '–');
     const botPx = r.src === 'bot' ? '' : ok(t.bot_in) ? `<span class="muted">bot <b>${px(t.bot_in)}</b> → <b>${ok(t.bot_out) ? px(t.bot_out) : '…'}</b></span>` : '';
@@ -464,24 +548,27 @@
     const bot = daysDoc ? (daysDoc.bot || []).find(x => x.s === s) : null;
     const botTr = bot ? bot.trades : (s === curSess() && doc.signal ? doc.signal.trades : []);
     for (const t of botTr || []) rows.push({ src: 'bot', t, tin: t.tin });
-    for (const f of doc.firms || []) {
-      const fdays = daysDoc ? ((daysDoc.firms || []).find(x => x.firm === f.firm) || {}).days || [] : [];
-      const fd = fdays.find(x => x.s === s);
-      const tr = s === curSess() && f.today ? f.today.trades : fd ? fd.trades : [];
-      for (const t of tr || []) rows.push({ src: 'firm', firm: f.firm, t, tin: t.tin, n: takers(f.firm, s, t.tin) });
+    for (const g of firmTrades(s)) {
+      const ns = g.firms.map(f => takers(f, s, g.t.tin));
+      rows.push({ src: 'firm', firms: g.firms, t: g.t, tin: g.t.tin, n: ns.every(v => v == null) ? null : ns.reduce((x, v) => x + (v || 0), 0) });
     }
     return rows.sort((a, b) => (a.tin < b.tin ? -1 : a.tin > b.tin ? 1 : 0) || (a.src === 'bot' ? -1 : 1) - (b.src === 'bot' ? -1 : 1)
-      || String(a.firm || '').localeCompare(String(b.firm || '')));
+      || String((a.firms || [''])[0]).localeCompare(String((b.firms || [''])[0])));
   }
   function skipsOf(s) {
-    const out = [];
+    const out = new Map();
     for (const f of doc.firms || []) {
+      if (filt.firm && f.firm !== filt.firm) continue;
       const fdays = daysDoc ? ((daysDoc.firms || []).find(x => x.firm === f.firm) || {}).days || [] : [];
       const fd = fdays.find(x => x.s === s);
       const sk = s === curSess() && f.today ? f.today.skips : fd ? fd.skips : [];
-      for (const k of sk || []) out.push(`${f.firm} ${k.side} at ${ct5(k.tin)}: ${WHY[k.why] || k.why}`);
+      for (const k of sk || []) {
+        const key = `${k.side} at ${ct5(k.tin)}: ${WHY[k.why] || k.why}`;
+        if (!out.has(key)) out.set(key, []);
+        out.get(key).push(f.firm);
+      }
     }
-    return [...new Set(out)];
+    return [...out.entries()].map(([k, fs]) => `${fs.join(', ')} ${k}`);
   }
   function renderTrades() {
     const ss = sessList().slice().reverse();
@@ -492,19 +579,21 @@
     $('tr-sess').innerHTML = ss.map(s => `<button type="button" data-s="${esc(s)}" aria-pressed="${s === trSess ? 'true' : 'false'}">${esc(short(s))}</button>`).join('');
     $('tr-sess').hidden = ss.length < 2;
     let html = '';
-    if (cs && trSess === cs) for (const f of doc.firms || []) for (const t of ((f.today || {}).trades || []).filter(t => t.how === 'open' || !t.tout)) html += openCard(f, t);
+    if (cs && trSess === cs) for (const g of firmTrades(cs).filter(g => g.t.how === 'open' || !g.t.tout)) html += openCard(g);
     const head = '<div class="tr th"><span class="lbl2">Time, CT</span><span class="lbl2">Trade</span><span class="lbl2">Price</span>'
       + '<span class="lbl2">Ended by</span><span class="lbl2 r">Points</span><span class="lbl2">Accounts</span></div>';
     if (trSess) {
       const list = sessionRows(trSess), sk = skipsOf(trSess);
+      const nb = list.filter(r => r.src === 'bot').length;
       const span = `${dayOf(addD(trSess, -1), { weekday: 'short' })} 17:00 to ${dayOf(trSess, { weekday: 'short' })} 16:00 CT. ${trSess === cs && isLive() ? 'Still open' : 'Closed'}.`;
-      html += `<section class="tsec"><div class="ts-h"><h3>${esc(day(trSess))} session</h3><span class="muted">${esc(span)} ${list.filter(r => r.src === 'bot').length} bot trade${list.filter(r => r.src === 'bot').length === 1 ? '' : 's'}.</span></div>`
+      html += `<section class="tsec"><div class="ts-h"><h3>${esc(day(trSess))} session</h3><span class="muted">${esc(span)} ${nb} bot trade${nb === 1 ? '' : 's'}.</span></div>`
         + (list.length ? head + list.map(tradeRow).join('') : '<div class="muted">No trade yet.</div>')
         + (sk.length ? `<p class="tnote" style="margin-top:8px">Not taken: ${esc(sk.join('; '))}.</p>` : '') + '</section>';
     }
-    html += '<p class="tnote">Each BOT row is the Scalper 3m bot\'s own trade (1 MNQ, futures points). Each firm row is the same trade on that firm: in at its ask (long) '
+    html += '<p class="tnote">Each BOT row is the Scalper 3m bot\'s own trade (1 MNQ, futures points). Each firm row is the same trade at that firm: in at its ask (long) '
       + 'or bid (short) the moment the bot\'s entry appeared, out at its bid / ask the moment the bot\'s exit appeared, in index points for 1 lot. '
-      + 'A paper account that reached its own day target or day stop first left earlier; its own rows are in the calendar.</p>';
+      + 'FundingPips, The5ers and Tradeify FX use FundedNext\'s prices, so their fills share FundedNext\'s row unless their own pause cut the trade. '
+      + 'A paper account that reached its own day target or day stop first left earlier; its own rows are in its plan\'s calendar.</p>';
     $('trades').innerHTML = html;
   }
   $('tr-sess').addEventListener('click', e => {
