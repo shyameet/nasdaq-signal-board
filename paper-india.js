@@ -10,7 +10,11 @@
 (function () {
   'use strict';
   const SCALE_STOP_TARGET = false;   // the owner's call: true = the open trade's chart always has its stop and target lines in view
-  const POLL_MS = 3000, HIDDEN_MS = 30000, FETCH_MS = 8000, FEED_FILE = 'data/india_paper_feed.json';
+  // paper-mcx.html (<html data-market="mcx">, owner 15/11/2026): the same view for the MCX mini crude / mini natgas
+  // options paper bot (the India rules; its own feed, MCX hours 09:00-23:55 IST)
+  const MCX = document.documentElement.dataset.market === 'mcx';
+  const EXCH = MCX ? 'MCX' : 'NSE', OPEN_AT = MCX ? '09:00' : '09:15', CLOSE_AT = MCX ? '23:54' : '15:29';
+  const POLL_MS = 3000, HIDDEN_MS = 30000, FETCH_MS = 8000, FEED_FILE = MCX ? 'data/mcx_paper_feed.json' : 'data/india_paper_feed.json';
   const KIND = 'rdx-india-paper-public', KIND_DAYS = 'rdx-india-paper-days', KIND_C = 'rdx-india-paper-candles';
   const IST = 19800, M = '−';
   const $ = id => document.getElementById(id);
@@ -35,9 +39,11 @@
   let fIST;
   try { fIST = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); } catch (e) { fIST = null; }
   const istNow = ms => fIST ? fIST.format(ms) : new Date(ms + IST * 1000).toISOString().slice(11, 16);
-  const NAME = { NIFTY: 'NIFTY 50', BANKNIFTY: 'NIFTY BANK', HDFCBANK: 'HDFC Bank', ICICIBANK: 'ICICI Bank', RELIANCE: 'Reliance', BHARTIARTL: 'Airtel', LT: 'L&T' };
+  const NAME = MCX ? { CRUDEOILM: 'Crude oil mini', NATGASMINI: 'Natural gas mini' }
+    : { NIFTY: 'NIFTY 50', BANKNIFTY: 'NIFTY BANK', HDFCBANK: 'HDFC Bank', ICICIBANK: 'ICICI Bank', RELIANCE: 'Reliance', BHARTIARTL: 'Airtel', LT: 'L&T',
+        KOTAKBANK: 'Kotak Bank', AXISBANK: 'Axis Bank', SBIN: 'SBI' };   // + Bank Nifty's other 3 (owner 16/11/2026)
   const nameOf = u => NAME[u] || u;
-  const isStock = u => !/NIFTY/.test(u);
+  const isStock = u => !MCX && !/NIFTY/.test(u);
 
   let feedUrl = null, doc = null, lastOk = 0, lastGen = null, lastGenAt = 0, fails = 0, firstFail = 0, timer = 0, busy = false;
   let daysDoc = null, daysBusy = null;
@@ -181,11 +187,11 @@
   function setRules(r) {
     r = r || {};
     const sp = ok(r.stop_pct) ? pctTxt(r.stop_pct) : '6', tp = ok(r.target_pct) ? pctTxt(r.target_pct) : '4';
-    HOW = { target: `target +${tp}%`, stop: `stop ${M}${sp}%`, 'logic exit': '1m MACD back', '30 s exit': '30 s exit', '15:29 close': `${esc(r.exit || '15:29')} close`, other: 'exit' };
+    HOW = { target: `target +${tp}%`, stop: `stop ${M}${sp}%`, 'logic exit': '1m MACD back', '30 s exit': '30 s exit', [CLOSE_AT + ' close']: `${esc(r.exit || CLOSE_AT)} close`, other: 'exit' };
     $('b-rule').textContent = `live price from the stream · stop ${M}${sp}% / target +${tp}% of the entry price`;
-    return r.exit || '15:29';
+    return r.exit || CLOSE_AT;
   }
-  const SETUP_ORDER = ['Nifty', 'Bank Nifty'];
+  const SETUP_ORDER = MCX ? ['US crude', 'US natgas'] : ['Nifty', 'Bank Nifty'];
   const WHY = { kind_open: 'a trade of the same kind was still open', after_exit: 'seen after the exit time', no_price: 'no option price yet', other: 'not traded' };
   const MISS = { not_running: 'the paper engine was not running yet', late: 'seen too late, after a gap in the live data', other: 'not traded' };
   function skipText(skips) {
@@ -253,7 +259,7 @@
     line(t.target, up, 'target'); line(t.entry, ac, 'entry'); line(t.stop, dn, 'stop');
     if (data.length) {
       const at = tt => data.reduce((a, r) => (r.time <= tt + IST ? r.time : a), data[0].time);
-      const mk = [{ time: at(t.tin), position: 'belowBar', color: ac, shape: 'arrowUp', text: 'in ' + p2(t.entry) }];
+      const mk = [{ time: at(t.tin), position: 'belowBar', color: ac, shape: 'arrowUp', text: o.live ? '' : 'in ' + p2(t.entry) }];   // live: the entry line has the price
       if (!o.live && ok(t.tout)) mk.push({ time: at(t.tout), position: 'aboveBar', color: t.net >= 0 ? up : dn, shape: 'arrowDown', text: 'out ' + p2(t.exit) });
       s.setMarkers(mk);
       if (o.live) c.timeScale().setVisibleLogicalRange({ from: -0.5, to: data.length + 4 });
@@ -308,9 +314,9 @@
   // the hero: one open trade, big; several: a chip for each above it
   function emptyText() {
     const s = doc.status;
-    if (s === 'waiting') return 'No open trade: entries start at 09:15 IST.';
+    if (s === 'waiting') return `No open trade: entries start at ${OPEN_AT} IST.`;
     if (s === 'closed') return 'No open trade: the session is over.';
-    if (s === 'no session') return doc.why === 'weekend' ? 'No NSE session today (weekend).' : doc.why === 'holiday' ? `No NSE session today (${esc(doc.holiday || 'holiday')}).` : 'No NSE session today.';
+    if (s === 'no session') return doc.why === 'weekend' ? `No ${EXCH} session today (weekend).` : doc.why === 'holiday' ? `No ${EXCH} session today (${esc(doc.holiday || 'holiday')}).` : `No ${EXCH} session today.`;
     return 'No open trade right now.';
   }
   function renderHero(exitAt) {
@@ -418,12 +424,29 @@
     return out;
   }
   const dayNet = d => d.trades.reduce((a, t) => a + t.net, 0);
+  // the days as a calendar (15/11/2026): Monday to Friday in columns from the first day's Monday, a weekday without a
+  // session (a holiday, or before the first day) as a faint blank cell, so every Monday starts a row
+  function weekdays(days) {
+    if (!days.length) return [];
+    const by = new Map(days.map(d => [d.day, d])), out = [];
+    let t = Date.parse(days[0].day + 'T00:00:00Z');
+    t -= ((new Date(t).getUTCDay() + 6) % 7) * 86400000;
+    const end = Date.parse(days[days.length - 1].day + 'T00:00:00Z');
+    for (; t <= end; t += 86400000) {
+      const w = new Date(t).getUTCDay();
+      if (w === 0 || w === 6) continue;
+      const k = new Date(t).toISOString().slice(0, 10);
+      out.push(by.get(k) || { day: k, blank: true });
+    }
+    return out;
+  }
   function renderDays() {
     const days = allDays();
     const sig = JSON.stringify(days.map(d => [d.day, d.trades.length, Math.round(dayNet(d))]));
     if (sig !== daysSig) {
       daysSig = sig;
-      $('b-days').innerHTML = days.map(d => {
+      $('b-days').innerHTML = weekdays(days).map(d => {
+        if (d.blank) return `<span class="b-dy blank" aria-hidden="true"><span class="dt"><span class="w">${wday(d.day)}</span><span class="d">${dshort(d.day)}</span></span></span>`;
         const n = dayNet(d), k = d.trades.length;
         return `<button type="button" class="b-dy ${k ? (n >= 0 ? 'up' : 'down') : ''}${d.day === selDay ? ' sel' : ''}" data-d="${d.day}"><span class="dt"><span class="w">${wday(d.day)}</span><span class="d">${dshort(d.day)}</span></span>
     <span class="n ${k ? cls(n) : 'muted'}">${k ? rs(n, 1) : '—'}</span><span class="c">${plural(k, 'trade')}</span></button>`;
@@ -448,7 +471,7 @@
     document.querySelectorAll('.b-dy').forEach(x => x.classList.remove('sel'));
   }
   $('b-days').addEventListener('click', e => {
-    const b = e.target.closest('.b-dy'); if (!b || !doc) return;
+    const b = e.target.closest('button.b-dy'); if (!b || !doc) return;
     if (b.classList.contains('sel')) { closeDay(); return; }
     document.querySelectorAll('.b-dy').forEach(x => x.classList.toggle('sel', x === b));
     selDay = b.dataset.d; panelSig = null; expanded['b-dayl'] = null;
