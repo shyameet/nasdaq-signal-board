@@ -17,6 +17,9 @@
                                                  its lines on above 0, ▼ all below, ◆ mixed (the composite's own lines)
    Both take a last argument `trend` (default true): false leaves the Trend lines out, the Swing lines given deciding alone
    (4/11/2026: the MNQ page's right side, its 30m, 1h, 4h, 1D and 1W waves only), from every minute the engine has run.
+   And one after it, `extra` (default none; 18/11/2026, the MNQ page: its MACDs switched on count for its gates and shading):
+   lines on the engine's own bars counted while switched on, as the Trend lines but on the series' own candles only; lines on
+   long candles (its 30m to 1M MACDs) go with the swingLines.
    sig: an engine TrendSignal (NdxEngine.internals); swing: NsbSwing.series(...)'s candles { 60: [...], 240: [...], ... }
    (each with its own `end`); swingLines: the Swing lines the chart draws (NsbSwing.LINES, or NsbSwing.ALL). */
 (() => {
@@ -59,17 +62,23 @@ const traceKey = sig => `${sig.trace.length}|${(sig.trace[sig.trace.length - 1] 
 // on without a value yet), null (no Trend line on); none for a minute the engine had not warmed up. Two or more stocks: every
 // stock's own lines must agree. Worked out once per series, switch state and trace (4/11/2026: it was redone, every stock's
 // minutes looked up afresh, for every set of Swing lines asked - the MNQ page's two copies - and that was most of its load)
-function trendDirs(sig, own) {
-  const store = own ? ownDirCache : dirCache, key = `${ver}|${traceKey(sig)}`, have = store.get(sig);
+// extra (18/11/2026, the MNQ page's MACDs): more lines on the engine's own bars, counted while switched on like the Trend lines
+// but read on the series' own candles only (a basket's composite, never each stock's) and whether or not `trend` is on; with
+// `trend` off they count from every minute the engine has run (a line on without a value yet: NO TRADE, as a Trend line)
+function trendDirs(sig, own, trend = true, extra = []) {
+  const store = own ? ownDirCache : dirCache, key = `${ver}|${traceKey(sig)}`, ck = `${trend ? 't' : '-'}|${extra.join()}`;
+  const per = store.get(sig) || {}, have = per[ck];
   if (have && have.key === key) return have.dirs;
-  const tOn = PANES.trend.lines.filter(m => show[m]);
+  const tOn = trend ? PANES.trend.lines.filter(m => show[m]) : [], xOn = extra.filter(m => show[m]);
   const parts = sig.parts && !own ? Object.values(sig.parts).map(p => new Map((p.trace || []).map(e => [e.t, e.state === null ? null : e.b]))) : null;
   const dirs = new Map();
   for (const e of sig.trace) {
-    if (e.state === null) continue;  // the engine not warmed up yet: no gate
-    if (!tOn.length) { dirs.set(e.t, null); continue; }
+    if (trend && e.state === null) continue;  // the engine not warmed up yet: no gate
+    if (!tOn.length && !xOn.length) { dirs.set(e.t, null); continue; }
     let dir = null;  // 1 / -1 so far, 0: they disagree
-    if (parts) {
+    if (!tOn.length) {
+      // (no Trend line on: the extra lines alone, below)
+    } else if (parts) {
       for (const p of parts) {
         const b = p.get(e.t), d = b ? trendDir(b, tOn) : null;
         if (d === null || d === 0) { dir = 0; break; }
@@ -80,9 +89,14 @@ function trendDirs(sig, own) {
       const d = trendDir(e.b, tOn);
       dir = d === null ? 0 : d;
     }
+    if (dir !== 0 && xOn.length) {
+      const d = trendDir(e.b, xOn), x = d === null ? 0 : d;
+      dir = dir === null ? x : dir === x ? x : 0;
+    }
     dirs.set(e.t, dir);
   }
-  store.set(sig, { key, dirs });
+  per[ck] = { key, dirs };
+  store.set(sig, per);
   return dirs;
 }
 // no Trend line counted (trend = false): every minute the engine has run, warmed up or not, with no verdict yet
@@ -95,14 +109,14 @@ function noTrendDirs(sig) {
 }
 // own: the series' own lines only, even for Your stocks (the shading of the composite's chart, as before 2/11/2026: its own
 // waves, not every stock's agreement; for one market it is the gate itself)
-function states(sig, swing, swingLines = PANES.swing.lines, own = false, trend = true) {
+function states(sig, swing, swingLines = PANES.swing.lines, own = false, trend = true, extra = []) {
   if (!sig || !sig.trace) return new Map();
   // one answer kept per series and set of Swing lines (4/11/2026: the MNQ page asks the same series with and without its 1h lines)
-  // (no Trend line: a basket's own lines and its gate are the same, the composite's Swing lines; one answer for both)
-  const store = own && trend ? ownCache : cache, lk = (trend ? '' : 'long|') + swingLines.join(), per = store.get(sig) || {};
+  // (no Trend line: a basket's own lines and its gate are the same, the composite's Swing lines and extra lines; one answer for both)
+  const store = own && trend ? ownCache : cache, lk = (trend ? '' : 'long|') + swingLines.join() + (extra.length ? '|x:' + extra.join() : ''), per = store.get(sig) || {};
   const key = `${ver}|${lk}|${traceKey(sig)}`, have = per[lk];
   if (have && have.key === key && have.swing === swing) return have.map;
-  const sOn = swingLines.filter(m => show[m]), sw = swingAt(swing, sOn), dirs = trend ? trendDirs(sig, own) : noTrendDirs(sig);
+  const sOn = swingLines.filter(m => show[m]), sw = swingAt(swing, sOn), dirs = trend || extra.length ? trendDirs(sig, own, trend, extra) : noTrendDirs(sig);
   const map = new Map();
   for (const [t, trend] of dirs) {
     let dir = trend, counted = trend === null ? 0 : 1;  // dir: 1 / -1 so far, 0: they disagree
@@ -122,19 +136,19 @@ function states(sig, swing, swingLines = PANES.swing.lines, own = false, trend =
   return map;
 }
 // the header's chips at minute t (the series' own lines; Your stocks: the composite's), one per timeframe with a line on
-function chips(sig, swing, swingLines = PANES.swing.lines, t, trend = true) {
+function chips(sig, swing, swingLines = PANES.swing.lines, t, trend = true, extra = []) {
   if (!sig || !sig.trace || !sig.trace.length) return '';
   let e = null;
   for (let i = sig.trace.length - 1; i >= 0; i--) if (sig.trace[i].t <= t) { e = sig.trace[i]; break; }
   if (!e) return '';
   const groups = new Map();
-  for (const l of trend ? PANES.trend.lines.filter(m => show[m]) : []) {
+  for (const l of [...(trend ? PANES.trend.lines : []), ...extra].filter(m => show[m])) {
     const bar = e.b[LINE[l].tf], x = bar ? LINE[l].v(bar) : null;
     const g = groups.get(LINE[l].tf) || []; g.push(x); groups.set(LINE[l].tf, g);
   }
   const sOn = swingLines.filter(m => show[m]), sv = swingAt(swing, sOn)(e.t);
   sOn.forEach((l, i) => { const g = groups.get(LINE[l].tf) || []; g.push(sv[i]); groups.set(LINE[l].tf, g); });
-  return [...groups].map(([tf, xs]) => {
+  return [...groups].sort((a, b) => a[0] - b[0]).map(([tf, xs]) => {  // shortest first (the MNQ page's 1m-3m MACDs before the 5m)
     const name = LABEL[tf] || `${tf}m`, have = xs.filter(ok);
     if (!have.length) return `<span class="mixed" style="opacity:.5" title="No value yet">${name} –</span>`;
     return have.every(x => x > 0) && have.length === xs.length ? `<span class="up">${name} ▲</span>`

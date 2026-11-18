@@ -22,7 +22,7 @@
 <script src="macd.js?v=34"></script>
 <script src="engine.js?v=19"></script>
 <script src="swing.js?v=5"></script>
-<script src="gate.js?v=5"></script>
+<script src="gate.js?v=6"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=5"></script>
 <script src="draw.js?v=10"></script>
@@ -43,7 +43,9 @@
      MNQ's candles, the left's stays MNQ; every pane also has MACDs, 1m to 7m on the left and 9m to 1h on the right, each with
      a signal line switched on and off by itself. The same day (owner) the right's waves also on the 1M candles, the left's
      Waves tab the 1m, 2m and 3m MACDs again (the Entry lines), the right's MACD tab also the 4h, 1D, 1W and 1M MACDs, and on
-     both sides the MNQ pane first, the baskets' under it.
+     both sides the MNQ pane first, the baskets' under it. 18/11/2026 (owner): the shading, on both charts and every pane, only
+     where MNQ, Basket 1 and Basket 2 all agree on both sides, each from its lines switched on, the MACDs too (on either tab),
+     a basket from its combined candles; the Gate words, chips and marks the same way.
      The Replay page's notes: one trading day at a time (from the CME open). Left: your stocks' composite; right: the Nasdaq-100 perp (XYZ100). Each
      has the same indicators (the RDX WIP gate, the 5m EMA 8/21/47, the Entry MACD and Trend waves panes; owner
      28/10/2026, Rahul's RDX WIP Trend). */
@@ -512,17 +514,26 @@ const PATTERN = {
 const classify = (sn, sx) => !sn || !sx || sn === sx ? null : sx === 'BULLISH' ? 'alone' : sn === 'BULLISH' ? 'first' : 'other';
 // a series' gate on a side (gate.js, owner 1/11/2026): from the lines switched on that the side draws, at each minute's close:
 // the Trend lines on the left, the long waves alone on the right (owner 4/11/2026); no Swing pane here, so no other long lines
-const gateOf = (ser, side) => NsbGate.states(ser.run.sig, ser.swing || null, LONG_OF[side], false, TREND_OF[side]);
-const ownOf = (ser, side) => ser.run.sig && ser.run.sig.parts ? NsbGate.states(ser.run.sig, ser.swing || null, LONG_OF[side], true, TREND_OF[side]) : gateOf(ser, side);  // a basket's shading: its own lines
-// the MNQ charts' shading (owner 4/11/2026: "we should have the bullish or reddish zone only when both the charts match"): LONG
-// where both sides' MNQ gates are LONG, SHORT where both are SHORT, none otherwise; the same on both charts
+// 18/11/2026 (owner: "whatever values or indicators or MACD we put, it should reflect for all three"): the side's MACDs switched
+// on count too, on either tab (GATE_MACDS), and a basket's gate is its combined candles' own lines (as its pane's shading was),
+// not every stock's agreement
+const gateOf = (ser, side) => NsbGate.states(ser.run.sig, ser.swing || null, [...LONG_OF[side], ...GATE_MACDS[side].long], true, TREND_OF[side], GATE_MACDS[side].engine);
+// the shading (owner 4/11/2026: "we should have the bullish or reddish zone only when both the charts match"; 18/11/2026: "it
+// should reflect for all three ... if all the conditions of the MACD are matching, then only we show the bearish or bullish on
+// both the charts"): LONG where MNQ, Basket 1 and Basket 2 are all LONG on both sides (six gates), SHORT where all six are
+// SHORT, none otherwise; the same on both charts and on every pane. At each MNQ minute; a basket's gate up to 2 minutes back
+// (as the marks read it: its stocks' newest minute can come a little after MNQ's)
 let both = null;
 function bothOf() {
-  const a = gateOf(day.left.mnq, 'left'), b = gateOf(day.right.mnq, 'right');
-  if (both && both.a === a && both.b === b) return both.map;
-  const map = new Map();
-  for (const [t, x] of a) { const y = b.get(t); if (y) map.set(t, x === y && x !== 'NEUTRAL' ? x : 'NEUTRAL'); }
-  both = { a, b, map };
+  const gs = SIDES.flatMap(s => PANE_KEYS.map(k => gateOf(day[s][k], s)));
+  if (both && both.gs.every((g, i) => g === gs[i])) return both.map;
+  const near = (g, t) => { for (let k = t; k >= t - 2 * MIN; k -= MIN) { const s = g.get(k); if (s) return s; } return null; };
+  const [a, ...rest] = gs, map = new Map();  // a: the left's MNQ gate (PANE_KEYS: MNQ first)
+  for (const [t, x] of a) {
+    const ys = rest.map(g => near(g, t));
+    if (ys.every(Boolean)) map.set(t, x !== 'NEUTRAL' && ys.every(y => y === x) ? x : 'NEUTRAL');
+  }
+  both = { gs, map };
   return map;
 }
 const gateNear = (ser, side, t) => { const g = gateOf(ser, side); for (let k = t; k >= t - 2 * MIN; k -= MIN) { const s = g.get(k); if (s) return s; } return null; };
@@ -552,6 +563,11 @@ const TREND_OF = { left: true, right: false };  // the Trend lines (5m to 15m) d
 // the right (the panes draw one or the other: paneMode)
 const MACDS_OF = { left: ['m1', 'm2', 'm3', 'm5', 'm7'], right: ['m9', 'm11', 'm15', 'm30', 'm60', 'm240', 'm1440', 'm10080', 'm43200'] };
 const LONG_TFS = [30, 60, 240, 1440, 10080, 43200];
+// each side's MACDs as its gate counts them (18/11/2026): on the engine's candles (the left's 1m to 7m, the right's 9m, 11m and
+// 15m) or on the long candles (the right's 30m to 1M, swing.js), each from its closed candles; their tips say so on this page
+const GATE_MACDS = Object.fromEntries(SIDES.map(s => [s, { engine: MACDS_OF[s].filter(m => !LONG_TFS.includes(NsbMacd.LINE[m].tf)),
+                                                           long: MACDS_OF[s].filter(m => LONG_TFS.includes(NsbMacd.LINE[m].tf)) }]));
+for (const m of [...MACDS_OF.left, ...MACDS_OF.right]) NsbMacd.LINE[m].tip = NsbMacd.LINE[m].tip.replace("shown only, the gate doesn't use it", 'counts for the gates and the shading while switched on');
 // the MACDs on a scale of their own in each pane (the waves are many times their size); on the right also the 30m and 1h waves
 // (the daily ones are many times theirs; the weekly ones have their own, swing.js, and the monthly ones, about five times the
 // weekly, another). 0 stays in the middle of every scale, so
@@ -565,8 +581,8 @@ const MACD_SCALES = { left: {}, right: { m240: 'hd', m1440: 'hd', m10080: 'wm', 
 // Basket 2, remembered in this browser; the left's is MNQ
 let rightChart = pref('rchart', 'b1') === 'b2' ? 'b2' : 'b1';
 // the panes' two tabs (owner 5/11/2026: "two more tabs inside the MNQ section ... one tab ... only the waves and ... the second ...
-// only the MACD"): Waves or MACD, remembered in this browser; the gate and the shading are the waves' on either (a MACD tab's lines
-// on the pane's own price scale, its labels theirs)
+// only the MACD"): Waves or MACD, remembered in this browser; the gate and the shading are the waves' and (18/11/2026) the
+// MACDs' switched on, on either tab (a MACD tab's lines on the pane's own price scale, its labels theirs)
 let paneMode = pref('panes', 'waves') === 'macd' ? 'macd' : 'waves';
 const linesOf = side => paneMode === 'macd' ? MACDS_OF[side] : side === 'left' ? NsbMacd.PANES.all.lines : LONG;
 const scalesOf = side => paneMode === 'macd' ? MACD_SCALES[side] : SCALES_OF[side];
@@ -621,7 +637,7 @@ class Panel {
     this.candles.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.08 } });  // (no volume under them since 5/11/2026)
     const emaLine = color => this.main.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     this.e8 = emaLine(NsbMacd.STACK.mixed); this.e21 = emaLine(NsbMacd.STACK.mixed); this.e47 = emaLine(NsbMacd.STACK.mixed);  // the 5m EMA 8 / 21 / 47, each point colored by their stack
-    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.zoneStates[i]] || null);  // where both sides' MNQ gates agree
+    this.zones = new Bands(() => this.main, () => this.mainBars.length, i => ZONE[this.zoneStates[i]] || null);  // where MNQ, Basket 1 and Basket 2 agree on both sides
     this.candles.attachPrimitive(this.zones);
     this.candles.attachPrimitive(new DayLines(() => this.main, () => this.mainBars, 30, 'cme'));  // where each trading day begins (the CME open), with its date
     this.candles.attachPrimitive(new NsbMacd.Countdown(this.candles, () => { const b = this.mainBars[this.mainBars.length - 1];  // time left in the newest candle (as on TradingView)
@@ -637,7 +653,7 @@ class Panel {
       title: k === 'mnq' ? 'MNQ' : BASKETS[k], scales: scalesOf(side), signals: true,
       name: '', digits: 2, options: options(false, false, ''), origin, days: 'cme',
       bars: () => this.mainBars, tf: () => opt.tf, src: () => this.srcs[k] || {},
-      shade: i => (this.paneStates[k] || [])[i] || null,  // each pane its own series' trend
+      shade: i => (this.paneStates[k] || [])[i] || null,  // every pane the charts' shading (owner 18/11/2026; each its own series' trend before)
     });
     for (const p of Object.values(this.macd)) this.drawing.pane(p.chart, p.zero);  // drawn vertical lines go through the panes too
     for (const ev of ['pointerdown', 'wheel', 'touchstart']) $(key).addEventListener(ev, () => { driver = this; }, { capture: true, passive: true });
@@ -742,9 +758,8 @@ class Panel {
     };
     const mst = gateOf(this.ser('mnq'), side), mnqStates = this.mainBars.map(b => at(mst, b));  // this side's MNQ gate: its MNQ pane's shading
     const bo = bothOf();
-    this.zoneStates = this.mainBars.map(b => at(bo, b));  // the chart's shading: both sides' MNQ gates agree
-    this.paneStates = { mnq: mnqStates };
-    for (const k of ['b1', 'b2']) { const own = ownOf(this.ser(k), side); this.paneStates[k] = this.mainBars.map(b => at(own, b)); }
+    this.zoneStates = this.mainBars.map(b => at(bo, b));  // the chart's shading: MNQ, Basket 1 and Basket 2 agree on both sides
+    this.paneStates = { mnq: this.zoneStates, b1: this.zoneStates, b2: this.zoneStates };  // every pane the same (owner 18/11/2026)
     // the chart's series' gate (MNQ's, or the basket shown's on the right): its header, its candles' readout
     const st = this.chartKey === 'mnq' ? mst : gateOf(this.ser(this.chartKey), side);
     this.mainStates = this.chartKey === 'mnq' ? mnqStates : this.mainBars.map(b => at(st, b));
@@ -795,7 +810,7 @@ class Panel {
       : [...(this.chartKey === 'mnq' ? day.price : this.mainBars)].reverse().find(b => b.time <= at);
     $(`${side}-val`).textContent = bar ? num(bar.close, ser.digits || 2) : '—';
     $(`${side}-gate`).className = 'gw ' + kind(st); $(`${side}-gate`).textContent = st ? WORD[st] : '—';
-    $(`${side}-conds`).innerHTML = k !== null ? NsbGate.chips(ser.run.sig, ser.swing || null, LONG_OF[side], k, TREND_OF[side]) : '';  // one chip per timeframe with a line on
+    $(`${side}-conds`).innerHTML = k !== null ? NsbGate.chips(ser.run.sig, ser.swing || null, [...LONG_OF[side], ...GATE_MACDS[side].long], k, TREND_OF[side], GATE_MACDS[side].engine) : '';  // one chip per timeframe with a line on
     for (const b of PANE_KEYS) {  // the other two series' gates (the chart's own is the one above)
       $(`${side}-${b}-og`).hidden = b === this.chartKey;
       if (b === this.chartKey) continue;
@@ -816,7 +831,7 @@ class Panel {
       $(`${this.key}-tmain`).innerHTML = `<b>${NAMES[this.chartKey]}</b><span>${opt.tf}m</span>${t !== undefined ? `<span>${when(b.time)}</span>` : ''}`
         + `<span>O <b>${num(b.open, 2)}</b> H <b>${num(b.high, 2)}</b> L <b>${num(b.low, 2)}</b> C <b class="${b.close >= b.open ? 'up' : 'down'}">${num(b.close, 2)}</b></span>`
         + (b.state ? `<span class="${kind(b.state) === 'bull' ? 'up' : kind(b.state) === 'bear' ? 'down' : ''}">GATE ${WORD[b.state]}</span>` : '')
-        + (kind(b.both) ? `<span class="${kind(b.both) === 'bull' ? 'up' : 'down'}" title="Both sides' MNQ gates agree: the shading">BOTH ${WORD[b.both]}</span>` : '')
+        + (kind(b.both) ? `<span class="${kind(b.both) === 'bull' ? 'up' : 'down'}" title="MNQ, Basket 1 and Basket 2 agree on both sides: the shading">ALL ${WORD[b.both]}</span>` : '')
         + (e ? NsbMacd.emaTag(e, v => num(v, 2)) : '');
     }
     for (const p of Object.values(this.macd)) p.tag(t);
