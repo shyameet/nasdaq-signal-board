@@ -667,11 +667,14 @@
   const plDay = s => { const t = Date.parse(s + 'T12:00:00Z'); return isFinite(t) ? new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) : '–'; };
   // owner 16/11/2026: the buying rules in plain words (the record's ids: wait1 / one / demo)
   const BUY = { wait1: ['1 a day, wait 1 day after a fail', 'At most one new evaluation a day, and none on the day after an evaluation failed'],
-    one: ['1 a day', 'At most one new evaluation a day'], demo: ['as the demo', 'Every free place (of 5) is refilled the next day, as the demo fund does'] };
+    one: ['1 a day', 'At most one new evaluation a day'], demo: ['as the demo', 'Every free place (of 5) is refilled the next day, as the demo fund does'],
+    single: ['one at a time', 'A new evaluation only when none is open (bought the next trading day); funded accounts do not block; 5 places in all'] };
+  const isTw = f => !!(f.twin || f.trend_twin);  // 18/11: S1 = THE TWIN (Scalper) and T1 = THE TREND TWIN sit together at the top
+  const CAPS = { on: ['caps ON', 'payout caps ON: the firm’s real payout caps'], off: ['caps OFF', 'payout caps OFF: as the 15 Nov picks were found (no Tradeify / FundedNext caps)'] };
   const buyTxt = b => (BUY[b] || [b])[0], buyTip = b => (BUY[b] || [b, b])[1];
   function plKeep(f) {
     const g = plFilt.grp;
-    return (!g || (g === 'pick' ? (f.pick || f.twin) : (f.extra || f.twin))) && (!plFilt.strat || f.strategy === plFilt.strat)
+    return (!g || (g === 'pick' ? (f.pick || isTw(f)) : (f.extra || isTw(f)))) && (!plFilt.strat || f.strategy === plFilt.strat)
       && (!plFilt.mkt || f.market === plFilt.mkt) && (!plFilt.size || f.size === plFilt.size);
   }
   const whole = v => !ok(v) ? '–' : (v > 0.5 ? '+' : v < -0.5 ? '−' : '') + Math.round(Math.abs(v)).toLocaleString('en-US');
@@ -759,6 +762,11 @@
   function setTxt0(f) {  // the record's setting code -> words (the plan study's codes)
     const s = String(f.setting || '');
     let m;
+    if (f.strategy === 'Trend') {  // 18/11: T1 = THE TREND TWIN, "2NQ|e20|F41x6"
+      m = /^2NQ\|e(\d+)\|(\w+)x(\d+)$/.exec(s);
+      if (m) return `Evaluation 2NQ: the first two trades of each trend, target 180 / stop 160 ticks, ${m[1]} micros · funded ${m[2]} × ${m[3]} micros, re-picked every 3 weeks`;
+      return s;
+    }
     if (f.strategy === 'Nasdaq') {
       m = /^e([\d.]+)\|m([\d.]+)(?:s([\d.]+)w(\d+)|w(\d+)s([\d.]+))$/.exec(s);
       if (m) {
@@ -773,7 +781,8 @@
     return s;
   }
   const trading = f => (f.days || []).reduce((a, d) => a + (d[1] || 0), 0);
-  const RULE_SEC = [['wait1', '1 a day, wait 1 day after a fail', 'At most one new evaluation a day, and none on the day after an evaluation failed. Every plan runs this.'],
+  const RULE_SEC = [['twins', 'The twins', 'S1 = THE TWIN: Nasdaq Scalper W4 on Topstep 50K, 1 a day and wait 1 day after a fail. T1 = THE TREND TWIN: Trend Trades 2NQ on Topstep 50K, one evaluation at a time, Topstep’s news rule, its own record from the 18 Nov session. Both at $85 a month.'],
+    ['wait1', '1 a day, wait 1 day after a fail', 'At most one new evaluation a day, and none on the day after an evaluation failed. Every plan runs this.'],
     ['one', '1 a day', 'At most one new evaluation a day. Gold plans also run this, to compare with the rule above.'],
     ['test', 'Test fleets', 'S2–S5 (Topstep 50K) and G3–G5 (Tradeify Growth 50K gold): other buying rules and sizes for comparison.']];
   function renderPlans() {
@@ -803,10 +812,11 @@
       + '<th class="r">Fees paid</th><th class="r">Payouts received</th><th class="r">Bought</th><th class="r">Passed</th><th class="r">Failed</th></tr></thead>';
     const ncol = lv ? 9 : 8;
     const row = f => {
-      const flag = (f.twin ? '<span class="pfl tw">S1 · the twin</span>' : f.extra ? `<span class="pfl">${esc(f.extra)}</span>` : f.pick ? '<span class="pfl pk">pick</span>' : '')
+      const flag = (f.twin ? '<span class="pfl tw">S1 · the twin</span>' : f.trend_twin ? '<span class="pfl tw">T1 · the trend twin</span>' : f.extra ? `<span class="pfl">${esc(f.extra)}</span>` : f.pick ? '<span class="pfl pk">pick</span>' : '')
+        + (CAPS[f.caps] ? `<span class="pfl cap ${esc(f.caps)}" title="${esc(CAPS[f.caps][1])}">${esc(CAPS[f.caps][0])}</span>` : '')
         + (f.live ? '<span class="pfl lv" title="provisional: today&#39;s session so far">live</span>' : '');
       const open = plOpen === f.id, td = today(f), tp = trading(f);
-      const what = `${f.strategy === 'Gold' ? 'Gold' : 'Nasdaq'} ${f.size}${f.kind === 'direct' ? ' · direct' : ''}${f.extra ? ' · ' + buyTxt(f.buying) : ''}`;
+      const what = `${f.strategy === 'Gold' ? 'Gold' : f.strategy === 'Trend' ? 'Trend Trades' : 'Nasdaq'} ${f.size}${f.kind === 'direct' ? ' · direct' : ''}${f.extra || isTw(f) ? ' · ' + buyTxt(f.buying) : ''}`;
       return `<tr class="prow${open ? ' on' : ''}" data-id="${esc(f.id)}" tabindex="0" aria-expanded="${open}"><td class="pl-n"><b>${esc(f.plan)}</b>${flag}`
         + `<br><span class="pl-w">${esc(what)}</span><br><span class="muted">${esc(setTxt(f))}</span></td>`
         + `<td class="r num ${cls(f.net)}"><b>${sgn0(f.net)}</b></td><td class="r num ${cls(tp)}">${sgn0(tp)}</td>`
@@ -817,18 +827,22 @@
     };
     let html = '';
     for (const [rule, name, what] of RULE_SEC) {
-      const rows = fl.filter(f => rule === 'test' ? !!f.extra : (!f.extra && f.buying === rule));
-      if (!rows.length) continue;
+      const rows = fl.filter(f => rule === 'twins' ? isTw(f) : rule === 'test' ? !!f.extra : (!f.extra && !isTw(f) && f.buying === rule));
+      const t1wait = rule === 'twins' && plDoc.t1 && !all.some(f => f.trend_twin) && plFilt.mkt === 'futures' && (!plFilt.strat || plFilt.strat === 'Trend')
+        ? `<tr class="grp"><td colspan="${ncol}">T1 · THE TREND TWIN (Topstep 50K, Trend Trades) · ${esc(plDoc.t1.status || 'not built yet')}</td></tr>` : '';
+      if (!rows.length && !t1wait) continue;
       const cash = rows.reduce((a, f) => a + (f.net || 0), 0), tp = rows.reduce((a, f) => a + trading(f), 0);
       let body = '';
+      const flat = rule === 'test' || rule === 'twins';
       for (const [g] of PL_GRP) {
         if (g === 'test') continue;
-        const rr = rule === 'test' ? (g === 'rest' ? rows : []) : rows.filter(f => plGrp(f) === g);
+        const rr = flat ? (g === 'rest' ? rows : []) : rows.filter(f => plGrp(f) === g);
         if (!rr.length) continue;
-        if (rule !== 'test') body += `<tr class="grp"><td colspan="${ncol}">${esc(g === 'pick' ? 'Picks · the best plan per firm (15 Nov)' : g === 'twin' ? 'S1 · the twin (Topstep 50K)' : 'Every other plan')}<span>${int(rr.length)}</span></td></tr>`;
+        if (!flat) body +=`<tr class="grp"><td colspan="${ncol}">${esc(g === 'pick' ? 'Picks · the best plan per firm (15 Nov)' : g === 'twin' ? 'S1 · the twin (Topstep 50K)' : 'Every other plan')}<span>${int(rr.length)}</span></td></tr>`;
         body += rr.map(row).join('');
       }
-      html += `<section class="psec"><h3>${esc(name)} <small>${int(rows.length)} fleet${rows.length > 1 ? 's' : ''} · cash result <b class="${cls(cash)}">${sgn0(cash)}</b> · trading P&amp;L <b class="${cls(tp)}">${sgn0(tp)}</b></small></h3>`
+      body += t1wait;
+      html += `<section class="psec"><h3>${esc(name)} <small>${int(rows.length)} fleet${rows.length === 1 ? '' : 's'} · cash result <b class="${cls(cash)}">${sgn0(cash)}</b> · trading P&amp;L <b class="${cls(tp)}">${sgn0(tp)}</b></small></h3>`
         + `<p class="pkey">${esc(what)}</p><div class="ptw"><table class="ptbl">${head}<tbody>${body}</tbody></table></div></section>`;
     }
     const banner = lv ? `<div class="pl-live"><b>Live · ${esc(plDay(lv.session))} session so far</b> · as of ${esc(tm(lv.asof_ct))} CT, last bar ${esc(tm(lv.last_bar_ct))} CT <span class="muted">· ${esc(lv.note)}</span></div>` : '';

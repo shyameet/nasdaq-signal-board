@@ -14,13 +14,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="paper.css?v=12">
+<link rel="stylesheet" href="paper.css?v=13">
 <style>/* the market switch (owner 11/11/2026): US futures (Lucid) | India options (paper-india.html) */
 .mkt { margin-top: 14px; }
 .mkt a { padding: 4px 12px; border-radius: 6px; color: var(--muted); font-size: 12.5px; font-weight: 600; text-decoration: none; }
 .mkt a:hover { color: var(--text); }
 .mkt a[aria-current="page"] { background: var(--tile-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }</style>
-<script src="paper.js?v=10" defer></script>
+<script src="paper.js?v=11" defer></script>
 </head>
 <body>
 <header class="topbar" id="bar">
@@ -84,7 +84,7 @@
     <nav class="seg pmkt" id="pl-mkt" aria-label="Market"><button type="button" data-v="futures" aria-pressed="true">Futures <span class="vc"></span></button><button type="button" data-v="forex" aria-pressed="false">Forex <span class="vc"></span></button></nav>
     <div class="filters" id="pl-filt">
       <div class="seg" data-pf="grp"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="pick" aria-pressed="false">Picks</button><button type="button" data-v="test" aria-pressed="false">Tests</button></div>
-      <div class="seg" data-pf="strat"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="Nasdaq" aria-pressed="false">Nasdaq</button><button type="button" data-v="Gold" aria-pressed="false">Gold</button></div>
+      <div class="seg" data-pf="strat"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="Nasdaq" aria-pressed="false">Nasdaq</button><button type="button" data-v="Gold" aria-pressed="false">Gold</button><button type="button" data-v="Trend" aria-pressed="false">Trend</button></div>
       <div class="seg" data-pf="size"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="50K" aria-pressed="false">50K</button><button type="button" data-v="25K" aria-pressed="false">25K</button></div>
     </div>
     <div id="plans"><div class="empty">Loading the plan fleets…</div></div>

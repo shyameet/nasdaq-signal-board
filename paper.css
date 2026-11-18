@@ -358,6 +358,8 @@ main.old .sum, main.old section { opacity: .55; }
 .pacc { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.6; }
 #pl-sec .foot { margin-top: 8px; }
 .pfl.lv { background: var(--accent); color: #fff; }
+.pfl.cap { background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); }   /* 18/11 Q4: payout caps OFF / ON side by side */
+.pfl.cap.on { color: var(--text); }
 .pl-live { margin: 0 0 8px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--tile); font-size: 12.5px; line-height: 1.5; }
 .pl-live b { color: var(--text); }
 
