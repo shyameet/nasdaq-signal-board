@@ -8,6 +8,7 @@
      protocol's rule): its close is the later one's (the earlier one's when the later had no trade).
        await NsbSub.load(keys)       the saved days (IST day keys) a strip needs
        NsbSub.bars(sym)              its closed 30 s bars { time, end (ms), close, macd (from the 35th bar on) }, oldest first
+       NsbSub.bars90(sym)            the same for 1.5-minute bars (90 s, from the same 15 s candles; 18/11/2026)
        NsbSub.has(sym, key)          true when day `key` has any 15 s candle of sym
        NsbSub.live(names)            ask the stream for these names' 15 s candles (again after every reconnect)
        NsbSub.on(fn)                 fn(sym) when a 15 s candle of sym closed (live)
@@ -26,7 +27,7 @@
 (() => {
 'use strict';
 if (window.NsbOpt) return;
-const MIN = 60000, DAY = 86400000, IST = 19800000, S15 = 15000, S30 = 30000;
+const MIN = 60000, DAY = 86400000, IST = 19800000, S15 = 15000, S30 = 30000, S90 = 90000;
 const { Macd, TrendSignal, SHOWN } = NdxEngine.internals;
 const ok = v => v !== null && v !== undefined && isFinite(v);
 const sec = ms => Math.floor(ms / 1000);
@@ -87,6 +88,28 @@ const Sub = (() => {
     cache[s] = { ver: vers[s], bars: out, until: out.length && newest === out[out.length - 1].time ? out[out.length - 1].end + 4000 : Infinity };
     return out;
   }
+  // its closed 1.5-minute bars (owner 17/11/2026: "a 1.5 m MACD line", 18/11: with entry marks): the six 15 s candles t .. t + 75 s
+  // with t % 90 s == 0 (09:15 and 06:30 IST are on that grid), the close the last one traded; closed once its last 15 s candle
+  // is in, a later candle is, or 4 s after its end. { time, end (ms), close, macd (from the 35th bar on) }, oldest first
+  const cache90 = {};
+  function bars90(s) {
+    const m = closes[s];
+    if (!m) return [];
+    const have = cache90[s];
+    if (have && have.ver === vers[s] && have.until > Date.now()) return have.bars;
+    const ts = [...m.keys()].sort((a, b) => a - b), out = [], macd = new Macd();
+    for (const t of ts) {
+      const b0 = t - t % S90, last = out[out.length - 1];
+      if (last && last.time === b0) { last.close = m.get(t); last.lastT = t; continue; }
+      out.push({ time: b0, end: b0 + S90, close: m.get(t), lastT: t });
+    }
+    let until = Infinity;
+    if (out.length) { const b = out[out.length - 1]; if (b.lastT < b.time + S90 - S15 && Date.now() < b.end + 4000) { out.pop(); until = b.end + 4000; } }  // still forming
+    let n = 0;
+    for (const b of out) { const [line] = macd.update(b.close); n += 1; if (n >= 35) b.macd = line; delete b.lastT; }
+    cache90[s] = { ver: vers[s], bars: out, until };
+    return out;
+  }
   const has = (s, key) => !!(days[s] && days[s].has(key));
   // the stream: after each snapshot (every connect), ask once more; its candles from the day before's session start
   function live(names) {
@@ -108,7 +131,7 @@ const Sub = (() => {
       }
     });
   }
-  return { load, bars, has, live, on: fn => subs.push(fn), first: FIRST_SUB };
+  return { load, bars, bars90, has, live, on: fn => subs.push(fn), first: FIRST_SUB };
 })();
 
 // ---- NsbOpt: option candles ------------------------------------------------------------------------------------
