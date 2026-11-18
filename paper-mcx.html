@@ -15,10 +15,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="paper.css?v=6">
-<link rel="stylesheet" href="paper-india.css?v=2">
+<link rel="stylesheet" href="paper-india.css?v=3">
 <script src="lightweight-charts.js"></script>
 <script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');  // once more when it did not load</script>
-<script src="paper-india.js?v=3" defer></script>
+<script src="paper-india.js?v=4" defer></script>
 </head>
 <body>
 <header class="topbar" id="bar">
@@ -32,7 +32,7 @@
 </header>
 <div class="band" role="note">PAPER ONLY - no real money</div>
 <div class="alert" id="alert" role="status" hidden></div>
-<main class="bx none" id="main">
+<main class="gx" id="main">
   <nav class="seg mkt" aria-label="Market">
     <a href="paper.html">US futures (Lucid)</a>
     <a href="paper-india.html">India options</a>
@@ -40,43 +40,53 @@
     <a href="paper-forex.html">Forex props</a>
   </nav>
 
-  <div class="b-top">
-    <div class="b-main">
-    <section class="b-hero-sec" aria-labelledby="b-h-open">
-      <div class="b-heroc" id="b-heroc">
-        <div class="b-eb"><h2 id="b-h-open">Open now</h2><span class="b-note" id="b-rule">live price from the stream · stop −6% / target +4% of the entry price</span></div>
-        <div class="b-chips" id="b-chips" hidden></div>
-        <div id="b-hero"><div class="b-empty">Waiting for the feed…</div></div>
-      </div>
-    </section>
+  <div class="g-head">
+    <nav class="g-jump" aria-label="Sections"><a href="#g-open" id="g-j-open">Open now</a><a href="#g-today" id="g-j-today">Today's trades</a><a href="#g-cal">Calendar</a></nav>
+    <span class="g-tick" id="g-tick" hidden><i></i>Live · every tick</span>
+    <div class="g-sum" id="g-sum" aria-label="Summary"></div>
+  </div>
 
-  <section class="b-days-sec" aria-labelledby="b-h-days">
-    <div class="b-sh"><h2 id="b-h-days">Every day</h2><span class="b-note">tap a day for its trades</span>
-      <span class="b-leg" aria-hidden="true"><span><i class="b-sw up"></i>up day</span><span><i class="b-sw down"></i>down day</span><span><i class="b-sw"></i>no trade</span></span></div>
-    <div class="b-days" id="b-days"></div>
-    <div class="b-day" id="b-day" hidden>
-      <div class="b-dh"><b id="b-day-t"></b><span class="muted" id="b-day-s"></span><button type="button" class="x" id="b-day-x">close</button></div>
-      <div class="b-list" id="b-dayl"></div>
-      <p class="b-skip" id="b-day-skip"></p>
-      <p class="b-skip" id="b-day-gaps"></p>
+  <section class="g-sec g-open" id="g-open" aria-labelledby="g-h-open">
+    <div class="g-sh"><h2 id="g-h-open">Open now</h2><span class="g-note" id="g-open-sub"></span></div>
+    <div class="g-cards" id="g-cards"><div class="g-empty">Waiting for the feed…</div></div>
+  </section>
+
+  <section class="g-sec" id="g-today" aria-labelledby="g-h-today">
+    <div class="g-sh"><h2 id="g-h-today">Today's trades</h2><span class="g-note" id="g-today-sub"></span></div>
+    <div class="g-tcards" id="g-tcards"><div class="g-empty">Waiting for the feed…</div></div>
+    <p class="g-skip" id="g-skip"></p>
+    <p class="g-skip" id="g-gaps"></p>
+  </section>
+
+  <section class="g-sec" id="g-cal" aria-labelledby="g-h-cal">
+    <div class="g-sh"><h2 id="g-h-cal">Calendar</h2><span class="g-note">Tap a day to see its trades and their charts</span>
+      <span class="g-mnav"><button type="button" id="g-prev"></button><b id="g-month"></b><button type="button" id="g-next"></button></span></div>
+    <div class="g-calb">
+      <div class="g-calm">
+        <div class="g-wk" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span></div>
+        <div class="g-grid" id="g-grid"></div>
+        <p class="g-msum" id="g-msum"></p>
+      </div>
+      <div class="g-dayp" id="g-dayp">
+        <div class="g-dph"><div><b id="g-day-t"></b><span id="g-day-s"></span></div><span class="g-dpn" id="g-day-n"></span></div>
+        <div class="g-drows" id="g-drows"></div>
+        <p class="g-skip" id="g-day-skip"></p>
+        <p class="g-skip" id="g-day-gaps"></p>
+      </div>
     </div>
   </section>
-    </div>
-    <div class="b-rail">
-      <section class="b-kpis" id="b-kpis" aria-label="Summary"></section>
-      <section class="b-today" aria-labelledby="b-h-today">
-        <div class="b-sh"><h2 id="b-h-today">Today's trades</h2><span class="b-note" id="b-today-sub"></span></div>
-        <div class="b-list" id="b-today"><div class="b-empty" style="border:0">Waiting for the feed…</div></div>
-        <p class="b-skip" id="b-skip"></p>
-        <p class="b-skip" id="b-gaps"></p>
-      </section>
-    </div>
-  </div>
 
   <p class="foot">PAPER ONLY - no real money. Entries are the India tab's option rules on mini crude oil (with US crude agreeing), mini
     natural gas (with US natgas agreeing), mini gold (with US gold agreeing) and mini silver (with US silver agreeing); prices are real MCX option prices from the live stream (the MCX hub, Dhan). 1 lot per entry, never two
     open trades on the same market; charges included (brokerage, CTT, exchange, SEBI, stamp, GST).
     Times in India (IST). For information only, not investment advice.</p>
 </main>
+<div class="g-big" id="g-big" hidden>
+  <div class="g-bigc" role="dialog" aria-modal="true" aria-labelledby="g-big-t">
+    <div class="g-bigh"><div><b id="g-big-t"></b><span id="g-big-s"></span></div><button type="button" id="g-big-x">Close</button></div>
+    <div class="g-bigd" id="g-big-d"></div>
+    <div class="g-bigv" id="g-big-v"></div>
+  </div>
+</div>
 </body>
 </html>
