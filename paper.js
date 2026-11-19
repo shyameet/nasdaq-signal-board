@@ -670,7 +670,7 @@
     one: ['1 a day', 'At most one new evaluation a day'], demo: ['as the demo', 'Every free place (of 5) is refilled the next day, as the demo fund does'],
     single: ['one at a time', 'A new evaluation only when none is open (bought the next trading day); funded accounts do not block; 5 places in all'] };
   const isTw = f => !!(f.twin || f.trend_twin);  // 18/11: S1 = THE TWIN (Scalper) and T1 = THE TREND TWIN sit together at the top
-  const CAPS = { on: ['caps ON', 'payout caps ON: the firm’s real payout caps'], off: ['caps OFF', 'payout caps OFF: as the 15 Nov picks were found (no Tradeify / FundedNext caps)'] };
+  const CAPS = { on: ['payout caps (burn and replace)', 'the firm’s payout caps: an account that reaches its payout limit is burned and a new one replaces it (no person-wide stop; owner 19/11)'], off: ['caps OFF', 'payout caps OFF: as the 15 Nov picks were found (no Tradeify / FundedNext caps)'] };
   const buyTxt = b => (BUY[b] || [b])[0], buyTip = b => (BUY[b] || [b, b])[1];
   function plKeep(f) {
     const g = plFilt.grp;
