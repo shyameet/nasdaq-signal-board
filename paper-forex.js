@@ -290,7 +290,9 @@
     const head = `<div class="bh"><span class="acct">${esc(f.firm)}</span>${chipState(st, FEEDTXT[st] || st)}`
       + `${f.borrowed ? `<span class="tagx brw" title="this firm has no MT5 feed here: its paper accounts use ${esc(f.price_feed)}'s bid and ask">prices from ${esc(f.price_feed)}</span>` : ''}`
       + `${fd.algo_on ? '<span class="tagx test">Algo Trading on</span>' : ''}</div>`
-      + `<div class="bsub">${esc(f.symbol || '')}${f.borrowed ? ` (${esc(f.price_feed)}'s)` : ''} · $${ok(f.lot_usd_pt) ? int(f.lot_usd_pt) : '–'} a point a lot · ${pauseTxt(f)}</div>`;
+      + `<div class="bsub">${esc(f.symbol || '')}${f.borrowed ? ` (${esc(f.price_feed)}'s)` : ''} · $${ok(f.lot_usd_pt) ? int(f.lot_usd_pt) : '–'} a point a lot · ${pauseTxt(f)}</div>`
+      + (f.price_windows || []).map(w => `<div class="bsub">${esc(f.firm)} priced from ${esc(w.feed)}'s MT5 from ${esc(ctd(w.start))} `   // owner 19/11/2026: FTMO's trial gap
+        + (w.end ? `to ${esc(ctd(w.end))} CT (${esc(f.firm)}'s trial login ended); its own prices before and after</div>` : `CT (${esc(f.firm)}'s trial login ended)</div>`)).join('');
     const q = td.quote || {};
     const bid = ok(fd.bid) ? fd.bid : q.bid, ask = ok(fd.ask) ? fd.ask : q.ask, qt = fd.t || q.t;
     const spr = ok(fd.spread) ? fd.spread : ok(bid) && ok(ask) ? ask - bid : null;
