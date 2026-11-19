@@ -19,12 +19,13 @@
 <script src="labels.js?v=3" defer></script>
 <script src="cme.js?v=1"></script>
 <script src="rolls.js?v=3"></script>
-<script src="macd.js?v=34"></script>
+<script src="macd.js?v=35"></script>
 <script src="engine.js?v=19"></script>
 <script src="swing.js?v=5"></script>
 <script src="gate.js?v=5"></script>
 <script src="daypick.js?v=3"></script>
 <script src="live.js?v=5"></script>
+<script src="sub15.js?v=1"></script>  <!-- the 1.5-minute MACD from 15-second candles (owner 19/11/2026) -->
 <script src="draw.js?v=10"></script>
 <script src="install.js?v=2"></script>
 <style>
@@ -240,6 +241,17 @@ const SETUPS = {
   silver: { label: 'Silver', index: 'SIL', gift: null, stock: 'SILVERM' },
   copper: { label: 'Copper', index: 'MHG', gift: null, stock: 'COPPER' },
 };
+// the 1.5-minute MACD (owner 19/11/2026: "I want the 1.5-minute MACD entry on other tabs as well, including the commodities"):
+// from Board Live's 15-second candles (sub15.js, from 19/11/2026; past days where the VPS rebuilt them from its tick
+// archives), in the Entry pane once the strip has some; shown only, as the 1m, 2m and 3m there. A minute with no 1.5 m bar
+// in the 10 minutes before has no value (blank, never the last one held flat)
+{ const { LINE, show: SHOW } = NsbMacd;
+  LINE.m90s = { tf: 1.5, label: '1.5m', v: b => b.macd, pair: ['#C6FF00', '#FF4081'], stale: 10 * 60000,       // lime / pink, as the India tab
+                tip: "1.5-minute MACD (12, 26), at each candle's close: shown only (Board Live's 15-second candles)" };
+  let saved = {}; try { saved = JSON.parse(localStorage.getItem('nsb.macd.show')) || {}; } catch (e) {}
+  if (typeof SHOW.m90s !== 'boolean') SHOW.m90s = typeof saved.m90s === 'boolean' ? saved.m90s : true; }
+const ENTRY_LINES = has90 => has90 ? ['m1', 'm90s', 'm2', 'm3'] : ['m1', 'm2', 'm3'];  // the Entry pane's lines (the 1.5 m once the strip has some)
+const utcKeys = keys => [...new Set(keys.flatMap(k => [NsbCme.prev(k), k]))].sort();  // a strip's UTC days (the 15 s files)
 // The setups whose two markets have candles (in the newest saved day, or in the live stream today); the others show
 // greyed out ("no data yet") until the VPS records them, and a remembered one without data falls back to Crude
 let HAVE = new Set(['MCL', 'NG', 'CRUDEOILM', 'NATGASMINI']);
@@ -374,8 +386,10 @@ async function buildDay(key, shown = SHOW_DAYS, quiet = false) {
   if (!quiet) loading(`Loading ${key}…`);
   const S = SETUPS[opt.setup], markets = [S.index, S.gift, S.stock].filter(Boolean);
   const ahead = Promise.all(markets.map(m => NsbSwing.series({ id: m, origin: MARKETS[m].origin }, []).catch(() => null)));  // the Swing pane's long candles fetched meanwhile
+  const subs = NsbSubF.load(utcKeys(keys)).catch(() => null);  // the 15 s candles (the 1.5 m line), where saved
   let files = null, err = null;
   try { files = await Promise.all(filesOf(keys).map(loadFile)); } catch (e) { err = e; }
+  await subs;
   if (seq !== builds) return false;  // stale: dropped, even its error
   if (err) throw err;
   const rows = {}, liveVer = NsbLive.ver(markets);  // (the stream's candles as of now: liveRebuild skips a build with nothing new)
@@ -555,6 +569,8 @@ class Panel {
     this.src = Object.fromEntries([
       ...Object.entries(run.bars).map(([m, bars]) => [m, bars.filter(b => b.time < day.d1 && bucketEnd(b.time, +m, o) <= upto)]),
       ...Object.entries(day.swing[this.market]).map(([m, bars]) => [m, live ? bars : bars.filter(b => b.end <= day.d1)])]);
+    this.src[1.5] = NsbSubF.bars90(this.market).filter(b => b.end <= day.d1); this.n90 = this.src[1.5].length;  // the 1.5 m line (19/11/2026)
+    if (this.macd.entry) { this.macd.entry.tips = this.tips90(); this.macd.entry.setLines(ENTRY_LINES(this.has90())); }
     this.candles.setData(this.mainBars.map(b => ({ time: sec(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
     this.store = new Map(this.mainBars.map((b, i) => [sec(b.time), { ...b, state: this.mainStates[i] }]));
     this.setEmas();
@@ -563,6 +579,19 @@ class Panel {
     this.main.applyOptions({ watermark: { text: `${MARKETS[this.market].name} · ${tf}m` } });
     if (this.zones.requestUpdate) this.zones.requestUpdate();
     for (const p of Object.values(this.macd)) p.sync(this.main.timeScale().getVisibleLogicalRange());
+  }
+  has90() { return NsbSubF.bars90(this.market).some(b => b.time >= day.d0 && b.time < day.d1 && ok(b.macd)); }
+  tips90() {  // the Entry pane's 1.5 m tip: the strip's UTC days this market traded but has no 15-second candles for
+    const traded = new Set(day.price[this.market].filter(b => b.time >= day.d0 && b.time < day.d1).map(b => NsbSubF.utcKey(b.time)));
+    const gone = [...traded].filter(k => !NsbSubF.has(this.market, k)).sort();
+    return { m90s: gone.length ? `${NsbMacd.LINE.m90s.tip}. No 15-second candles for ${gone.map(k => `${k.slice(8)}/${+k.slice(5, 7)}`).join(', ')} (UTC days): the 1.5m line is blank there` : '' };
+  }
+  subDraw() {  // a new 1.5 m candle (live, or the stream's answer): the Entry pane only, when its count moved
+    const s90 = NsbSubF.bars90(this.market).filter(b => b.end <= day.d1);
+    if (s90.length === this.n90) return;
+    this.n90 = s90.length; this.src[1.5] = s90;
+    const e = this.macd.entry;
+    if (e) { e.tips = this.tips90(); e.setLines(ENTRY_LINES(this.has90())); e.update(); e.showLines(); e.sync(this.main.timeScale().getVisibleLogicalRange()); }
   }
   onDay() { const n = this.mainBars.length; return n > 0 && this.mainBars[n - 1].time >= day.lastD0; }  // a candle on the picked day (the strip ends with it)
   fit() {  // the newest day of the strip (the older ones are to the left)
@@ -891,6 +920,7 @@ async function openDay(key, quiet = false) {
     render(true);
     const w = NsbRolls.warning([day.setup.index, day.setup.stock], key);  // the switch day and the trading day before it
     $('rollNote').textContent = w; $('rollNote').hidden = !w;
+    NsbSubF.live(liveMarkets());  // the charts' 15-second candles from the stream (the names not asked yet; 19/11/2026)
   } catch (e) { loading(`Couldn't load ${key} (${e.message}). Reload the page to try again.`); }  // not "Loading…" for good
 }
 // ---- live: the VPS's stream (live.js; owner 25/10/2026: "real time", no lag) ------------------------------------
@@ -961,6 +991,20 @@ NsbLive.on((kind, s) => {
   if (kind === 'tick') calmTick(s);
   else if (kind === 'snapshot') onSnapshot();
   else if (kind === 'bar' && liveMarkets().includes(s)) onBar(s);  // a minute closed: once the others' bars are in too
+});
+// the 15-second candles (sub15.js, 19/11/2026): a market's Entry pane when its 1.5 m line has a new candle (at most every 2 s);
+// also a strip ending yesterday (the stream's answer brings yesterday's UTC day too)
+let subSoon = 0;
+const subDue = new Set();
+NsbSubF.on(s => {
+  if (!booted || !day || day.d1 < Date.now() - 2 * DAY || !liveMarkets().includes(s)) return;
+  subDue.add(s);
+  if (subSoon) return;
+  subSoon = setTimeout(() => {
+    subSoon = 0; const due = new Set(subDue); subDue.clear();
+    if (!day || loadingNow) return;
+    for (const p of Object.values(panels)) if (p.mainBars.length && due.has(p.market)) p.subDraw();
+  }, 2000);
 });
 // The loading screen covers the page only when the wait is long enough to notice (owner 25/10/2026: smooth switching;
 // a day or setup that is ready in a moment used to flash it); the page's first load shows it at once, from the HTML.
