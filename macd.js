@@ -134,7 +134,9 @@ function points(bars, tf, src, lines, origin = 0) {
     }
     for (const l of lines) {
       const b = at[LINE[l].tf], x = b ? LINE[l].v(b) : null;
-      if (ok(x)) { v[l] = x; if (LINE[l].sig) sg[l] = LINE[l].sig(b); }
+      // a line with `stale` (ms; 19/11/2026, the India tab's 1.5 m line): no value where its newest bar ended longer ago than
+      // that (a day without its 15-second candles is blank, not its last value held flat across it)
+      if (ok(x) && !(LINE[l].stale && end - barEnd(b, LINE[l].tf, origin) > LINE[l].stale)) { v[l] = x; if (LINE[l].sig) sg[l] = LINE[l].sig(b); }
     }
     const ev = {}, one = at[1];  // the series' last closed minute
     for (const l of early) {
@@ -449,7 +451,7 @@ class MacdPane {
     const v = q.v, d = this.digits;
     const item = m => {
       const pass = v[m] > 0;  // the dot: above or below zero, as the gate tests
-      const tip = `${LINE[m].tip}. Click to ${show[m] ? 'hide' : 'show'}`;
+      const tip = `${(this.tips && this.tips[m]) || LINE[m].tip}. Click to ${show[m] ? 'hide' : 'show'}`;  // this.tips: a pane's own (19/11/2026)
       return `<span class="t-mm${show[m] ? '' : ' off'}" data-k="${m}" title="${tip}"><span class="sw" style="background:linear-gradient(90deg, ${this.shade2[m][0]} 50%, ${this.shade2[m][1]} 50%)"></span><b>${LINE[m].label}</b>`
         + `<span class="t-dot ${ok(v[m]) ? (pass ? 'pass' : 'fail') : ''}"></span>`
         + `<span class="t-v">${this.sigs[m] ? `${sgn(v[m], d)} / ${sgn(q.sg[m], d)}` : sgn(v[m], d)}${this.earlys[m] && show.early && ok(q.ev[m]) && q.ev[m] !== v[m] ? ` ~${sgn(q.ev[m], d)}` : ''}</span></span>`;

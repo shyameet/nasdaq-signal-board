@@ -10,7 +10,7 @@
        NsbSub.bars(sym)              its closed 30 s bars { time, end (ms), close, macd (from the 35th bar on) }, oldest first
        NsbSub.bars90(sym)            the same for 1.5-minute bars (90 s, from the same 15 s candles; 18/11/2026)
        NsbSub.has(sym, key)          true when day `key` has any 15 s candle of sym
-       NsbSub.live(names)            ask the stream for these names' 15 s candles (again after every reconnect)
+       NsbSub.live(names)            ask the stream for these names' 15 s candles too (all asked again after every reconnect)
        NsbSub.on(fn)                 fn(sym) when a 15 s candle of sym closed (live)
 
    NsbOpt: the option candles and the floating option window ("design M", owner 5/11/2026: drag, enlarge, close).
@@ -111,16 +111,23 @@ const Sub = (() => {
     return out;
   }
   const has = (s, key) => !!(days[s] && days[s].has(key));
-  // the stream: after each snapshot (every connect), ask once more; its candles from the day before's session start
-  function live(names) {
-    asked = names.slice();
-    if (window.NsbLive && NsbLive.send && asked.length) {
+  // the stream: its candles from the day before's session start; after each snapshot (every connect) every name asked so far
+  // is asked again. live(names) adds the names not asked yet (19/11/2026: it was called once at the page's start, so a
+  // setup or stock picked later never got its 15 s candles from the stream, and a day missing from the saved files had none)
+  function ask(names) {
+    if (window.NsbLive && NsbLive.send && names.length) {
       const start = Date.parse(istKey(Date.now()) + 'T06:00:00Z') - IST;  // today's session start, 06:00 IST
-      NsbLive.send({ s15: asked, since: start - DAY });
+      NsbLive.send({ s15: names, since: start - DAY });
     }
   }
+  function live(names) {
+    const add = names.filter(s => !asked.includes(s));
+    if (!add.length) return;
+    asked = asked.concat(add);
+    ask(add);
+  }
   if (window.NsbLive && NsbLive.onMsg) {
-    NsbLive.on(kind => { if (kind === 'snapshot' && asked.length) live(asked); });
+    NsbLive.on(kind => { if (kind === 'snapshot' && asked.length) ask(asked); });
     NsbLive.onMsg(m => {
       if (m.type === 's15' && m.ok !== false && m.candles) {
         for (const [s, rows] of Object.entries(m.candles)) for (const r of rows || []) add(s, +r[0], +r[4]);
