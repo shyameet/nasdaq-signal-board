@@ -49,7 +49,7 @@
 .g-pill { padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 600; }
 .g-pill.call { background: var(--up); color: #04261b; } .g-pill.put { background: var(--down); color: #2b0508; }
 .g-tag { padding: 1px 7px; border: 1px solid var(--line-strong); border-radius: 5px; color: var(--muted); font-size: 11px; }
-/* 20/11/2026: a trade a replay with correct data took while the live feed was broken (owner: tag them) */
+/* 20/11/2026: a trade missed live while the data feed was broken, shown as if taken (owner) */
 .g-rep { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px dashed var(--line-strong); border-radius: 5px; color: var(--muted); font-size: 11px; font-weight: 500; white-space: nowrap; vertical-align: 1px; }
 .g-meta { color: var(--muted); font-size: 12px; }
 .g-pl { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; }

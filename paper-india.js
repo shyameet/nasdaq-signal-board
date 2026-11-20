@@ -438,7 +438,8 @@
     const todayNet = ok(td.net) ? td.net : 0;
     $('g-sum').innerHTML = (doc.status === 'no session' ? `<span><span class="l">Today</span><span class="v">no session</span></span>`
       : `<span><span class="l">Today</span><span class="v big ${cls(todayNet)}">${rs(todayNet, 1)}</span><span class="l">closed</span>` +
-        (OPEN.length ? `<span class="v ${cls(og)}" title="the open trades' P&amp;L now, before charges">${rs(og, 1)}</span><span class="l">open</span>` : '') + '</span>') +
+        (OPEN.length ? `<span class="v ${cls(og)}" title="the open trades' P&amp;L now, before charges">${rs(og, 1)}</span><span class="l">open</span>` : '') +
+        (missedOf(CLOSED).n ? `<span class="l" title="missed live while the data feed was broken; counted as if taken">incl. ${missedOf(CLOSED).n} missed ${rs(missedOf(CLOSED).net, 1)}</span>` : '') + '</span>') +
       `<span><span class="l">${tot.first_day ? 'Since ' + dshort(tot.first_day) : 'Since the start'}</span><span class="v ${cls(tot.net)}">${rs(ok(tot.net) ? tot.net : 0, 1)}</span></span>` +
       `<span><span class="l">Won / lost</span><span class="v"><span class="up">${won}</span> <span class="l">/</span> <span class="down">${n - won}</span></span></span>`;
   }
@@ -507,14 +508,17 @@
 
   // Today's trades: a card per closed trade
   let todaySig = null;
+  // 20/11/2026 (owner): missed trades (the feed problem) are shown and counted as if taken; the lines say how many
+  const missedOf = ts => { const m = ts.filter(t => t.replayed); return { n: m.length, net: m.reduce((x, t) => x + t.net, 0) }; };
+  const missedTxt = ts => { const m = missedOf(ts); return m.n ? ` (incl. ${m.n} missed: feed problem, ${rs(m.net, 1)})` : ''; };
   function renderToday() {
-    $('g-today-sub').textContent = `${dlabel(doc.day)} · ${plural(CLOSED.length, 'closed trade')} · each with its own chart · times in India (IST)`;
+    $('g-today-sub').textContent = `${dlabel(doc.day)} · ${plural(CLOSED.length, 'closed trade')}${missedTxt(CLOSED)} · each with its own chart · times in India (IST)`;
     const c = CAND.get(doc.day);
     const sig = JSON.stringify([doc.day, doc.status, CLOSED.map(t => [t.key, t.net, t.how, t.exit]), doc.skipped, doc.gaps, c && c.n]);
     if (sig === todaySig) return;
     todaySig = sig;
     $('g-tcards').innerHTML = CLOSED.length ? CLOSED.map(t => `<article class="g-tc" aria-label="${esc(t.name)} ${esc(t.opt)}">
-        <div class="g-tch"><div><b>${esc(t.name)} ${esc(t.opt)}</b>${t.replayed ? '<span class="g-rep" title="Taken by a replay with correct data: the live feed was broken then (20/11/2026)">replayed (feed fix)</span>' : ''}<span class="t">${hm(t.tin)} → ${hm(t.tout)} · ${heldTxt(t.mins)}</span></div>
+        <div class="g-tch"><div><b>${esc(t.name)} ${esc(t.opt)}</b>${t.replayed ? '<span class="g-rep" title="Missed live while the data feed was broken; shown as the bot would have traded it (replayed on the recorded prices and books)">missed (feed problem)</span>' : ''}<span class="t">${hm(t.tin)} → ${hm(t.tout)} · ${heldTxt(t.mins)}</span></div>
           <div class="g-pl"><span class="v ${cls(t.net)}">${rs(t.net, 1)}</span><span class="s ${cls(t.net)}">${pc(t.pct)}</span></div></div>
         ${mini(t)}
         <div class="g-tf"><span class="w ${cls(t.net)}">${esc(soldText(t))}</span><button type="button" class="g-btn" data-k="${esc(t.key)}">Open chart</button></div></article>`).join('')
@@ -576,11 +580,11 @@
     if (!d) return;
     const k = d.trades.length, w = d.trades.filter(t => t.net > 0).length;
     $('g-day-t').textContent = dlabel(d.day) + (d.today ? ' · today' : '');
-    $('g-day-s').textContent = k ? `${plural(k, 'trade')} · ${w} won, ${k - w} lost · tap a trade for its chart` : 'no trade';
+    $('g-day-s').textContent = k ? `${plural(k, 'trade')}${missedTxt(d.trades)} · ${w} won, ${k - w} lost · tap a trade for its chart` : 'no trade';
     const net = dayNet(d);
     $('g-day-n').className = 'g-dpn ' + cls(net); $('g-day-n').textContent = k ? rs(net, 1) : '';
     $('g-drows').innerHTML = k ? d.trades.map(t => `<button type="button" class="g-dr" data-k="${esc(t.key)}"><span class="tm">${hm(t.tin)}</span>
-        <span>${esc(t.name)} ${esc(t.opt)}${t.replayed ? '<span class="g-rep" title="Taken by a replay with correct data: the live feed was broken then (20/11/2026)">replayed (feed fix)</span>' : ''}</span><span class="w">${HOW[t.how] || esc(t.how)}</span><span class="n ${cls(t.net)}">${rs(t.net, 1)}</span></button>`).join('')
+        <span>${esc(t.name)} ${esc(t.opt)}${t.replayed ? '<span class="g-rep" title="Missed live while the data feed was broken; shown as the bot would have traded it (replayed on the recorded prices and books)">missed (feed problem)</span>' : ''}</span><span class="w">${HOW[t.how] || esc(t.how)}</span><span class="n ${cls(t.net)}">${rs(t.net, 1)}</span></button>`).join('')
       : '<div class="g-dempty">No trade this day.</div>';
     $('g-day-skip').textContent = skipText(d.skipped);
     $('g-day-gaps').textContent = gapText(d.gaps);
@@ -595,7 +599,7 @@
   function openBig(key) {
     const t = TR.get(key); if (!t) return;
     bigKey = key; bigFrom = document.activeElement;
-    $('g-big-t').textContent = `${t.name} ${t.opt} · ${t.side === 'CALL' ? 'call' : 'put'} · ${t.kind}m entry` + (t.replayed ? ' · replayed (feed fix)' : '');
+    $('g-big-t').textContent = `${t.name} ${t.opt} · ${t.side === 'CALL' ? 'call' : 'put'} · ${t.kind}m entry` + (t.replayed ? ' · missed (feed problem)' : '');
     $('g-big-s').textContent = `${dlabel(t.day)} · ${hm(t.tin)} → ${hm(t.tout)} · ${heldTxt(t.mins)} · ${soldText(t)}`;
     $('g-big-d').innerHTML = `<span>exp <b>${dshort(t.exp)}</b></span><span>lot <b>${ok(t.lot) ? t.lot : '–'}</b></span><span>${esc(t.setup || '–')} setup</span>
       <span>in <b>${p2(t.entry)}</b></span><span>out <b>${p2(t.exit)}</b></span><span>gross <b class="${cls(t.gross)}">${rs(t.gross, 1)}</b></span>
