@@ -514,7 +514,7 @@
     if (sig === todaySig) return;
     todaySig = sig;
     $('g-tcards').innerHTML = CLOSED.length ? CLOSED.map(t => `<article class="g-tc" aria-label="${esc(t.name)} ${esc(t.opt)}">
-        <div class="g-tch"><div><b>${esc(t.name)} ${esc(t.opt)}</b><span class="t">${hm(t.tin)} → ${hm(t.tout)} · ${heldTxt(t.mins)}</span></div>
+        <div class="g-tch"><div><b>${esc(t.name)} ${esc(t.opt)}</b>${t.replayed ? '<span class="g-rep" title="Taken by a replay with correct data: the live feed was broken then (20/11/2026)">replayed (feed fix)</span>' : ''}<span class="t">${hm(t.tin)} → ${hm(t.tout)} · ${heldTxt(t.mins)}</span></div>
           <div class="g-pl"><span class="v ${cls(t.net)}">${rs(t.net, 1)}</span><span class="s ${cls(t.net)}">${pc(t.pct)}</span></div></div>
         ${mini(t)}
         <div class="g-tf"><span class="w ${cls(t.net)}">${esc(soldText(t))}</span><button type="button" class="g-btn" data-k="${esc(t.key)}">Open chart</button></div></article>`).join('')
@@ -580,7 +580,7 @@
     const net = dayNet(d);
     $('g-day-n').className = 'g-dpn ' + cls(net); $('g-day-n').textContent = k ? rs(net, 1) : '';
     $('g-drows').innerHTML = k ? d.trades.map(t => `<button type="button" class="g-dr" data-k="${esc(t.key)}"><span class="tm">${hm(t.tin)}</span>
-        <span>${esc(t.name)} ${esc(t.opt)}</span><span class="w">${HOW[t.how] || esc(t.how)}</span><span class="n ${cls(t.net)}">${rs(t.net, 1)}</span></button>`).join('')
+        <span>${esc(t.name)} ${esc(t.opt)}${t.replayed ? '<span class="g-rep" title="Taken by a replay with correct data: the live feed was broken then (20/11/2026)">replayed (feed fix)</span>' : ''}</span><span class="w">${HOW[t.how] || esc(t.how)}</span><span class="n ${cls(t.net)}">${rs(t.net, 1)}</span></button>`).join('')
       : '<div class="g-dempty">No trade this day.</div>';
     $('g-day-skip').textContent = skipText(d.skipped);
     $('g-day-gaps').textContent = gapText(d.gaps);
@@ -595,7 +595,7 @@
   function openBig(key) {
     const t = TR.get(key); if (!t) return;
     bigKey = key; bigFrom = document.activeElement;
-    $('g-big-t').textContent = `${t.name} ${t.opt} · ${t.side === 'CALL' ? 'call' : 'put'} · ${t.kind}m entry`;
+    $('g-big-t').textContent = `${t.name} ${t.opt} · ${t.side === 'CALL' ? 'call' : 'put'} · ${t.kind}m entry` + (t.replayed ? ' · replayed (feed fix)' : '');
     $('g-big-s').textContent = `${dlabel(t.day)} · ${hm(t.tin)} → ${hm(t.tout)} · ${heldTxt(t.mins)} · ${soldText(t)}`;
     $('g-big-d').innerHTML = `<span>exp <b>${dshort(t.exp)}</b></span><span>lot <b>${ok(t.lot) ? t.lot : '–'}</b></span><span>${esc(t.setup || '–')} setup</span>
       <span>in <b>${p2(t.entry)}</b></span><span>out <b>${p2(t.exit)}</b></span><span>gross <b class="${cls(t.gross)}">${rs(t.gross, 1)}</b></span>
