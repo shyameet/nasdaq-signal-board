@@ -131,14 +131,90 @@
       `<dl class="rows">${claudeRow}${unreadRow}${autoRow}</dl></article>` };
   }
 
+  // ---------------------------------------------------------------- data feeds (owner 20/11/2026)
+  // "we need to add the data feed in the devices tab so that we can know we are properly receiving the data from hyperliquid,
+  // mcx, indian market, and us futures from ninjatrader as well as forex". One row a market: a light (green / amber / red,
+  // grey while that market is closed) and how long ago its last price came in. A row can have two sources (the hub that
+  // feeds the paper bots and Board Live that feeds the website's charts, ...): the row takes the worse one and says which.
+  // The live feed's file (doc.feeds, built by the VPS's feeds_watch.py every 10 s) carries absolute times, each source's own
+  // amber / red limits and whether its market is open; the ages are worked out here, so an older file still shows true ages.
+  const RANK = { ok: 0, amber: 1, red: 2 };
+  function partState(p, open, now) {  // -> { state: 'ok'|'amber'|'red'|'closed', age (ms|null), stale: [names] }
+    const lim = s => (ok(s) ? s * 1000 : null);
+    const amber = lim(p.amber_s) || 60000, red = lim(p.red_s) || 300000;
+    const judge = age => age == null ? 'red' : age > red ? 'red' : age > amber ? 'amber' : 'ok';
+    let age = null, st = 'ok', stale = [];
+    if (Array.isArray(p.items)) {  // several files: the oldest decides; the late ones are named
+      for (const it of p.items) {
+        const t = tms(it && it.t), a = t == null ? null : Math.max(0, now - t), s = judge(a);
+        if (s !== 'ok') stale.push(String(it.n));
+        if (RANK[s] > RANK[st]) st = s;
+        if (a != null && (age == null || a > age)) age = a;  // the oldest file's age (a missing file is named, not timed)
+      }
+    } else {
+      const t = tms(p.last);
+      age = t == null ? null : Math.max(0, now - t);
+      st = judge(age);
+    }
+    if (p.bad) st = 'red';
+    if (!open || p.open === false) st = 'closed';
+    return { state: st, age, stale };
+  }
+  function feedRow(f, now) {
+    const open = f.open !== false, parts = (Array.isArray(f.parts) ? f.parts : []).map(p => ({ p, j: partState(p, open, now) }));
+    const live = parts.filter(x => x.j.state !== 'closed');
+    // the row's light and headline age come from its worst source; between equally good ones a live price beats a daily
+    // file (kind "day": the archive's age is its day's end, not a price), then the older one
+    const day = x => (x.p.kind === 'day' ? 1 : 0);
+    let worst = null;
+    for (const x of live) {
+      if (!worst) { worst = x; continue; }
+      const r = RANK[x.j.state] - RANK[worst.j.state];
+      if (r > 0 || (r === 0 && (day(x) < day(worst) || (day(x) === day(worst) &&
+          (x.j.age == null || (worst.j.age != null && x.j.age > worst.j.age)))))) worst = x;
+    }
+    const state = worst ? worst.j.state : 'closed';
+    const ageTxt = a => a == null ? 'no price yet' : 'last price ' + esc(dur(a)) + ' ago';
+    let head;
+    if (state === 'closed') {
+      const newest = parts.reduce((m, x) => x.j.age != null && (m == null || x.j.age < m) ? x.j.age : m, null);
+      head = 'market closed' + (newest != null ? ' · last price ' + esc(dur(newest)) + ' ago' : '');
+    } else head = ageTxt(worst.j.age);
+    const word = { ok: 'receiving', amber: 'slow', red: 'not receiving', closed: 'market closed' }[state];
+    const li = parts.map(({ p, j }) => {
+      const bits = [];
+      if (Array.isArray(p.items) && j.stale.length) {
+        const fine = p.items.length - j.stale.length;
+        bits.push(`<span class="fwhy">${esc(j.stale.join(', '))} late${fine > 0 ? ` · ${fine} up to date` : ''}</span>`);
+      }
+      if (p.bad) bits.push(`<span class="fwhy">${esc(p.bad)}</span>`);
+      if (p.note) bits.push(`<span class="fnote">${esc(p.note)}</span>`);
+      const age = j.age == null ? '–' : esc(dur(j.age));
+      return `<li class="${j.state}"><i aria-hidden="true"></i><span class="fname">${esc(p.name)}</span><b>${age}</b>${bits.join('')}</li>`;
+    }).join('');
+    return `<article class="feed ${state}" aria-label="${esc(f.name)}: ${word}">` +
+      `<div class="fhead"><i aria-hidden="true"></i><h3>${esc(f.name)}</h3><span class="fage">${head}</span></div>` +
+      `<ul class="fparts">${li}</ul></article>`;
+  }
+  function feedsHtml(now) {
+    const F = doc && doc.feeds;
+    const title = '<h2 class="sec">Data feeds</h2>';
+    if (!F || !Array.isArray(F.feeds)) {
+      const why = F && F.error ? esc(F.error) : via === 'copy' ? 'not in the 5-minute copy: the live feed is not answering' : 'not in the status file yet';
+      return `${title}<p class="fresh"><i aria-hidden="true"></i>Data feeds: ${why}</p>`;
+    }
+    return title + `<div class="frows">${F.feeds.map(f => feedRow(f, now)).join('')}</div>`;
+  }
+
   // ---------------------------------------------------------------- the page
-  let shownCards = '', shownTop = '';
+  let shownCards = '', shownTop = '', shownFeeds = '';
   function paint() {
     const sum = $('sum'), devs = $('devs'), now = Date.now();
     if (!doc) {
       const t = '<p class="big na">Status not available yet</p><p class="fresh">Waiting for the first answer…</p>';
       if (t !== shownTop) { sum.innerHTML = t; shownTop = t; }
       if (shownCards) { devs.innerHTML = ''; shownCards = ''; }
+      if (shownFeeds) { $('feeds').innerHTML = ''; shownFeeds = ''; }
       return;
     }
     const offMin = ok(doc.offline_after_min) && doc.offline_after_min > 0 ? doc.offline_after_min : 10;
@@ -166,6 +242,8 @@
     if (top !== shownTop) { sum.innerHTML = top; shownTop = top; }
     const html = cards.map(c => c.html).join('');
     if (html !== shownCards) { devs.innerHTML = html; shownCards = html; }
+    const fh = feedsHtml(now);
+    if (fh !== shownFeeds) { $('feeds').innerHTML = fh; shownFeeds = fh; }
   }
 
   // on a phone the tab row scrolls inside itself and Devices is its last tab: start it scrolled so Devices shows

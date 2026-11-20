@@ -99,6 +99,45 @@ main { flex: 1; width: 100%; max-width: 1480px; margin: 0 auto; padding: 4px 12p
 .row dd.warn { color: var(--warn); }
 .row dd.bad small { color: var(--down); font-weight: 600; }
 
+/* ---- data feeds (owner 20/11/2026): one row a market, a light + how long ago its last price came in; grey = market
+   closed; under it the row's sources (the hub that feeds the paper bots, the website's charts, ...), each with its own light ---- */
+.feeds { margin-top: 22px; }
+.feeds:empty { display: none; }
+.sec { margin: 0 0 10px; color: var(--muted); font: 600 11.5px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
+.frows { display: flex; flex-direction: column; gap: 8px; }
+.feed { position: relative; min-width: 0; padding: 11px 14px 9px 17px; border: 1px solid var(--line); border-radius: 12px;
+        background: var(--surface); overflow: hidden; }
+.feed::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--faint); }
+.feed.ok::before { background: var(--up); }
+.feed.amber::before { background: var(--warn); }
+.feed.red::before { background: var(--down); }
+.feed.red { border-color: rgba(var(--down-rgb), .35); }
+.feed.amber { border-color: rgba(var(--warn-rgb), .35); }
+.fhead { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.fhead > i { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--faint); }
+.feed.ok .fhead > i { background: var(--up); box-shadow: 0 0 0 3px rgba(var(--up-rgb), .18); }
+.feed.amber .fhead > i { background: var(--warn); box-shadow: 0 0 0 3px rgba(var(--warn-rgb), .18); }
+.feed.red .fhead > i { background: var(--down); box-shadow: 0 0 0 3px rgba(var(--down-rgb), .18); }
+.fhead h3 { margin: 0; min-width: 0; font: 600 14.5px var(--font-ui); }
+.fage { margin-left: auto; color: var(--text); font: 500 13px var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.feed.closed .fage { color: var(--muted); }
+.feed.amber .fage { color: var(--warn); }
+.feed.red .fage { color: var(--down); }
+.fparts { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 7px 0 0; padding: 0 0 0 20px; list-style: none; }
+.fparts li { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 7px; min-width: 0; color: var(--muted); font-size: 12px; }
+.fparts li > i { width: 7px; height: 7px; border-radius: 50%; flex: none; align-self: center; background: var(--faint); }
+.fparts li.ok > i { background: var(--up); }
+.fparts li.amber > i { background: var(--warn); }
+.fparts li.red > i { background: var(--down); }
+.fparts b { color: var(--text); font: 500 12px var(--font-num); font-variant-numeric: tabular-nums; }
+.fparts li.closed b { color: var(--muted); }
+.fparts li.amber b { color: var(--warn); }
+.fparts li.red b { color: var(--down); }
+.fwhy { color: var(--down); font-weight: 600; overflow-wrap: anywhere; }
+.fparts li.amber .fwhy { color: var(--warn); }
+.fnote { color: var(--faint); }
+.feeds > .fresh { margin: 0; }
+
 /* ---- narrower: tablet 2 x 2, phone one column with the details tighter ---- */
 @media (max-width: 1180px) { .devs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) {
@@ -109,4 +148,8 @@ main { flex: 1; width: 100%; max-width: 1480px; margin: 0 auto; padding: 4px 12p
   .card { gap: 7px; padding: 11px 12px 6px 15px; }
   .row { padding: 4px 0; }
   .row dd small { display: inline; margin-left: 6px; }
+  .feeds { margin-top: 16px; }
+  .feed { padding: 10px 12px 8px 15px; }
+  .fage { margin-left: 20px; width: 100%; }
+  .fparts { flex-direction: column; gap: 3px; }
 }
