@@ -1343,10 +1343,12 @@ const loading = text => {
   if ($('loading').hidden) loadingTimer = setTimeout(() => { if (loadingNow) $('loading').hidden = false; }, 400);
 };
 
-// ---- the baskets' stock pickers: each side its own two (owner 4/11/2026: "own baskets each side"); the left's Basket 1 is the
-// pick the other pages share ------------------------------------------------------------------------------------------
+// ---- the baskets' stock pickers (owner 20/11/2026: "whatever values are put on, it should replicate across both the sides
+// evenly" - until then each side had its own two, owner 4/11/2026): one pick per basket, the same on both sides; a pick made
+// on either side applies to both. Basket 1's is the pick the other pages share. (The right's old own picks,
+// nsb.mnq.r.basket1 / nsb.mnq.r.basket2, stay stored but are no longer read.) ------------------------------------------
 const SEL_KEY = 'nsb.div.stocks';
-const PICK_KEY = { left: { b1: SEL_KEY, b2: 'nsb.mnq.basket2' }, right: { b1: 'nsb.mnq.r.basket1', b2: 'nsb.mnq.r.basket2' } };
+const PICK_KEY = { left: { b1: SEL_KEY, b2: 'nsb.mnq.basket2' }, right: { b1: SEL_KEY, b2: 'nsb.mnq.basket2' } };
 const SIDE_NAME = { left: 'Left', right: 'Right' };
 function savedSelection(side, k) { try { const a = JSON.parse(localStorage.getItem(PICK_KEY[side][k])); return Array.isArray(a) ? a : null; } catch (e) { return null; } }
 function setPick(side, k, list) {
@@ -1382,7 +1384,7 @@ function openPick(side, k) {  // the picker of that side's basket; openPick(null
   which = [side, k]; draft = new Set(PICKS[side][k]);
   $('pickTitle').textContent = `${SIDE_NAME[side]} · ${BASKETS[k]}: choose its stocks`;
   $('pickText').textContent = 'Pick any of them (even just one). Each counts equally, and the basket\'s gate is LONG (or SHORT) only when every one you pick is. '
-    + (side === 'left' && k === 'b1' ? 'The left\'s Basket 1 is the pick the other pages use too.' : `The ${side} side's own pick.`);
+    + `Both sides use this pick${k === 'b1' ? ', and the other pages use Basket 1\'s too' : ''}.`;
   renderPick();
   // under the button, or over it (a Basket 2 row sits low on the screen); where it fits on neither side, from the top of the
   // screen, over the button, so the whole list and Apply show
@@ -1400,10 +1402,11 @@ async function applyPick() {
   const before = PICKS[side][k], key = PICK_KEY[side][k];
   let saved = null;
   try { saved = localStorage.getItem(key); localStorage.setItem(key, JSON.stringify(list)); } catch (e) {}
-  setPick(side, k, list); showPicks(); openPick(null);
+  for (const s2 of SIDES) setPick(s2, k, list);  // both sides (20/11/2026)
+  showPicks(); openPick(null);
   try {
     if (await openDay(day.key) === false) {  // not loaded: back to the pick the charts still show
-      setPick(side, k, before); showPicks();
+      for (const s2 of SIDES) setPick(s2, k, before); showPicks();
       try { if (saved === null) localStorage.removeItem(key); else localStorage.setItem(key, saved); } catch (e) {}
     }
   } finally { picking = false; }
