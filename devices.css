@@ -1,8 +1,7 @@
-/* Devices: the RDX bus machines (owner 12/11/2026; clearer layout 14/11/2026). A top line "All 4 devices working" /
-   "2 of 4 devices working" with a chip per device and how fresh the status is; then 4 cards VPS, SUMEET-PC, SUMEET-LT,
-   RAHUL-PC, each led by one answer (Working / Offline / Not set up), then Claude on the bus, unread messages, the last
-   automatic Claude start. No message text. paper.css's tokens and look: dark as every tab, a light set for a light-mode
-   device; the top bar stays dark in both. */
+/* Devices (owner 12/11/2026; tiles 20/11/2026): one plain status line ("All data flowing" / "N problems: ..."), then two
+   tile grids, Machines (4) and Data feeds (5). A tile: a big status dot, the name, how long ago; a one-line reason only
+   when something is wrong; a machine's technical details open on a tap. No message text. paper.css's tokens and look: dark
+   as every tab, a light set for a light-mode device; the top bar stays dark in both. */
 :root {
   color-scheme: dark;
   --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
@@ -39,117 +38,94 @@ body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; back
 @media (max-width: 430px) { .tabs a { padding: 4px 4px; font-size: 11.5px; } }
 .iq-lock { height: 24px; width: auto; display: block; flex: none; }
 
+/* the Devices button: this page's top bar stays dark in light mode too, so it keeps the dark bar's colours here
+   (appbar.css's light-mode colours are for the tabs whose bar turns light; on this bar they were dark on dark) */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .topbar .devtab { color: #8d99ab; border-color: rgba(141, 153, 171, .35); }
+  :root:not([data-theme="dark"]) .topbar .devtab:hover, :root:not([data-theme="dark"]) .topbar .devtab[aria-current="page"] { color: #e8eef6; }
+}
+
 /* ---- layout ---- */
-main { flex: 1; width: 100%; max-width: 1480px; margin: 0 auto; padding: 4px 12px 24px; }
+main { flex: 1; width: 100%; max-width: 1480px; margin: 0 auto; padding: 4px 12px 28px; }
 
-/* ---- the top line ---- */
-.sum { display: flex; flex-direction: column; gap: 8px; margin: 16px 0 0; }
-.big { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.005em; }
-.big i { width: 12px; height: 12px; border-radius: 50%; flex: none; background: var(--faint); }
-.big.ok i { background: var(--up); box-shadow: 0 0 0 4px rgba(var(--up-rgb), .18); }
-.big.part i { background: var(--warn); box-shadow: 0 0 0 4px rgba(var(--warn-rgb), .18); }
-.big.off i { background: var(--down); box-shadow: 0 0 0 4px rgba(var(--down-rgb), .18); }
-.big.na { font-size: 15px; font-weight: 500; color: var(--muted); }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px 4px 9px; border-radius: 999px; border: 1px solid var(--line);
-        background: var(--surface); font: 500 12px var(--font-num); white-space: nowrap; }
-.chip i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-.chip.ok i { background: var(--up); }
-.chip.off { border-color: rgba(var(--down-rgb), .45); }
-.chip.off i { background: var(--down); }
-.chip.none { color: var(--muted); border-style: dashed; }
-.chip.none i { border: 1.5px solid var(--faint); }
-.fresh { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--muted); font-size: 12px; }
-.fresh i { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--faint); }
-.fresh.live i { background: var(--up); animation: beat 2s ease-in-out infinite; }
-.fresh.copy i { background: var(--warn); }
-.fresh.old { color: var(--warn); }
-.fresh.old i { background: var(--warn); }
-@keyframes beat { 0%, 100% { box-shadow: 0 0 0 0 rgba(var(--up-rgb), .55); } 50% { box-shadow: 0 0 0 5px rgba(var(--up-rgb), 0); } }
-@media (prefers-reduced-motion: reduce) { .fresh.live i { animation: none; } }
+/* ---- the status line ---- */
+.sum { margin: 18px 0 0; }
+.status { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; margin: 0;
+          padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-size: 16px; font-weight: 600; }
+.status .st { min-width: 0; overflow-wrap: anywhere; }
+.status .fresh { color: var(--muted); font: 400 12px var(--font-ui); white-space: nowrap; }
+.status.ok { border-color: rgba(var(--up-rgb), .35); }
+.status.amber { border-color: rgba(var(--warn-rgb), .45); }
+.status.red { border-color: rgba(var(--down-rgb), .45); }
+.status.na { color: var(--muted); font-weight: 500; }
 
-/* ---- the 4 device cards ---- */
-.devs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
-.devs:empty { display: none; }
-.card { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 10px; padding: 13px 14px 10px 17px;
-        border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
-.card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--faint); }
-.card.ok::before { background: var(--up); }
-.card.off::before { background: var(--down); }
-.card.off { border-color: rgba(var(--down-rgb), .35); }
-.card.none { border-style: dashed; }
-.card.none::before { background: transparent; }
-.card header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.card h2 { margin: 0; min-width: 0; font: 600 15px var(--font-num); letter-spacing: .02em; overflow-wrap: anywhere; }
-.pill { flex: none; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .02em; }
-.card.ok .pill { color: var(--up); background: rgba(var(--up-rgb), .14); }
-.card.off .pill { color: var(--down); background: rgba(var(--down-rgb), .14); }
-.card.none .pill { color: var(--muted); background: rgba(var(--faint-rgb), .16); }
-.main { margin: 0; color: var(--muted); font-size: 13px; }
-.main b { color: var(--text); font-weight: 600; }
-.main .at { white-space: nowrap; }
-.card.none .main { font-size: 12.5px; }
-.rows { display: flex; flex-direction: column; margin: 0; }
+/* ---- a status dot (big on tiles and the status line) ---- */
+.dot { width: 14px; height: 14px; border-radius: 50%; flex: none; background: var(--faint); }
+.ok > .dot, .ok > summary > .dot { background: var(--up); box-shadow: 0 0 0 4px rgba(var(--up-rgb), .18); }
+.amber > .dot, .amber > summary > .dot { background: var(--warn); box-shadow: 0 0 0 4px rgba(var(--warn-rgb), .2); }
+.red > .dot, .red > summary > .dot, .off > summary > .dot { background: var(--down); box-shadow: 0 0 0 4px rgba(var(--down-rgb), .18); }
+.none > summary > .dot { background: transparent; box-shadow: inset 0 0 0 2px var(--faint); }
+.closed > .dot { background: var(--faint); box-shadow: 0 0 0 4px rgba(var(--faint-rgb), .16); }
+
+/* ---- the two grids ---- */
+.devs, .feeds { margin-top: 22px; }
+.devs:empty, .feeds:empty { display: none; }
+.sec { margin: 0 0 10px; color: var(--muted); font: 600 11.5px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
+.grid { display: grid; gap: 10px; }
+.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; }   /* an opened machine tile grows alone */
+.g5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.empty { margin: 0; color: var(--muted); font-size: 12.5px; }
+
+/* ---- a tile ---- */
+.tile { min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+article.tile, .tile > summary { display: flex; align-items: flex-start; gap: 12px; padding: 14px 14px 13px; }
+.tile .dot { margin-top: 3px; }
+.tile .tx { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.tile .nm { font: 600 14.5px var(--font-ui); overflow-wrap: anywhere; }
+.tile.m .nm { font-family: var(--font-num); letter-spacing: .02em; }
+.tile .ln { color: var(--muted); font: 500 12.5px var(--font-num); font-variant-numeric: tabular-nums; }
+.tile .why { margin-top: 2px; color: var(--down); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.tile.amber .why { color: var(--warn); }
+.tile .note { color: var(--faint); font-size: 11.5px; }
+.tile .sub { display: flex; align-items: center; gap: 6px; color: var(--muted); font: 500 12px var(--font-num); }
+.tile .sub i { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--faint); }
+.tile .sub.ok i { background: var(--up); }
+.tile .sub.amber i { background: var(--warn); }
+.tile .sub.red i { background: var(--down); }
+.tile.red, .tile.off { border-color: rgba(var(--down-rgb), .4); }
+.tile.amber { border-color: rgba(var(--warn-rgb), .45); }
+.tile.none { border-style: dashed; }
+
+/* a machine tile opens on a tap: Claude on the bus, unread messages, the last auto-start */
+details.tile > summary { cursor: pointer; list-style: none; border-radius: 12px; }
+details.tile > summary::-webkit-details-marker { display: none; }
+details.tile > summary:hover .nm { color: var(--accent); }
+.more { flex: none; width: 8px; height: 8px; margin-top: 6px; border-right: 1.5px solid var(--faint); border-bottom: 1.5px solid var(--faint);
+        transform: rotate(45deg); transition: transform .15s; }
+details[open] > summary .more { transform: rotate(-135deg); margin-top: 9px; }
+@media (prefers-reduced-motion: reduce) { .more { transition: none; } }
+.rows { display: flex; flex-direction: column; margin: 0; padding: 0 14px 8px 40px; }
 .row { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 10px; padding: 6px 0; border-top: 1px solid var(--line); }
 .row dt { flex: none; color: var(--muted); font-size: 12px; }
-.row dd { margin: 0; min-width: 0; text-align: right; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.row dd { margin: 0; min-width: 0; text-align: right; font-size: 12.5px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .row dd small { display: block; color: var(--muted); font-size: 11.5px; font-weight: 400; }
 .row dd.na { color: var(--muted); }
 .row dd.good { color: var(--up); }
 .row dd.warn { color: var(--warn); }
 .row dd.bad small { color: var(--down); font-weight: 600; }
 
-/* ---- data feeds (owner 20/11/2026): one row a market, a light + how long ago its last price came in; grey = market
-   closed; under it the row's sources (the hub that feeds the paper bots, the website's charts, ...), each with its own light ---- */
-.feeds { margin-top: 22px; }
-.feeds:empty { display: none; }
-.sec { margin: 0 0 10px; color: var(--muted); font: 600 11.5px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
-.frows { display: flex; flex-direction: column; gap: 8px; }
-.feed { position: relative; min-width: 0; padding: 11px 14px 9px 17px; border: 1px solid var(--line); border-radius: 12px;
-        background: var(--surface); overflow: hidden; }
-.feed::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--faint); }
-.feed.ok::before { background: var(--up); }
-.feed.amber::before { background: var(--warn); }
-.feed.red::before { background: var(--down); }
-.feed.red { border-color: rgba(var(--down-rgb), .35); }
-.feed.amber { border-color: rgba(var(--warn-rgb), .35); }
-.fhead { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
-.fhead > i { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--faint); }
-.feed.ok .fhead > i { background: var(--up); box-shadow: 0 0 0 3px rgba(var(--up-rgb), .18); }
-.feed.amber .fhead > i { background: var(--warn); box-shadow: 0 0 0 3px rgba(var(--warn-rgb), .18); }
-.feed.red .fhead > i { background: var(--down); box-shadow: 0 0 0 3px rgba(var(--down-rgb), .18); }
-.fhead h3 { margin: 0; min-width: 0; font: 600 14.5px var(--font-ui); }
-.fage { margin-left: auto; color: var(--text); font: 500 13px var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.feed.closed .fage { color: var(--muted); }
-.feed.amber .fage { color: var(--warn); }
-.feed.red .fage { color: var(--down); }
-.fparts { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 7px 0 0; padding: 0 0 0 20px; list-style: none; }
-.fparts li { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 7px; min-width: 0; color: var(--muted); font-size: 12px; }
-.fparts li > i { width: 7px; height: 7px; border-radius: 50%; flex: none; align-self: center; background: var(--faint); }
-.fparts li.ok > i { background: var(--up); }
-.fparts li.amber > i { background: var(--warn); }
-.fparts li.red > i { background: var(--down); }
-.fparts b { color: var(--text); font: 500 12px var(--font-num); font-variant-numeric: tabular-nums; }
-.fparts li.closed b { color: var(--muted); }
-.fparts li.amber b { color: var(--warn); }
-.fparts li.red b { color: var(--down); }
-.fwhy { color: var(--down); font-weight: 600; overflow-wrap: anywhere; }
-.fparts li.amber .fwhy { color: var(--warn); }
-.fnote { color: var(--faint); }
-.feeds > .fresh { margin: 0; }
-
-/* ---- narrower: tablet 2 x 2, phone one column with the details tighter ---- */
-@media (max-width: 1180px) { .devs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* ---- narrower: the grids fold, then stack on a phone ---- */
+@media (max-width: 1180px) { .g5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .g4, .g5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) {
-  main { padding: 2px 12px 20px; }
-  .sum { margin-top: 12px; gap: 7px; }
-  .big { font-size: 18px; }
-  .devs { grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 12px; }
-  .card { gap: 7px; padding: 11px 12px 6px 15px; }
-  .row { padding: 4px 0; }
-  .row dd small { display: inline; margin-left: 6px; }
-  .feeds { margin-top: 16px; }
-  .feed { padding: 10px 12px 8px 15px; }
-  .fage { margin-left: 20px; width: 100%; }
-  .fparts { flex-direction: column; gap: 3px; }
+  main { padding: 2px 12px 22px; }
+  .sum { margin-top: 12px; }
+  .status { padding: 11px 13px; font-size: 15px; }
+  .status { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
+  .status .dot { margin-top: 4px; }
+  .status .fresh { grid-column: 2; }
+  .devs, .feeds { margin-top: 16px; }
+  .g4, .g5 { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  article.tile, .tile > summary { padding: 12px 12px 11px; }
+  .rows { padding: 0 12px 6px 38px; }
 }

@@ -1,14 +1,18 @@
-// Devices: the RDX bus machines (owner 12/11/2026; clearer layout 14/11/2026: "it has 4 devices and its kind of confusing
-// and hard to know whether its working or not ... make it a bit better and more responsive").
-// One answer per device first: WORKING (its machine checked in within offline_after_min), OFFLINE (it did, longer ago)
-// or NOT SET UP (it never did). Then the details in plain words: Claude on the bus, unread messages, the last automatic
-// Claude start (and whether it failed, when the file says). The top line counts the working devices and names the rest.
+// Devices: the RDX bus machines and the data feeds (owner 12/11/2026; clearer layout 14/11/2026; data feeds 20/11/2026;
+// tiles 20/11/2026: "can you fix the UI and UX of the devices tab? ... it is very weird, the design. Fix the design and
+// make it a little better").
+// Layout (owner-approved 20/11): one plain status line at the top ("All data flowing" / "1 problem: US futures 1-minute
+// files late"), then two tile grids: Machines (VPS, SUMEET-PC, SUMEET-LT, RAHUL-PC) and Data feeds (Hyperliquid, MCX,
+// Indian market with its GIFT NIFTY line, US futures, Forex). Each tile: a big status dot, the name and how long ago
+// (machines: "checked 1 min ago"; feeds: "last price 20 s ago"); a one-line reason only when something is wrong. A
+// machine's technical details (Claude on the bus, unread messages, the last automatic Claude start) open on a tap.
 // No message text anywhere: the status file carries none and the page shows none. Nothing is stored in the browser.
 //
 // Feed: the VPS's live feed (Tailscale Funnel /devices, rebuilt every 10 s) is read every 15 s. When it does not answer the
 // page falls back to the 5-minute copy on GitHub (rdx-bus-status, which GitHub's cache can hold up to 5 min more) and
 // keeps trying the live feed. Times in the file are absolute (ISO UTC) and the page works out every age itself, so an
-// old file still shows true ages; the line under the top line says which feed is shown and how old it is.
+// old file still shows true ages. The data feeds (doc.feeds, built by the VPS's feeds_watch.py every 10 s) are in the live
+// feed only: each source carries its own amber / red limits and whether its market is open (closed = grey).
 // Preview/tests only: devices.html?src=<url> reads another live feed (same site, localhost/127.0.0.1, or a shyameet
 // raw.githubusercontent.com file); any other src reads nothing.
 (function () {
@@ -57,7 +61,7 @@
   }
   const live = srcUrl();
 
-  // doc = the newest good file; via = 'live' or 'copy'; lastLive = when the live feed last answered
+  // doc = the newest good file; via = 'live' or 'copy'
   let doc = null, via = '', busy = false, timer = 0, lastCopy = 0;
   async function getJson(url) {  // the answer and its body within FETCH_MS, else it throws
     const c = typeof AbortController === 'function' ? new AbortController() : null;
@@ -89,33 +93,29 @@
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 
-  // ---------------------------------------------------------------- one device
+  // ---------------------------------------------------------------- a machine tile
   const row = (k, v, sub, cls) => `<div class="row"><dt>${k}</dt><dd${cls ? ` class="${cls}"` : ''}>${v}${sub ? `<small>${sub}</small>` : ''}</dd></div>`;
+  const opened = new Set();  // machine tiles the viewer opened (kept open across repaints)
 
-  function device(id, d, offMs, now) {
+  function machine(id, d, offMs, now) {
     const seen = d ? tms(d.machine && d.machine.last_seen) : null;
     const state = !d || seen == null ? 'none' : now - seen <= offMs ? 'ok' : 'off';
     const cl = (d && d.claude) || {}, inbox = (d && d.inbox) || {}, auto = (d && d.auto) || {};
-    const pill = { ok: 'Working', off: 'Offline', none: 'Not set up' }[state];
 
-    let main;
-    if (!d) main = 'Not in the status file.';
-    else if (state === 'none') main = 'Never checked in: the bus setup has not been run on this machine.';
-    else if (state === 'ok') main = `Checked in <b>${esc(dur(now - seen))} ago</b> <span class="at">${esc(ct(seen, now))}</span>`;
-    else main = `Last check-in <b>${esc(dur(now - seen))} ago</b> <span class="at">${esc(ct(seen, now))}</span>`;
+    let line, why = '';
+    if (state === 'ok') line = `checked ${esc(dur(now - seen))} ago`;
+    else if (state === 'off') { line = `last check-in ${esc(dur(now - seen))} ago`; why = `Offline since ${esc(ct(seen, now))}`; }
+    else { line = 'not set up'; why = d ? 'The bus setup has not been run on this machine' : 'Not in the status file'; }
 
-    // Claude on the bus: listening (a Claude session there watches the bus) or not; auto-start on/off says whether a
-    // message would start one by itself
+    // the technical details, on a tap: Claude on the bus, unread messages, the last automatic Claude start
     const cSeen = tms(cl.last_seen);
     const listening = state === 'ok' && cl.listening === true && (cSeen == null || now - cSeen <= offMs);
     const autoTxt = auto.enabled === true ? 'auto-start on' : auto.enabled === false ? 'auto-start off' : '';
     const claudeRow = !d || state === 'none' ? row('Claude on the bus', '–', '', 'na')
       : row('Claude on the bus', listening ? 'listening' : 'not listening', autoTxt, listening ? 'good' : 'na');
-
     const unread = d && ok(inbox.unread) ? Math.max(0, Math.round(inbox.unread)) : null, oldest = tms(inbox.oldest_at);
     const unreadRow = unread == null ? row('Unread messages', '–', '', 'na')
       : row('Unread messages', String(unread), unread > 0 && oldest != null ? 'oldest waiting ' + esc(dur(now - oldest)) : '', unread > 0 ? 'warn' : '');
-
     const st = tms(auto.last_start), en = tms(auto.last_end);
     const rc = auto.last_rc == null ? null : String(auto.last_rc);
     let autoRow;
@@ -125,31 +125,31 @@
     else if (rc != null && rc !== '0' && (en == null || en >= st)) autoRow = row('Last auto-start', esc(ct(st, now)), 'failed', 'bad');
     else autoRow = row('Last auto-start', esc(dur(now - st)) + ' ago', esc(ct(st, now)));
 
-    return { state, id, seen, html: `<article class="card ${state}" aria-label="${esc(id)}: ${pill}">` +
-      `<header><h2>${esc(id)}</h2><span class="pill">${pill}</span></header>` +
-      `<p class="main">${main}</p>` +
-      `<dl class="rows">${claudeRow}${unreadRow}${autoRow}</dl></article>` };
+    const word = { ok: 'working', off: 'offline', none: 'not set up' }[state];
+    const html = `<details class="tile m ${state}" data-id="${esc(id)}"${opened.has(id) ? ' open' : ''}>` +
+      `<summary aria-label="${esc(id)}: ${word}"><span class="dot" aria-hidden="true"></span>` +
+      `<span class="tx"><b class="nm">${esc(id)}</b><span class="ln">${line}</span>${why ? `<span class="why">${why}</span>` : ''}</span>` +
+      `<span class="more" aria-hidden="true"></span></summary>` +
+      `<dl class="rows">${claudeRow}${unreadRow}${autoRow}</dl></details>`;
+    const problem = state === 'off' ? { lvl: 'red', txt: `${id} offline ${dur(now - seen)}` }
+      : state === 'none' ? { lvl: 'red', txt: `${id} not set up` } : null;
+    return { html, problem };
   }
 
-  // ---------------------------------------------------------------- data feeds (owner 20/11/2026)
-  // "we need to add the data feed in the devices tab so that we can know we are properly receiving the data from hyperliquid,
-  // mcx, indian market, and us futures from ninjatrader as well as forex". One row a market: a light (green / amber / red,
-  // grey while that market is closed) and how long ago its last price came in. A row can have two sources (the hub that
-  // feeds the paper bots and Board Live that feeds the website's charts, ...): the row takes the worse one and says which.
-  // The live feed's file (doc.feeds, built by the VPS's feeds_watch.py every 10 s) carries absolute times, each source's own
-  // amber / red limits and whether its market is open; the ages are worked out here, so an older file still shows true ages.
+  // ---------------------------------------------------------------- a data-feed tile
   const RANK = { ok: 0, amber: 1, red: 2 };
   function partState(p, open, now) {  // -> { state: 'ok'|'amber'|'red'|'closed', age (ms|null), stale: [names] }
     const lim = s => (ok(s) ? s * 1000 : null);
     const amber = lim(p.amber_s) || 60000, red = lim(p.red_s) || 300000;
     const judge = age => age == null ? 'red' : age > red ? 'red' : age > amber ? 'amber' : 'ok';
-    let age = null, st = 'ok', stale = [];
+    let age = null, st = 'ok';
+    const stale = [];
     if (Array.isArray(p.items)) {  // several files: the oldest decides; the late ones are named
       for (const it of p.items) {
         const t = tms(it && it.t), a = t == null ? null : Math.max(0, now - t), s = judge(a);
         if (s !== 'ok') stale.push(String(it.n));
         if (RANK[s] > RANK[st]) st = s;
-        if (a != null && (age == null || a > age)) age = a;  // the oldest file's age (a missing file is named, not timed)
+        if (a != null && (age == null || a > age)) age = a;
       }
     } else {
       const t = tms(p.last);
@@ -160,11 +160,18 @@
     if (p.open === false || (p.open !== true && !open)) st = 'closed';  // a source with its own hours (GIFT NIFTY) says so
     return { state: st, age, stale };
   }
-  function feedRow(f, now) {
-    const open = f.open !== false, parts = (Array.isArray(f.parts) ? f.parts : []).map(p => ({ p, j: partState(p, open, now) }));
+  const short = name => String(name || '').replace(/\s*\(.*\)\s*$/, '');  // "1-minute files (RDXAutoLogger)" -> "1-minute files"
+  function reason(p, j) {  // why a source is late, in one short phrase
+    if (p.bad) return `${short(p.name)}: ${p.bad}`;
+    if (Array.isArray(p.items) && j.stale.length) return `${short(p.name)} late: ${j.stale.join(', ')}`;
+    return j.age == null ? `${short(p.name)}: no price yet` : `${short(p.name)}: no price for ${dur(j.age)}`;
+  }
+  function feedTile(f, now) {
+    const open = f.open !== false, all = Array.isArray(f.parts) ? f.parts : [];
+    const gift = all.filter(p => p.id === 'gift'), parts = all.filter(p => p.id !== 'gift').map(p => ({ p, j: partState(p, open, now) }));
     const live = parts.filter(x => x.j.state !== 'closed');
-    // the row's light and headline age come from its worst source; between equally good ones a live price beats a daily
-    // file (kind "day": the archive's age is its day's end, not a price), then the older one
+    // the tile's dot and age come from its worst source; between equally good ones a live price beats a daily file
+    // (kind "day": the archive's age is its day's end, not a price), then the older one
     const day = x => (x.p.kind === 'day' ? 1 : 0);
     let worst = null;
     for (const x of live) {
@@ -174,77 +181,73 @@
           (x.j.age == null || (worst.j.age != null && x.j.age > worst.j.age)))))) worst = x;
     }
     const state = worst ? worst.j.state : 'closed';
-    const ageTxt = a => a == null ? 'no price yet' : 'last price ' + esc(dur(a)) + ' ago';
-    let head;
+    let line;
     if (state === 'closed') {
       const newest = parts.reduce((m, x) => x.j.age != null && (m == null || x.j.age < m) ? x.j.age : m, null);
-      head = 'market closed' + (newest != null ? ' · last price ' + esc(dur(newest)) + ' ago' : '');
-    } else head = ageTxt(worst.j.age);
-    const word = { ok: 'receiving', amber: 'slow', red: 'not receiving', closed: 'market closed' }[state];
-    const li = parts.map(({ p, j }) => {
-      const bits = [];
-      if (Array.isArray(p.items) && j.stale.length) {
-        const fine = p.items.length - j.stale.length;
-        bits.push(`<span class="fwhy">${esc(j.stale.join(', '))} late${fine > 0 ? ` · ${fine} up to date` : ''}</span>`);
-      }
-      if (p.bad) bits.push(`<span class="fwhy">${esc(p.bad)}</span>`);
-      if (p.note) bits.push(`<span class="fnote">${esc(p.note)}</span>`);
-      const age = j.age == null ? '–' : esc(dur(j.age));
-      return `<li class="${j.state}"><i aria-hidden="true"></i><span class="fname">${esc(p.name)}</span><b>${age}</b>${bits.join('')}</li>`;
-    }).join('');
-    return `<article class="feed ${state}" aria-label="${esc(f.name)}: ${word}">` +
-      `<div class="fhead"><i aria-hidden="true"></i><h3>${esc(f.name)}</h3><span class="fage">${head}</span></div>` +
-      `<ul class="fparts">${li}</ul></article>`;
-  }
-  function feedsHtml(now) {
-    const F = doc && doc.feeds;
-    const title = '<h2 class="sec">Data feeds</h2>';
-    if (!F || !Array.isArray(F.feeds)) {
-      const why = F && F.error ? esc(F.error) : via === 'copy' ? 'not in the 5-minute copy: the live feed is not answering' : 'not in the status file yet';
-      return `${title}<p class="fresh"><i aria-hidden="true"></i>Data feeds: ${why}</p>`;
-    }
-    return title + `<div class="frows">${F.feeds.map(f => feedRow(f, now)).join('')}</div>`;
+      line = 'market closed' + (newest != null ? ` · last price ${esc(dur(newest))} ago` : '');
+    } else line = worst.j.age == null ? 'no price yet' : `last price ${esc(dur(worst.j.age))} ago`;
+    const late = live.filter(x => x.j.state !== 'ok').map(x => ({ p: x.p, j: x.j }));
+
+    // GIFT NIFTY: its own small line inside the Indian market tile (own hours: 06:30 -> 02:45 IST)
+    const g = gift.map(p => {
+      const j = partState(p, true, now);
+      const txt = j.state === 'closed' ? 'closed' : j.age == null ? 'no price yet' : `last price ${esc(dur(j.age))} ago`;
+      if (j.state === 'amber' || j.state === 'red') late.push({ p: Object.assign({}, p, { name: 'GIFT NIFTY' }), j });
+      return { lvl: j.state, html: `<span class="sub ${j.state}"><i aria-hidden="true"></i>GIFT NIFTY · ${txt}</span>` };
+    });
+    // the tile: the worst of its open sources (GIFT included); grey only when every one is closed
+    const open_ = [state].concat(g.map(x => x.lvl)).filter(s => s !== 'closed');
+    const tState = open_.length ? open_.reduce((a, b) => (RANK[b] > RANK[a] ? b : a)) : 'closed';
+    const note = parts.map(x => x.p.note).filter(n => n && /dropped/.test(n));   // the MCX drop count (owner 20/11)
+    const word = { ok: 'receiving', amber: 'slow', red: 'not receiving', closed: 'market closed' }[tState];
+    const why = late.map(x => reason(x.p, x.j)).join(' · ');
+    const html = `<article class="tile f ${tState}" aria-label="${esc(f.name)}: ${word}"><span class="dot" aria-hidden="true"></span>` +
+      `<span class="tx"><b class="nm">${esc(f.name)}</b><span class="ln">${line}</span>${g.map(x => x.html).join('')}` +
+      `${note.map(n => `<span class="note">${esc(n)}</span>`).join('')}` +
+      `${why ? `<span class="why">${esc(why)}</span>` : ''}</span></article>`;
+    // for the status line: "US futures 1-minute files late"
+    const brief = x => Array.isArray(x.p.items) && x.j.stale.length ? `${short(x.p.name)} late`
+      : x.p.bad ? `${short(x.p.name)}: ${x.p.bad}` : x.j.age == null ? `${short(x.p.name)}: no price yet` : `${short(x.p.name)}: no price for ${dur(x.j.age)}`;
+    const problem = late.length ? { lvl: tState, txt: `${short(f.name)} ${late.map(brief).join(', ')}` } : null;
+    return { html, problem };
   }
 
   // ---------------------------------------------------------------- the page
-  let shownCards = '', shownTop = '', shownFeeds = '';
+  const shown = { sum: '', devs: '', feeds: '' };
+  const put = (id, html) => { if (html !== shown[id]) { $(id).innerHTML = html; shown[id] = html; } };
   function paint() {
-    const sum = $('sum'), devs = $('devs'), now = Date.now();
+    const now = Date.now();
     if (!doc) {
-      const t = '<p class="big na">Status not available yet</p><p class="fresh">Waiting for the first answer…</p>';
-      if (t !== shownTop) { sum.innerHTML = t; shownTop = t; }
-      if (shownCards) { devs.innerHTML = ''; shownCards = ''; }
-      if (shownFeeds) { $('feeds').innerHTML = ''; shownFeeds = ''; }
+      put('sum', '<p class="status na"><span class="dot" aria-hidden="true"></span>Status not available yet<span class="fresh">waiting for the first answer…</span></p>');
+      put('devs', ''); put('feeds', '');
       return;
     }
     const offMin = ok(doc.offline_after_min) && doc.offline_after_min > 0 ? doc.offline_after_min : 10;
     const byId = {};
     for (const d of doc.devices) if (d && typeof d.id === 'string' && !byId[d.id]) byId[d.id] = d;
-    const cards = ORDER.map(id => device(id, byId[id] || null, offMin * 60000, now));
-    const good = cards.filter(c => c.state === 'ok').length;
+    const ms = ORDER.map(id => machine(id, byId[id] || null, offMin * 60000, now));
+    const F = doc.feeds;
+    const fs = F && Array.isArray(F.feeds) ? F.feeds.map(f => feedTile(f, now)) : null;
 
-    // top line: "All 4 devices working" / "2 of 4 devices working", then a chip per device
-    const klass = good === cards.length ? 'ok' : good === 0 ? 'off' : 'part';
-    const big = good === cards.length ? `All ${cards.length} devices working` : `${good} of ${cards.length} devices working`;
-    const chips = cards.map(c => {
-      const why = c.state === 'ok' ? '' : c.state === 'none' ? ' · not set up' : ' · offline ' + esc(dur(now - c.seen));
-      return `<li class="chip ${c.state}"><i aria-hidden="true"></i>${esc(c.id)}${why}</li>`;
-    }).join('');
-
-    // which feed and how old: green "Live" when the live feed answers and the file is fresh
+    // the status line: "All data flowing" / "N problems: ..." and how fresh the status itself is
+    const problems = ms.concat(fs || []).map(x => x.problem).filter(Boolean);
     const gen = tms(doc.generated), age = gen == null ? null : now - gen;
-    let fresh;
-    if (age != null && age > OLD_FILE_MIN * 60000) fresh = `<p class="fresh old"><i aria-hidden="true"></i>Status is ${esc(dur(age))} old: the VPS has not updated it (is the VPS down?)</p>`;
-    else if (via === 'live') fresh = `<p class="fresh live"><i aria-hidden="true"></i>Live · updated ${age == null ? '–' : esc(dur(age)) + ' ago'} · checks every 15 s</p>`;
-    else fresh = `<p class="fresh copy"><i aria-hidden="true"></i>5-minute copy · updated ${age == null ? '–' : esc(dur(age)) + ' ago'} (live feed not answering)</p>`;
+    if (age != null && age > OLD_FILE_MIN * 60000) problems.unshift({ lvl: 'red', txt: `status is ${dur(age)} old (is the VPS down?)` });
+    if (!fs) problems.push({ lvl: 'amber', txt: F && F.error ? `data feeds: ${F.error}` : 'data feeds not in this status file (live feed not answering)' });
+    const lvl = problems.some(p => p.lvl === 'red') ? 'red' : problems.length ? 'amber' : 'ok';
+    const head = problems.length ? `${problems.length} problem${problems.length === 1 ? '' : 's'}: ${esc(problems.map(p => p.txt).join(' · '))}` : 'All data flowing';
+    const fresh = age == null ? '' : via === 'live' ? `updated ${esc(dur(age))} ago` : `5-minute copy · updated ${esc(dur(age))} ago`;
+    put('sum', `<p class="status ${lvl}"><span class="dot" aria-hidden="true"></span><span class="st">${head}</span>${fresh ? `<span class="fresh">${fresh}</span>` : ''}</p>`);
 
-    const top = `<p class="big ${klass}"><i aria-hidden="true"></i>${big}</p><ul class="chips">${chips}</ul>${fresh}`;
-    if (top !== shownTop) { sum.innerHTML = top; shownTop = top; }
-    const html = cards.map(c => c.html).join('');
-    if (html !== shownCards) { devs.innerHTML = html; shownCards = html; }
-    const fh = feedsHtml(now);
-    if (fh !== shownFeeds) { $('feeds').innerHTML = fh; shownFeeds = fh; }
+    put('devs', `<h2 class="sec">Machines</h2><div class="grid g4">${ms.map(x => x.html).join('')}</div>`);
+    put('feeds', `<h2 class="sec">Data feeds</h2>` + (fs ? `<div class="grid g5">${fs.map(x => x.html).join('')}</div>`
+      : `<p class="empty">${F && F.error ? esc(F.error) : 'The data feeds come with the live feed only; it is not answering.'}</p>`));
   }
+  // keep a machine tile open across repaints once the viewer opened it
+  document.addEventListener('toggle', e => {
+    const t = e.target;
+    if (t && t.matches && t.matches('details.tile.m')) { if (t.open) opened.add(t.dataset.id); else opened.delete(t.dataset.id); }
+  }, true);
 
   // on a phone the tab row scrolls inside itself and Devices is its last tab: start it scrolled so Devices shows
   const nav = document.querySelector('nav.tabs'), cur = nav && nav.querySelector('a[aria-current="page"]');
