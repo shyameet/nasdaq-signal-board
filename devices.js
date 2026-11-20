@@ -170,22 +170,20 @@
     const open = f.open !== false, all = Array.isArray(f.parts) ? f.parts : [];
     const gift = all.filter(p => p.id === 'gift'), parts = all.filter(p => p.id !== 'gift').map(p => ({ p, j: partState(p, open, now) }));
     const live = parts.filter(x => x.j.state !== 'closed');
-    // the tile's dot and age come from its worst source; between equally good ones a live price beats a daily file
-    // (kind "day": the archive's age is its day's end, not a price), then the older one
-    const day = x => (x.p.kind === 'day' ? 1 : 0);
-    let worst = null;
-    for (const x of live) {
-      if (!worst) { worst = x; continue; }
-      const r = RANK[x.j.state] - RANK[worst.j.state];
-      if (r > 0 || (r === 0 && (day(x) < day(worst) || (day(x) === day(worst) &&
-          (x.j.age == null || (worst.j.age != null && x.j.age > worst.j.age)))))) worst = x;
-    }
-    const state = worst ? worst.j.state : 'closed';
+    // the dot: the worst open source. The age (owner 20/11): the live price feed's own age, i.e. the newest price among the
+    // live price sources; a slow secondary source (a daily archive, kind "day"; the 1-minute files, "items") only turns
+    // the dot and writes the reason line, it never becomes the headline age
+    const state = live.length ? live.map(x => x.j.state).reduce((a, b) => (RANK[b] > RANK[a] ? b : a)) : 'closed';
+    const prices = live.filter(x => x.p.kind !== 'day' && !Array.isArray(x.p.items));
+    const newestOf = xs => xs.reduce((m, x) => x.j.age != null && (m == null || x.j.age < m) ? x.j.age : m, null);
     let line;
     if (state === 'closed') {
-      const newest = parts.reduce((m, x) => x.j.age != null && (m == null || x.j.age < m) ? x.j.age : m, null);
+      const newest = newestOf(parts.filter(x => x.p.kind !== 'day' && !Array.isArray(x.p.items)));
       line = 'market closed' + (newest != null ? ` · last price ${esc(dur(newest))} ago` : '');
-    } else line = worst.j.age == null ? 'no price yet' : `last price ${esc(dur(worst.j.age))} ago`;
+    } else {
+      const a = prices.length ? newestOf(prices) : newestOf(live);
+      line = a == null ? 'no price yet' : `last price ${esc(dur(a))} ago`;
+    }
     const late = live.filter(x => x.j.state !== 'ok').map(x => ({ p: x.p, j: x.j }));
 
     // GIFT NIFTY: its own small line inside the Indian market tile (own hours: 06:30 -> 02:45 IST)
@@ -206,8 +204,9 @@
       `${note.map(n => `<span class="note">${esc(n)}</span>`).join('')}` +
       `${why ? `<span class="why">${esc(why)}</span>` : ''}</span></article>`;
     // for the status line: "US futures 1-minute files late"
-    const brief = x => Array.isArray(x.p.items) && x.j.stale.length ? `${short(x.p.name)} late`
-      : x.p.bad ? `${short(x.p.name)}: ${x.p.bad}` : x.j.age == null ? `${short(x.p.name)}: no price yet` : `${short(x.p.name)}: no price for ${dur(x.j.age)}`;
+    const lc = s => /^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s;   // "Website charts" -> "website charts"; FTMO stays
+    const brief = x => Array.isArray(x.p.items) && x.j.stale.length ? `${lc(short(x.p.name))} late`
+      : x.p.bad ? `${lc(short(x.p.name))}: ${x.p.bad}` : x.j.age == null ? `${lc(short(x.p.name))}: no price yet` : `${lc(short(x.p.name))}: no price for ${dur(x.j.age)}`;
     const problem = late.length ? { lvl: tState, txt: `${short(f.name)} ${late.map(brief).join(', ')}` } : null;
     return { html, problem };
   }
