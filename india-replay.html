@@ -441,12 +441,20 @@ function alignAll() {  // the group and the stock's check, from the markets' tre
 // The entries on one market's chart, read at each minute's close on the MACD 12/26 LINE of the closed candles (the Entry
 // pane's solid lines), only while its trend (alignAt: the group) is on that side:
 //   1m entry  LONG: the 1m line crosses above 0 while 1m > 2m > 3m; SHORT: crosses below 0 while 1m < 2m < 3m
-//   2m entry  LONG: the 2m line crosses above 0 (at its candle's close) while 2m > 3m; SHORT: the mirror
+//   2m entry  LONG: the 2m line crosses above 0 (at its candle's close) while 2m > 3m; SHORT: the mirror. The 3m here is the
+//             3m line AS OF that minute (owner 20/11/2026, "Yes, 3m as of the minute"): the 3m candle's own value when it
+//             closed with that minute, else the value it would have if it closed then (the Entry pane's dotted line: the last
+//             closed 3m candle's EMA 12 and 26 moved on by the minute's close). Never a 3m candle 1-2 minutes old, and at
+//             09:16 today's forming first 3m candle, not yesterday's last one. (m3Now; the paper bot's siglib.py the same)
 // Exits: a 1m entry's where the 30-second MACD line crosses back through 0 after it (NsbSub; none until 30 s data exists:
 // the entry is shown alone), a 2m entry's where the 1m line does. One trade of each kind at a time: an entry while one is
 // open is skipped. -> [{ kind: 1 | 2, dir, t: the entry's minute (ms), exit: { t: when (ms), m: its candle's minute } | null,
 // noExit: no 30 s data then, end: the last minute it is open (Infinity: still open) }], in time order
 const cross = (x, p) => !ok(x) || !ok(p) ? null : x > 0 && p <= 0 ? 'BULLISH' : x < 0 && p >= 0 ? 'BEARISH' : null;
+// the 3m MACD line as of minute t (its close): b3 the last closed 3m candle, b1 minute t's own 1m candle (owner 20/11/2026)
+const m3Now = (b3, b1, t) => !b3 || !ok(b3.macd) ? null : b3.time + 3 * MIN >= t + MIN ? b3.macd
+  : !b1 || !ok(b1.close) || !ok(b3.f12) || !ok(b3.s26) ? null
+  : (b3.f12 + 2 / 13 * (b1.close - b3.f12)) - (b3.s26 + 2 / 27 * (b1.close - b3.s26));
 function signalsOf(market, alignAt) {
   const tr = day.runs[market].sig.trace, s30 = NsbSub.bars(market), out = [];
   const exit30 = (dir, T) => {  // when the 30 s line crosses back after T (ms); null: not yet; undefined: no 30 s data at T
@@ -470,8 +478,8 @@ function signalsOf(market, alignAt) {
     }
     p1 = m1;
     if (b2 && b2 !== b2was) {
-      const c2 = cross(m2, p2);
-      if (c2 && ok(m3) && (c2 === 'BULLISH' ? m2 > m3 : m2 < m3) && alignAt(e.t) === c2 && !open2) { open2 = { kind: 2, dir: c2, t: e.t, exit: null, noExit: false }; out.push(open2); }
+      const c2 = cross(m2, p2), m3n = c2 ? m3Now(b3, b1, e.t) : null;
+      if (c2 && ok(m3n) && (c2 === 'BULLISH' ? m2 > m3n : m2 < m3n) && alignAt(e.t) === c2 && !open2) { open2 = { kind: 2, dir: c2, t: e.t, exit: null, noExit: false }; out.push(open2); }
       p2 = m2; b2was = b2;
     }
   }
