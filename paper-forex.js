@@ -11,6 +11,10 @@
 // / borrowed, rules, rule_pending, plans_pending, summary_by). Polled every 3 s (30 s while hidden); when the feed is down the page
 // keeps the last data, greyed, and retries. Every account's trades come from days.json, fetched again when days_at changes.
 // Nothing is stored in the browser.
+// Owner 20/11/2026: a switch at the top, Scalper | Gold | Trend, each with its own Live now, accounts and trades. The Scalper reads
+// the feed's state.json as before; Gold reads gold/state.json beside it (the gold bot's nightly trade on each firm's XAUUSD, the
+// plan fleets' 28 forex plans); Trend reads trend/state.json, which says "waiting for parity" until its engine matches the Way B
+// record (no Trend row before that). The choice is in the address (?s=gold / ?s=trend).
 (function () {
   'use strict';
   const POLL_MS = 3000, HIDDEN_MS = 30000, FETCH_MS = 8000, FEED_FILE = 'data/forex_paper_feed.json';
@@ -72,8 +76,18 @@
   const WHY = { 'trade open': 'a trade was open (one at a time)', 'firm pause': "the firm's pause", 'no price': 'no firm price then' };
   const EVTXT = { 1: 'passed phase', 2: 'PASSED', 3: 'failed: max loss', 4: 'failed: daily loss', 5: 'failed: no room', 6: 'target hit, waiting days',
     7: 'minimum day', 8: 'payout', 9: 'funded lost: max loss', 10: 'funded lost: daily loss' };
+  const NOTES = { fn_bots_50k: 'bots may not be allowed at 50K (FundedNext: bot add-on only under $50K)' };   // owner 20/11/2026 12:40 CT
+  const FOOT = {
+    scalper: "PAPER ONLY - no real money: no order is ever sent. Entries and exits are the Scalper 3m bot's own trades on NinjaTrader Sim (one trade open at a time); fills and marks are at the firms' own MT5 bid and ask (FundedNext's for FundingPips / The5ers / Tradeify FX), each firm with its own rules, pause hours and $ a point; sizes are the forex test's, frozen on 10 Aug - 13 Sep. Live numbers are provisional; the nightly end-of-day test (FTMO, FundingPips, FundedNext) stays the reference. For information only, not investment advice.",
+    gold: "PAPER ONLY - no real money: no order is ever sent. One trade a night: the gold bot's own signal on NinjaTrader Sim (direction, and a stop of 0.25 x its 20-day range), taken on each firm's XAUUSD at its own MT5 bid and ask (FundedNext's for FundingPips / The5ers / Tradeify FX), out at 08:15 ET unless the stop. The plan fleets' 28 forex plans (25K and 50K), up to 1.00 / 2.00 lots, cut each night so the stop fits the day's risk. Live numbers are provisional. For information only, not investment advice.",
+    trend: "PAPER ONLY - no real money: no order is ever sent. The Trend (Way B) paper accounts are not shown until their live engine matches the Way B record day by day. For information only, not investment advice."
+  };
   const etToCt = s => { const m = /^(\d{2}):(\d{2})$/.exec(s || ''); return m ? `${String((+m[1] + 23) % 24).padStart(2, '0')}:${m[2]}` : s; };  // Chicago = New York - 1 h, all year
 
+  const STRATS = { scalper: { name: 'Scalper', path: '' }, gold: { name: 'Gold', path: 'gold/' }, trend: { name: 'Trend', path: 'trend/' } };
+  let strat = (() => { try { const v = new URLSearchParams(location.search).get('s'); return STRATS[v] ? v : 'scalper'; } catch (e) { return 'scalper'; } })();
+  const isGold = () => strat === 'gold';
+  const stratUrl = u => u && strat !== 'scalper' ? u.replace(/state\.json(?=\?|$)/, STRATS[strat].path + 'state.json') : u;
   let feedUrl = null, doc = null, lastOk = 0, lastGen = null, lastGenAt = 0, fails = 0, firstFail = 0, timer = 0, rendered = null, busy = false;
   const filt = { firm: '', rule: '1' };
   const calOpen = new Set();                 // plan keys whose calendar is open
@@ -100,24 +114,30 @@
   async function poll() {
     if (busy) return;
     busy = true; clearTimeout(timer);
+    let switched = false;
     try {
       if (!feedUrl || (fails && fails % 6 === 0)) feedUrl = (await readFeed()) || feedUrl;
       if (feedUrl) {
         try {
-          const j = await getJson(feedUrl, FEED_OPTS);
+          const want = strat;
+          const j = await getJson(stratUrl(feedUrl), FEED_OPTS);
           if (!j || j.kind !== KIND || j.paper_only !== true) throw new Error('not the forex paper feed');
-          fails = 0; firstFail = 0; lastOk = Date.now();
-          if (j.generated !== lastGen) { lastGen = j.generated; lastGenAt = Date.now(); }
-          doc = j;
-          if (rendered !== j.generated) { render(); rendered = j.generated; }
+          if (want !== strat) switched = true;                           // switched while it loaded: poll again at once
+          else {
+            if ((j.strategy || 'scalper') !== strat && !j.withheld) throw new Error('another strategy\'s document');
+            fails = 0; firstFail = 0; lastOk = Date.now();
+            if (j.generated !== lastGen) { lastGen = j.generated; lastGenAt = Date.now(); }
+            doc = j;
+            if (rendered !== j.generated) { render(); rendered = j.generated; }
+          }
         } catch (e) { fails++; if (!firstFail) firstFail = Date.now(); }
       } else { fails++; if (!firstFail) firstFail = Date.now(); }
     } finally { busy = false; }
-    timer = setTimeout(poll, document.hidden ? HIDDEN_MS : fails < 6 ? POLL_MS : fails < 20 ? 15000 : 30000);
+    timer = setTimeout(poll, switched ? 50 : document.hidden ? HIDDEN_MS : fails < 6 ? POLL_MS : fails < 20 ? 15000 : 30000);
     paint();
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
-  const daysUrl = () => feedUrl && /state\.json(\?|$)/.test(feedUrl) ? feedUrl.replace(/state\.json(?=\?|$)/, 'days.json') : null;
+  const daysUrl = () => { const u = stratUrl(feedUrl); return u && /state\.json(\?|$)/.test(u) ? u.replace(/state\.json(?=\?|$)/, 'days.json') : null; };
   function fetchDays() {
     if (daysBusy) return daysBusy;
     const u = daysUrl();
@@ -125,6 +145,7 @@
     daysBusy = (async () => {
       try {
         const j = await getJson(u, FEED_OPTS);
+        if (u !== daysUrl()) return;                                      // switched strategy meanwhile
         if (j && j.kind === KIND_DAYS && j.paper_only === true && !j.withheld && Array.isArray(j.accounts)) { daysDoc = j; daysDoc._at = doc && doc.days_at; daysErr = false; }
         else daysErr = true;
       } catch (e) { daysErr = true; } finally { daysBusy = null; }
@@ -201,6 +222,29 @@
       window.scrollTo(0, 0);
     }
   }
+  function setStrat(v) {
+    if (!STRATS[v] || v === strat) return;
+    strat = v; doc = null; daysDoc = null; daysErr = false; rendered = null; lastGen = null; lastGenAt = 0; sel = null; calOpen.clear(); trSess = null;
+    try {
+      const q = v === 'scalper' ? '' : '?s=' + v;
+      history.replaceState(null, '', location.pathname + q + location.hash);
+    } catch (e) { /* the switch still works */ }
+    paintStrat(); blank(); poll();
+  }
+  function paintStrat() {
+    for (const b of document.querySelectorAll('#strat button')) b.setAttribute('aria-pressed', b.dataset.v === strat ? 'true' : 'false');
+    $('foot').textContent = FOOT[strat];
+  }
+  function blank() {
+    for (const id of ['bots', 'accts', 'trades']) $(id).innerHTML = '<div class="empty">Waiting for the feed…</div>';
+    $('sum').innerHTML = ''; $('fsub').innerHTML = ''; $('wait').hidden = true; showMain(true);
+  }
+  function showMain(on) {
+    for (const id of ['firms', 'fsub', 'sum', 'views']) $(id).hidden = !on;
+    $('rules').parentNode.hidden = !on;
+    for (const sec of document.querySelectorAll('main > section[data-view]')) sec.hidden = !on || sec.dataset.view !== view;
+  }
+  $('strat').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) setStrat(b.dataset.v); });
   $('views').addEventListener('click', e => { const b = e.target.closest('button[data-view]'); if (b) setView(b.dataset.view, true); });
   window.addEventListener('hashchange', () => setView(location.hash === '#trades' ? 'trades' : 'main', false));
   setView(view, false);
@@ -219,11 +263,23 @@
 
   function render() {
     if (!doc || doc.withheld) return;
+    if (doc.status === 'waiting for parity' || (strat === 'trend' && !Array.isArray(doc.firms))) { renderWaiting(); return; }
+    $('wait').hidden = true; showMain(true);
     if (!Array.isArray(doc.rules)) doc.rules = [{ key: '1', label: '1 at a time' }];   // a feed from before fx_live5: its first rule only
     if (!doc.rules.some(r => r.key === filt.rule) && doc.rules.length) filt.rule = doc.rules[0].key;
     if (filt.firm && !firmList().includes(filt.firm)) filt.firm = '';
     renderFirms(); renderSummary(); renderRules(); renderLive(); renderAccounts(); renderTrades();
     if (daysStale() && !daysBusy) fetchDays().then(() => { if (doc && !doc.withheld) { renderTrades(); renderDay(); } });
+  }
+  function renderWaiting() {   // owner 20/11/2026: no Trend row before its engine matches the Way B / T1 record day by day
+    showMain(false);
+    const par = doc.parity || {};
+    $('wait').innerHTML = '<h2>Trend (Way B): not shown yet</h2>'
+      + '<p>The Trend paper accounts appear here only after their live engine matches the Way B record and the trend twin\'s (T1) trades day by day.</p>'
+      + `<p>Now: ${esc(doc.why || 'waiting for that check')}.</p>`
+      + (par.t1 ? `<p>Trend twin (T1) check: ${esc(par.t1)}</p>` : '') + (par.wayb ? `<p>Way B check: ${esc(par.wayb)}</p>` : '')
+      + '<p>Plan: Way B (2 NQ, the first two trades of each trend, target 180 / stop 160 ticks, day stop 0.8), on each firm\'s Nasdaq CFD, buying as the Scalper tab.</p>';
+    $('wait').hidden = false;
   }
   const firmList = () => doc && (doc.firms || []).length ? doc.firms.map(f => f.firm) : FIRMS0;
   const firmOf = name => (doc && (doc.firms || []).find(f => f.firm === name)) || null;
@@ -307,7 +363,8 @@
       const pl = ok(now) && ok(t.px_in) ? (t.side === 'long' ? now - t.px_in : t.px_in - now) : null;
       return `<div class="trade"><div class="tl">${sideChip(t.side, '1 lot')}<span class="pnl ${cls(pl)}">${ok(pl) ? sgn(pl) : '–'}</span></div>`
         + `<div class="tp"><span>in <b>${px(t.px_in)}</b></span><span>now <b>${px(now)}</b></span><span>since <b>${esc(ct5(t.tin))}</b></span></div>`
-        + `<div class="tx">points a lot ($${n2(lotUsd)} a point) · the bot's entry <b>${px(t.bot_in)}</b></div></div>`;
+        + (isGold() && ok(t.stop) ? `<div class="tx">stop <b>${px(t.stop)}</b>${ok(t.stop_pts) ? ` (${n2(t.stop_pts)} from the fill)` : ''} · out at 08:15 ET (07:15 CT)</div>` : '')
+        + `<div class="tx">points a lot ($${n2(lotUsd)} a point) · the bot's entry <b>${px(t.bot_in)}</b>${isGold() ? ' (MGC)' : ''}</div></div>`;
     }).join('') : '<div class="trade flat"><div class="tl"><span class="pos flat">FLAT</span> no open trade</div></div>';
     const nd = (td.trades || []).filter(t => t.tout).length, nsk = (td.skips || []).length;
     const foot = `<div class="bf">${int(nd)} closed this session${nsk ? ` · ${int(nsk)} signal${nsk === 1 ? '' : 's'} not taken` : ''}`
@@ -328,8 +385,8 @@
     const out = [];
     for (const name of firmList()) {
       if (filt.firm && name !== filt.firm) continue;
-      for (const p of doc.plans || []) if (p.firm === name) out.push({ firm: name, plan: p.plan, key: name + '|' + p.plan, p });
-      for (const p of doc.plans_pending || []) if (p.firm === name) out.push({ firm: name, plan: p.plan, key: name + '|' + p.plan, pending: p });
+      for (const p of doc.plans || []) if (p.firm === name && !out.some(x => x.key === name + '|' + p.plan)) out.push({ firm: name, plan: p.plan, key: name + '|' + p.plan, p });   // gold: one row for its 25K and 50K lanes
+      for (const p of doc.plans_pending || []) if (p.firm === name && !out.some(x => x.key === name + '|' + p.plan)) out.push({ firm: name, plan: p.plan, key: name + '|' + p.plan, pending: p });   // gold: a lane the rules do not sell is noted on its plan row
     }
     return out;
   }
@@ -341,7 +398,18 @@
     const mt = { static: 'static', trail_eod: 'trailing (end of day)', trail_closed_lock: 'trailing, locks at the start', trail_closed: 'trailing' }[p.max_type] || '';
     return `${ph} · max loss ${p.max_loss}% ${mt}${ok(p.daily) ? ` · daily ${p.daily}%` : ''}${p.min_days ? ` · min ${p.min_days} days` : ''}`
       + `${p.prof_days ? ` · ${p.prof_days} profitable days` : ''}${ok(p.consistency) ? ` · best day ≤ ${p.consistency}%` : ''} · funded split ${p.split}%`
-      + `${p.provisional ? ' · rules provisional' : ''}`;
+      + `${p.provisional ? ' · rules provisional' : ''}`
+      + (isGold() ? goldLine(p) : '');
+  }
+  function goldLine(p) {
+    const gs = (doc.gold_plans || []).filter(x => x.firm === p.firm && x.plan === p.plan).sort((a, b) => a.size - b.size);
+    const lots = gs.filter(g => ok(g.max_lots)).map(g => `${n2(g.max_lots)} at ${Math.round(g.size / 1000)}K`).join(', ');
+    const big = (doc.plans || []).filter(x => x.firm === p.firm && x.plan === p.plan && x !== p);  // the other lane's rules, where they differ
+    const dif = big.filter(x => x.daily !== p.daily || x.max_loss !== p.max_loss)
+      .map(x => ` · ${esc((x.sizes || []).map(s => Math.round(s / 1000) + 'K').join('/'))}: daily ${x.daily}%, max loss ${x.max_loss}%`).join('');
+    const miss = (doc.plans_pending || []).filter(x => x.firm === p.firm && x.plan === p.plan)
+      .map(x => ` · ${esc(x.lane || '')}: no account yet (${esc(x.why || 'owner decides')})`).join('');
+    return (lots ? ` · gold size up to ${lots} lots, cut each night so the bot's stop fits the day's risk` : '') + dif + miss;
   }
   function accRow(a) {
     const open = OPEN.has(a.status), t = a.today;
@@ -350,7 +418,9 @@
     else if (a.passed) need = `<span class="up">passed${a.passed_s ? ' ' + esc(short(a.passed_s)) : ''}</span>`;
     const pays = a.payouts ? `${int(a.payouts)} · ${usd(a.paid)}` : '–';
     const today = t && ok(t.net) ? pnl(t.net) + (t.halted && t.halt ? `<span class="halt">${esc(t.halt)}</span>` : ok(t.lots) ? `<span class="halt">${n2(t.lots)} lots</span>` : '') : '<span class="faint">–</span>';
-    return `<tr class="row${open ? '' : ' done'}"><td class="c-id">${esc(acctName(a))}</td><td class="c-rule">bought ${esc(short(a.bought))} · ${usd(a.price)}</td>`
+    const nk = isGold() ? ((doc.gold_plans || []).find(g => g.firm === a.firm && g.plan === a.plan && g.size === a.size) || {}).note_key : null;
+    const note = nk && NOTES[nk] ? `<span class="halt" style="white-space:normal;max-width:240px">${esc(NOTES[nk])}</span>` : '';
+    return `<tr class="row${open ? '' : ' done'}"><td class="c-id">${esc(acctName(a))}${note}</td><td class="c-rule">bought ${esc(short(a.bought))} · ${usd(a.price)}</td>`
       + `<td class="c-st">${stChip(a)}</td><td class="c-bal r">${usd(a.balance)}</td>`
       + `<td class="c-room r" data-l="Room">${open ? usd(a.room) : '–'}</td><td class="c-today r" data-l="Today">${today}</td>`
       + `<td class="c-need r" data-l="To pass">${need}</td><td class="c-pay r" data-l="Payouts">${pays}</td></tr>`;
@@ -365,7 +435,7 @@
       const name = filt.firm ? esc(pl.plan) : `${esc(pl.firm)} ${esc(pl.plan)}`;
       if (pl.pending) {
         body += `<tr class="grp"><td colspan="8"><span class="gname">${name}</span><span>${pl.pending.instant ? 'instant' : 'evaluation'}</span></td></tr>`
-          + `<tr class="pend"><td colspan="8">No paper account yet: ${esc(pl.pending.why || 'not picked')}. Its sizes are picked with the same method as the other firms', then it joins.</td></tr>`;
+          + `<tr class="pend"><td colspan="8">No paper account yet: ${esc(pl.pending.why || 'not picked')}. ${isGold() ? 'It joins once the owner decides.' : "Its sizes are picked with the same method as the other firms', then it joins."}</td></tr>`;
         continue;
       }
       const rows = accsOf(pl.firm, pl.plan);
@@ -538,7 +608,7 @@
   function tradeRow(r) {
     const t = r.t;
     const pill = r.src === 'bot' ? '<span class="pill bot">BOT</span>' : r.firms.map(f => `<span class="pill ${esc(pillCls(f))}">${esc(f)}</span>`).join('');
-    const what = r.src === 'bot' ? `${esc(t.side)}, 1 MNQ` : `${esc(t.side)}, 1 lot`;
+    const what = r.src === 'bot' ? `${esc(t.side)}, 1 ${isGold() ? 'MGC' : 'MNQ'}` : `${esc(t.side)}, 1 lot`;
     const outPx = ok(t.px_out) ? px(t.px_out) : (t.how === 'open' ? '…' : '–');
     const botPx = r.src === 'bot' ? '' : ok(t.bot_in) ? `<span class="muted">bot <b>${px(t.bot_in)}</b> → <b>${ok(t.bot_out) ? px(t.bot_out) : '…'}</b></span>` : '';
     const res = r.src === 'bot' ? (ok(t.px_in) && ok(t.px_out) ? (t.side === 'long' ? t.px_out - t.px_in : t.px_in - t.px_out) : null) : t.pts;
@@ -596,7 +666,11 @@
         + (list.length ? head + list.map(tradeRow).join('') : '<div class="muted">No trade yet.</div>')
         + (sk.length ? `<p class="tnote" style="margin-top:8px">Not taken: ${esc(sk.join('; '))}.</p>` : '') + '</section>';
     }
-    html += '<p class="tnote">Each BOT row is the Scalper 3m bot\'s own trade (1 MNQ, futures points). Each firm row is the same trade at that firm: in at its ask (long) '
+    if (isGold()) html += '<p class="tnote">Each BOT row is the gold bot\'s own signal (1 MGC on NinjaTrader Sim, futures points; out at 08:15 ET unless its stop). '
+      + 'Each firm row is the same trade on that firm\'s XAUUSD: in at its ask (long) or bid (short) at the close of its first minute after the reopen, '
+      + 'the bot\'s own stop distance from that fill on its bid / ask, out at 08:15 ET, in points for 1 oz (a lot is 100 oz). '
+      + 'A paper account that reached its own day target first left earlier; its own rows are in its plan\'s calendar.</p>';
+    else html += '<p class="tnote">Each BOT row is the Scalper 3m bot\'s own trade (1 MNQ, futures points). Each firm row is the same trade at that firm: in at its ask (long) '
       + 'or bid (short) the moment the bot\'s entry appeared, out at its bid / ask the moment the bot\'s exit appeared, in index points for 1 lot. '
       + 'FundingPips, The5ers and Tradeify FX use FundedNext\'s prices, so their fills share FundedNext\'s row unless their own pause cut the trade. '
       + 'A paper account that reached its own day target or day stop first left earlier; its own rows are in its plan\'s calendar.</p>';
@@ -609,6 +683,6 @@
     if (doc && !doc.withheld) { renderTrades(); if (daysStale()) fetchDays().then(renderTrades); }
   });
 
-  function start() { setBar(); paint(); poll(); }
+  function start() { setBar(); paintStrat(); paint(); poll(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <title>Forex props paper · Indra Quant Signal Board</title>
-<meta name="description" content="PAPER ONLY - no real money. The Scalper 3m bot's trades on paper accounts at five forex prop firms, at the firms' own MT5 prices (FundedNext's for FundingPips / The5ers / Tradeify FX), live.">
+<meta name="description" content="PAPER ONLY - no real money. The Scalper 3m, Gold and Trend bots' trades on paper accounts at five forex prop firms, at the firms' own MT5 prices (FundedNext's for FundingPips / The5ers / Tradeify FX), live.">
 <meta name="theme-color" content="#0a0d12">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -20,6 +20,12 @@
 .mkt a { padding: 4px 12px; border-radius: 6px; color: var(--muted); font-size: 12.5px; font-weight: 600; text-decoration: none; }
 .mkt a:hover { color: var(--text); }
 .mkt a[aria-current="page"] { background: var(--tile-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+/* the strategy switch (owner 20/11/2026): Scalper | Gold | Trend, each with its own Live now, accounts and trades */
+.strat { display: flex; width: fit-content; max-width: 100%; margin-top: 12px; }
+.strat button { padding: 6px 16px; font-size: 13.5px; font-weight: 700; }
+.wait { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--tile); }
+.wait h2 { margin: 0 0 6px; font-size: 15px; }
+.wait p { margin: 4px 0; color: var(--muted); font-size: 13px; }
 /* five firms (owner 16/11/2026): the firm row on top, the chosen firm's totals, then the buying rule; page-local only */
 .firms { display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; margin-top: 12px; }
 .firms button { padding: 6px 14px; font-size: 13px; }
@@ -61,7 +67,7 @@
   .atbl tr.calrow { display: block; } .atbl tr.calrow > td { display: block; padding: 8px; }
   .atbl tr.pend { display: block; } .atbl tr.pend td { display: block; padding: 6px 10px; }
 }</style>
-<script src="paper-forex.js?v=4" defer></script>
+<script src="paper-forex.js?v=5" defer></script>
 </head>
 <body>
 <header class="topbar" id="bar">
@@ -77,6 +83,9 @@
 <div class="alert" id="alert" role="status" hidden></div>
 <main id="main">
   <nav class="seg mkt" aria-label="Market"><a href="paper.html">US futures (Lucid)</a><a href="paper-india.html">India options</a><a href="paper-mcx.html">MCX options</a><a href="paper-forex.html" aria-current="page">Forex props</a></nav>
+
+  <nav class="seg strat" id="strat" aria-label="Strategy"><button type="button" data-v="scalper" aria-pressed="true">Scalper</button><button type="button" data-v="gold" aria-pressed="false">Gold</button><button type="button" data-v="trend" aria-pressed="false">Trend</button></nav>
+  <section class="wait" id="wait" hidden aria-live="polite"></section>
 
   <nav class="seg firms" id="firms" aria-label="Firm"><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="FTMO" aria-pressed="false">FTMO</button><button type="button" data-v="FundedNext" aria-pressed="false">FundedNext</button><button type="button" data-v="FundingPips" aria-pressed="false">FundingPips</button><button type="button" data-v="The5ers" aria-pressed="false">The5ers</button><button type="button" data-v="Tradeify FX" aria-pressed="false">Tradeify FX</button></nav>
   <p class="fsub" id="fsub"></p>
@@ -104,7 +113,7 @@
     <div id="trades" class="trs"><div class="empty">Waiting for the feed…</div></div>
   </section>
 
-  <p class="foot">PAPER ONLY - no real money: no order is ever sent. Entries and exits are the Scalper 3m bot's own trades on NinjaTrader Sim
+  <p class="foot" id="foot">PAPER ONLY - no real money: no order is ever sent. Entries and exits are the Scalper 3m bot's own trades on NinjaTrader Sim
     (one trade open at a time); fills and marks are at the firms' own MT5 bid and ask (FundedNext's for FundingPips / The5ers / Tradeify FX),
     each firm with its own rules, pause hours and $ a point; sizes are the forex test's, frozen on 10 Aug - 13 Sep. Live numbers are provisional;
     the nightly end-of-day test (FTMO, FundingPips, FundedNext) stays the reference. For information only, not investment advice.</p>
