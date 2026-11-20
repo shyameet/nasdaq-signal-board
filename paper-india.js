@@ -510,6 +510,7 @@
   let todaySig = null;
   // 20/11/2026 (owner): missed trades (the feed problem) are shown and counted as if taken; the lines say how many
   const missedOf = ts => { const m = ts.filter(t => t.replayed); return { n: m.length, net: m.reduce((x, t) => x + t.net, 0) }; };
+  const MISSED_NOTE = 'Missed trades (feed problem): filled on 1-second order-book snapshots; a fill may differ by a tick from what live would have got.';
   const missedTxt = ts => { const m = missedOf(ts); return m.n ? ` (incl. ${m.n} missed: feed problem, ${rs(m.net, 1)})` : ''; };
   function renderToday() {
     $('g-today-sub').textContent = `${dlabel(doc.day)} · ${plural(CLOSED.length, 'closed trade')}${missedTxt(CLOSED)} · each with its own chart · times in India (IST)`;
@@ -524,7 +525,7 @@
         <div class="g-tf"><span class="w ${cls(t.net)}">${esc(soldText(t))}</span><button type="button" class="g-btn" data-k="${esc(t.key)}">Open chart</button></div></article>`).join('')
       : `<div class="g-empty">${doc.status === 'no session' ? 'No trade today.' : 'No closed trade yet today.'}</div>`;
     $('g-skip').textContent = skipText(doc.skipped);
-    $('g-gaps').textContent = gapText(doc.gaps);
+    $('g-gaps').textContent = [missedOf(CLOSED).n ? MISSED_NOTE : '', gapText(doc.gaps)].filter(Boolean).join(' ');
   }
   $('g-tcards').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (b) openBig(b.dataset.k); });
 
@@ -587,7 +588,7 @@
         <span>${esc(t.name)} ${esc(t.opt)}${t.replayed ? '<span class="g-rep" title="Missed live while the data feed was broken; shown as the bot would have traded it (replayed on the recorded prices and books)">missed (feed problem)</span>' : ''}</span><span class="w">${HOW[t.how] || esc(t.how)}</span><span class="n ${cls(t.net)}">${rs(t.net, 1)}</span></button>`).join('')
       : '<div class="g-dempty">No trade this day.</div>';
     $('g-day-skip').textContent = skipText(d.skipped);
-    $('g-day-gaps').textContent = gapText(d.gaps);
+    $('g-day-gaps').textContent = [missedOf(d.trades).n ? MISSED_NOTE : '', gapText(d.gaps)].filter(Boolean).join(' ');
   }
   $('g-grid').addEventListener('click', e => { const b = e.target.closest('button[data-d]'); if (!b || !doc) return; calSel = b.dataset.d; calSig = null; renderCal(); });
   $('g-prev').addEventListener('click', () => { if (calMonth) { calMonth = mshift(calMonth, -1); calSig = null; renderCal(); } });
