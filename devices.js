@@ -157,7 +157,7 @@
       st = judge(age);
     }
     if (p.bad) st = 'red';
-    if (!open || p.open === false) st = 'closed';
+    if (p.open === false || (p.open !== true && !open)) st = 'closed';  // a source with its own hours (GIFT NIFTY) says so
     return { state: st, age, stale };
   }
   function feedRow(f, now) {
