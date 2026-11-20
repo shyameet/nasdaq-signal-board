@@ -402,3 +402,6 @@ main.old .sum, main.old section { opacity: .55; }
 .psec h3 small { margin-left: 8px; color: var(--muted); font-size: 12px; font-weight: 500; }
 .ptbl td .pl-w { color: var(--text); font-size: 12px; font-weight: 600; }
 .ptbl td.pl-n { min-width: 260px; max-width: 420px; }
+/* 20/11/2026: T1 = THE TREND TWIN's card beside the bots (its account's days) */
+.t1days { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
+.t1d { display: flex; justify-content: space-between; gap: 10px; }

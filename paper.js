@@ -243,11 +243,38 @@
     const foot = `<div class="bf">Today ${pnl(today)} · ${int(m.trades_today || 0)} closed${priced}${m.warns_today ? ` · <span class="down">${int(m.warns_today)} warning${m.warns_today === 1 ? '' : 's'}</span>` : ''}</div>`;
     return `<article class="card">${head}${kp}${trades}${bars}${foot}</article>`;
   }
+  // owner 20/11/2026 ("Yes, add T1"): T1 = THE TREND TWIN beside the bots, from the plan fleets document (plans.json): its account,
+  // the session so far (the live view, provisional) and its trades when the feed carries them
+  function t1Card() {
+    const f = plDoc && !plDoc.withheld ? (plDoc.fleets || []).find(x => x.trend_twin) : null;
+    if (!f) return '';
+    const A = f.accounts || [], a = A.filter(x => !x[4]).pop() || A[A.length - 1];
+    const lv = plDoc.live && f.live ? plDoc.live.session : null;
+    const ad = a ? (a[10] || []) : [], last = ad[ad.length - 1];
+    const todayRow = lv ? ad.find(x => x[0] === lv) : null, tdy = todayRow ? todayRow[1] : (lv ? 0 : null);
+    const st = a ? (a[4] ? (/fail/.test(a[4]) ? 'failed' : 'ended') : a[5] === 'funded' ? 'funded' : 'evaluation') : '';
+    const head = `<div class="bh"><span class="acct">T1 · the trend twin</span>${stChip(st)}${lv ? '<span class="tagx prim">live view, provisional</span>' : ''}</div>`
+      + `<div class="bsub">Trend Trades 2NQ · ${esc(f.plan)} · ${esc(buyTxt(f.buying))}</div>`;
+    if (!a) return `<article class="card">${head}<div class="muted">No account bought yet.</div></article>`;
+    const kp = `<div class="kpis"><div class="kpi"><span class="lbl">Account #${int(a[0])} since bought</span><span class="big ${cls(last && last[4])}">${last ? sgn(last[4]) : '–'}</span>`
+      + `<span class="sm">bought ${esc(day(a[1]))} · ${a[5] === 'funded' ? 'funded day ' + int(a[7]) : 'evaluation day ' + int(a[6])}</span></div>`
+      + `<div class="kpi"><span class="lbl">Today</span><span class="big ${cls(tdy)}">${ok(tdy) ? sgn(tdy) : '–'}</span>`
+      + `<span class="sm">${lv ? 'session ' + esc(day(lv)) + ' so far' : 'no session now'}</span></div></div>`;
+    const days = ad.map(x => `<div class="t1d"><span>${esc(day(x[0]))}${lv && x[0] === lv ? ' · live' : ''}</span><span class="num ${cls(x[1])}">${sgn(x[1])}</span></div>`).join('');
+    const T = plDoc.t1 && Array.isArray(plDoc.t1.trades) ? plDoc.t1.trades : null;
+    const trades = T ? (T.length ? T.map(o => `<div class="trade"><div class="tl">${sideChip(o.side, o.size)}<span class="pnl ${cls(o.pnl)}">${ok(o.pnl) ? sgn(o.pnl) : 'open'}</span></div>`
+      + `<div class="tp"><span>in ${esc(ct(o.entry_t).slice(0, 5))} <b>${px(o.entry_px)}</b></span><span>${o.exit_t ? `out ${esc(ct(o.exit_t).slice(0, 5))} <b>${px(o.exit_px)}</b>` : 'still open'}</span></div></div>`).join('')
+      : '<div class="trade flat"><div class="tl"><span class="pos flat">FLAT</span> no trade this session</div></div>')
+      : '<div class="trade flat"><div class="tl muted">Trades: not in the feed yet</div></div>';
+    const foot = `<div class="bf">Fees ${usd(f.fees)} · payouts ${usd(f.recv)} · cash result ${pnlUsd(f.net)} · ${int(f.bought)} bought, ${int(f.passed)} passed</div>`;
+    return `<article class="card">${head}${kp}<div class="t1days">${days}</div>${trades}${foot}</article>`;
+  }
   function renderBots() {
     const ms = doc.masters || [];
     const ss = ms.map(m => m.session).filter(isDate).sort();
-    $('live-sub').textContent = (ss.length ? `session ${day(ss[ss.length - 1])} · ` : '') + 'the 4 bots on NinjaTrader Sim';
-    $('bots').innerHTML = ms.length ? ms.map(botCard).join('') : '<div class="empty">No bot data.</div>';
+    const t1 = t1Card();
+    $('live-sub').textContent = (ss.length ? `session ${day(ss[ss.length - 1])} · ` : '') + 'the 4 bots on NinjaTrader Sim' + (t1 ? ' · T1, the trend twin' : '');
+    $('bots').innerHTML = ms.length || t1 ? ms.map(botCard).join('') + t1 : '<div class="empty">No bot data.</div>';
   }
 
   // 3. all paper accounts
@@ -659,10 +686,9 @@
       }
     } catch (e) { plansErr = true; } finally { plansBusy = false; plansAt = Date.now(); }
     renderPlans();
+    if (doc && !doc.withheld) renderBots();  // 20/11: the overview's T1 card reads this document too
   }
-  setInterval(() => { if (view === 'plans' && !document.hidden && Date.now() - plansAt > 60000) loadPlans(); }, 5000);
-  const PL_GRP = [['twin', 'S1 · the twin'], ['pick', 'Picks · the one best plan per firm (15 Nov)'], ['test', 'Test fleets · S2–S5, G3–G5'], ['rest', 'Every other plan']];
-  const plGrp = f => f.twin ? 'twin' : f.pick ? 'pick' : f.extra ? 'test' : 'rest';
+  setInterval(() => { if (view !== 'trades' && !document.hidden && Date.now() - plansAt > 60000) loadPlans(); }, 5000);
   const plMk = f => `${f.strategy} ${f.market} ${f.size}${f.kind === 'direct' ? ' · direct' : ''}`;
   const plDay = s => { const t = Date.parse(s + 'T12:00:00Z'); return isFinite(t) ? new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) : '–'; };
   // owner 16/11/2026: the buying rules in plain words (the record's ids: wait1 / one / demo)
@@ -781,10 +807,19 @@
     return s;
   }
   const trading = f => (f.days || []).reduce((a, d) => a + (d[1] || 0), 0);
-  const RULE_SEC = [['twins', 'The twins', 'S1 = THE TWIN: Nasdaq Scalper W4 on Topstep 50K, 1 a day and wait 1 day after a fail. T1 = THE TREND TWIN: Trend Trades 2NQ on Topstep 50K, one evaluation at a time, Topstep’s news rule, its own record from the 18 Nov session. Both at $85 a month.'],
-    ['wait1', '1 a day, wait 1 day after a fail', 'At most one new evaluation a day, and none on the day after an evaluation failed. Every plan runs this.'],
-    ['one', '1 a day', 'At most one new evaluation a day. Gold plans also run this, to compare with the rule above.'],
-    ['test', 'Test fleets', 'S2–S5 (Topstep 50K) and G3–G5 (Tradeify Growth 50K gold): other buying rules and sizes for comparison.']];
+  // owner 20/11/2026 (approved layout): three blocks, one a strategy; each lists its plans sorted by trading P&L, its twin at
+  // the top; Trend: T1 first, then the TREND WAY B rows (forex + futures; caps ON first, caps OFF labelled as an assumption)
+  const WAYB = 'TREND WAY B (forex + futures)';
+  const BLOCKS = [['Nasdaq', 'Scalper', 'Nasdaq Scalper W4. Its twin S1 (Topstep 50K) is at the top.'],
+    ['Gold', 'Gold', 'Gold TONL. Gold has no twin.'],
+    ['Trend', 'Trend Trades', 'T1 = THE TREND TWIN (Topstep 50K) first, then Trend Way B (forex + futures).']];
+  const byMoney = (x, y) => (trading(y) - trading(x)) || ((y.net || 0) - (x.net || 0));  // owner 20/11: trading P&L, ties by cash result
+  function wayBOrder(rows) {  // a plan's caps-ON line first and its caps-OFF line right after it; plans sorted by the first line's money
+    const u = new Map();
+    for (const f of rows) { const k = [f.plan, f.market, f.size, f.kind, f.buying].join('|'); if (!u.has(k)) u.set(k, []); u.get(k).push(f); }
+    const units = [...u.values()].map(g => g.sort((x, y) => (x.caps === 'off') - (y.caps === 'off')));
+    return units.sort((g, h) => byMoney(g[0], h[0])).flat();
+  }
   function renderPlans() {
     const box = $('plans'), sub = $('pl-sub');
     if (!plDoc) { box.innerHTML = `<div class="empty">${plansErr ? 'The plan fleets are not in the feed yet. Retrying every minute.' : 'Loading the plan fleets…'}</div>`; return; }
@@ -813,10 +848,10 @@
     const ncol = lv ? 9 : 8;
     const row = f => {
       const flag = (f.twin ? '<span class="pfl tw">S1 · the twin</span>' : f.trend_twin ? '<span class="pfl tw">T1 · the trend twin</span>' : f.extra ? `<span class="pfl">${esc(f.extra)}</span>` : f.pick ? '<span class="pfl pk">pick</span>' : '')
-        + (CAPS[f.caps] ? `<span class="pfl cap ${esc(f.caps)}" title="${esc(CAPS[f.caps][1])}">${esc(CAPS[f.caps][0])}</span>` : '')
+        + (CAPS[f.caps] ? `<span class="pfl cap ${esc(f.caps)}" title="${esc(CAPS[f.caps][1])}">${esc(f.group === WAYB && f.caps === 'off' ? 'no payout cap (assumption)' : CAPS[f.caps][0])}</span>` : '')
         + (f.live ? '<span class="pfl lv" title="provisional: today&#39;s session so far">live</span>' : '');
       const open = plOpen === f.id, td = today(f), tp = trading(f);
-      const what = `${f.strategy === 'Gold' ? 'Gold' : f.strategy === 'Trend' ? 'Trend Trades' : 'Nasdaq'} ${f.size}${f.kind === 'direct' ? ' · direct' : ''}${f.extra || isTw(f) ? ' · ' + buyTxt(f.buying) : ''}`;
+      const what = `${f.strategy === 'Gold' ? 'Gold' : f.strategy === 'Trend' ? 'Trend Trades' : 'Scalper'} ${f.size}${f.kind === 'direct' ? ' · direct' : ''} · ${buyTxt(f.buying)}`;
       return `<tr class="prow${open ? ' on' : ''}" data-id="${esc(f.id)}" tabindex="0" aria-expanded="${open}"><td class="pl-n"><b>${esc(f.plan)}</b>${flag}`
         + `<br><span class="pl-w">${esc(what)}</span><br><span class="muted">${esc(setTxt(f))}</span></td>`
         + `<td class="r num ${cls(f.net)}"><b>${sgn0(f.net)}</b></td><td class="r num ${cls(tp)}">${sgn0(tp)}</td>`
@@ -826,24 +861,19 @@
         + (open ? `<tr class="pdet"><td colspan="${ncol}">${plDetail(f)}</td></tr>` : '');
     };
     let html = '';
-    for (const [rule, name, what] of RULE_SEC) {
-      const rows = fl.filter(f => rule === 'twins' ? isTw(f) : rule === 'test' ? !!f.extra : (!f.extra && !isTw(f) && f.buying === rule));
-      const t1wait = rule === 'twins' && plDoc.t1 && !all.some(f => f.trend_twin) && plFilt.mkt === 'futures' && (!plFilt.strat || plFilt.strat === 'Trend')
+    for (const [key, name, what] of BLOCKS) {
+      if (plFilt.strat && plFilt.strat !== key) continue;
+      const rows = fl.filter(f => f.strategy === key);
+      const tw = rows.filter(isTw), wb = rows.filter(f => !isTw(f) && f.group === WAYB), rest = rows.filter(f => !isTw(f) && f.group !== WAYB).sort(byMoney);
+      const t1wait = key === 'Trend' && plDoc.t1 && !all.some(f => f.trend_twin) && plFilt.mkt === 'futures'
         ? `<tr class="grp"><td colspan="${ncol}">T1 · THE TREND TWIN (Topstep 50K, Trend Trades) · ${esc(plDoc.t1.status || 'not built yet')}</td></tr>` : '';
-      if (!rows.length && !t1wait) continue;
+      let body = tw.map(row).join('') + t1wait + rest.map(row).join('');
+      if (key === 'Trend') body += `<tr class="grp"><td colspan="${ncol}">Trend Way B (forex + futures)${wb.length ? `<span>${int(wb.length)}</span>` : ''}</td></tr>`
+        + (wb.length ? wayBOrder(wb).map(row).join('') : `<tr><td colspan="${ncol}" class="muted">No Trend Way B fleet in the feed yet.</td></tr>`);
+      if (!body) continue;
       const cash = rows.reduce((a, f) => a + (f.net || 0), 0), tp = rows.reduce((a, f) => a + trading(f), 0);
-      let body = '';
-      const flat = rule === 'test' || rule === 'twins';
-      for (const [g] of PL_GRP) {
-        if (g === 'test') continue;
-        const rr = flat ? (g === 'rest' ? rows : []) : rows.filter(f => plGrp(f) === g);
-        if (!rr.length) continue;
-        if (!flat) body +=`<tr class="grp"><td colspan="${ncol}">${esc(g === 'pick' ? 'Picks · the best plan per firm (15 Nov)' : g === 'twin' ? 'S1 · the twin (Topstep 50K)' : 'Every other plan')}<span>${int(rr.length)}</span></td></tr>`;
-        body += rr.map(row).join('');
-      }
-      body += t1wait;
       html += `<section class="psec"><h3>${esc(name)} <small>${int(rows.length)} fleet${rows.length === 1 ? '' : 's'} · cash result <b class="${cls(cash)}">${sgn0(cash)}</b> · trading P&amp;L <b class="${cls(tp)}">${sgn0(tp)}</b></small></h3>`
-        + `<p class="pkey">${esc(what)}</p><div class="ptw"><table class="ptbl">${head}<tbody>${body}</tbody></table></div></section>`;
+        + `<p class="pkey">${esc(what)} Sorted by trading P&amp;L.</p><div class="ptw"><table class="ptbl">${head}<tbody>${body}</tbody></table></div></section>`;
     }
     const banner = lv ? `<div class="pl-live"><b>Live · ${esc(plDay(lv.session))} session so far</b> · as of ${esc(tm(lv.asof_ct))} CT, last bar ${esc(tm(lv.last_bar_ct))} CT <span class="muted">· ${esc(lv.note)}</span></div>` : '';
     const key = '<p class="pkey"><b>Cash result</b> = payouts received − fees paid: the real money so far. Until a payout comes it is just minus the fees, which is why it can look like the Fees column. '
@@ -881,6 +911,6 @@
   });
   plansReady = true;
 
-  function start() { setBar(); paint(); poll(); if (view === 'plans') loadPlans(); }
+  function start() { setBar(); paint(); poll(); if (view !== 'trades') loadPlans(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
