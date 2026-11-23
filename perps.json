@@ -151,5 +151,10 @@
     "SUI": {"ticker": "SUI", "company": "Sui"},
     "LINK": {"ticker": "LINK", "company": "Chainlink"},
     "AVAX": {"ticker": "AVAX", "company": "Avalanche"}
+  },
+  "metals_note": "Owner 23/11/2026: Hyperliquid gold and silver (trade.xyz perps, 24/7 incl. weekends) as a third list, Gold & silver; every day archived (data/perps/1m GOLD / SILVER; 18/10 - 22/11/2026 filled from the VPS's Hyperliquid 1m archive).",
+  "metals": {
+    "xyz:GOLD": {"ticker": "GOLD", "company": "Gold (Hyperliquid, 24/7)", "kind": "metal"},
+    "xyz:SILVER": {"ticker": "SILVER", "company": "Silver (Hyperliquid, 24/7)", "kind": "metal"}
   }
 }

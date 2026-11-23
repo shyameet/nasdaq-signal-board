@@ -237,9 +237,9 @@ const VPS = {
   SBIN: { name: 'SBI', sub: 'State Bank of India', kind: 'india', origin: NSE_OPEN, digits: 2, macdDigits: 3 },
 };
 const DEFAULTS = { a: 'hl:' + BENCH, b: 'MNQ' };  // a first visit: the Nasdaq tab's pair, XYZ100 and MNQ
-let BASKET = null, PERPS = { members: {}, more: {}, crypto: {}, groups: [] }, ACTIVE = [];
+let BASKET = null, PERPS = { members: {}, more: {}, crypto: {}, metals: {}, groups: [] }, ACTIVE = [];
 const tk = c => c.replace(/^xyz:/, '');
-const perpOf = c => PERPS.members[c] || PERPS.more[c] || PERPS.crypto[c] || null;  // the Perps tab's own (perps.json)
+const perpOf = c => PERPS.members[c] || PERPS.more[c] || PERPS.crypto[c] || PERPS.metals[c] || null;  // the Perps tab's own (perps.json)
 const hlName = c => perpOf(c) && perpOf(c).ticker && !PERPS.crypto[c] ? perpOf(c).ticker : /^xyz:/.test(c) || !c.includes(':') ? tk(c) : c;  // the Perps tab's name; else xyz's and the main dex's by name, another dex's with its dex
 // the Nasdaq tab's composite: your stocks (the pick every tab shares), each counting equally
 const SEL_KEY = 'nsb.div.stocks';
@@ -1004,6 +1004,7 @@ const BOARD = () => [
   ['mcx', 'MCX', ['CRUDEOILM', 'NATGASMINI', 'GOLDM', 'SILVERM', 'COPPER']],
   ['india', 'India', ['NIFTY', 'BANKNIFTY', 'GIFTNIFTY', 'RELIANCE', 'HDFCBANK', 'ICICIBANK', 'BHARTIARTL', 'LT', 'KOTAKBANK', 'AXISBANK', 'SBIN']],
   ['coins', 'Crypto', Object.keys(PERPS.crypto).map(c => 'hl:' + c)],  // (not 'crypto': the stocks' Crypto-linked group)
+  ['metals', 'Gold & silver (Hyperliquid)', Object.keys(PERPS.metals).map(c => 'hl:' + c)],  // owner 23/11/2026: xyz:GOLD, xyz:SILVER (24/7)
 ];
 const ORDERED = new Set(['nasdaq', 'cme', 'mcx', 'india']);
 function finderItems() {  // every market a chart can show, each once, with every group it is in
@@ -1157,7 +1158,7 @@ NsbMacd.onToggle(() => { for (const p of panelList()) { p.regate(); for (const p
   try {
     loading('Loading the list of markets…');
     const [b, j] = await Promise.all([fetch('basket.json', { cache: 'no-cache' }).then(r => r.json()), fetch('perps.json', { cache: 'no-cache' }).then(r => r.json())]);
-    BASKET = b; PERPS = { members: j.members || {}, more: j.more || {}, crypto: j.crypto || {}, groups: j.groups || [] };
+    BASKET = b; PERPS = { members: j.members || {}, more: j.more || {}, crypto: j.crypto || {}, metals: j.metals || {}, groups: j.groups || [] };
     readPick();
     await Promise.all([readArchives(), readFut(), readInd(), NsbRolls.load()]);
     // drawings: draw.js keeps one set of drawings per page at a time (NsbDraw.use switches the whole page), so the two charts

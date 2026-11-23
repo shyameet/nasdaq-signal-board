@@ -139,7 +139,7 @@
 <header class="topbar">
   <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
   <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" aria-current="page" title="Stock and crypto perps">Perps</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html">Paper</a><!-- What If link hidden (owner 17/11/2026: "remove the what if section from the website for now"; the page and its nightly stay) --></nav>
-  <div class="grp"><div class="seg" id="kindSeg" role="group" aria-label="Stocks or crypto"></div>
+  <div class="grp"><div class="seg" id="kindSeg" role="group" aria-label="Stocks, crypto or gold and silver"></div>
     <button type="button" class="step-btn" id="prevBtn" title="The previous market in the group" aria-label="Previous market">‹</button>
     <button type="button" class="nf-btn" id="pickBtn" aria-haspopup="dialog" aria-expanded="false" title="Pick a market (or press /)"><b id="pickTk">—</b><span id="pickCo"></span><i>▼</i></button>
     <button type="button" class="step-btn" id="nextBtn" title="The next market in the group" aria-label="Next market">›</button>
@@ -165,7 +165,8 @@ const ZONE = { BULLISH: 'rgba(43, 182, 138, 0.11)', BEARISH: 'rgba(240, 85, 95, 
 const SWING_ZONE = { BULLISH: 'rgba(43, 182, 138, 0.13)', BEARISH: 'rgba(240, 85, 95, 0.12)' };
 const WORD = { BULLISH: 'LONG', BEARISH: 'SHORT', NEUTRAL: 'NO TRADE' };
 const TFS = [1, 2, 3, 5];
-const KINDS = [['Stocks', 'stocks'], ['Crypto', 'crypto']], FIRST = { stocks: 'xyz:NVDA', crypto: 'BTC' };  // the two lists, and who opens each
+const KINDS = [['Stocks', 'stocks'], ['Crypto', 'crypto'], ['Gold & silver', 'metals']], FIRST = { stocks: 'xyz:NVDA', crypto: 'BTC', metals: 'xyz:GOLD' };  // the lists, and who opens each (Gold & silver: owner 23/11/2026, Hyperliquid's xyz:GOLD and xyz:SILVER)
+const PREFK = { stocks: 'stock', crypto: 'crypto', metals: 'metal' };  // the setting that remembers each list's market
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const $ = id => document.getElementById(id);
 const two = n => String(n).padStart(2, '0');
@@ -687,15 +688,15 @@ function seg(el, items, current, onPick) {
   el.innerHTML = items.map(([label, val]) => `<button type="button" data-v="${val}" aria-pressed="${String(val) === String(current)}">${label}</button>`).join('');
   for (const b of el.children) b.onclick = () => { onPick(b.dataset.v); for (const x of el.children) x.setAttribute('aria-pressed', String(x === b)); };
 }
-const picked = k => { const c = pref(k === 'stocks' ? 'stock' : 'crypto', null); return LISTS[k].includes(c) ? c : LISTS[k].includes(FIRST[k]) ? FIRST[k] : LISTS[k][0]; };
+const picked = k => { const c = pref(PREFK[k], null); return LISTS[k].includes(c) ? c : LISTS[k].includes(FIRST[k]) ? FIRST[k] : LISTS[k][0]; };
 
 // ---- the market finder (owner 3/11/2026: "add all the stocks from hyperliquid but how would we categorize so much in a
 // drop down list" -> "(a) The finder in the picture"; finder.js, shared with the Compare tab): the stocks' sector groups
 // (perps.json "groups"), ★ My list, MyFundedPerps (the stocks it lists), All; crypto: its ten, busiest first. ‹ › step
 // through the group shown, the busiest first, without opening it
 let finder = null;
-const groupOf = () => { if (KIND === 'crypto') return 'all'; const g = pref('group', null); return g && (['star', 'mfp', 'all'].includes(g) || GROUPS.some(x => x[0] === g)) ? g : NsbFinder.stars().length ? 'star' : 'mfp'; };
-const groupName = g => g === 'star' ? 'My list' : g === 'mfp' ? 'MyFundedPerps' : g === 'all' ? (KIND === 'crypto' ? 'Crypto' : 'All') : (GROUPS.find(x => x[0] === g) || [g, g])[1];
+const groupOf = () => { if (KIND !== 'stocks') return 'all'; const g = pref('group', null); return g && (['star', 'mfp', 'all'].includes(g) || GROUPS.some(x => x[0] === g)) ? g : NsbFinder.stars().length ? 'star' : 'mfp'; };
+const groupName = g => g === 'star' ? 'My list' : g === 'mfp' ? 'MyFundedPerps' : g === 'all' ? (KIND === 'crypto' ? 'Crypto' : KIND === 'metals' ? 'Gold & silver' : 'All') : (GROUPS.find(x => x[0] === g) || [g, g])[1];
 const finderItems = () => LISTS[KIND].map(c => { const m = MEMBERS[c], mfp = KIND === 'stocks' && ARCHIVED.has(c);
   return { id: c, coin: c, ticker: tk(c), name: m.company, kind: m.kind, mfp, groups: [...(m.groups || []), ...(mfp ? ['mfp'] : [])], where: m.where }; });
 function stepList() {  // the group's markets, busiest first; the market shown is not in it (found by searching): the whole list
@@ -717,7 +718,7 @@ function updatePick() {  // the market button and "5 of 22 · Chips & memory"
 function finderEvents() {
   finder = NsbFinder.make({
     anchor: $('pickBtn'), items: finderItems, current: () => COIN, mfp: () => KIND === 'stocks',
-    chips: () => KIND === 'crypto' ? [] : [['star', '★ My list'], ['mfp', 'MyFundedPerps'], ['all', 'All'], ...GROUPS],
+    chips: () => KIND !== 'stocks' ? [] : [['star', '★ My list'], ['mfp', 'MyFundedPerps'], ['all', 'All'], ...GROUPS],
     chip: groupOf, setChip: g => { save('group', g); updatePick(); }, onStars: updatePick,
     onPick: c => showMarket(c, KIND),
   });
@@ -765,7 +766,7 @@ async function showMarket(next, kind) {  // another market: its own drawings, it
     use(was, wasKind, wasList); liveSwap(next, was);
     return false;
   }
-  save(kind === 'stocks' ? 'stock' : 'crypto', next); save('kind', kind);
+  save(PREFK[kind], next); save('kind', kind);
   return true;
 }
 function listDays() {  // newest first: the Indian days of the archived UTC days (the market shown has them) and of the days Hyperliquid still has
@@ -923,11 +924,11 @@ NsbMacd.onToggle(() => { for (const p of Object.values(panels)) { if (day && day
   try {
     loading('Loading the list of days…');
     const j = await (await fetch('perps.json', { cache: 'no-cache' })).json();
-    MEMBERS = { ...(j.more || {}), ...j.members, ...j.crypto };
-    LISTS = { stocks: [...Object.keys(j.members), ...Object.keys(j.more || {})], crypto: Object.keys(j.crypto || {}) };
-    ARCHIVED = new Set([...Object.keys(j.members), ...Object.keys(j.crypto || {})]);  // their every day archived (data/perps/1m)
+    MEMBERS = { ...(j.more || {}), ...j.members, ...j.crypto, ...(j.metals || {}) };
+    LISTS = { stocks: [...Object.keys(j.members), ...Object.keys(j.more || {})], crypto: Object.keys(j.crypto || {}), metals: Object.keys(j.metals || {}) };
+    ARCHIVED = new Set([...Object.keys(j.members), ...Object.keys(j.crypto || {}), ...Object.keys(j.metals || {})]);  // their every day archived (data/perps/1m)
     GROUPS = j.groups || [];
-    KIND = pref('kind', 'stocks') === 'crypto' && LISTS.crypto.length ? 'crypto' : 'stocks';
+    { const k0 = pref('kind', 'stocks'); KIND = LISTS[k0] && LISTS[k0].length ? k0 : 'stocks'; }
     ALL = LISTS[KIND];
     COIN = picked(KIND);
     [archiveDays, hlFrom] = [await archiveIndex(), hlEarliest()];
