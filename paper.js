@@ -947,11 +947,13 @@
     const box = $('botdays');
     if (!bdDoc) { box.innerHTML = `<div class="empty">${bdErr ? 'The bot-days history is not on the site yet.' : 'Loading…'}</div>`; return; }
     const { S, liveN } = bdSeries();
-    const lines = bdDoc.lines.filter(l => bdFilt.set === 'all' || l.role === 'live');
-    const keys = lines.map(l => l.key);
-    const allDays = [...new Set(keys.flatMap(k => [...S[k].keys()]))].sort();
+    const lines0 = bdDoc.lines.filter(l => bdFilt.set === 'all' || l.role === 'live');
+    const allDays = [...new Set(lines0.flatMap(l => [...S[l.key].keys()]))].sort();
     if (!allDays.length) { box.innerHTML = '<div class="empty">No day yet.</div>'; return; }
     const span = bdFilt.span === 'all' ? allDays : allDays.slice(-Number(bdFilt.span));
+    // a line with no day in the span (e.g. Scalper W4 before the VPS paper line starts) is listed, not counted
+    const lines = lines0.filter(l => span.some(d => ok(S[l.key].get(d)))), waiting = lines0.filter(l => !lines.includes(l));
+    const keys = lines.map(l => l.key);
     const lab = k => (bdDoc.lines.find(l => l.key === k) || {}).label || k;
     $('bd-sub').textContent = `${allDays.length} sessions, ${plDay(allDays[0])} to ${plDay(allDays[allDays.length - 1])}`
       + (liveN ? ` · ${liveN} VPS paper line${liveN === 1 ? '' : 's'} add the days after ${plDay(bdDoc.to)}` : ' · the history so far; the VPS paper lines add the new days');
@@ -996,7 +998,8 @@
     for (const d of span) { let bk = null, bv = -Infinity; for (const k of keys) { const v = S[k].get(d); if (ok(v) && v > bv) { bv = v; bk = k; } } if (bk) best[bk] = (best[bk] || 0) + 1; }
     const div = `<p class="pkey"><b>${int(allLost)}</b> of ${int(span.length)} days every line lost · <b>${int(anyLost)}</b> days at least one lost · the best line each day: `
       + keys.map(k => `${esc(k)} ${int(best[k] || 0)}`).join(', ') + '.</p>';
-    box.innerHTML = `<p class="pkey">${esc(bdDoc.note)} The evaluation lines trade the passing size, so their days are bigger than the funded lines' days.</p>`
+    const wait = waiting.length ? `<p class="pkey">Waiting for the VPS paper line: ${waiting.map(l => `<b>${esc(l.key)}</b> ${esc(l.label)}`).join(' · ')}.</p>` : '';
+    box.innerHTML = `<p class="pkey">${esc(bdDoc.note)} The evaluation lines trade the passing size, so their days are bigger than the funded lines' days.</p>${wait}`
       + `<section class="psec"><h3>Each line <small>over the days shown</small></h3>${sumT}</section>`
       + `<section class="psec"><h3>Day by day <small>newest first</small></h3>${grid}</section>`
       + `<section class="psec"><h3>How diversified <small>every pair over the days shown; near 0 = they do not move together</small></h3>${div}${pairT}</section>`
