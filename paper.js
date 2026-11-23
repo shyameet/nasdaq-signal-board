@@ -61,7 +61,7 @@
   // owner 11/11/2026: the live trades are their own view (the page no longer grows with them), one session at a time;
   // #trades opens that view (a bookmark or a link), the overview is the page without a hash
   // owner 15/11/2026: #plans = the plan fleets view
-  const VIEWS = { '#trades': 'trades', '#plans': 'plans' };
+  const VIEWS = { '#trades': 'trades', '#plans': 'plans', '#botdays': 'botdays' };
   let view = VIEWS[location.hash] || 'main', trSess = null;
 
   // ---------------------------------------------------------------- the feed
@@ -162,15 +162,16 @@
 
   // ---------------------------------------------------------------- render
   function setView(v, push) {
-    view = v === 'trades' || v === 'plans' ? v : 'main';
+    view = v === 'trades' || v === 'plans' || v === 'botdays' ? v : 'main';
     for (const s of document.querySelectorAll('main > section[data-view]')) s.hidden = s.dataset.view !== view;
     for (const b of document.querySelectorAll('#views button')) b.setAttribute('aria-pressed', b.dataset.view === view ? 'true' : 'false');
-    $('sum').hidden = view === 'plans';  // the Lucid summary strip is not about the plan fleets
+    $('sum').hidden = view === 'plans' || view === 'botdays';  // the Lucid summary strip is not about the plan fleets
     if (push) {
       try { history.replaceState(null, '', view === 'main' ? location.pathname + location.search : '#' + view); } catch (e) { /* the view still switches */ }
       window.scrollTo(0, 0);
     }
     if (view === 'plans' && plansReady) loadPlans();  // plansReady: set once the plans block below has run
+    if (view === 'botdays' && bdReady) loadBotDays();
   }
   $('views').addEventListener('click', e => { const b = e.target.closest('button[data-view]'); if (b) setView(b.dataset.view, true); });
   window.addEventListener('hashchange', () => setView(VIEWS[location.hash] || 'main', false));
@@ -812,7 +813,9 @@
   const WAYB = 'TREND WAY B (forex + futures)';
   const BLOCKS = [['Nasdaq', 'Scalper', 'Nasdaq Scalper W4. Its twin S1 (Topstep 50K) is at the top.'],
     ['Gold', 'Gold', 'Gold TONL. Gold has no twin.'],
-    ['Trend', 'Trend Trades', 'T1 = THE TREND TWIN (Topstep 50K) first, then Trend Way B (forex + futures).']];
+    ['Trend', 'Trend Trades', 'T1 = THE TREND TWIN (Topstep 50K) first, then Trend Way B (forex + futures).'],
+    // owner 23/11/2026: the one-small-trade combos as the accounts use them (an evaluation strategy, then a funded one), each strategy alone, and others
+    ['Combo', 'One small trade: combos', 'Evaluation strategy, then funded strategy, as the live accounts use them (Topstep: MGM 2nd, then gold capped; Tradeify Growth: Trend NQ 1st, then Bet 2nd), each strategy alone, and other pairings.']];
   const byMoney = (x, y) => (trading(y) - trading(x)) || ((y.net || 0) - (x.net || 0));  // owner 20/11: trading P&L, ties by cash result
   function wayBOrder(rows) {  // a plan's caps-ON line first and its caps-OFF line right after it; plans sorted by the first line's money
     const u = new Map();
@@ -851,7 +854,7 @@
         + (CAPS[f.caps] ? `<span class="pfl cap ${esc(f.caps)}" title="${esc(CAPS[f.caps][1])}">${esc(f.group === WAYB && f.caps === 'off' ? 'no payout cap (assumption)' : CAPS[f.caps][0])}</span>` : '')
         + (f.live ? '<span class="pfl lv" title="provisional: today&#39;s session so far">live</span>' : '');
       const open = plOpen === f.id, td = today(f), tp = trading(f);
-      const what = `${f.strategy === 'Gold' ? 'Gold' : f.strategy === 'Trend' ? 'Trend Trades' : 'Scalper'} ${f.size}${f.kind === 'direct' ? ' · direct' : ''} · ${buyTxt(f.buying)}`;
+      const what = `${f.strategy === 'Combo' ? (f.combo || 'One small trade') : f.strategy === 'Gold' ? 'Gold' : f.strategy === 'Trend' ? 'Trend Trades' : 'Scalper'} ${f.size}${f.kind === 'direct' ? ' · direct' : ''} · ${buyTxt(f.buying)}`;
       return `<tr class="prow${open ? ' on' : ''}" data-id="${esc(f.id)}" tabindex="0" aria-expanded="${open}"><td class="pl-n"><b>${esc(f.plan)}</b>${flag}`
         + `<br><span class="pl-w">${esc(what)}</span><br><span class="muted">${esc(setTxt(f))}</span></td>`
         + `<td class="r num ${cls(f.net)}"><b>${sgn0(f.net)}</b></td><td class="r num ${cls(tp)}">${sgn0(tp)}</td>`
@@ -911,6 +914,103 @@
   });
   plansReady = true;
 
-  function start() { setBar(); paint(); poll(); if (view !== 'trades') loadPlans(); }
+  // ---------------------------------------------------------------- Bot days (owner 23/11/2026)
+  // "which bot actually makes money on a daily basis, and how diversified are they": each one-small-trade line's own day (one trade,
+  // a plain account, the setting in force that day, picked from earlier days only) from data/botdays.json (built on SUMEET-PC from
+  // 2 Feb), then the VPS's paper days: plans.json fleets with a line_key (group ONE-TRADE SINGLES) add the sessions after the history.
+  var bdReady = false;
+  let bdDoc = null, bdErr = false;
+  const bdFilt = { set: 'live', span: '20' };
+  async function loadBotDays() {
+    try {
+      if (!bdDoc) { const j = await getJson('data/botdays.json', { cache: 'no-cache' }); if (j && j.kind === 'botdays') bdDoc = j; else bdErr = true; }
+    } catch (e) { bdErr = true; }
+    if (!plDoc && plansReady) { try { await loadPlans(); } catch (e) { /* the history alone still shows */ } }
+    renderBotDays();
+  }
+  function bdSeries() {  // {key: Map(day -> $)}: the history, then the VPS's later paper days
+    const S = {}, cols = bdDoc.cols;
+    for (const k of cols) S[k] = new Map();
+    for (const r of bdDoc.days) cols.forEach((k, i) => { if (ok(r[i + 1])) S[k].set(r[0], r[i + 1]); });
+    const live = plDoc && !plDoc.withheld ? (plDoc.fleets || []).filter(f => f.line_key && S[f.line_key]) : [];
+    for (const f of live) for (const d of (f.days || [])) if (d[0] > bdDoc.to && ok(d[1]) && d[1] !== 0) S[f.line_key].set(d[0], d[1]);
+    return { S, liveN: live.length };
+  }
+  function bdCorr(a, b) {
+    const n = a.length; if (n < 5) return null;
+    const ma = a.reduce((x, y) => x + y, 0) / n, mb = b.reduce((x, y) => x + y, 0) / n;
+    let sab = 0, saa = 0, sbb = 0;
+    for (let i = 0; i < n; i++) { sab += (a[i] - ma) * (b[i] - mb); saa += (a[i] - ma) ** 2; sbb += (b[i] - mb) ** 2; }
+    return saa && sbb ? sab / Math.sqrt(saa * sbb) : null;
+  }
+  function renderBotDays() {
+    const box = $('botdays');
+    if (!bdDoc) { box.innerHTML = `<div class="empty">${bdErr ? 'The bot-days history is not on the site yet.' : 'Loading…'}</div>`; return; }
+    const { S, liveN } = bdSeries();
+    const lines = bdDoc.lines.filter(l => bdFilt.set === 'all' || l.role === 'live');
+    const keys = lines.map(l => l.key);
+    const allDays = [...new Set(keys.flatMap(k => [...S[k].keys()]))].sort();
+    if (!allDays.length) { box.innerHTML = '<div class="empty">No day yet.</div>'; return; }
+    const span = bdFilt.span === 'all' ? allDays : allDays.slice(-Number(bdFilt.span));
+    const lab = k => (bdDoc.lines.find(l => l.key === k) || {}).label || k;
+    $('bd-sub').textContent = `${allDays.length} sessions, ${plDay(allDays[0])} to ${plDay(allDays[allDays.length - 1])}`
+      + (liveN ? ` · ${liveN} VPS paper line${liveN === 1 ? '' : 's'} add the days after ${plDay(bdDoc.to)}` : ' · the history so far; the VPS paper lines add the new days');
+    // each line over the span
+    const sumRows = lines.map(l => {
+      const v = span.map(d => S[l.key].get(d)).filter(ok);
+      const won = v.filter(x => x > 0).length, lost = v.filter(x => x < 0).length, tot = v.reduce((a, x) => a + x, 0);
+      return `<tr><td class="pl-n"><b>${esc(l.key)}</b> <span class="muted">${esc(l.label)}</span>${l.role === 'live' ? '<span class="pfl lv">live set</span>' : ''}</td><td class="r">${int(v.length)}</td><td class="r up">${int(won)}</td><td class="r down">${int(lost)}</td>`
+        + `<td class="r num ${cls(tot)}"><b>${sgn0(tot)}</b></td><td class="r num ${cls(tot)}">${v.length ? sgn0(tot / v.length) : '–'}</td><td class="r num">${v.length ? sgn0(Math.min(...v)) : '–'}</td></tr>`;
+    }).join('');
+    const sumT = `<div class="ptw"><table class="ptbl"><thead><tr><th>Line</th><th class="r">Days</th><th class="r">Won</th><th class="r">Lost</th><th class="r">Total</th><th class="r">Per day</th><th class="r">Worst day</th></tr></thead><tbody>${sumRows}</tbody></table></div>`;
+    // day by day, newest first
+    const maxAbs = Math.max(1, ...span.flatMap(d => keys.map(k => Math.abs(S[k].get(d) || 0))));
+    const cell = v => {
+      if (!ok(v)) return '<td class="bd-c none"></td>';
+      const a = Math.min(.85, .12 + .73 * Math.abs(v) / maxAbs);
+      return `<td class="bd-c" style="background:rgba(var(--${v >= 0 ? 'up' : 'down'}-rgb),${a.toFixed(2)})" title="${esc(sgn0(v))}"><span>${esc(k$(v))}</span></td>`;
+    };
+    const head = '<tr><th class="sticky">Day</th>' + keys.map(k => `<th class="bd-h" title="${esc(lab(k))}">${esc(k)}</th>`).join('') + '<th class="r">All</th></tr>';
+    const body = span.slice().reverse().map(d => {
+      const vs = keys.map(k => S[k].get(d)), t = vs.filter(ok).reduce((a, x) => a + x, 0);
+      const allLost = vs.every(v => ok(v) && v < 0);
+      return `<tr${allLost ? ' class="bd-all"' : ''}><th class="sticky">${esc(plDay(d))}</th>${vs.map(cell).join('')}<td class="r num ${cls(t)}">${esc(k$(t))}</td></tr>`;
+    }).join('');
+    const grid = `<div class="pgrid-w"><table class="pgrid bd-g"><thead>${head}</thead><tbody>${body}</tbody></table></div>`
+      + `<p class="pkey">${keys.map(k => `<b>${esc(k)}</b> ${esc(lab(k))}`).join(' · ')}. Green made money that day, red lost; a red mark on the day = every line lost.</p>`;
+    // how diversified: every pair over the span
+    const pr = [];
+    for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++) {
+      const a = keys[i], b = keys[j], cd = span.filter(d => ok(S[a].get(d)) && ok(S[b].get(d)));
+      const x = cd.map(d => S[a].get(d)), y = cd.map(d => S[b].get(d));
+      pr.push({ a, b, n: cd.length, c: bdCorr(x, y), bl: cd.filter(d => S[a].get(d) < 0 && S[b].get(d) < 0).length,
+        bw: cd.filter(d => S[a].get(d) > 0 && S[b].get(d) > 0).length, la: x.filter(v => v < 0).length, lb: y.filter(v => v < 0).length });
+    }
+    pr.sort((p, q) => (p.c == null) - (q.c == null) || (p.c || 0) - (q.c || 0));
+    const pairT = pr.length ? `<div class="ptw"><table class="ptbl"><thead><tr><th>Pair</th><th class="r" title="−1 opposite, 0 unrelated, +1 move together">Move together (−1 … +1)</th><th class="r">Both lost</th><th class="r">Both won</th><th class="r">Days</th></tr></thead><tbody>`
+      + pr.map(p => `<tr><td><b>${esc(p.a)}</b> × <b>${esc(p.b)}</b></td><td class="r num">${p.c == null ? '–' : (p.c >= 0 ? '+' : '−') + Math.abs(p.c).toFixed(2)}</td>`
+        + `<td class="r">${int(p.bl)} <span class="muted">of ${int(p.la)} / ${int(p.lb)}</span></td><td class="r">${int(p.bw)}</td><td class="r">${int(p.n)}</td></tr>`).join('') + '</tbody></table></div>' : '';
+    const allLost = span.filter(d => keys.every(k => ok(S[k].get(d)) && S[k].get(d) < 0)).length;
+    const anyLost = span.filter(d => keys.some(k => ok(S[k].get(d)) && S[k].get(d) < 0)).length;
+    const best = {};
+    for (const d of span) { let bk = null, bv = -Infinity; for (const k of keys) { const v = S[k].get(d); if (ok(v) && v > bv) { bv = v; bk = k; } } if (bk) best[bk] = (best[bk] || 0) + 1; }
+    const div = `<p class="pkey"><b>${int(allLost)}</b> of ${int(span.length)} days every line lost · <b>${int(anyLost)}</b> days at least one lost · the best line each day: `
+      + keys.map(k => `${esc(k)} ${int(best[k] || 0)}`).join(', ') + '.</p>';
+    box.innerHTML = `<p class="pkey">${esc(bdDoc.note)} The evaluation lines trade the passing size, so their days are bigger than the funded lines' days.</p>`
+      + `<section class="psec"><h3>Each line <small>over the days shown</small></h3>${sumT}</section>`
+      + `<section class="psec"><h3>Day by day <small>newest first</small></h3>${grid}</section>`
+      + `<section class="psec"><h3>How diversified <small>every pair over the days shown; near 0 = they do not move together</small></h3>${div}${pairT}</section>`
+      + `<p class="foot">History built ${esc(bdDoc.built)} on SUMEET-PC (paper research, unseen days). Paper only; nothing here trades.</p>`;
+  }
+  $('bd-filt').addEventListener('click', e => {
+    const b = e.target.closest('button[data-v]'), s = b && b.closest('.seg[data-bf]');
+    if (!s) return;
+    bdFilt[s.dataset.bf] = b.dataset.v;
+    for (const x of s.querySelectorAll('button')) x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+    renderBotDays();
+  });
+  bdReady = true;
+
+  function start() { setBar(); paint(); poll(); if (view !== 'trades') loadPlans(); if (view === 'botdays') loadBotDays(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

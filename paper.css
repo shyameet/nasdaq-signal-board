@@ -405,3 +405,9 @@ main.old .sum, main.old section { opacity: .55; }
 /* 20/11/2026: T1 = THE TREND TWIN's card beside the bots (its account's days) */
 .t1days { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
 .t1d { display: flex; justify-content: space-between; gap: 10px; }
+
+/* 23/11/2026: Bot days (each one-small-trade line's own day; how often they win or lose together) */
+.bd-g td.bd-c { min-width: 58px; text-align: right; font: 600 11.5px var(--font-num); color: var(--text); }
+.bd-g td.bd-c.none { background: repeating-linear-gradient(135deg, transparent 0 4px, var(--tile) 4px 5px); }
+.bd-g th.bd-h { font: 700 10.5px var(--font-num); letter-spacing: .04em; }
+.bd-g tr.bd-all th.sticky { box-shadow: inset 3px 0 0 var(--down); }
