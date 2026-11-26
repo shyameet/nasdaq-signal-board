@@ -73,58 +73,62 @@
   }
   @media (max-width: 490px) { .topbar .tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; } .topbar .tabs a { flex: none; padding: 4px 4px; font-size: 11.5px; } }
 
-  /* ---- the page: charts, one reading line above them ---- */
+  /* ---- the page: one strategy line, then the charts; the prices read inside each chart's corner ---- */
   .wrap { padding: 8px max(12px, env(safe-area-inset-right)) 20px max(12px, env(safe-area-inset-left)); display: grid; gap: 8px; }
-  .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; }
-  .head h1 { margin: 0; font-size: 15px; font-weight: 600; }
-  .head .when { font: 500 12.5px var(--font-num); color: var(--muted); }
-  .head .src { color: var(--faint); font-size: 12px; }
-  .read { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); font-size: 12px; white-space: nowrap; }
-  .chip b { color: var(--text); font: 600 14px var(--font-num); font-variant-numeric: tabular-nums; }
-  .chip i { align-self: center; flex: none; width: 12px; height: 3px; border-radius: 2px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .pill { display: inline-block; padding: 0 6px; border-radius: 9px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; }
-  .seglab { color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
-  /* ---- the strategy panel: one line of what and why, then a row of labelled boxes ---- */
-  .scard { display: grid; gap: 7px; padding: 8px 10px 9px; border: 1px solid rgba(91, 140, 255, .35); border-left: 3px solid var(--ma); border-radius: 10px; background: var(--surface); }
-  .sc-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12.5px; color: var(--muted); }
-  .sc-head .ttl { color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
-  .sc-head .day { color: var(--text); font-weight: 600; }
-  .sc-head .side { font-size: 12px; padding: 1px 9px; }
-  .sc-head .why b { color: var(--text); font: 600 12.5px var(--font-num); }
-  .sc-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }  /* 4 columns: two full rows (the result spans 2) */
-  @media (min-width: 1000px) { .sc-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); } }  /* one row */
-  .tile { min-width: 0; padding: 5px 9px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
-  .tile .k { display: block; color: var(--faint); font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tile .v { display: block; margin-top: 1px; font: 600 15px/1.25 var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .tile .s { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.3; }
-  .tile.res { grid-column: span 2; }
-  .tile.win { border-color: rgba(43, 182, 138, .55); background: rgba(43, 182, 138, .08); } .tile.win .v { color: var(--up); }
-  .tile.loss { border-color: rgba(240, 85, 95, .55); background: rgba(240, 85, 95, .08); } .tile.loss .v { color: var(--down); }
-  .tile.unsure { border-color: rgba(242, 179, 61, .5); background: rgba(242, 179, 61, .07); } .tile.unsure .v { color: var(--warn); }
-  .tile.ma { border-color: rgba(91, 140, 255, .45); } .tile.ma .v { color: #8fb0ff; }
-  .sc-note { margin: 0; color: var(--faint); font-size: 11.5px; }
-  .sc-note:empty { display: none; }
-  @media (max-width: 520px) { .sc-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; } .tile { padding: 4px 7px 5px; } .tile .v { font-size: 13.5px; } .tile .s { font-size: 10.5px; } .tile.res { grid-column: span 3; } }
   .pill.open { background: rgba(43, 182, 138, .16); color: var(--up); } .pill.shut { background: rgba(242, 179, 61, .14); color: var(--warn); }
-  .pill.long { background: rgba(43, 182, 138, .18); color: var(--up); } .pill.short { background: rgba(240, 85, 95, .18); color: var(--down); }
-  .chartbox { position: relative; height: clamp(400px, calc(100vh - 450px), 700px); display: grid; grid-template-rows: minmax(0, 74fr) minmax(0, 26fr);
+  .seglab { color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+  /* the strategy line: side, why, the trade, the result */
+  .sbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; padding: 7px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .sbar .side { flex: none; padding: 3px 12px; border-radius: 7px; font: 700 14px/1.2 var(--font-ui); letter-spacing: .06em; }
+  .side.long { background: rgba(43, 182, 138, .16); color: var(--up); box-shadow: inset 0 0 0 1px rgba(43, 182, 138, .45); }
+  .side.short { background: rgba(240, 85, 95, .16); color: var(--down); box-shadow: inset 0 0 0 1px rgba(240, 85, 95, .45); }
+  .side.wait { background: rgba(242, 179, 61, .12); color: var(--warn); box-shadow: inset 0 0 0 1px rgba(242, 179, 61, .4); font-size: 12px; }
+  .sbar .g { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 7px; padding: 0 14px; border-left: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
+  .sbar .dayg { border-left: 0; padding-left: 10px; }
+  .sbar .g b { color: var(--text); font: 600 13.5px var(--font-num); font-variant-numeric: tabular-nums; }
+  .sbar .day { color: var(--text); font-weight: 600; }
+  .sbar .ma { color: #8fb0ff !important; }
+  .sbar .res { padding: 2px 10px; border-radius: 7px; font-weight: 700; color: var(--text); background: var(--tile); }
+  .sbar .res.win { color: var(--up); background: rgba(43, 182, 138, .14); } .sbar .res.loss { color: var(--down); background: rgba(240, 85, 95, .14); }
+  .sbar .res.unsure { color: var(--warn); background: rgba(242, 179, 61, .12); }
+  .sbar [title] { cursor: help; }
+  .sbar .g b.up { color: var(--up); } .sbar .g b.down { color: var(--down); }
+  .tip { margin: -2px 0 0; padding: 0 12px; color: var(--muted); font-size: 12px; }
+  .tip:empty { display: none; }
+  .lg .mob { display: none; }
+  /* the charts */
+  .chartbox { position: relative; height: clamp(420px, calc(100vh - 170px), 760px); display: grid; grid-template-rows: minmax(0, 80fr) minmax(0, 20fr);
               border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); }
-  .daybox { position: relative; height: 270px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); }
+  .daybox { position: relative; height: 260px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); }
   #chart, #chartDiff, #chartDay { position: relative; min-height: 0; height: 100%; }
   #chartDiff { border-top: 1px solid var(--line-strong); }
-  .ptag { position: absolute; left: 10px; z-index: 5; max-width: calc(100% - 120px); padding: 2px 8px; border-radius: 6px; background: rgba(10, 13, 18, .82); color: var(--muted); font-size: 11.5px; pointer-events: none; }
-  .ptag b { color: var(--text); font-weight: 600; }
-  .legend { display: flex; flex-wrap: wrap; gap: 3px 16px; color: var(--muted); font-size: 12px; }
-  .legend span { display: inline-flex; align-items: center; gap: 6px; }
-  .legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; }
-  .legend i.box { width: 14px; height: 10px; border: 0; background: rgba(141, 153, 171, .16); }
+  /* the reading in a chart's top-left corner (as on TradingView): the name, a colour key, the value under the cursor */
+  .lg { position: absolute; left: 8px; top: 6px; z-index: 5; display: grid; gap: 2px; max-width: calc(100% - 110px); padding: 3px 7px; border-radius: 7px; background: rgba(10, 13, 18, .78); pointer-events: none; font-size: 12px; color: var(--muted); }
+  .lg:empty { display: none; }
+  .lg .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; }
+  .lg .it { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; text-shadow: 0 0 3px var(--bg), 0 0 6px var(--bg); }
+  .lg .it i { align-self: center; width: 12px; height: 3px; border-radius: 2px; }
+  .lg .it i.dash { height: 0; border-top: 2px dashed; background: none; }
+  .lg .it i.box { width: 11px; height: 9px; border-radius: 2px; background: rgba(141, 153, 171, .22); }
+  .lg b { color: var(--text); font: 600 13px var(--font-num); font-variant-numeric: tabular-nums; }
+  .lg .t { color: var(--faint); font: 500 11.5px var(--font-num); text-shadow: 0 0 3px var(--bg); }
+  .lg .hint { color: var(--faint); font-size: 11.5px; }
   .warn { margin: 0; color: var(--warn); font-size: 12px; }
   .warn:empty { display: none; }
   #loading { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--bg); color: var(--muted); }
   #loading[hidden] { display: none; }
   #loading img { width: 64px; height: 64px; }
-  @media (max-width: 520px) { .chartbox { height: 460px; } .daybox { height: 240px; } .chip b { font-size: 13px; } }
+  @media (max-width: 700px) {
+    .sbar { padding: 7px 10px; }
+    .sbar .g { flex: 1 1 100%; border-left: 0; padding: 0; }
+    .sbar .dayg { flex: 0 1 auto; padding-left: 10px; }
+    .lg .key, .lg .opt { display: none; }
+    .chartbox { height: 470px; } .daybox { height: 230px; }
+    .lg { max-width: calc(100% - 80px); font-size: 11px; } .lg b { font-size: 12px; } .lg .row { gap: 1px 10px; }
+    .lg .mob { display: inline; } .lg .hint, .lg .opt { display: none; } .lg .it { white-space: normal; }
+  }
 </style>
 </head>
 <body>
@@ -135,44 +139,20 @@
     <button type="button" class="live-btn" id="liveBtn" aria-pressed="true" title="Follow the latest minute">Live</button></div>
   <div class="grp"><div class="seg" id="tzSeg" role="group" aria-label="Clock"></div></div>
   <div class="grp"><div class="seg" id="matchSeg" role="group" aria-label="Hyperliquid line"></div></div>
-  <div class="grp"><span class="seglab">EMA</span><div class="seg" id="emaSeg" role="group" aria-label="EMA on the futures (1-minute bars)"></div></div>
+  <div class="grp"><span class="seglab" title="EMA of the futures over 1-minute bars (50m = about the last 50 minutes)">EMA</span><div class="seg" id="emaSeg" role="group" aria-label="EMA on the futures (1-minute bars)"></div></div>
   <div class="grp"><button type="button" class="live-btn" id="stratBtn" aria-pressed="true" title="The gold strategy (TONL): its 50-day line and the day's trade">Strategy</button></div>
   <div class="spacer"></div>
   <a class="devtab" href="devices.html" title="The machines and the bus">Devices</a>
 </header>
 <main class="wrap">
-  <div class="head"><h1>Gold: US futures vs Hyperliquid</h1><span class="when" id="when">—</span><span class="src" id="src"></span></div>
-  <div class="read" aria-live="polite">
-    <span class="chip"><i style="background:var(--fut)"></i><span id="kF">Futures</span> <b id="vF">—</b> <span id="sF"></span></span>
-    <span class="chip"><i style="background:var(--hl)"></i>Hyperliquid <b id="vH">—</b></span>
-    <span class="chip">Hyperliquid − futures <b id="vD">—</b></span>
-    <span class="chip" id="cM"><span id="kM">Hyperliquid since the close</span> <b id="vM">—</b> <span id="sM"></span></span>
-    <span class="chip" id="cE"><i style="background:var(--ema)"></i><span id="kE">EMA</span> <b id="vE">—</b></span>
-  </div>
-  <section class="scard" id="scard" aria-label="The gold strategy for the day shown">
-    <div class="sc-head" id="scHead"></div>
-    <div class="sc-grid" id="scGrid"></div>
-    <p class="sc-note" id="scNote"></p>
-  </section>
+  <h1 class="sr">Gold: US futures vs Hyperliquid</h1>
+  <section class="sbar" id="sbar" aria-label="The gold strategy for the day shown" aria-live="polite"></section>
+  <p class="tip" id="sbarTip"></p>
   <div class="chartbox"><div id="chart"></div><div id="chartDiff"></div>
-    <div class="ptag" id="tagMain" style="top:6px"><b>Prices</b> · move the cursor to read any minute</div>
-    <div class="ptag" id="tagDiff" style="top:calc(74% + 6px)"><b>Hyperliquid − futures</b> (points; while the futures are shut: against their last price)</div></div>
-  <div class="legend">
-    <span><i style="border-color:var(--fut)"></i>US futures (MGC)</span>
-    <span><i style="border-color:var(--fut);border-top-style:dashed;opacity:.7"></i>futures shut: their last price</span>
-    <span><i style="border-color:var(--hl)"></i>Hyperliquid gold</span>
-    <span><i class="box"></i>futures shut</span>
-    <span class="el"><i style="border-color:var(--ema)"></i><span id="lgE">EMA</span> of the futures (1-minute bars)</span>
-    <span class="sl"><i style="border-color:var(--ma)"></i>50-day line (strategy)</span>
-    <span class="sl"><i style="border-color:var(--up);border-top-style:dashed"></i>/<i style="border-color:var(--down);border-top-style:dashed"></i>the trade's target / stop</span>
-  </div>
-  <div class="daybox"><div id="chartDay"></div><div class="ptag" id="tagDay" style="top:6px"><b>Daily</b> · MGC sessions and the 50-day line · click a day to open it</div></div>
-  <div class="legend">
-    <span><i style="border-color:var(--ma)"></i>50-day line: a close above it → the next session LONG, below → SHORT</span>
-    <span><i class="box" style="background:rgba(43,182,138,.55)"></i>/<i class="box" style="background:rgba(240,85,95,.55)"></i>bottom strip: the side each session took</span>
-    <span><i class="box" style="width:9px;height:9px;background:var(--warn)"></i>contract switch (the line uses raw closes, as the strategy does)</span>
-  </div>
+    <div class="lg" id="lgMain" aria-live="polite"></div>
+    <div class="lg" id="lgDiff" style="top:calc(80% + 6px)"></div></div>
   <p class="warn" id="warn"></p>
+  <div class="daybox"><div id="chartDay"></div><div class="lg" id="lgDay"></div></div>
 </main>
 <div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
 <script>
@@ -376,13 +356,13 @@ function tradeOf(D, k, side) {
   } else {
     for (const r of bars) {
       const hitT = touch(r, 'target'), hitS = touch(r, 'stop');
-      if (hitT || hitS) { out = { kind: r === first ? 'first' : hitT && hitS ? 'both' : hitT ? 'target' : 'stop', src: 'bars', t: r.t, x: r.x, pts: hitT && !hitS ? TGT : hitS && !hitT ? -STOP : null }; break; }
+      if (hitT || hitS) { out = { kind: r === first ? 'first' : hitT && hitS ? 'both' : hitT ? 'target' : 'stop', hit: hitT && hitS ? 'the target and the stop' : hitT ? 'the target' : 'the stop', src: 'bars', t: r.t, x: r.x, pts: hitT && !hitS ? TGT : hitS && !hitT ? -STOP : null }; break; }
     }
     if (!out && Date.now() >= exitT && bars.length) { const last = bars[bars.length - 1]; out = { kind: 'time', src: 'bars', t: last.t, x: last.x, pts: side * (last.fBar.c - e) }; }
   }
   return { side, e, tg, st, t0: first.t, x0: first.x, exitT, out, test: test || null };
 }
-const outText = o => o.kind === 'target' ? `target ${sg(TGT)}` : o.kind === 'stop' ? `stop ${sg(-STOP)}` : o.kind === 'first' ? 'touched in the first minute' : o.kind === 'both' ? 'target and stop in one minute' : `time out ${sg(o.pts)}`;
+const outText = o => o.kind === 'target' ? `target ${sg(TGT)}` : o.kind === 'stop' ? `stop ${sg(-STOP)}` : o.kind === 'first' ? 'not known (1st min)' : o.kind === 'both' ? 'not known (same min)' : `time out ${sg(o.pts)}`;
 // the test's result for day k on this side: Mondays from 30 Nov on Hyperliquid's weekend side ("wk"), else TONL ("trades")
 function testOf(k, side) {
   if (!DAILY) return null;
@@ -402,7 +382,8 @@ const BASE = {
   crosshair: { mode: LC.CrosshairMode.Normal },
 };
 // two charts, one time line: the prices above, Hyperliquid minus the futures below (each with its own scale)
-const chart = LC.createChart($('chart'), { ...BASE, timeScale: { ...TS, visible: false }, rightPriceScale: { borderColor: '#1c2430', minimumWidth: 88, scaleMargins: { top: 0.08, bottom: 0.04 } } });
+const NARROW = matchMedia('(max-width: 700px)').matches;  // a phone: more room at the top for the corner reading
+const chart = LC.createChart($('chart'), { ...BASE, timeScale: { ...TS, visible: false }, rightPriceScale: { borderColor: '#1c2430', minimumWidth: 88, scaleMargins: { top: NARROW ? 0.3 : 0.2, bottom: 0.04 } } });
 const chartD = LC.createChart($('chartDiff'), { ...BASE, timeScale: TS, rightPriceScale: { borderColor: '#1c2430', minimumWidth: 88, scaleMargins: { top: 0.16, bottom: 0.08 } } });
 const shadeOf = c => { const x = c.addHistogramSeries({ priceScaleId: 'shade', color: 'rgba(141, 153, 171, 0.10)', priceLineVisible: false, lastValueVisible: false }); c.priceScale('shade').applyOptions({ scaleMargins: { top: 0, bottom: 0 }, visible: false }); return x; };
 const shade = shadeOf(chart), shadeD = shadeOf(chartD);
@@ -410,10 +391,10 @@ const shade = shadeOf(chart), shadeD = shadeOf(chartD);
 const sLine = chart.addLineSeries({ color: '#5b8cff', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, title: '50-day line', autoscaleInfoProvider: () => null });
 const sTgt = chart.addLineSeries({ color: '#2bb68a', lineWidth: 1, lineStyle: LC.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
 const sStp = chart.addLineSeries({ color: '#f0555f', lineWidth: 1, lineStyle: LC.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
-const sEma = chart.addLineSeries({ color: '#c084fc', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, title: 'EMA' });
-const sFut = chart.addLineSeries({ color: '#e8eef6', lineWidth: 2, priceLineVisible: false, title: 'Futures' });
+const sEma = chart.addLineSeries({ color: '#c084fc', priceLineColor: '#c084fc', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, title: 'EMA' });
+const sFut = chart.addLineSeries({ color: '#e8eef6', priceLineColor: '#e8eef6', crosshairMarkerBackgroundColor: '#e8eef6', lineWidth: 2, priceLineVisible: false, title: 'Futures' });
 const sShut = chart.addLineSeries({ color: 'rgba(232, 238, 246, 0.6)', lineWidth: 2, lineStyle: LC.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
-const sHl = chart.addLineSeries({ color: '#e3a72f', lineWidth: 2, priceLineVisible: false, title: 'Hyperliquid' });
+const sHl = chart.addLineSeries({ color: '#e3a72f', priceLineColor: '#e3a72f', crosshairMarkerBackgroundColor: '#e3a72f', lineWidth: 2, priceLineVisible: false, title: 'Hyperliquid' });
 const sDiff = chartD.addBaselineSeries({ baseValue: { type: 'price', price: 0 }, lineWidth: 1,
   topLineColor: '#2bb68a', topFillColor1: 'rgba(43, 182, 138, 0.28)', topFillColor2: 'rgba(43, 182, 138, 0.05)',
   bottomLineColor: '#f0555f', bottomFillColor1: 'rgba(240, 85, 95, 0.05)', bottomFillColor2: 'rgba(240, 85, 95, 0.28)', priceLineVisible: false });
@@ -428,7 +409,7 @@ const chartDay = LC.createChart($('chartDay'), { ...BASE, localization: { priceF
 const sSide = chartDay.addHistogramSeries({ priceScaleId: 'side', priceLineVisible: false, lastValueVisible: false });
 chartDay.priceScale('side').applyOptions({ scaleMargins: { top: 0.94, bottom: 0 }, visible: false });
 const sCandle = chartDay.addCandlestickSeries({ upColor: '#2bb68a', downColor: '#f0555f', borderVisible: false, wickUpColor: '#2bb68a', wickDownColor: '#f0555f', priceLineVisible: false });
-const sDayLine = chartDay.addLineSeries({ color: '#5b8cff', lineWidth: 2, priceLineVisible: false, crosshairMarkerVisible: false, title: '50-day line' });
+const sDayLine = chartDay.addLineSeries({ color: '#5b8cff', lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, title: '50-day line' });
 
 // The EMA of the futures' 1-minute closes (trading minutes only; it waits through the breaks, a contract switch moves it by
 // the switch so the jump is no move). Seeded with the plain mean of its first n closes; warmed up on the bars before the
@@ -455,7 +436,7 @@ let built = null, hoverT = null, lastFit = '', REV = new Map(), VAL = new Map(),
 function draw(D, keepView) {
   const W = x => ({ time: x });
   const fut = [], shut = [], hl = [], diff = [], sh = [], ln = [], tg = [], st = [], em = [];
-  const T = STRAT ? D.trade : null, L0 = D.tonl, L1 = D.lineK, openT = openOf(DAYK), endT = T ? (T.out ? T.out.x : T.exitT) : 0;
+  const T = STRAT ? D.trade : null, L0 = D.tonl, openT = openOf(DAYK), endT = T ? (T.out && T.out.kind !== 'first' && T.out.kind !== 'both' ? T.out.x : T.exitT) : 0;
   EMAV = emaRows(D, EMA);
   REV = new Map(); let lastX = -Infinity;
   for (const r of D.rows) {
@@ -470,13 +451,19 @@ function draw(D, keepView) {
     diff.push(hv == null || ref == null ? W(x) : { time: x, value: +(hv - ref).toFixed(2) });
     sh.push(r.shut ? { time: x, value: 1 } : W(x));
     // the 50-day line: until this day's open the one the last close was judged by (it set this day's side), then this day's own
-    const lv = !STRAT ? null : r.t < openT ? (L0 ? L0.line : null) : L1;
+    const lv = STRAT && L0 ? L0.line : null;
     ln.push(lv == null ? W(x) : { time: x, value: +lv.toFixed(2) });
     const inT = T && r.x >= T.x0 && r.x <= endT;
     tg.push(inT ? { time: x, value: T.tg } : W(x)); st.push(inT ? { time: x, value: T.st } : W(x));
   }
   sHl.applyOptions({ title: MATCH ? 'Hyperliquid (lined up)' : 'Hyperliquid' });
-  sEma.applyOptions({ title: EMA ? `EMA ${EMA}` : '' });
+  sEma.applyOptions({ title: EMA ? `EMA ${EMA}m` : '' });
+  // Lightweight Charts joins a line across empty minutes: the point before each gap gets a see-through colour, so the
+  // segment that would bridge a shut (or a data gap) is not drawn
+  const cut = arr => { for (let i = 0; i < arr.length - 1; i++) if (arr[i].value != null && arr[i + 1].value == null) arr[i].color = 'rgba(0, 0, 0, 0)'; return arr; };
+  cut(fut); cut(shut); cut(em); cut(hl);
+  for (let i = 0; i < diff.length - 1; i++) if (diff[i].value != null && diff[i + 1].value == null)  // the gap pane: same cut, its own colour names
+    Object.assign(diff[i], { topLineColor: 'rgba(0, 0, 0, 0)', bottomLineColor: 'rgba(0, 0, 0, 0)', topFillColor1: 'rgba(0, 0, 0, 0)', topFillColor2: 'rgba(0, 0, 0, 0)', bottomFillColor1: 'rgba(0, 0, 0, 0)', bottomFillColor2: 'rgba(0, 0, 0, 0)' });
   shade.setData(sh); shadeD.setData(sh); sFut.setData(fut); sShut.setData(shut); sHl.setData(hl); sDiff.setData(diff); sLine.setData(ln); sTgt.setData(tg); sStp.setData(st); sEma.setData(EMA ? em : []);
   VAL = new Map(hl.map((p, i) => [p.time, { h: p.value, d: diff[i].value }]));
   // markers: the trade (or, with the strategy off, the futures' open and its move) and any contract switch; on
@@ -484,13 +471,13 @@ function draw(D, keepView) {
   const mk = [], R = D.reopen, inR = t => t >= D.a && t <= D.b + MIN;
   const g = R && R.fOpen != null && R.closeF != null ? R.fOpen - R.closeF - R.roll : null;
   if (T) {
-    mk.push({ time: toChart(T.x0), position: T.side > 0 ? 'belowBar' : 'aboveBar', color: T.side > 0 ? '#2bb68a' : '#f0555f', shape: T.side > 0 ? 'arrowUp' : 'arrowDown', text: `${sideTxt(T.side)} ${p1(T.e)}${g != null ? ` (open ${sg(g)}${R.roll ? ' + switch' : ''})` : ''}` });
+    mk.push({ time: toChart(T.x0), position: T.side > 0 ? 'belowBar' : 'aboveBar', color: T.side > 0 ? '#2bb68a' : '#f0555f', shape: T.side > 0 ? 'arrowUp' : 'arrowDown', text: `${sideTxt(T.side)} ${p1(T.e)}` });
     if (T.out) mk.push({ time: toChart(T.out.x), position: T.out.kind === 'stop' ? (T.side > 0 ? 'belowBar' : 'aboveBar') : (T.side > 0 ? 'aboveBar' : 'belowBar'), color: T.out.kind === 'target' ? '#2bb68a' : T.out.kind === 'stop' ? '#f0555f' : '#8d99ab', shape: 'circle', text: outText(T.out) });
-  } else if (R && R.fOpen != null && R.closeF != null && inR(R.firstT + MIN)) mk.push({ time: toChart(R.firstT + MIN), position: g >= 0 ? 'aboveBar' : 'belowBar', color: '#e8eef6', shape: 'circle', text: `open ${p1(R.fOpen)} (${sg(g)}${R.roll ? ' + switch' : ''})` });
-  for (const ro of ROLLS) { const t = Math.floor(ro.t * 1000 / MIN) * MIN + MIN; if (inR(t)) mk.push({ time: toChart(t), position: 'aboveBar', color: '#f2b33d', shape: 'square', text: `${rollText(ro)} (${sg(ro.gap)})` }); }
+  } else if (R && R.fOpen != null && R.closeF != null && inR(R.firstT + MIN)) mk.push({ time: toChart(R.firstT + MIN), position: g >= 0 ? 'aboveBar' : 'belowBar', color: '#e8eef6', shape: 'circle', text: `open ${sg(g)}` });
+  for (const ro of ROLLS) { const t = Math.floor(ro.t * 1000 / MIN) * MIN + MIN; if (inR(t)) mk.push({ time: toChart(t), position: 'aboveBar', color: '#f2b33d', shape: 'square', text: `contract switch ${sg(ro.gap)}` }); }
   const fT = new Set(fut.map(p => p.time)); sFut.setMarkers(mk.filter(m => fT.has(m.time)).sort((x, y) => x.time - y.time));
   const mh = [];  // (the futures' close is where the shading starts)
-  if (R && R.h1745 != null && R.closeH != null && inR(R.openT - 15 * MIN)) mh.push({ time: toChart(R.openT - 15 * MIN), position: R.h1745 >= R.closeH ? 'aboveBar' : 'belowBar', color: '#e3a72f', shape: 'circle', text: `17:45: ${sg(R.h1745 - R.closeH)}` });
+  if (R && R.h1745 != null && R.closeH17 != null && inR(R.openT - 15 * MIN)) mh.push({ time: toChart(R.openT - 15 * MIN), position: R.h1745 >= R.closeH17 ? 'aboveBar' : 'belowBar', color: '#e3a72f', shape: 'circle', text: `${TZ === 'et' ? '17:45' : '17:45 NY'}: ${sg(R.h1745 - R.closeH17)}` });
   const hT = new Set(hl.map(p => p.time)); sHl.setMarkers(mh.filter(m => hT.has(m.time)));
   const fitKey = `${DAYK}|${MATCH}|${TZ}`;
   if (!keepView || lastFit !== fitKey) { chart.timeScale().fitContent(); chartD.timeScale().fitContent(); lastFit = fitKey; }
@@ -498,11 +485,16 @@ function draw(D, keepView) {
 function drawDaily(S) {
   const cd = [], ld = [], sd = []; DAYV = new Map();
   for (let i = 0; i < S.length; i++) {
-    const s = S[i], ln = lineOf(S, i), pv = i > 0 ? lineOf(S, i - 1) : null, side = pv != null ? (S[i - 1].c > pv ? 1 : -1) : null;
+    const s = S[i], ln = lineOf(S, i), pv = i > 0 ? lineOf(S, i - 1) : null;
+    let side = pv != null ? (S[i - 1].c > pv ? 1 : -1) : null, how = '50-day';
+    if (new Date(s.k + 'T00:00:00Z').getUTCDay() === 1 && s.k >= HL_MONDAY_FROM) {  // Mondays from 30 Nov: Hyperliquid's weekend side
+      const ws = s.k === DAYK && built && built.trade ? built.trade.side : DAILY && DAILY.wk && DAILY.wk[s.k] ? DAILY.wk[s.k][0] : null;
+      if (ws) { side = ws; how = 'Hyperliquid weekend'; }
+    }
     cd.push({ time: s.k, open: s.o, high: s.h, low: s.l, close: s.c });
     ld.push(ln == null ? { time: s.k } : { time: s.k, value: +ln.toFixed(2) });
     sd.push(side == null ? { time: s.k } : { time: s.k, value: 1, color: side > 0 ? 'rgba(43, 182, 138, 0.55)' : 'rgba(240, 85, 95, 0.55)' });
-    DAYV.set(s.k, { s, ln, side, closed: s.closed });
+    DAYV.set(s.k, { s, ln, side, how, closed: s.closed });
   }
   sCandle.setData(cd); sDayLine.setData(STRAT ? ld : []); sSide.setData(STRAT ? sd : []);
   const mk = [];
@@ -511,13 +503,19 @@ function drawDaily(S) {
   sCandle.setMarkers(mk.sort((a, b) => a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
   if (!dayFit && cd.length) { chartDay.timeScale().setVisibleLogicalRange({ from: Math.max(0, cd.length - 150), to: cd.length + 2 }); dayFit = true; }
 }
+// the daily chart's corner: what it shows, or the session under the cursor
+const DAY_KEY = () => `<div class="row"><span class="it"><b style="font:600 12px var(--font-ui)">Daily</b>&nbsp;MGC sessions</span>` +
+  (STRAT ? `<span class="it"><i style="background:var(--ma)"></i>50-day line</span><span class="it"><i class="box" style="background:linear-gradient(90deg, rgba(43,182,138,.7) 50%, rgba(240,85,95,.7) 50%)"></i>side taken (bottom strip)</span>` : '') +
+  `<span class="it"><i class="box" style="width:8px;height:8px;background:var(--warn)"></i>contract switch</span><span class="hint">click a day to open it</span></div>`;
 chartDay.subscribeCrosshairMove(p => {
-  const v = p && p.time ? DAYV.get(bd(p.time)) : null, tag = $('tagDay');
-  if (!v) { tag.innerHTML = '<b>Daily</b> · MGC sessions and the 50-day line · click a day to open it'; return; }
+  const v = p && p.time ? DAYV.get(bd(p.time)) : null, lg = $('lgDay');
+  if (!v) { lg.innerHTML = DAY_KEY(); return; }
   const nx = v.ln != null ? (v.s.c > v.ln ? 1 : -1) : null;
-  tag.innerHTML = `<b>${dayName(v.s.k)}</b> · open ${p1(v.s.o)} · high ${p1(v.s.h)} · low ${p1(v.s.l)} · ${v.closed ? 'close' : 'now'} <b>${p1(v.s.c)}</b>` +
-    (STRAT && v.ln != null ? ` · 50-day line <b>${p1(v.ln)}</b> → next session <b class="${nx > 0 ? 'up' : 'down'}">${sideTxt(nx)}</b>${v.closed ? '' : ' (if it closed now)'}` : '') +
-    (STRAT && v.side != null ? ` · this session took ${sideTxt(v.side)}` : '');
+  lg.innerHTML = `<div class="row"><span class="it"><b style="font:600 12px var(--font-ui)">${dayName(v.s.k)}</b></span>` +
+    `<span class="it">O <b>${p1(v.s.o)}</b></span><span class="it">H <b>${p1(v.s.h)}</b></span><span class="it">L <b>${p1(v.s.l)}</b></span><span class="it">${v.closed ? 'C' : 'now'} <b>${p1(v.s.c)}</b></span>` +
+    (STRAT && v.side != null ? `<span class="it">took <b class="${v.side > 0 ? 'up' : 'down'}">${sideTxt(v.side)}</b>${v.how !== '50-day' ? '&nbsp;(' + v.how + ')' : ''}</span>` : '') +
+    (STRAT && v.ln != null ? `<span class="it"><i style="background:var(--ma)"></i>50-day for the next session <b>${p1(v.ln)}</b> → <b class="${nx > 0 ? 'up' : 'down'}">${sideTxt(nx)}</b>${v.closed ? '' : '&nbsp;(if it closed now)'}</span>` : '') +
+    `</div>`;
 });
 chartDay.subscribeClick(p => { if (!p || !p.time) return; const d = bd(p.time); if (days.includes(d)) { LIVE = d === curKey(); show(d); } });
 
@@ -527,80 +525,75 @@ function reopenOf(D, k) {
   if (!sh) return null;
   const closeT = sh.s, hAt = t => { const r = BY.get(t); return r ? r.h : null; };  // the price AT t = the close of the minute that ends then (rows are keyed by that time)
   const lastF = D.rows.filter(r => r.t < closeT && r.fBar).pop(), first = D.rows.find(r => r.t >= openT && r.fBar);
-  return { k, sh, closeT, openT, closeF: lastF && lastF.t >= closeT - 30 * MIN ? lastF.fBar.c : null, closeH: hAt(closeT), h1745: Date.now() >= openT - 15 * MIN ? hAt(openT - 15 * MIN) : null, hOpen: hAt(openT),
+  return { k, sh, closeT, openT, closeF: lastF && lastF.t >= closeT - 30 * MIN ? lastF.fBar.c : null, closeH: hAt(closeT), closeH17: hAt(sh.sched), h1745: Date.now() >= openT - 15 * MIN ? hAt(openT - 15 * MIN) : null, hOpen: hAt(openT),
            fOpen: first ? first.fBar.o : null, firstT: first ? first.t : null, roll: rollsBetween(sh.sched - MIN, openT + MIN), monday: new Date(k + 'T00:00:00Z').getUTCDay() === 1 };
 }
 
-// ---- the reading line: the minute under the cursor, else the newest; and the day's strategy ---------------------------
+// ---- the reading in the chart's corner: the minute under the cursor, else the newest ----------------------------------
+const it = (sw, name, val, extra = '') => `<span class="it">${sw ? `<i ${sw}></i>` : ''}${name}${val != null ? ` <b>${val}</b>` : ''}${extra}</span>`;
 function readout(t) {
   const D = built; if (!D) return;
-  $('cE').hidden = !EMA;
-  if (!D.rows.length) { for (const id of ['vF', 'vH', 'vD', 'vM', 'vE']) $(id).textContent = '—'; $('sF').textContent = ''; $('sM').textContent = ''; $('cM').hidden = true; $('when').textContent = 'no data for this range yet'; return; }
+  if (!D.rows.length) { $('lgMain').innerHTML = '<div class="row"><span class="it">No data for this range yet</span></div>'; $('lgDiff').innerHTML = ''; return; }
   let r = t != null ? BY.get(t) : null; if (!r) r = D.rows[D.rows.length - 1];
   const ct = contractAt(D.contracts, r.shut ? r.shut.s - MIN : r.t);  // in a shut: the contract whose last price is shown
-  $('when').textContent = both(r.x) + (t == null && LIVE && DAYK === curKey() ? ' · latest' : '');
-  $('kF').textContent = `Futures${ct ? ' (MGC ' + contractName(ct) + ')' : ' (MGC)'}`;
-  const f = r.shut ? r.closeF : r.f, d = r.h != null && f != null ? r.h - f : null;
-  $('vF').textContent = p1(f);
-  $('sF').innerHTML = r.shut ? `<span class="pill shut">SHUT</span>` : r.f == null ? '<span class="pill shut">NO PRICE</span>' : '<span class="pill open">TRADING</span>';
-  $('vH').textContent = p1(r.h);
-  $('vD').innerHTML = `<span class="${cls(d)}">${sg(d)}</span>`;
-  $('cE').hidden = !EMA;
-  if (EMA) { const ev = EMAV.get(r.shut ? r.shut.s : r.x); $('kE').textContent = `EMA ${EMA}${r.shut ? ' (at the close)' : ''}`; $('vE').textContent = p1(ev ?? null); }
+  const f = r.shut ? r.closeF : r.f, hv = r.h == null ? null : MATCH ? (r.basis == null ? null : r.h - r.basis) : r.h, d = hv != null && f != null ? hv - f : null;  // the gap as the pane draws it
+  const ev = EMA ? EMAV.get(r.shut ? r.shut.s : r.x) : null;
+  const lv = STRAT && D.tonl ? D.tonl.line : null;
+  const state = r.shut ? '<span class="pill shut">SHUT</span>' : r.f == null ? '<span class="pill shut">NO PRICE</span>' : '<span class="pill open">TRADING</span>';
+  let row1 = it('style="background:var(--fut)"', `Futures${ct ? '<span class="opt"> (MGC ' + contractName(ct) + ')</span>' : ''}`, p1(f), '&nbsp;' + state) +
+             it('style="background:var(--hl)"', 'Hyperliquid', p1(r.h), MATCH ? '&nbsp;<span class="hint">(real price; its line is moved onto the futures)</span>' : '');
+  if (EMA) row1 += it('style="background:var(--ema)"', `EMA ${EMA}m`, p1(ev ?? null));
+  if (STRAT && lv != null) { const y = sLine.priceToCoordinate(lv), off = y == null || y < 0 || y > $('chart').clientHeight;
+    row1 += it('style="background:var(--ma)"', '50-day line', p1(lv), off && f != null ? `&nbsp;<span class="hint">(${sg(lv - f)}, off the chart)</span>` : ''); }
+  let row2 = `<span class="t">${dwhm(r.x)}${t == null && LIVE && DAYK === curKey() ? ' · latest' : ''}</span>`;
   if (r.shut && r.closeH != null && r.h != null) {
-    const m = r.h - r.closeH; $('kM').textContent = 'Hyperliquid since the close';
-    $('vM').innerHTML = `<span class="${cls(m)}">${sg(m)}</span>`;
-    $('sM').innerHTML = r.closeF != null ? `→ open near <b style="font-size:13px">${p1(r.closeF + r.roll + m)}</b>` : '';
-    $('cM').hidden = false;
-  } else if (!r.shut) {
-    const p = D.shuts.filter(x => x.e <= r.t).pop(), cf = p && D.rows.filter(x => x.t < p.s && x.fBar).pop();
-    if (cf && r.f != null) { const mf = r.f - cf.fBar.c - rollsBetween(p.sched - MIN, r.x); $('kM').textContent = 'Futures since the last close'; $('vM').innerHTML = `<span class="${cls(mf)}">${sg(mf)}</span>`; $('sM').textContent = ''; $('cM').hidden = false; }
-    else $('cM').hidden = true;
-  } else $('cM').hidden = true;
+    const m = r.h - r.closeH;
+    row2 += it('', '<span class="opt">Hyperliquid since the futures closed</span><span class="mob">HL since close</span>', `<span class="${cls(m)}">${sg(m)}</span>`) +
+            (r.closeF != null ? it('', '<span class="opt">→ the futures would open near</span><span class="mob">→ opens ~</span>', p1(r.closeF + r.roll + m)) : '');
+  }
+  row2 += `<span class="key">${it('class="box"', '<span class="hint">futures shut</span>')}</span><span class="key">${it('class="dash" style="border-color:var(--fut)"', '<span class="hint">their last price</span>')}</span>`;
+  $('lgMain').innerHTML = `<div class="row">${row1}</div><div class="row">${row2}</div>`;
+  $('lgDiff').innerHTML = `<div class="row">${it('', MATCH ? 'Hyperliquid (lined up) − futures' : 'Hyperliquid − futures', `<span class="${cls(d)}">${sg(d)}</span>`, `&nbsp;<span class="hint">points${r.shut ? ', against their last price' : ''}</span>`)}</div>`;
 }
-// The strategy panel: what the strategy does on the day shown and why, then labelled boxes (the line, the last close, the
-// trade's levels, the result). The result is the test's where there is one; from 1-minute bars it is only an indication.
-function stratCard(D) {
-  const card = $('scard'); card.hidden = !STRAT; if (!STRAT) return;
+
+// ---- the strategy line: the side, why, the trade, the result (explanations in the tooltips) ---------------------------
+// The result is the test's where there is one; from 1-minute bars it is only an indication.
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+function stratBar(D) {
+  const bar = $('sbar'); bar.hidden = !STRAT; if (!STRAT) return;
   const L = D.tonl, k = DAYK, T = D.trade, R = D.reopen, now = Date.now(), z = ZN[TZ];
-  const tile = (key, val, sub, cl = '') => `<div class="tile ${cl}"><span class="k">${key}</span><span class="v">${val}</span><span class="s">${sub || '&nbsp;'}</span></div>`;
-  if (!L) { $('scHead').innerHTML = `<span class="ttl">Gold strategy (TONL)</span><span class="day">${dayName(k)}</span><span>not enough saved closes for the 50-day line</span>`; $('scGrid').innerHTML = ''; $('scNote').textContent = ''; return; }
+  if (!L) { setBar(`<span class="g"><span class="day">${dayName(k)}</span>&nbsp;the strategy needs 50 saved closes before this day</span>`); return; }
   const mon = new Date(k + 'T00:00:00Z').getUTCDay() === 1 && k >= HL_MONDAY_FROM;
-  const hlSide = R && R.h1745 != null && R.closeH != null && R.h1745 !== R.closeH ? (R.h1745 > R.closeH ? 1 : -1) : null;
+  const hlSide = R && R.h1745 != null && R.closeH17 != null && R.h1745 !== R.closeH17 ? (R.h1745 > R.closeH17 ? 1 : -1) : null;
   const known = !mon || !!hlSide || !!T;  // a Monday's side is Hyperliquid's at 17:45 New York: not known before
   const side = T ? T.side : mon && hlSide ? hlSide : L.side, gap = L.last - L.line;
-  $('scHead').innerHTML = `<span class="ttl">Gold strategy (TONL)</span><span class="day">${dayName(k)}</span>` +
-    (known ? `<span class="pill side ${side > 0 ? 'long' : 'short'}">${sideTxt(side)}</span>` : `<span class="pill side shut">SIDE AT 17:45 NEW YORK</span>`) +
-    (mon ? `<span class="why">Monday: the bot follows Hyperliquid's weekend side` + (hlSide ? ` (Hyperliquid <b>${sg(R.h1745 - R.closeH)}</b> since Friday's close)` : T ? ` — Hyperliquid's 17:45 price is missing, so this shows the 50-day side` : ' (known at 17:45 New York)') + `; the 50-day line says ${sideTxt(L.side)}</span>`
-         : `<span class="why">the last close is <b>${Math.abs(gap).toFixed(1)}</b> ${gap > 0 ? 'above' : 'below'} the 50-day line</span>`);
+  const ruleTip = esc("Gold strategy (TONL): LONG when the last close is above the 50-day line (the mean of the 49 closes before it), SHORT when below. Mondays from 30 Nov: the side of Hyperliquid's weekend move instead (its 17:45 New York price vs its price at Friday 17:00 New York).");
+  let h = known ? `<span class="side ${side > 0 ? 'long' : 'short'}" title="${ruleTip}">${sideTxt(side)}</span>` : `<span class="side wait" title="${ruleTip}">SIDE AT 17:45 NY</span>`;
+  h += `<span class="g dayg"><span class="day">${dayName(k)}</span></span>`;
+  const wkS = mon && DAILY && DAILY.wk && DAILY.wk[k] ? DAILY.wk[k][0] : null;
+  if (mon) h += `<span class="g" title="${ruleTip}">Monday: Hyperliquid's weekend side` + (hlSide ? ` <b class="${cls(R.h1745 - R.closeH17)}">${sg(R.h1745 - R.closeH17)}</b>` : T && wkS ? " (no Hyperliquid minutes here: the test's side)" : T ? ' (missing: 50-day side shown)' : ' at 17:45 NY') + ` · 50-day says ${sideTxt(L.side)}</span>`;
+  else h += `<span class="g" title="${ruleTip}">${WK3[new Date(L.lastK + 'T00:00:00Z').getUTCDay()]} close <b>${p1(L.last)}</b> ${gap > 0 ? 'above' : 'below'} 50-day <b class="ma">${p1(L.line)}</b></span>`;
+  if (T) h += `<span class="g">entry <b>${p1(T.e)}</b> target <b>${p1(T.tg)}</b> stop <b>${p1(T.st)}</b> out <b>${hm(T.exitT)} ${z}</b></span>`;
+  else h += `<span class="g">opens <b>${hm(openOf(k))} ${z}</b> target <b>${TGT}</b> stop <b>${STOP}</b> pts · out <b>${hm(openOf(k) + EXIT_AFTER)} ${z}</b></span>`;
   const usd = v => (v < 0 ? '−$' : '+$') + Math.abs(Math.round(v)).toLocaleString('en-US');
-  const testTile = (kind, x, extra) => tile('Result · the test', kind === 'W' ? `Target ${sg(TGT)}` : kind === 'L' ? `Stop ${sg(-STOP)}` : `Time out ${sg((x + 4.32) / 100)}`,
-    `${usd(x)} a GC after costs · realistic fills${extra || ''}`, kind === 'W' ? 'res win' : kind === 'L' ? 'res loss' : 'res');
+  const testTip = esc("The test's result for this day: realistic fills (Databento to 29 Jul 2026, NinjaTrader after), 1 GC, after costs.");
+  const testRes = (kind, x) => `<span class="res ${kind === 'W' ? 'win' : kind === 'L' ? 'loss' : ''}" title="${testTip}">${kind === 'W' ? `Target ${sg(TGT)}` : kind === 'L' ? `Stop ${sg(-STOP)}` : `Time out ${sg((x + 4.32) / 100)}`} · ${usd(x)}</span>`;
+  const o = T && T.out, tst = !T && known && now >= openOf(k) ? testOf(k, side) : null, otherTest = !mon && T && T.test && T.test[0] !== T.side;
   let res;
-  const o = T && T.out, tst = !T && known && now >= openOf(k) ? testOf(k, side) : null;
-  if (o && o.src === 'test') res = testTile(o.kind === 'target' ? 'W' : o.kind === 'stop' ? 'L' : 'O', o.usd);
-  else if (o && (o.kind === 'first' || o.kind === 'both')) res = tile('Result', 'Not known', `target and stop both reachable inside the ${o.kind === 'first' ? 'first minute' : 'same minute'} (${hm(o.t)} ${z}); a 1-minute bar cannot tell which came first`, 'res unsure');
-  else if (o) res = tile('Result · 1-minute bars', o.kind === 'target' ? `Target ${sg(TGT)}` : o.kind === 'stop' ? `Stop ${sg(-STOP)}` : `Time out ${sg(o.pts)}`,
-    `at ${hm(o.x)} ${z} · an indication: no test result for this day yet`, o.kind === 'target' ? 'res win' : o.kind === 'stop' ? 'res loss' : 'res');
-  else if (T) res = tile('Result', 'Open', `until the target, the stop or ${hm(T.exitT)} ${z}`, 'res');
-  else if (tst && tst[0] === side) res = testTile(tst[1], tst[2], ' · the page has no futures minutes at the open');
-  else res = tile('Result', now < openOf(k) ? 'Waiting' : '—', now < openOf(k) ? `the futures open ${dwhm(openOf(k))}` : 'no futures open in the data', 'res');
-  const g = R && R.fOpen != null && R.closeF != null ? R.fOpen - R.closeF - R.roll : null;
-  const toward = known ? (side > 0 ? '+' : '−') : '±', against = known ? (side > 0 ? '−' : '+') : '∓';
-  $('scGrid').innerHTML =
-    tile('50-day line', p1(L.line), 'mean of the 49 closes before', 'ma') +
-    tile('Last close', p1(L.last), `${dayName(L.lastK)} · ${sg(gap)}`) +
-    (T ? tile('Entry', p1(T.e), `${sideTxt(T.side)} at ${hm(T.t0)} ${z}${g != null ? ` · open ${sg(g)}` : ''}`) +
-         tile('Target', p1(T.tg), `${sg(T.tg - T.e)} pts`) +
-         tile('Stop', p1(T.st), `${sg(T.st - T.e)} pts`) +
-         tile('Out at', `${hm(T.exitT)} ${z}`, 'if neither is hit')
-       : tile('Entry', 'at the open', dwhm(openOf(k))) + tile('Target', `${toward}${TGT}`, 'pts from the entry') + tile('Stop', `${against}${STOP}`, 'pts from the entry') + tile('Out at', `${hm(openOf(k) + EXIT_AFTER)} ${z}`, 'if neither is hit')) +
-    res;
-  const notes = [];
-  if (!mon && T && T.test && T.test[0] !== T.side) notes.push(`The test took ${sideTxt(T.test[0])} this day (its closes differ slightly), so its result is not shown.`);
-  if (R && R.roll) notes.push(`The futures switched contract at this open (${sg(R.roll)} pts); the open move above has it taken out.`);
-  $('scNote').textContent = notes.join(' ');
+  if (o && o.src === 'test') res = testRes(o.kind === 'target' ? 'W' : o.kind === 'stop' ? 'L' : 'O', o.usd);
+  else if (o && o.kind === 'first') res = `<span class="res unsure" title="${esc(`${o.hit[0].toUpperCase() + o.hit.slice(1)} was touched inside the entry minute (${hm(o.t)} ${z}); a 1-minute bar cannot show whether a real fill at the open got it. ${otherTest ? `The test took ${sideTxt(T.test[0])} this day, so no test result is shown.` : "The test's result appears here once it is saved for this day."}`)}">Not known (1st minute)${otherTest ? ' · test took ' + sideTxt(T.test[0]) : ''}</span>`;
+  else if (o && o.kind === 'both') res = `<span class="res unsure" title="${esc(`The target and the stop were both reached inside the same minute (${hm(o.t)} ${z}); a 1-minute bar cannot tell which came first.`)}">Not known (same minute)${otherTest ? ' · test took ' + sideTxt(T.test[0]) : ''}</span>`;
+  else if (o) res = `<span class="res ${o.kind === 'target' ? 'win' : o.kind === 'stop' ? 'loss' : ''}" title="${esc(`From 1-minute bars at ${hm(o.x)} ${z}: an indication only. ${otherTest ? `The test took ${sideTxt(T.test[0])} this day, so no test result is shown.` : "The test's result appears here once it is saved for this day."}`)}">${o.kind === 'target' ? `Target ${sg(TGT)}` : o.kind === 'stop' ? `Stop ${sg(-STOP)}` : `Time out ${sg(o.pts)}`} (1-min bars, not the test)${otherTest ? ' · test took ' + sideTxt(T.test[0]) : ''}</span>`;
+  else if (T) res = `<span class="res" title="${esc(`Until the target, the stop or ${hm(T.exitT)} ${z}`)}">Open</span>`;
+  else if (tst && tst[0] === side) res = testRes(tst[1], tst[2]);
+  else res = now < openOf(k) ? '<span class="res">Waiting</span>' : `<span class="res" title="${esc('No futures minutes at the open in the data (a holiday closure, or missing data).')}">—</span>`;
+  h += `<span class="g">result ${res}</span>`;
+  setBar(h);
 }
+// written only when it changes (a live redraw every second must not close a tooltip); a tap shows the explanation below
+let lastSbar = '';
+const setBar = h => { if (h !== lastSbar) { $('sbar').innerHTML = h; lastSbar = h; } };
+$('sbar').onclick = e => { const el = e.target.closest('[title]'); $('sbarTip').textContent = el && $('sbarTip').textContent !== el.title ? el.title : ''; };
 let xsync = false;  // the other chart's crosshair follows (its own move event must not echo back)
 function hover(p, other, series, key) {
   if (xsync) return;
@@ -627,17 +620,14 @@ function seg(el, items, on) {  // built once; a redraw only moves aria-pressed (
   el.onclick = e => { const b = e.target.closest('button'); if (b) on(b.dataset.v); };
 }
 const pressed = (el, cur) => { for (const b of el.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === cur)); };
-const repaint = () => { if (built && built.k === DAYK) { draw(built, true); readout(hoverT); stratCard(built); if (built.S) drawDaily(built.S); } };  // (a day still loading draws with the new setting when it lands)
+const repaint = () => { if (built && built.k === DAYK) { draw(built, true); readout(hoverT); stratBar(built); if (built.S) drawDaily(built.S); } };  // (a day still loading draws with the new setting when it lands)
 seg($('tzSeg'), [['New York', 'et', 'Times in New York (CME)'], ['India', 'ist', 'Times in India']], v => { TZ = v; store('nsb.gold.tz', v); controls(); repaint(); });
 seg($('matchSeg'), [['Real prices', '0', 'Both lines at their real prices'], ['Line up at close', '1', 'Hyperliquid moved onto the futures at each futures close, to compare the moves']], v => { MATCH = v === '1'; store('nsb.gold.match', v); controls(); repaint(); });
-seg($('emaSeg'), [['Off', '0', 'No EMA'], ...EMAS.map(n => [String(n), String(n), `EMA of the futures over ${n} one-minute bars`])], v => { EMA = +v; store('nsb.gold.ema', v); controls(); repaint(); });
-$('stratBtn').onclick = () => { STRAT = !STRAT; store('nsb.gold.strat', STRAT ? '1' : '0'); controls(); repaint(); };
+seg($('emaSeg'), [['Off', '0', 'No EMA'], ...EMAS.map(n => [`${n}m`, String(n), `EMA of the futures over the last ${n} one-minute bars (about ${n} minutes)`])], v => { EMA = +v; store('nsb.gold.ema', v); controls(); repaint(); });
+$('stratBtn').onclick = () => { STRAT = !STRAT; store('nsb.gold.strat', STRAT ? '1' : '0'); controls(); repaint(); $('lgDay').innerHTML = DAY_KEY(); $('sbarTip').textContent = ''; };
 function controls() {
   pressed($('tzSeg'), TZ); pressed($('matchSeg'), MATCH ? '1' : '0'); pressed($('emaSeg'), String(EMA));
   $('liveBtn').setAttribute('aria-pressed', String(LIVE && DAYK === curKey())); $('stratBtn').setAttribute('aria-pressed', String(STRAT));
-  for (const e of document.querySelectorAll('.legend .sl')) e.hidden = !STRAT;
-  for (const e of document.querySelectorAll('.legend .el')) e.hidden = !EMA;
-  $('lgE').textContent = EMA ? `EMA ${EMA}` : 'EMA';
   const i = days.indexOf(DAYK); $('prevBtn').disabled = i < 0 || i >= days.length - 1; $('nextBtn').disabled = i <= 0;
 }
 $('prevBtn').onclick = () => { const i = days.indexOf(DAYK); if (i >= 0 && i < days.length - 1) { LIVE = false; show(days[i + 1]); } };
@@ -647,26 +637,27 @@ $('liveBtn').onclick = () => { LIVE = true; show(curKey()); };
 let busy = 0;
 async function show(k, keepView = false) {
   const my = ++busy; DAYK = k;
-  if (!keepView) $('loading-text').textContent = `Loading ${k}…`;
+  if (!keepView) { $('loading-text').textContent = `Loading ${k}…`; $('sbarTip').textContent = ''; }
   const [D, S] = await Promise.all([load(k), sessionsUpTo(curKey() > k ? curKey() : k)]); if (my !== busy) return;
   BY = new Map(D.rows.map(r => [r.x, r])); built = D; D.k = k; D.reopen = reopenOf(D, k); D.S = S;
   D.tonl = tonlOf(S, k);
   const iK = S.findIndex(s => s.k === k); D.lineK = iK >= 0 ? lineOf(S, iK) : D.tonl ? (() => { const P = S.filter(s => s.k < k && s.closed); return lineOf(P, P.length); })() : null;
   // the side the bot takes: TONL; on Mondays from 30 Nov Hyperliquid's weekend side (its 17:45 price vs its price at Friday's close)
   const R = D.reopen, mon = new Date(k + 'T00:00:00Z').getUTCDay() === 1 && k >= HL_MONDAY_FROM;
-  const hlSide = R && R.h1745 != null && R.closeH != null && R.h1745 !== R.closeH ? (R.h1745 > R.closeH ? 1 : -1) : null;
-  const side = mon && hlSide ? hlSide : D.tonl ? D.tonl.side : null;
+  const hlSide = R && R.h1745 != null && R.closeH17 != null && R.h1745 !== R.closeH17 ? (R.h1745 > R.closeH17 ? 1 : -1) : null;
+  const wkS = mon && DAILY && DAILY.wk && DAILY.wk[k] ? DAILY.wk[k][0] : null;
+  const side = mon && (hlSide || wkS) ? (hlSide || wkS) : D.tonl ? D.tonl.side : null;
   D.trade = side ? tradeOf(D, k, side) : null;
-  draw(D, keepView); if (hoverT == null || !keepView) readout(null); stratCard(D); drawDaily(S);
+  draw(D, keepView); if (hoverT == null || !keepView) readout(null); stratBar(D); drawDaily(S); if (!$('lgDay').innerHTML) $('lgDay').innerHTML = DAY_KEY();
   days = dayList(); const pk = days.join() + '|' + k; if (pk !== pickedKey) { pick.set(days, k, curKey()); pickedKey = pk; }
   controls();
   const hlN = D.rows.filter(r => r.hBar).length, fN = D.rows.filter(r => r.fBar).length;
-  $('src').textContent = `${fN.toLocaleString()} futures minutes · ${hlN.toLocaleString()} Hyperliquid ${D.hres > 1 ? D.hres + '-minute bars' : 'minutes'}`;
   const w = [];
-  if (!hlN) w.push('No Hyperliquid prices for this day (Hyperliquid gold history starts 29 Apr 2026).');
+  if (!hlN) w.push(D.a > Date.parse('2026-04-30') ? 'No Hyperliquid minutes saved for this stretch.' : 'No Hyperliquid prices for this day (Hyperliquid gold history starts 29 Apr 2026).');
   else if (D.hres > 1) w.push(`Older day: Hyperliquid here is ${D.hres === 60 ? 'hourly' : D.hres + '-minute'} bars (1-minute from 18 Oct 2026), so its line moves in steps.`);
   for (const r of ROLLS.filter(r => r.t * 1000 >= D.a && r.t * 1000 <= D.b)) w.push(`Contract switch at ${dwhm(r.t * 1000)} (${sg(r.gap)} pts): the later contract trades above spot, so the futures line sits about that much higher from then on.`);
   for (const x of D.shuts.filter(x => x.early)) w.push(`The futures stopped at ${dwhm(x.s)}, before the usual 17:00 close (holiday or no data).`);
+  if (STRAT && D.trade && D.trade.test && D.trade.test[0] !== D.trade.side && !(new Date(k + 'T00:00:00Z').getUTCDay() === 1 && k >= HL_MONDAY_FROM)) w.push(`The test took ${sideTxt(D.trade.test[0])} this day (its closes differ slightly), so its result is not shown.`);
   $('warn').textContent = w.join(' ');
   $('loading').hidden = true;
 }
