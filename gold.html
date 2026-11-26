@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gold · Indra Quant Signal Board</title>
+<meta name="description" content="Gold on one chart: the US futures (CME micro gold, MGC) and Hyperliquid's 24/7 gold (xyz:GOLD), with what Hyperliquid did while the futures were shut and where the futures opened.">
+<meta name="theme-color" content="#0a0d12">
+<link rel="stylesheet" href="appbar.css?v=2">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="manifest" href="brand/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="lightweight-charts.js"></script>
+<script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');</script>
+<script src="cme.js?v=1"></script>
+<script src="engine.js?v=19"></script>
+<script src="live.js?v=9"></script>
+<script src="daypick.js?v=3"></script>
+<script src="install.js?v=2"></script>
+<style>
+  /* The Gold tab (owner 26/11/2026: "a single gold chart, but it should have values for both US futures and the
+     Hyperliquid, so we can know what is actually happening. But it should be very clear"). One chart: the CME micro gold
+     future (MGC, the contract the board follows) and Hyperliquid's gold perp (xyz:GOLD, trades around the clock). While
+     the futures are shut (every day 17:00-18:00 New York, and Friday 17:00 to Sunday 18:00) their line is their last
+     price, dashed, so Hyperliquid's move against it shows; the cards read the minute under the cursor; the table reads the
+     reopen of the day shown. Watching only. */
+  :root {
+    color-scheme: dark;
+    --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
+    --text: #e8eef6; --muted: #8d99ab; --faint: #5c6879; --up: #2bb68a; --down: #f0555f; --accent: #5b8cff; --warn: #f2b33d;
+    --fut: #e8eef6; --hl: #e3a72f;
+    --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); background: var(--bg); color: var(--text);
+         font: 13px/1.4 var(--font-ui); -webkit-font-smoothing: antialiased; }
+  button, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+  .up { color: var(--up); } .down { color: var(--down); }
+  .iq-lock { height: 26px; width: auto; display: block; flex: none; }
+
+  /* ---- top bar (as every tab) ---- */
+  .topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; padding: 5px 10px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .topbar .brand .iq-lock { height: 24px; }
+  .tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .tabs a { padding: 4px 9px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 500; }
+  .tabs a:hover { color: var(--text); }
+  .tabs a[aria-current="page"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .spacer { flex: 1; }
+  .topbar .grp { display: inline-flex; align-items: center; padding: 0 0 0 8px; border-left: 1px solid var(--line); gap: 4px; }
+  .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .seg button { padding: 3px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .step-btn { padding: 2px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--muted); font: 600 13px/18px var(--font-num); cursor: pointer; }
+  .step-btn:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); }
+  .step-btn:disabled { opacity: .35; cursor: default; }
+  .live-btn { padding: 3px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 600; }
+  .live-btn[aria-pressed="true"] { border-color: var(--up); color: var(--up); }
+  @media (max-width: 1499px) {
+    .topbar { gap: 4px 6px; padding-left: 8px; padding-right: 8px; }
+    .topbar .grp { padding-left: 6px; gap: 3px; }
+    .topbar .brand .iq-lock { content: url(brand/iq_emblem.svg); height: 24px; }
+    .topbar .tabs a { padding: 4px 7px; }
+  }
+  @media (max-width: 490px) { .topbar .tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; } .topbar .tabs a { flex: none; padding: 4px 4px; font-size: 11.5px; } }
+
+  /* ---- the page ---- */
+  .wrap { padding: 10px max(12px, env(safe-area-inset-right)) 24px max(12px, env(safe-area-inset-left)); display: grid; gap: 10px; }
+  .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+  .head h1 { margin: 0; font-size: 16px; font-weight: 600; }
+  .head .when { font: 500 12.5px var(--font-num); color: var(--muted); }
+  .head .src { color: var(--faint); font-size: 12px; }
+  .cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .card { min-width: 0; padding: 9px 12px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .card .k { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .k i { flex: none; width: 14px; height: 3px; border-radius: 2px; }
+  .card .v { margin-top: 3px; font: 600 24px/1.15 var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .card .s { margin-top: 3px; color: var(--muted); font-size: 12px; min-height: 1.4em; }
+  .card .s b { color: var(--text); font-weight: 600; }
+  .card.fut { border-left: 3px solid var(--fut); } .card.hlc { border-left: 3px solid var(--hl); }
+  .pill { display: inline-block; padding: 0 7px; border-radius: 9px; font-size: 11px; font-weight: 700; letter-spacing: .04em; vertical-align: 1px; }
+  .pill.open { background: rgba(43, 182, 138, .16); color: var(--up); } .pill.shut { background: rgba(242, 179, 61, .14); color: var(--warn); }
+  .chartbox { position: relative; height: clamp(440px, calc(100vh - 330px), 780px); display: grid; grid-template-rows: minmax(0, 70fr) minmax(0, 30fr);
+              border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); }
+  #chart, #chartDiff { position: relative; min-height: 0; }
+  #chartDiff { border-top: 1px solid var(--line-strong); }
+  .ptag { position: absolute; left: 10px; z-index: 5; padding: 2px 8px; border-radius: 6px; background: rgba(10, 13, 18, .8); color: var(--muted); font-size: 11.5px; pointer-events: none; }
+  .ptag b { color: var(--text); font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; }
+  .legend i.box { width: 14px; height: 10px; border: 0; background: rgba(141, 153, 171, .16); }
+  h2 { margin: 6px 0 0; font-size: 14px; font-weight: 600; }
+  .tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  th { color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; background: var(--tile); }
+  td.n { font-family: var(--font-num); text-align: right; }
+  td.t { color: var(--muted); font-family: var(--font-num); }
+  .verdict { padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--tile); font-size: 13px; }
+  .note { color: var(--faint); font-size: 12px; max-width: 120ch; margin: 0; }
+  .warnline { color: var(--warn); }
+  #loading { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--bg); color: var(--muted); }
+  #loading[hidden] { display: none; }
+  #loading img { width: 64px; height: 64px; }
+  @media (max-width: 1100px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 520px) { .card .v { font-size: 20px; } .card .k { white-space: normal; } .chartbox { height: 480px; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
+  <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="gold.html" aria-current="page" title="Gold: US futures and Hyperliquid on one chart">Gold</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html">Paper</a></nav>
+  <div class="grp"><button type="button" class="step-btn" id="prevBtn" aria-label="The trading day before" title="The trading day before">‹</button><div id="dayPick"></div><button type="button" class="step-btn" id="nextBtn" aria-label="The trading day after" title="The trading day after">›</button>
+    <button type="button" class="live-btn" id="liveBtn" aria-pressed="true" title="Follow the latest minute">Live</button></div>
+  <div class="grp"><div class="seg" id="tzSeg" role="group" aria-label="Clock"></div></div>
+  <div class="grp"><div class="seg" id="matchSeg" role="group" aria-label="Hyperliquid line"></div></div>
+  <div class="spacer"></div>
+  <a class="devtab" href="devices.html" title="The machines and the bus">Devices</a>
+</header>
+<main class="wrap">
+  <div class="head"><h1>Gold: US futures vs Hyperliquid</h1><span class="when" id="when">—</span><span class="src" id="src"></span></div>
+  <section class="cards" aria-live="polite">
+    <div class="card fut"><div class="k"><i style="background:var(--fut)"></i><span id="kF">US futures · CME micro gold (MGC)</span></div><div class="v" id="vF">—</div><div class="s" id="sF"></div></div>
+    <div class="card hlc"><div class="k"><i style="background:var(--hl)"></i>Hyperliquid gold · xyz:GOLD</div><div class="v" id="vH">—</div><div class="s" id="sH"></div></div>
+    <div class="card"><div class="k">Hyperliquid − futures</div><div class="v" id="vD">—</div><div class="s" id="sD"></div></div>
+    <div class="card"><div class="k" id="kM">Hyperliquid since the futures closed</div><div class="v" id="vM">—</div><div class="s" id="sM"></div></div>
+  </section>
+  <div class="chartbox"><div id="chart"></div><div id="chartDiff"></div><div class="ptag" id="tagMain" style="top:6px"><b>Prices</b> · move the cursor to read any minute</div><div class="ptag" id="tagDiff" style="top:calc(70% + 6px)"><b>Hyperliquid − futures</b> (points; while the futures are shut: against their last price)</div></div>
+  <div class="legend">
+    <span><i style="border-color:var(--fut)"></i>US futures (MGC)</span>
+    <span><i style="border-color:var(--fut);border-top-style:dashed;opacity:.7"></i>futures shut: their last price</span>
+    <span><i style="border-color:var(--hl)"></i>Hyperliquid gold</span>
+    <span><i class="box"></i>futures shut</span>
+    <span><i style="border-color:var(--up)"></i>/<i style="border-color:var(--down)"></i>Hyperliquid above / below the futures</span>
+  </div>
+  <h2 id="tblTitle">The reopen</h2>
+  <div class="tbl"><table id="tbl"></table></div>
+  <div class="verdict" id="verdict"></div>
+  <p class="note" id="notes"></p>
+</main>
+<div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
+<script>
+'use strict';
+const MIN = 60000, HOUR = 3600000, DAY = 86400000, FILL = 15 * MIN;  // a price is carried over quiet minutes for at most 15 minutes
+const { candleRows, toBar } = NdxEngine.internals;
+const HL_COIN = 'xyz:GOLD', FUT = 'MGC';
+const $ = id => document.getElementById(id);
+const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } };
+let TZ = store('nsb.gold.tz') === 'ist' ? 'ist' : 'et';  // the clock: New York (CME's) or India
+let MATCH = store('nsb.gold.match') === '1';              // Hyperliquid's line moved onto the futures at each close
+let DAYK = null, LIVE = true, PERPS_DAYS = new Set(), FUT_DAYS = new Set(), ROLLS = [], BY = new Map();
+
+// ---- clocks and numbers ----------------------------------------------------------------------------------------
+const ZONE = { et: 'America/New_York', ist: 'Asia/Kolkata' }, ZN = { et: 'ET', ist: 'IST' };
+const fmtCache = new Map();
+const fmt = (ms, z, o) => { const k = z + JSON.stringify(o); if (!fmtCache.has(k)) fmtCache.set(k, new Intl.DateTimeFormat('en-GB', { timeZone: ZONE[z], ...o })); return fmtCache.get(k).format(new Date(ms)); };
+const hm = (ms, z = TZ) => fmt(ms, z, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const dwhm = (ms, z = TZ) => `${fmt(ms, z, { weekday: 'short', day: 'numeric', month: 'short' })} ${hm(ms, z)} ${ZN[z]}`;
+const both = ms => `${dwhm(ms, 'et')} · ${dwhm(ms, 'ist')}`;
+const p1 = v => v == null || !isFinite(v) ? '—' : v.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const sg = v => v == null || !isFinite(v) ? '—' : (v > 0.05 ? '+' : v < -0.05 ? '−' : '±') + Math.abs(v).toFixed(1);
+const cls = v => v == null ? '' : v > 0.05 ? 'up' : v < -0.05 ? 'down' : '';
+const contractName = n => { const m = /(\d\d)-(\d\d)/.exec(n || ''); return m ? `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m[1] - 1]} 20${m[2]}` : (n || ''); };
+
+// ---- the CME trading day (cme.js): day k runs 18:00 New York the evening before to 17:00 on k ---------------------
+const isWd = k => { const w = new Date(k + 'T00:00:00Z').getUTCDay(); return w >= 1 && w <= 5; };
+const prevWd = k => { let p = NsbCme.prev(k); while (!isWd(p)) p = NsbCme.prev(p); return p; };
+const nextWd = k => { let p = NsbCme.next(k); while (!isWd(p)) p = NsbCme.next(p); return p; };
+const openOf = k => NsbCme.open(k), endOf = k => NsbCme.open(k) + 23 * HOUR;
+// the day to follow live: from the futures' 17:00 close it is already the next one (its break; at weekends the Monday)
+const curKey = () => { const now = Date.now(); let k = NsbCme.key(now); if (isWd(k) && now >= endOf(k)) k = NsbCme.next(k); while (!isWd(k)) k = NsbCme.next(k); return k; };
+const utcKey = t => new Date(t).toISOString().slice(0, 10);
+// the chart's clock: Lightweight Charts lays its ticks out in UTC, so each time is moved by its zone's offset (New York's
+// changes with summer time; an hour repeated when the clocks go back keeps its first copy)
+const offCache = new Map();
+function offsetOf(t, z = TZ) {
+  const hk = z + Math.floor(t / HOUR);
+  if (!offCache.has(hk)) {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: ZONE[z], hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      .formatToParts(new Date(Math.floor(t / HOUR) * HOUR)).map(x => [x.type, x.value]));
+    offCache.set(hk, Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute) - Math.floor(t / HOUR) * HOUR);
+  }
+  return offCache.get(hk);
+}
+const toChart = t => (t + offsetOf(t)) / 1000;  // real ms -> the chart's seconds (local clock written as UTC)
+const pad = n => String(n).padStart(2, '0');
+const MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], WK3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const utcDays = (a, b) => { const out = []; for (let t = Math.floor(a / DAY) * DAY; t <= b; t += DAY) out.push(utcKey(t)); return out; };
+const shuts = (a, b) => {  // [from, to) the futures are shut by the schedule, touching [a, b]: each day's 17:00-18:00 and the weekend
+  const out = []; let k = prevWd(NsbCme.key(a)); k = prevWd(k);
+  for (let i = 0; i < 40; i++) { const s = endOf(k), n = nextWd(k), e = openOf(n); if (s > b) break; if (e > a) out.push([s, e]); k = n; }
+  return out;
+};
+
+// ---- data: Hyperliquid (our archive, else Hyperliquid's own last ~3.5 days) and the futures (the VPS's days + stream) --
+// A day not over yet is kept a minute (the live streams fill in between); a request under way is shared, never repeated.
+const hlCache = new Map(), futCache = new Map();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function getJson(url) { const r = await fetch(url, { cache: 'no-cache' }); if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.json(); }
+async function readIndexes() {  // -> true when a new saved day appeared
+  const [p, f, r] = await Promise.all([getJson('data/perps/1m/index.json').catch(() => null), getJson('data/futures/1m/index.json').catch(() => null), getJson('data/futures/1m/rolls.json').catch(() => null)]);
+  const before = PERPS_DAYS.size + FUT_DAYS.size;
+  if (p) PERPS_DAYS = new Set((p.dates || []).map(String));
+  if (f) FUT_DAYS = new Set((Array.isArray(f) ? f : f.dates || []).map(String));
+  if (r) ROLLS = (r.rolls && r.rolls[FUT]) || [];
+  return PERPS_DAYS.size + FUT_DAYS.size !== before;
+}
+function cached(cache, key, fetcher) {
+  const c = cache.get(key), now = Date.now();
+  if (c && c.val !== undefined && (c.done || now - c.at < MIN)) return Promise.resolve(c.val);
+  if (c && c.p) return c.p;
+  const p = fetcher(c && c.val).then(([val, done]) => { cache.set(key, { val, done, at: Date.now() }); return val; });
+  cache.set(key, { ...(c || {}), p });
+  return p;
+}
+const hlDay = key => cached(hlCache, key, async prev => {  // -> [{t, o, h, l, c}] of one UTC day
+  const d0 = Date.parse(key + 'T00:00:00Z'), now = Date.now(), over = now > d0 + DAY + MIN;
+  let bars = null;
+  if (over && PERPS_DAYS.has(key)) { try { bars = (await getJson(`data/perps/1m/${key}/GOLD.json`)).map(([t, o, h, l, c]) => ({ t, o, h, l, c })); } catch (e) { bars = null; } }
+  if (!bars && d0 + DAY > now - 4990 * MIN && d0 <= now) {
+    try {  // a refresh gives up at once when Hyperliquid is busy (the last bars stand); a first load waits its retries
+      bars = (await candleRows(HL_COIN, '1m', d0, Math.min(d0 + DAY - 1, now), prev && prev.length ? () => { throw new Error('busy'); } : undefined)).map(toBar).map(b => ({ t: b.t, o: b.o, h: b.h, l: b.l, c: b.c }));
+    } catch (e) { bars = prev || []; }
+  }
+  return [bars || [], over && !!(bars && bars.length)];
+});
+const futDay = key => cached(futCache, key, async () => {  // -> { bars, contracts } of one UTC day from the VPS's files
+  let out = { bars: [], contracts: [] };
+  if (FUT_DAYS.has(key)) { try { const j = await getJson(`data/futures/1m/${key}.json`); out = { bars: (j[FUT] || []).map(([t, o, h, l, c]) => ({ t: t * 1000, o, h, l, c })), contracts: (j.contracts && j.contracts[FUT]) || [] }; } catch (e) {} }
+  return [out, Date.now() > Date.parse(key + 'T00:00:00Z') + DAY + 3 * HOUR && out.bars.length > 0];
+});
+
+// ---- one row per minute of the range: both prices, the futures shut or not -----------------------------------------
+// A close that has passed whose last futures minute came more than 30 minutes before it (a holiday's early close, or no
+// data) starts the shut at that last minute instead. Each shut: { s (start), e (the reopen), sched, early }.
+async function load(k) {
+  const now = Date.now(), a = endOf(prevWd(k)) - 5 * HOUR, b = Math.min(endOf(k), now);  // the last 5 h of the day before, the break, day k
+  const keys = utcDays(a, b);
+  const slowHl = Promise.all(keys.map(hlDay));
+  const hs = await Promise.race([slowHl, sleep(8000).then(() => null)]);  // Hyperliquid slow: draw the futures first, Hyperliquid when it comes
+  if (!hs) slowHl.then(() => redraw(true));
+  const fs = await Promise.all(keys.map(futDay));
+  const H = new Map(), F = new Map(), contracts = [];
+  for (const d of hs || keys.map(x => (hlCache.get(x) || {}).val || [])) for (const x of d) H.set(x.t, x);
+  for (const d of fs) { for (const x of d.bars) F.set(x.t, x); contracts.push(...d.contracts); }
+  for (const x of NsbLive.bars(FUT)) if (x && x.t >= a && x.t <= b) F.set(x.t, { t: x.t, o: x.o, h: x.h, l: x.l, c: x.c });  // today: the stream
+  for (const x of liveHl.values()) if (x.t >= a && x.t <= b) H.set(x.t, x);
+  const ft = [...F.keys()].sort((x, y) => x - y);
+  const lastBefore = t => { let lo = 0, hi = ft.length - 1, ans = null; while (lo <= hi) { const m = (lo + hi) >> 1; if (ft[m] < t) { ans = ft[m]; lo = m + 1; } else hi = m - 1; } return ans; };
+  const S = shuts(a, b).map(([s, e]) => {
+    const lt = s <= now ? lastBefore(s) : null, early = lt != null && lt >= a && s - (lt + MIN) > 30 * MIN;
+    return { s: early ? lt + MIN : s, e, sched: s, early };
+  });
+  const inShut = t => S.find(x => t >= x.s && t < x.e) || null;
+  const rows = []; let cur = null, lastF = null, lastFt = -Infinity, lastH = null, lastHt = -Infinity, closeF = null, closeH = null, b0 = null, after = null, roll = 0;
+  for (let t = Math.floor(a / MIN) * MIN; t < b; t += MIN) {  // minutes that start before the end (the last one closes at it)
+    const sh = inShut(t), f = F.get(t), h = H.get(t);
+    if (sh && cur !== sh) {  // prices AT the close (before this minute); a contract switch at the coming open is no move
+      cur = sh; closeF = lastFt >= sh.s - 30 * MIN ? lastF : null; closeH = lastHt >= sh.s - FILL ? lastH : null;
+      roll = rollsBetween(sh.sched - MIN, sh.e + MIN); b0 = closeH != null && closeF != null ? closeH - closeF : null; after = b0 == null ? null : b0 - roll;
+    }
+    if (h) { lastH = h.c; lastHt = t; }
+    if (!sh && f) { lastF = f.c; lastFt = t; }
+    if (lastH == null && lastF == null) continue;
+    const hv = lastH != null && t - lastHt <= FILL ? lastH : null, fv = sh ? null : f ? f.c : lastF != null && t - lastFt <= FILL ? lastF : null;
+    rows.push({ t, x: t + MIN, h: hv, hBar: h || null, f: fv, fBar: f || null, shut: sh, closeF: sh ? closeF : null, closeH: sh ? closeH : null, roll: sh ? roll : 0, basis: sh ? b0 : after });
+  }
+  return { a, b, rows, shuts: S, contracts: contracts.map(([n, s, e]) => [n, s * 1000, e * 1000]) };
+}
+const rollsBetween = (a, b) => ROLLS.reduce((sum, r) => sum + (r.t * 1000 > a && r.t * 1000 <= b ? +r.gap || 0 : 0), 0);  // contract switches in (a, b]: a jump that is no move
+const contractAt = (cts, t) => { const c = cts.find(([, s, e]) => t >= s && t <= e + MIN); return c ? c[0] : (cts.length ? cts[cts.length - 1][0] : null); };
+
+// ---- the chart ---------------------------------------------------------------------------------------------------
+const LC = LightweightCharts;
+const TS = { borderColor: '#1c2430', timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.02,  // (a weekend is 4,600+ minutes: let it fit)
+             tickMarkFormatter: (t, type) => { const d = new Date(t * 1000); return type < 3 ? `${WK3[d.getUTCDay()]} ${d.getUTCDate()} ${MON3[d.getUTCMonth()]}` : `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`; } };
+const BASE = {
+  autoSize: true,
+  layout: { background: { type: 'solid', color: '#0a0d12' }, textColor: '#8d99ab', fontFamily: 'IBM Plex Mono, Consolas, monospace', fontSize: 11 },
+  grid: { vertLines: { color: '#141b24' }, horzLines: { color: '#141b24' } },
+  localization: { timeFormatter: t => { const d = new Date(t * 1000); return `${WK3[d.getUTCDay()]} ${d.getUTCDate()} ${MON3[d.getUTCMonth()]} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} ${ZN[TZ]}`; }, priceFormatter: p => p1(p) },
+  crosshair: { mode: LC.CrosshairMode.Normal },
+};
+// two charts, one time line: the prices above, Hyperliquid minus the futures below (each with its own scale)
+const chart = LC.createChart($('chart'), { ...BASE, timeScale: { ...TS, visible: false }, rightPriceScale: { borderColor: '#1c2430', minimumWidth: 88, scaleMargins: { top: 0.08, bottom: 0.04 } } });
+const chartD = LC.createChart($('chartDiff'), { ...BASE, timeScale: TS, rightPriceScale: { borderColor: '#1c2430', minimumWidth: 88, scaleMargins: { top: 0.16, bottom: 0.08 } } });
+const shadeOf = c => { const x = c.addHistogramSeries({ priceScaleId: 'shade', color: 'rgba(141, 153, 171, 0.10)', priceLineVisible: false, lastValueVisible: false }); c.priceScale('shade').applyOptions({ scaleMargins: { top: 0, bottom: 0 }, visible: false }); return x; };
+const shade = shadeOf(chart), shadeD = shadeOf(chartD);
+const sFut = chart.addLineSeries({ color: '#e8eef6', lineWidth: 2, priceLineVisible: false, title: 'Futures' });
+const sShut = chart.addLineSeries({ color: 'rgba(232, 238, 246, 0.6)', lineWidth: 2, lineStyle: LC.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
+const sHl = chart.addLineSeries({ color: '#e3a72f', lineWidth: 2, priceLineVisible: false, title: 'Hyperliquid' });
+const sDiff = chartD.addBaselineSeries({ baseValue: { type: 'price', price: 0 }, lineWidth: 1,
+  topLineColor: '#2bb68a', topFillColor1: 'rgba(43, 182, 138, 0.28)', topFillColor2: 'rgba(43, 182, 138, 0.05)',
+  bottomLineColor: '#f0555f', bottomFillColor1: 'rgba(240, 85, 95, 0.05)', bottomFillColor2: 'rgba(240, 85, 95, 0.28)', priceLineVisible: false });
+sDiff.createPriceLine({ price: 0, color: '#3a4656', lineWidth: 1, lineStyle: LC.LineStyle.Solid, axisLabelVisible: true, title: '0' });
+let syncing = false;
+const linkRange = (a, b) => a.timeScale().subscribeVisibleLogicalRangeChange(r => { if (syncing || !r) return; syncing = true; b.timeScale().setVisibleLogicalRange(r); syncing = false; });
+linkRange(chart, chartD); linkRange(chartD, chart);
+
+let built = null, hoverT = null, lastFit = '', REV = new Map(), VAL = new Map();
+function draw(D, keepView) {
+  const W = x => ({ time: x });
+  const fut = [], shut = [], hl = [], diff = [], sh = [];
+  REV = new Map(); let lastX = -Infinity;
+  for (const r of D.rows) {
+    const x = toChart(r.x); if (x <= lastX) continue; lastX = x; REV.set(x, r.x);
+    // "Line up at close": Hyperliquid less the gap it had at the last futures close, so its move reads straight off the
+    // futures' line; the dashed line stays the futures' real last price
+    const hv = r.h == null ? null : MATCH ? (r.basis == null ? null : r.h - r.basis) : r.h, ref = r.shut ? r.closeF : r.f;
+    fut.push(r.shut || r.f == null ? W(x) : { time: x, value: r.f });
+    shut.push(r.shut && r.closeF != null ? { time: x, value: r.closeF } : W(x));
+    hl.push(hv == null ? W(x) : { time: x, value: hv });
+    diff.push(hv == null || ref == null ? W(x) : { time: x, value: +(hv - ref).toFixed(2) });
+    sh.push(r.shut ? { time: x, value: 1 } : W(x));
+  }
+  sHl.applyOptions({ title: MATCH ? 'Hyperliquid (lined up)' : 'Hyperliquid' });
+  shade.setData(sh); shadeD.setData(sh); sFut.setData(fut); sShut.setData(shut); sHl.setData(hl); sDiff.setData(diff);
+  VAL = new Map(hl.map((p, i) => [p.time, { h: p.value, d: diff[i].value }]));
+  // markers: the futures' open after the reopen of the day shown (its move, a contract switch taken out), any switch,
+  // and on Hyperliquid's line the futures' close and 17:45
+  const mk = [], R = D.reopen, inR = t => t >= D.a && t <= D.b + MIN;
+  if (R && R.fOpen != null && R.closeF != null && inR(R.firstT + MIN)) { const g = R.fOpen - R.closeF - R.roll; mk.push({ time: toChart(R.firstT + MIN), position: g >= 0 ? 'aboveBar' : 'belowBar', color: '#e8eef6', shape: 'circle', text: `open ${p1(R.fOpen)} (${sg(g)}${R.roll ? ' + switch' : ''})` }); }
+  for (const ro of ROLLS) { const t = Math.floor(ro.t * 1000 / MIN) * MIN + MIN; if (inR(t)) mk.push({ time: toChart(t), position: 'aboveBar', color: '#f2b33d', shape: 'square', text: `contract ${contractName(ro.from)} → ${contractName(ro.to)} (${sg(ro.gap)})` }); }
+  const fT = new Set(fut.map(p => p.time)); sFut.setMarkers(mk.filter(m => fT.has(m.time)).sort((x, y) => x.time - y.time));
+  const mh = [];
+  if (R && R.closeH != null && inR(R.closeT)) mh.push({ time: toChart(R.closeT), position: 'aboveBar', color: '#e3a72f', shape: 'circle', text: 'futures close' });
+  if (R && R.h1745 != null && R.closeH != null && inR(R.openT - 15 * MIN)) mh.push({ time: toChart(R.openT - 15 * MIN), position: R.h1745 >= R.closeH ? 'aboveBar' : 'belowBar', color: '#e3a72f', shape: 'circle', text: `17:45: ${sg(R.h1745 - R.closeH)}` });
+  const hT = new Set(hl.map(p => p.time)); sHl.setMarkers(mh.filter(m => hT.has(m.time)));
+  const fitKey = `${DAYK}|${MATCH}|${TZ}`;
+  if (!keepView || lastFit !== fitKey) { chart.timeScale().fitContent(); chartD.timeScale().fitContent(); lastFit = fitKey; }
+}
+
+// ---- the reopen of the day shown: the futures' close, Hyperliquid meanwhile, the futures' open ----------------------
+function reopenOf(D, k) {
+  const openT = openOf(k), sh = D.shuts.find(x => x.e === openT);
+  if (!sh) return null;
+  const closeT = sh.s, hAt = t => { const r = BY.get(t); return r ? r.h : null; };  // the price AT t = the close of the minute that ends then (rows are keyed by that time)
+  const lastF = D.rows.filter(r => r.t < closeT && r.fBar).pop(), first = D.rows.find(r => r.t >= openT && r.fBar);
+  return { k, sh, closeT, openT, closeF: lastF && lastF.t >= closeT - 30 * MIN ? lastF.fBar.c : null, closeH: hAt(closeT), h1745: hAt(openT - 15 * MIN), hOpen: hAt(openT),
+           fOpen: first ? first.fBar.o : null, fHi: first ? first.fBar.h : null, fLo: first ? first.fBar.l : null, firstT: first ? first.t : null,
+           late: first ? first.t > openT + 10 * MIN : false, roll: rollsBetween(sh.sched - MIN, openT + MIN), monday: new Date(k + 'T00:00:00Z').getUTCDay() === 1 };
+}
+function table(R) {
+  const T = $('tbl');
+  if (!R) { $('tblTitle').textContent = 'The reopen'; T.innerHTML = '<tr><td>No futures break in this range.</td></tr>'; $('verdict').textContent = ''; return; }
+  const brk = R.monday ? 'weekend' : 'daily break', t2 = t => t ? `${hm(t, 'et')} ET · ${hm(t, 'ist')} IST` : '';
+  $('tblTitle').textContent = `The reopen of ${fmt(R.openT, 'et', { weekday: 'long', day: 'numeric', month: 'short' })} ${hm(R.openT, 'et')} ET (${dwhm(R.openT, 'ist')}), after the ${brk}`;
+  const mv = v => v == null || R.closeH == null ? '—' : `<span class="${cls(v - R.closeH)}">${sg(v - R.closeH)}</span>`;
+  const vf = v => v == null || R.closeF == null ? '—' : `<span class="${cls(v - R.closeF)}">${sg(v - R.closeF)}</span>`;
+  const row = (what, t, px, a, b) => `<tr><td>${what}</td><td class="t">${t2(t)}</td><td class="n">${px}</td><td class="n">${a}</td><td class="n">${b}</td></tr>`;
+  const g = R.fOpen != null && R.closeF != null ? R.fOpen - R.closeF - R.roll : null;
+  T.innerHTML = `<thead><tr><th>What</th><th>When</th><th>Price</th><th>Hyperliquid moved since the close</th><th>vs futures close</th></tr></thead><tbody>` +
+    row('Futures close (last price)' + (R.sh.early ? ' — <span class="warnline">stopped early: holiday or no data</span>' : ''), R.closeT, R.closeF == null ? '<span class="warnline">no data</span>' : p1(R.closeF), '', '') +
+    row('Hyperliquid at that moment', R.closeT, p1(R.closeH), '', vf(R.closeH)) +
+    row('Hyperliquid 15 min before the open', R.openT - 15 * MIN, p1(R.h1745), mv(R.h1745), vf(R.h1745)) +
+    row('Hyperliquid at the open', R.openT, p1(R.hOpen), mv(R.hOpen), vf(R.hOpen)) +
+    row('Futures open (first trade)' + (R.roll ? ` — new contract, ${sg(R.roll)} switch` : '') + (R.late ? ' — <span class="warnline">late: holiday or no data</span>' : ''), R.firstT, p1(R.fOpen), '',
+        vf(R.fOpen) + (R.roll && g != null ? ` <span style="color:var(--muted)">= ${sg(R.roll)} switch</span> <span class="${cls(g)}">${sg(g)}</span> <span style="color:var(--muted)">move</span>` : '')) +
+    row('Futures first minute low – high', R.firstT, R.fLo == null ? '—' : `${p1(R.fLo)} – ${p1(R.fHi)}`, '', R.fHi == null ? '—' : `${(R.fHi - R.fLo).toFixed(1)} pts`) + '</tbody>';
+  const V = $('verdict'), now = Date.now(), word = v => v > 0.05 ? 'UP' : v < -0.05 ? 'DOWN' : 'level';
+  if (R.closeF == null || R.closeH == null) { V.innerHTML = '<span class="warnline">No futures close (or no Hyperliquid price at it) in the data: nothing to compare for this reopen.</span>'; return; }
+  const m = R.h1745 != null ? R.h1745 - R.closeH : null, m18 = R.hOpen != null ? R.hOpen - R.closeH : null;
+  if (m == null) {
+    const last = built && built.rows.filter(r => r.h != null).pop(), sofar = last && last.t >= R.closeT ? last.h - R.closeH : null;
+    V.innerHTML = now < R.openT - 15 * MIN ? 'Not 17:45 New York yet.' + (sofar != null ? ` So far Hyperliquid is <b class="${cls(sofar)}">${word(sofar)} ${Math.abs(sofar).toFixed(1)} pts</b> from its own price at the futures close (${sg(last.h - R.closeF)} against the futures close itself).` : '')
+                                            : '<span class="warnline">Hyperliquid has no price 15 minutes before this open.</span>';
+    return;
+  }
+  const flipped = m18 != null && Math.abs(m18) > 0.05 && Math.abs(m) > 0.05 && Math.sign(m18) !== Math.sign(m), sideOf = v => v > 0.05 ? 'LONG' : v < -0.05 ? 'SHORT' : 'none';
+  let v = (R.sh.early || R.late ? '<span class="warnline">Futures data gap around this reopen (see the table): read with care.</span> ' : '') + `By 17:45 New York, Hyperliquid was <b class="${cls(m)}">${word(m)} ${Math.abs(m).toFixed(1)} pts</b> from its own price at the futures close (${sg(R.h1745 - R.closeF)} against the futures close itself)` +
+    (m18 != null ? `; at the open it was ${sg(m18)}${flipped ? ' — <b>it flipped in the last 15 minutes</b>' : ''}.` : '.') +
+    (R.monday ? ` Weekend side: <b>${sideOf(m)}</b> at 17:45${m18 != null ? `, <b>${sideOf(m18)}</b> at 18:00` : ''}.` : ' (The bot reads Hyperliquid on Mondays only.)');
+  if (g != null) v += ` The futures then opened <b class="${cls(g)}">${sg(g)}</b> from their close` + (R.roll ? ` (the ${sg(R.roll)} contract switch taken out)` : '') + (Math.abs(g) < 0.05 || Math.abs(m) < 0.05 ? '.' : Math.sign(g) === Math.sign(m) ? ' — the same way.' : ' — <b>the other way</b>.') +
+    ` Hyperliquid's move pointed to an open near ${p1(R.closeF + R.roll + m)}; it opened at ${p1(R.fOpen)} (${sg(R.fOpen - (R.closeF + R.roll + m))} from that).`;
+  else v += now < R.openT ? ' The futures have not opened yet.' : ' <span class="warnline">No futures open in the data yet.</span>';
+  V.innerHTML = v;
+}
+
+// ---- the cards: the minute under the cursor, else the newest ------------------------------------------------------
+function cards(t) {
+  const D = built; if (!D) return;
+  if (!D.rows.length) {  // nothing in this range yet: no card keeps the day before's numbers
+    for (const id of ['vF', 'vH', 'vD', 'vM']) $(id).textContent = '—';
+    for (const id of ['sF', 'sH', 'sD', 'sM']) $(id).textContent = '';
+    $('when').textContent = 'no data for this range yet'; return;
+  }
+  let r = t != null ? BY.get(t) : null; if (!r) r = D.rows[D.rows.length - 1];
+  const ct = contractAt(D.contracts, r.shut ? r.shut.s - MIN : r.t);  // in a shut: the contract whose last price is shown
+  $('when').textContent = both(r.x) + (t == null && LIVE && DAYK === curKey() ? ' · latest' : '');
+  $('kF').textContent = `US futures · CME micro gold (MGC${ct ? ' ' + contractName(ct) : ''})`;
+  const f = r.shut ? r.closeF : r.f, d = r.h != null && f != null ? r.h - f : null;
+  $('vF').textContent = p1(f);
+  $('sF').innerHTML = r.shut ? `<span class="pill shut">SHUT</span> since ${dwhm(r.shut.s)}${r.shut.early ? ' (early: holiday or no data)' : ''} · their last price · open ${dwhm(r.shut.e)}`
+    : r.f == null ? '<span class="pill shut">NO PRICE</span> no futures data for this minute' : '<span class="pill open">TRADING</span>';
+  $('vH').textContent = p1(r.h); $('sH').innerHTML = r.h == null ? 'no Hyperliquid data for this minute' : 'trades around the clock' + (MATCH ? ' · real price (the line is lined up)' : '');
+  $('vD').innerHTML = `<span class="${cls(d)}">${sg(d)}</span>`;
+  $('sD').innerHTML = r.basis == null ? 'normal gap: not measured yet (no futures close in view)' : `normal gap: <b>${sg(r.basis)}</b> (at the last futures close${!r.shut && D.shuts.some(x => x.e <= r.t && rollsBetween(x.sched - MIN, x.e + MIN)) ? ', after the contract switch' : ''})`;
+  if (r.shut) {
+    $('kM').textContent = 'Hyperliquid since the futures closed';
+    if (r.closeH != null && r.h != null) {
+      const m = r.h - r.closeH;
+      $('vM').innerHTML = `<span class="${cls(m)}">${sg(m)}</span>`;
+      $('sM').innerHTML = `${m >= 0 ? 'above' : 'below'} its ${p1(r.closeH)} at the close` + (r.closeF != null ? ` → futures would open near <b>${p1(r.closeF + r.roll + m)}</b>` + (r.roll ? ` (incl. the ${sg(r.roll)} contract switch)` : '') : '');
+    } else { $('vM').textContent = '—'; $('sM').textContent = 'no price at the close'; }
+    return;
+  }
+  const p = D.shuts.filter(x => x.e <= r.t).pop(), cf = p && D.rows.filter(x => x.t < p.s && x.fBar).pop(), c = p && BY.get(p.s), o = p && D.rows.find(x => x.t >= p.e && x.fBar);
+  $('kM').textContent = 'Since the last futures close';
+  if (cf && r.f != null) {
+    const rg = rollsBetween(p.sched - MIN, r.x), mf = r.f - cf.fBar.c - rg, mh = r.h != null && c && c.h != null ? r.h - c.h : null;
+    $('vM').innerHTML = `<span class="${cls(mf)}">${sg(mf)}</span> <span style="font-size:14px;color:var(--muted)">futures</span>`;
+    $('sM').innerHTML = `Hyperliquid <b class="${cls(mh)}">${sg(mh)}</b> · close ${dwhm(p.s)}` + (o ? ` · opened ${sg(o.fBar.o - cf.fBar.c - rollsBetween(p.sched - MIN, p.e + MIN))}` : '') + (rg ? ` · the ${sg(rg)} contract switch taken out` : '');
+  } else { $('vM').textContent = '—'; $('sM').textContent = p ? 'no futures price to compare' : 'no futures close in view'; }
+}
+let xsync = false;  // the other chart's crosshair follows (its own move event must not echo back)
+function hover(p, other, series, key) {
+  if (xsync) return;
+  hoverT = p && p.time ? (REV.get(p.time) ?? null) : null; cards(hoverT);
+  const v = p && p.time ? VAL.get(p.time) : null;
+  xsync = true;
+  try { if (v && v[key] != null) other.setCrosshairPosition(v[key], p.time, series); else other.clearCrosshairPosition(); } finally { xsync = false; }
+}
+chart.subscribeCrosshairMove(p => hover(p, chartD, sDiff, 'd'));
+chartD.subscribeCrosshairMove(p => hover(p, chart, sHl, 'h'));
+
+// ---- the day shown, the controls ---------------------------------------------------------------------------------
+let days = [], pickedKey = '';
+function dayList() {  // the trading days with data: the futures' saved days and Hyperliquid's archive / last days, weekdays only
+  const s = new Set([...FUT_DAYS].filter(isWd)); for (const k of PERPS_DAYS) if (isWd(k)) s.add(k);
+  for (let t = Date.now(); t > Date.now() - 4 * DAY; t -= DAY) { const k = NsbCme.key(t); if (isWd(k)) s.add(k); }
+  s.add(curKey());
+  return [...s].filter(k => endOf(prevWd(k)) - 5 * HOUR <= Date.now()).sort().reverse();
+}
+const pick = DayPick($('dayPick'), { onPick: k => { LIVE = k === curKey(); show(k); }, title: 'Trading day (18:00 New York the evening before to 17:00)' });
+function seg(el, items, on) {  // built once; a redraw only moves aria-pressed (a click is never lost to a rebuilt button)
+  el.innerHTML = items.map(([lab, v, tip]) => `<button type="button" data-v="${v}" aria-pressed="false" title="${tip}">${lab}</button>`).join('');
+  el.onclick = e => { const b = e.target.closest('button'); if (b) on(b.dataset.v); };
+}
+const pressed = (el, cur) => { for (const b of el.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === cur)); };
+seg($('tzSeg'), [['New York', 'et', 'Times in New York (CME)'], ['India', 'ist', 'Times in India']], v => { TZ = v; store('nsb.gold.tz', v); controls(); if (built) { draw(built, false); cards(hoverT); table(built.reopen); } });
+seg($('matchSeg'), [['Real prices', '0', 'Both lines at their real prices'], ['Line up at close', '1', 'Hyperliquid moved onto the futures at each futures close, to compare the moves']], v => { MATCH = v === '1'; store('nsb.gold.match', v); controls(); if (built) { draw(built, false); cards(hoverT); } });
+function controls() {
+  pressed($('tzSeg'), TZ); pressed($('matchSeg'), MATCH ? '1' : '0');
+  $('liveBtn').setAttribute('aria-pressed', String(LIVE && DAYK === curKey()));
+  const i = days.indexOf(DAYK); $('prevBtn').disabled = i < 0 || i >= days.length - 1; $('nextBtn').disabled = i <= 0;
+}
+$('prevBtn').onclick = () => { const i = days.indexOf(DAYK); if (i >= 0 && i < days.length - 1) { LIVE = false; show(days[i + 1]); } };
+$('nextBtn').onclick = () => { const i = days.indexOf(DAYK); if (i > 0) { LIVE = days[i - 1] === curKey(); show(days[i - 1]); } };
+$('liveBtn').onclick = () => { LIVE = true; show(curKey()); };
+
+let busy = 0;
+async function show(k, keepView = false) {
+  const my = ++busy; DAYK = k;
+  if (!keepView) $('loading-text').textContent = `Loading ${k}…`;
+  const D = await load(k); if (my !== busy) return;
+  BY = new Map(D.rows.map(r => [r.x, r])); built = D; D.reopen = reopenOf(D, k);
+  draw(D, keepView); if (hoverT == null || !keepView) cards(null); table(D.reopen);
+  days = dayList(); const pk = days.join() + '|' + k; if (pk !== pickedKey) { pick.set(days, k, curKey()); pickedKey = pk; }
+  controls();
+  const hlN = D.rows.filter(r => r.hBar).length, fN = D.rows.filter(r => r.fBar).length;
+  $('src').textContent = `${fN.toLocaleString()} futures minutes · ${hlN.toLocaleString()} Hyperliquid minutes`;
+  const notes = [];
+  if (!hlN) notes.push('<span class="warnline">No Hyperliquid prices for this range: our archive starts 18 Oct 2026, and Hyperliquid itself keeps only the last ~3.5 days.</span>');
+  for (const r of ROLLS.filter(r => r.t * 1000 >= D.a - 3 * DAY && r.t * 1000 <= D.b))
+    notes.push(`<span class="warnline">The futures switched contract at ${dwhm(r.t * 1000, 'et')} (${dwhm(r.t * 1000, 'ist')}): ${contractName(r.from)} → ${contractName(r.to)} (${sg(r.gap)} pts). The later contract trades above spot gold, so from then on the futures line sits about that much above Hyperliquid: judge the moves (right-hand card, the table), or use "Line up at close".</span>`);
+  for (const x of D.shuts.filter(x => x.early)) notes.push(`<span class="warnline">The futures stopped at ${dwhm(x.s, 'et')}, ${Math.round((x.sched - x.s) / MIN)} minutes before the usual 17:00 close (a holiday's early close, or no data): the shading starts there.</span>`);
+  notes.push('Futures: CME micro gold (MGC), the contract the board follows, 1-minute candles from the VPS (NinjaTrader) and its live stream. Hyperliquid: xyz:GOLD 1-minute candles, our daily archive and Hyperliquid\'s live stream. A price "at 17:45" is the close of the minute that ends at 17:45. Shaded: the futures shut (daily 17:00-18:00 New York, the weekend from Friday 17:00 to Sunday 18:00, earlier when they stopped early). A price is carried over quiet minutes for at most 15 minutes; after that the line breaks.');
+  $('notes').innerHTML = notes.join('<br>');
+  $('loading').hidden = true;
+}
+
+// ---- live: Hyperliquid's candle stream and the VPS stream; redrawn at most once a second while the newest day is shown --
+const liveHl = new Map();
+let hlWs = null, hlLast = 0, hlDownAt = 0, redrawT = 0;
+function hlConnect() {
+  const ws = hlWs = new WebSocket('wss://api.hyperliquid.xyz/ws');
+  ws.onopen = () => { hlDownAt = 0; ws.send(JSON.stringify({ method: 'subscribe', subscription: { type: 'candle', coin: HL_COIN, interval: '1m' } })); };
+  ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (x) { return; } hlLast = Date.now(); if (m.channel === 'candle' && m.data && m.data.s === HL_COIN) { const b = toBar(m.data); liveHl.set(b.t, { t: b.t, o: b.o, h: b.h, l: b.l, c: b.c }); redraw(); } };
+  ws.onclose = () => { if (hlWs !== ws) return; if (!hlDownAt) hlDownAt = Date.now(); setTimeout(hlConnect, 3000); };
+  ws.onerror = () => ws.close();
+}
+setInterval(() => { if (hlWs && hlWs.readyState === WebSocket.OPEN) hlWs.send('{"method":"ping"}'); }, 30000);
+setInterval(() => { const cut = Date.now() - 2 * DAY; for (const t of liveHl.keys()) if (t < cut) liveHl.delete(t); }, 10 * MIN);
+// redraw while the newest day is shown live: once a second at most; at the futures' close the next trading day takes over
+// (any=true: a slow Hyperliquid answer arrived, redraw whatever day is shown)
+function redraw(any = false) {
+  if ((!LIVE && !any) || redrawT) return;
+  redrawT = setTimeout(() => { redrawT = 0; const k = LIVE ? curKey() : DAYK; show(k, k === DAYK); }, 1000);
+}
+NsbLive.on((kind, s) => { if (kind === 'snapshot' || s === FUT) redraw(); });
+setInterval(() => { if (LIVE && DAYK !== curKey()) redraw(); }, 20000);
+setInterval(async () => { if (await readIndexes() && built) show(DAYK, true); }, 5 * MIN);  // a saved day published since (the VPS writes them after midnight UTC)
+NsbStatus.add('Hyperliquid', () => {
+  const open = hlWs && hlWs.readyState === WebSocket.OPEN, fresh = open && Date.now() - hlLast < 90000;
+  return { state: fresh ? 'live' : open ? 'quiet' : hlDownAt && Date.now() - hlDownAt > 60000 ? 'down' : 'reconnecting', last: hlLast || undefined };
+});
+
+(async () => {
+  controls();
+  NsbLive.start('VPS live stream', () => [FUT], () => ({ want: [FUT], since: endOf(prevWd(curKey())) - 5 * HOUR }));
+  await Promise.all([readIndexes(), NsbLive.ready(1500)]);
+  hlConnect();
+  const q = new URLSearchParams(location.search).get('day');
+  const start = q && /^\d{4}-\d\d-\d\d$/.test(q) && isWd(q) ? q : curKey(); LIVE = start === curKey();
+  await show(start);
+})().catch(e => { $('loading-text').textContent = 'Could not load: ' + (e && e.message || e); });
+</script>
+</body>
+</html>
