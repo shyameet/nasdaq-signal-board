@@ -31,7 +31,7 @@
     color-scheme: dark;
     --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
     --text: #e8eef6; --muted: #8d99ab; --faint: #5c6879; --up: #2bb68a; --down: #f0555f; --accent: #5b8cff; --warn: #f2b33d;
-    --fut: #e8eef6; --hl: #e3a72f; --ma: #5b8cff;
+    --fut: #e8eef6; --hl: #e3a72f; --ma: #5b8cff; --ema: #c084fc;
     --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
     --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   }
@@ -83,11 +83,32 @@
   .chip { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); font-size: 12px; white-space: nowrap; }
   .chip b { color: var(--text); font: 600 14px var(--font-num); font-variant-numeric: tabular-nums; }
   .chip i { align-self: center; flex: none; width: 12px; height: 3px; border-radius: 2px; }
-  .chip.strat { display: block; flex: 1 1 100%; border-color: rgba(91, 140, 255, .45); white-space: normal; line-height: 1.6; }
   .pill { display: inline-block; padding: 0 6px; border-radius: 9px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; }
+  .seglab { color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+  /* ---- the strategy panel: one line of what and why, then a row of labelled boxes ---- */
+  .scard { display: grid; gap: 7px; padding: 8px 10px 9px; border: 1px solid rgba(91, 140, 255, .35); border-left: 3px solid var(--ma); border-radius: 10px; background: var(--surface); }
+  .sc-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12.5px; color: var(--muted); }
+  .sc-head .ttl { color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .sc-head .day { color: var(--text); font-weight: 600; }
+  .sc-head .side { font-size: 12px; padding: 1px 9px; }
+  .sc-head .why b { color: var(--text); font: 600 12.5px var(--font-num); }
+  .sc-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }  /* 4 columns: two full rows (the result spans 2) */
+  @media (min-width: 1000px) { .sc-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); } }  /* one row */
+  .tile { min-width: 0; padding: 5px 9px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .tile .k { display: block; color: var(--faint); font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .v { display: block; margin-top: 1px; font: 600 15px/1.25 var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tile .s { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.3; }
+  .tile.res { grid-column: span 2; }
+  .tile.win { border-color: rgba(43, 182, 138, .55); background: rgba(43, 182, 138, .08); } .tile.win .v { color: var(--up); }
+  .tile.loss { border-color: rgba(240, 85, 95, .55); background: rgba(240, 85, 95, .08); } .tile.loss .v { color: var(--down); }
+  .tile.unsure { border-color: rgba(242, 179, 61, .5); background: rgba(242, 179, 61, .07); } .tile.unsure .v { color: var(--warn); }
+  .tile.ma { border-color: rgba(91, 140, 255, .45); } .tile.ma .v { color: #8fb0ff; }
+  .sc-note { margin: 0; color: var(--faint); font-size: 11.5px; }
+  .sc-note:empty { display: none; }
+  @media (max-width: 520px) { .sc-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; } .tile { padding: 4px 7px 5px; } .tile .v { font-size: 13.5px; } .tile .s { font-size: 10.5px; } .tile.res { grid-column: span 3; } }
   .pill.open { background: rgba(43, 182, 138, .16); color: var(--up); } .pill.shut { background: rgba(242, 179, 61, .14); color: var(--warn); }
   .pill.long { background: rgba(43, 182, 138, .18); color: var(--up); } .pill.short { background: rgba(240, 85, 95, .18); color: var(--down); }
-  .chartbox { position: relative; height: clamp(400px, calc(100vh - 420px), 700px); display: grid; grid-template-rows: minmax(0, 74fr) minmax(0, 26fr);
+  .chartbox { position: relative; height: clamp(400px, calc(100vh - 450px), 700px); display: grid; grid-template-rows: minmax(0, 74fr) minmax(0, 26fr);
               border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); }
   .daybox { position: relative; height: 270px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); }
   #chart, #chartDiff, #chartDay { position: relative; min-height: 0; height: 100%; }
@@ -114,6 +135,7 @@
     <button type="button" class="live-btn" id="liveBtn" aria-pressed="true" title="Follow the latest minute">Live</button></div>
   <div class="grp"><div class="seg" id="tzSeg" role="group" aria-label="Clock"></div></div>
   <div class="grp"><div class="seg" id="matchSeg" role="group" aria-label="Hyperliquid line"></div></div>
+  <div class="grp"><span class="seglab">EMA</span><div class="seg" id="emaSeg" role="group" aria-label="EMA on the futures (1-minute bars)"></div></div>
   <div class="grp"><button type="button" class="live-btn" id="stratBtn" aria-pressed="true" title="The gold strategy (TONL): its 50-day line and the day's trade">Strategy</button></div>
   <div class="spacer"></div>
   <a class="devtab" href="devices.html" title="The machines and the bus">Devices</a>
@@ -125,8 +147,13 @@
     <span class="chip"><i style="background:var(--hl)"></i>Hyperliquid <b id="vH">—</b></span>
     <span class="chip">Hyperliquid − futures <b id="vD">—</b></span>
     <span class="chip" id="cM"><span id="kM">Hyperliquid since the close</span> <b id="vM">—</b> <span id="sM"></span></span>
-    <span class="chip strat" id="cS"></span>
+    <span class="chip" id="cE"><i style="background:var(--ema)"></i><span id="kE">EMA</span> <b id="vE">—</b></span>
   </div>
+  <section class="scard" id="scard" aria-label="The gold strategy for the day shown">
+    <div class="sc-head" id="scHead"></div>
+    <div class="sc-grid" id="scGrid"></div>
+    <p class="sc-note" id="scNote"></p>
+  </section>
   <div class="chartbox"><div id="chart"></div><div id="chartDiff"></div>
     <div class="ptag" id="tagMain" style="top:6px"><b>Prices</b> · move the cursor to read any minute</div>
     <div class="ptag" id="tagDiff" style="top:calc(74% + 6px)"><b>Hyperliquid − futures</b> (points; while the futures are shut: against their last price)</div></div>
@@ -135,6 +162,7 @@
     <span><i style="border-color:var(--fut);border-top-style:dashed;opacity:.7"></i>futures shut: their last price</span>
     <span><i style="border-color:var(--hl)"></i>Hyperliquid gold</span>
     <span><i class="box"></i>futures shut</span>
+    <span class="el"><i style="border-color:var(--ema)"></i><span id="lgE">EMA</span> of the futures (1-minute bars)</span>
     <span class="sl"><i style="border-color:var(--ma)"></i>50-day line (strategy)</span>
     <span class="sl"><i style="border-color:var(--up);border-top-style:dashed"></i>/<i style="border-color:var(--down);border-top-style:dashed"></i>the trade's target / stop</span>
   </div>
@@ -158,6 +186,8 @@ const store = (k, v) => { try { if (v === undefined) return localStorage.getItem
 let TZ = store('nsb.gold.tz') === 'ist' ? 'ist' : 'et';  // the clock: New York (CME's) or India
 let MATCH = store('nsb.gold.match') === '1';              // Hyperliquid's line moved onto the futures at each close
 let STRAT = store('nsb.gold.strat') !== '0';              // the strategy's 50-day line and trade
+const EMAS = [20, 50, 200];                                // the EMA on the futures, in 1-minute bars (0 = off)
+let EMA = (() => { const v = store('nsb.gold.ema'); return v === null ? 50 : EMAS.includes(+v) ? +v : 0; })();
 let DAYK = null, LIVE = true, PERPS_DAYS = new Set(), FUT_DAYS = new Set(), GOLD_DAYS = new Set(), BRD_ROLLS = [], ROLLS = [], DAILY = null, BY = new Map();
 
 // ---- clocks and numbers ----------------------------------------------------------------------------------------
@@ -271,7 +301,8 @@ async function load(k) {
   const H = new Map(), F = new Map(), contracts = []; let hres = 1;
   for (const d of hs || keys.map(x => (hlCache.get(x) || {}).val || [])) for (const x of d) { const r = x.r || 1; H.set(x.t + (r - 1) * MIN, x); if (x.t >= a && x.t <= b) hres = Math.max(hres, r); }
   for (const d of fs) { for (const x of d.bars) F.set(x.t, x); contracts.push(...d.contracts); }
-  for (const x of NsbLive.bars(FUT)) if (x && x.t >= a && x.t <= b) F.set(x.t, { t: x.t, o: x.o, h: x.h, l: x.l, c: x.c });  // today: the stream
+  const a0 = Math.floor(a / DAY) * DAY;  // (the whole UTC day of the range's start: the EMA warms up on the bars before the range)
+  for (const x of NsbLive.bars(FUT)) if (x && x.t >= a0 && x.t <= b) F.set(x.t, { t: x.t, o: x.o, h: x.h, l: x.l, c: x.c });  // today: the stream
   for (const x of liveHl.values()) if (x.t >= a && x.t <= b) H.set(x.t, x);
   const ft = [...F.keys()].sort((x, y) => x - y);
   const lastBefore = t => { let lo = 0, hi = ft.length - 1, ans = null; while (lo <= hi) { const m = (lo + hi) >> 1; if (ft[m] < t) { ans = ft[m]; lo = m + 1; } else hi = m - 1; } return ans; };
@@ -293,7 +324,8 @@ async function load(k) {
     const hv = lastH != null && t - lastHt <= FILL + (lastHr - 1) * MIN ? lastH : null, fv = sh ? null : f ? f.c : lastF != null && t - lastFt <= FILL ? lastF : null;
     rows.push({ t, x: t + MIN, h: hv, hBar: h || null, f: fv, fBar: f || null, shut: sh, closeF: sh ? closeF : null, closeH: sh ? closeH : null, roll: sh ? roll : 0, basis: sh ? b0 : after });
   }
-  return { a, b, rows, shuts: S, hres, contracts: contracts.map(([n, s, e]) => [n, s * 1000, e * 1000]) };
+  const warm = ft.filter(t => t < a).map(t => F.get(t));  // futures bars before the range, for the EMA's warm-up only
+  return { a, b, rows, warm, shuts: S, hres, contracts: contracts.map(([n, s, e]) => [n, s * 1000, e * 1000]) };
 }
 const rollsBetween = (a, b) => ROLLS.reduce((sum, r) => sum + (r.t * 1000 > a && r.t * 1000 <= b ? +r.gap || 0 : 0), 0);  // contract switches in (a, b]: a jump that is no move
 const contractAt = (cts, t) => { const c = cts.find(([, s, e]) => t >= s && t <= e + MIN); return c ? c[0] : (cts.length ? cts[cts.length - 1][0] : null); };
@@ -336,7 +368,7 @@ function tradeOf(D, k, side) {
   const e = first.fBar.o, tg = e + side * TGT, st = e - side * STOP;
   const bars = D.rows.filter(r => r.fBar && r.t >= first.t && r.t < exitT);
   const touch = (r, what) => what === 'target' ? (side > 0 ? r.fBar.h >= tg : r.fBar.l <= tg) : (side > 0 ? r.fBar.l <= st : r.fBar.h >= st);
-  const test = DAILY && DAILY.trades && DAILY.trades[k];
+  const test = testOf(k, side);
   let out = null;
   if (test && test[0] === side) {  // the test's result; the marker goes where the bars first reach that level
     const kind = test[1] === 'W' ? 'target' : test[1] === 'L' ? 'stop' : 'time', at = kind === 'time' ? bars[bars.length - 1] : bars.find(r => touch(r, kind)) || first;
@@ -344,13 +376,19 @@ function tradeOf(D, k, side) {
   } else {
     for (const r of bars) {
       const hitT = touch(r, 'target'), hitS = touch(r, 'stop');
-      if (hitT || hitS) { out = { kind: r === first || (hitT && hitS) ? 'first' : hitT ? 'target' : 'stop', src: 'bars', t: r.t, x: r.x, pts: hitT && !hitS ? TGT : hitS && !hitT ? -STOP : null }; break; }
+      if (hitT || hitS) { out = { kind: r === first ? 'first' : hitT && hitS ? 'both' : hitT ? 'target' : 'stop', src: 'bars', t: r.t, x: r.x, pts: hitT && !hitS ? TGT : hitS && !hitT ? -STOP : null }; break; }
     }
     if (!out && Date.now() >= exitT && bars.length) { const last = bars[bars.length - 1]; out = { kind: 'time', src: 'bars', t: last.t, x: last.x, pts: side * (last.fBar.c - e) }; }
   }
   return { side, e, tg, st, t0: first.t, x0: first.x, exitT, out, test: test || null };
 }
-const outText = o => o.kind === 'target' ? `target ${sg(TGT)}` : o.kind === 'stop' ? `stop ${sg(-STOP)}` : o.kind === 'first' ? 'touched in the first minute' : `08:10 out ${sg(o.pts)}`;
+const outText = o => o.kind === 'target' ? `target ${sg(TGT)}` : o.kind === 'stop' ? `stop ${sg(-STOP)}` : o.kind === 'first' ? 'touched in the first minute' : o.kind === 'both' ? 'target and stop in one minute' : `time out ${sg(o.pts)}`;
+// the test's result for day k on this side: Mondays from 30 Nov on Hyperliquid's weekend side ("wk"), else TONL ("trades")
+function testOf(k, side) {
+  if (!DAILY) return null;
+  const mon = new Date(k + 'T00:00:00Z').getUTCDay() === 1 && k >= HL_MONDAY_FROM, wk = mon && DAILY.wk && DAILY.wk[k], tr = DAILY.trades && DAILY.trades[k];
+  return wk && wk[0] === side ? wk : tr && tr[0] === side ? tr : (tr || null);
+}
 
 // ---- the charts ---------------------------------------------------------------------------------------------------
 const LC = LightweightCharts;
@@ -372,6 +410,7 @@ const shade = shadeOf(chart), shadeD = shadeOf(chartD);
 const sLine = chart.addLineSeries({ color: '#5b8cff', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, title: '50-day line', autoscaleInfoProvider: () => null });
 const sTgt = chart.addLineSeries({ color: '#2bb68a', lineWidth: 1, lineStyle: LC.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
 const sStp = chart.addLineSeries({ color: '#f0555f', lineWidth: 1, lineStyle: LC.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+const sEma = chart.addLineSeries({ color: '#c084fc', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, title: 'EMA' });
 const sFut = chart.addLineSeries({ color: '#e8eef6', lineWidth: 2, priceLineVisible: false, title: 'Futures' });
 const sShut = chart.addLineSeries({ color: 'rgba(232, 238, 246, 0.6)', lineWidth: 2, lineStyle: LC.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
 const sHl = chart.addLineSeries({ color: '#e3a72f', lineWidth: 2, priceLineVisible: false, title: 'Hyperliquid' });
@@ -391,14 +430,37 @@ chartDay.priceScale('side').applyOptions({ scaleMargins: { top: 0.94, bottom: 0 
 const sCandle = chartDay.addCandlestickSeries({ upColor: '#2bb68a', downColor: '#f0555f', borderVisible: false, wickUpColor: '#2bb68a', wickDownColor: '#f0555f', priceLineVisible: false });
 const sDayLine = chartDay.addLineSeries({ color: '#5b8cff', lineWidth: 2, priceLineVisible: false, crosshairMarkerVisible: false, title: '50-day line' });
 
-let built = null, hoverT = null, lastFit = '', REV = new Map(), VAL = new Map(), dayFit = false, DAYV = new Map();
+// The EMA of the futures' 1-minute closes (trading minutes only; it waits through the breaks, a contract switch moves it by
+// the switch so the jump is no move). Seeded with the plain mean of its first n closes; warmed up on the bars before the
+// range (D.warm, the rest of that UTC day), so a minute reads the same whichever day is open; a trading minute with no
+// trade yet keeps the last value.
+function emaRows(D, n) {
+  const out = new Map(); if (!n) return out;
+  const a = 2 / (n + 1); let ema = null, cnt = 0, sum = 0, lastT = null;
+  const step = (t, c) => {
+    if (lastT != null) { const g = rollsBetween(lastT, t); if (g) { if (ema != null) ema += g; sum += g * cnt; } }
+    lastT = t;
+    if (ema == null) { sum += c; cnt++; if (cnt === n) ema = sum / n; }
+    else ema += a * (c - ema);
+  };
+  for (const b of D.warm || []) step(b.t, b.c);
+  for (const r of D.rows) {
+    if (r.shut) continue;
+    if (r.fBar) step(r.t, r.fBar.c); else if (r.f == null) continue;
+    if (ema != null) out.set(r.x, ema);
+  }
+  return out;
+}
+let built = null, hoverT = null, lastFit = '', REV = new Map(), VAL = new Map(), EMAV = new Map(), dayFit = false, DAYV = new Map();
 function draw(D, keepView) {
   const W = x => ({ time: x });
-  const fut = [], shut = [], hl = [], diff = [], sh = [], ln = [], tg = [], st = [];
+  const fut = [], shut = [], hl = [], diff = [], sh = [], ln = [], tg = [], st = [], em = [];
   const T = STRAT ? D.trade : null, L0 = D.tonl, L1 = D.lineK, openT = openOf(DAYK), endT = T ? (T.out ? T.out.x : T.exitT) : 0;
+  EMAV = emaRows(D, EMA);
   REV = new Map(); let lastX = -Infinity;
   for (const r of D.rows) {
     const x = toChart(r.x); if (x <= lastX) continue; lastX = x; REV.set(x, r.x);
+    const ev = r.shut ? null : EMAV.get(r.x); em.push(ev == null ? W(x) : { time: x, value: +ev.toFixed(2) });
     // "Line up at close": Hyperliquid less the gap it had at the last futures close, so its move reads straight off the
     // futures' line; the dashed line stays the futures' real last price
     const hv = r.h == null ? null : MATCH ? (r.basis == null ? null : r.h - r.basis) : r.h, ref = r.shut ? r.closeF : r.f;
@@ -414,7 +476,8 @@ function draw(D, keepView) {
     tg.push(inT ? { time: x, value: T.tg } : W(x)); st.push(inT ? { time: x, value: T.st } : W(x));
   }
   sHl.applyOptions({ title: MATCH ? 'Hyperliquid (lined up)' : 'Hyperliquid' });
-  shade.setData(sh); shadeD.setData(sh); sFut.setData(fut); sShut.setData(shut); sHl.setData(hl); sDiff.setData(diff); sLine.setData(ln); sTgt.setData(tg); sStp.setData(st);
+  sEma.applyOptions({ title: EMA ? `EMA ${EMA}` : '' });
+  shade.setData(sh); shadeD.setData(sh); sFut.setData(fut); sShut.setData(shut); sHl.setData(hl); sDiff.setData(diff); sLine.setData(ln); sTgt.setData(tg); sStp.setData(st); sEma.setData(EMA ? em : []);
   VAL = new Map(hl.map((p, i) => [p.time, { h: p.value, d: diff[i].value }]));
   // markers: the trade (or, with the strategy off, the futures' open and its move) and any contract switch; on
   // Hyperliquid's line the futures' close and 17:45
@@ -464,14 +527,15 @@ function reopenOf(D, k) {
   if (!sh) return null;
   const closeT = sh.s, hAt = t => { const r = BY.get(t); return r ? r.h : null; };  // the price AT t = the close of the minute that ends then (rows are keyed by that time)
   const lastF = D.rows.filter(r => r.t < closeT && r.fBar).pop(), first = D.rows.find(r => r.t >= openT && r.fBar);
-  return { k, sh, closeT, openT, closeF: lastF && lastF.t >= closeT - 30 * MIN ? lastF.fBar.c : null, closeH: hAt(closeT), h1745: hAt(openT - 15 * MIN), hOpen: hAt(openT),
+  return { k, sh, closeT, openT, closeF: lastF && lastF.t >= closeT - 30 * MIN ? lastF.fBar.c : null, closeH: hAt(closeT), h1745: Date.now() >= openT - 15 * MIN ? hAt(openT - 15 * MIN) : null, hOpen: hAt(openT),
            fOpen: first ? first.fBar.o : null, firstT: first ? first.t : null, roll: rollsBetween(sh.sched - MIN, openT + MIN), monday: new Date(k + 'T00:00:00Z').getUTCDay() === 1 };
 }
 
 // ---- the reading line: the minute under the cursor, else the newest; and the day's strategy ---------------------------
 function readout(t) {
   const D = built; if (!D) return;
-  if (!D.rows.length) { for (const id of ['vF', 'vH', 'vD', 'vM']) $(id).textContent = '—'; $('sF').textContent = ''; $('sM').textContent = ''; $('when').textContent = 'no data for this range yet'; return; }
+  $('cE').hidden = !EMA;
+  if (!D.rows.length) { for (const id of ['vF', 'vH', 'vD', 'vM', 'vE']) $(id).textContent = '—'; $('sF').textContent = ''; $('sM').textContent = ''; $('cM').hidden = true; $('when').textContent = 'no data for this range yet'; return; }
   let r = t != null ? BY.get(t) : null; if (!r) r = D.rows[D.rows.length - 1];
   const ct = contractAt(D.contracts, r.shut ? r.shut.s - MIN : r.t);  // in a shut: the contract whose last price is shown
   $('when').textContent = both(r.x) + (t == null && LIVE && DAYK === curKey() ? ' · latest' : '');
@@ -481,6 +545,8 @@ function readout(t) {
   $('sF').innerHTML = r.shut ? `<span class="pill shut">SHUT</span>` : r.f == null ? '<span class="pill shut">NO PRICE</span>' : '<span class="pill open">TRADING</span>';
   $('vH').textContent = p1(r.h);
   $('vD').innerHTML = `<span class="${cls(d)}">${sg(d)}</span>`;
+  $('cE').hidden = !EMA;
+  if (EMA) { const ev = EMAV.get(r.shut ? r.shut.s : r.x); $('kE').textContent = `EMA ${EMA}${r.shut ? ' (at the close)' : ''}`; $('vE').textContent = p1(ev ?? null); }
   if (r.shut && r.closeH != null && r.h != null) {
     const m = r.h - r.closeH; $('kM').textContent = 'Hyperliquid since the close';
     $('vM').innerHTML = `<span class="${cls(m)}">${sg(m)}</span>`;
@@ -492,25 +558,48 @@ function readout(t) {
     else $('cM').hidden = true;
   } else $('cM').hidden = true;
 }
-function stratChip(D) {
-  const c = $('cS'); c.hidden = !STRAT; if (!STRAT) return;
-  const L = D.tonl, k = DAYK;
-  if (!L) { c.innerHTML = 'Strategy: not enough saved closes for the 50-day line'; return; }
-  const mon = new Date(k + 'T00:00:00Z').getUTCDay() === 1 && k >= HL_MONDAY_FROM, R = D.reopen;
-  const hlSide = R && R.h1745 != null && R.closeH != null && Math.abs(R.h1745 - R.closeH) > 1e-9 ? (R.h1745 > R.closeH ? 1 : -1) : null;
-  let h = `Strategy for <b style="font:600 12.5px var(--font-ui)">${dayName(k)}</b>: ${sidePill(L.side)} — the close ${p1(L.last)} (${dayName(L.lastK)}) is ${L.side > 0 ? 'above' : 'below'} the 50-day line <b style="font-size:13px">${p1(L.line)}</b> (${sg(L.last - L.line)})`;
-  if (mon) h += ` · Monday: the bot takes Hyperliquid's weekend side${hlSide ? ' ' + sidePill(hlSide) : ' (not known yet)'}`;
-  const T = D.trade;
-  if (T) {
-    const o = T.out, usd = v => (v < 0 ? '−$' : '+$') + Math.abs(Math.round(v)).toLocaleString('en-US');
-    h += ` · in at ${p1(T.e)}, target ${p1(T.tg)}, stop ${p1(T.st)}, out 08:10 ET`;
-    if (o && o.src === 'test') h += ` → <b class="${o.kind === 'target' ? 'up' : o.kind === 'stop' ? 'down' : ''}" style="font-size:12.5px">${outText(o)}</b>, ${usd(o.usd)} a GC (the test, realistic fills)`;
-    else if (o) h += ` → <b class="${o.kind === 'target' ? 'up' : o.kind === 'stop' ? 'down' : ''}" style="font-size:12.5px">${outText(o)}</b> at ${hm(o.x)} ${ZN[TZ]}` + (o.kind === 'first' ? ' (needs tick data: which came first is not in a 1-minute bar)' : ' (1-minute bars; no test result for this day yet)');
-    else if (Date.now() < T.exitT) h += ' → still open';
-    if (!mon && T.test && T.test[0] !== T.side) h += ` · the test took ${sideTxt(T.test[0])} this day`;
-  }
-  else if (Date.now() < openOf(k)) h += ` · the futures open ${dwhm(openOf(k))}`;
-  c.innerHTML = h;
+// The strategy panel: what the strategy does on the day shown and why, then labelled boxes (the line, the last close, the
+// trade's levels, the result). The result is the test's where there is one; from 1-minute bars it is only an indication.
+function stratCard(D) {
+  const card = $('scard'); card.hidden = !STRAT; if (!STRAT) return;
+  const L = D.tonl, k = DAYK, T = D.trade, R = D.reopen, now = Date.now(), z = ZN[TZ];
+  const tile = (key, val, sub, cl = '') => `<div class="tile ${cl}"><span class="k">${key}</span><span class="v">${val}</span><span class="s">${sub || '&nbsp;'}</span></div>`;
+  if (!L) { $('scHead').innerHTML = `<span class="ttl">Gold strategy (TONL)</span><span class="day">${dayName(k)}</span><span>not enough saved closes for the 50-day line</span>`; $('scGrid').innerHTML = ''; $('scNote').textContent = ''; return; }
+  const mon = new Date(k + 'T00:00:00Z').getUTCDay() === 1 && k >= HL_MONDAY_FROM;
+  const hlSide = R && R.h1745 != null && R.closeH != null && R.h1745 !== R.closeH ? (R.h1745 > R.closeH ? 1 : -1) : null;
+  const known = !mon || !!hlSide || !!T;  // a Monday's side is Hyperliquid's at 17:45 New York: not known before
+  const side = T ? T.side : mon && hlSide ? hlSide : L.side, gap = L.last - L.line;
+  $('scHead').innerHTML = `<span class="ttl">Gold strategy (TONL)</span><span class="day">${dayName(k)}</span>` +
+    (known ? `<span class="pill side ${side > 0 ? 'long' : 'short'}">${sideTxt(side)}</span>` : `<span class="pill side shut">SIDE AT 17:45 NEW YORK</span>`) +
+    (mon ? `<span class="why">Monday: the bot follows Hyperliquid's weekend side` + (hlSide ? ` (Hyperliquid <b>${sg(R.h1745 - R.closeH)}</b> since Friday's close)` : T ? ` — Hyperliquid's 17:45 price is missing, so this shows the 50-day side` : ' (known at 17:45 New York)') + `; the 50-day line says ${sideTxt(L.side)}</span>`
+         : `<span class="why">the last close is <b>${Math.abs(gap).toFixed(1)}</b> ${gap > 0 ? 'above' : 'below'} the 50-day line</span>`);
+  const usd = v => (v < 0 ? '−$' : '+$') + Math.abs(Math.round(v)).toLocaleString('en-US');
+  const testTile = (kind, x, extra) => tile('Result · the test', kind === 'W' ? `Target ${sg(TGT)}` : kind === 'L' ? `Stop ${sg(-STOP)}` : `Time out ${sg((x + 4.32) / 100)}`,
+    `${usd(x)} a GC after costs · realistic fills${extra || ''}`, kind === 'W' ? 'res win' : kind === 'L' ? 'res loss' : 'res');
+  let res;
+  const o = T && T.out, tst = !T && known && now >= openOf(k) ? testOf(k, side) : null;
+  if (o && o.src === 'test') res = testTile(o.kind === 'target' ? 'W' : o.kind === 'stop' ? 'L' : 'O', o.usd);
+  else if (o && (o.kind === 'first' || o.kind === 'both')) res = tile('Result', 'Not known', `target and stop both reachable inside the ${o.kind === 'first' ? 'first minute' : 'same minute'} (${hm(o.t)} ${z}); a 1-minute bar cannot tell which came first`, 'res unsure');
+  else if (o) res = tile('Result · 1-minute bars', o.kind === 'target' ? `Target ${sg(TGT)}` : o.kind === 'stop' ? `Stop ${sg(-STOP)}` : `Time out ${sg(o.pts)}`,
+    `at ${hm(o.x)} ${z} · an indication: no test result for this day yet`, o.kind === 'target' ? 'res win' : o.kind === 'stop' ? 'res loss' : 'res');
+  else if (T) res = tile('Result', 'Open', `until the target, the stop or ${hm(T.exitT)} ${z}`, 'res');
+  else if (tst && tst[0] === side) res = testTile(tst[1], tst[2], ' · the page has no futures minutes at the open');
+  else res = tile('Result', now < openOf(k) ? 'Waiting' : '—', now < openOf(k) ? `the futures open ${dwhm(openOf(k))}` : 'no futures open in the data', 'res');
+  const g = R && R.fOpen != null && R.closeF != null ? R.fOpen - R.closeF - R.roll : null;
+  const toward = known ? (side > 0 ? '+' : '−') : '±', against = known ? (side > 0 ? '−' : '+') : '∓';
+  $('scGrid').innerHTML =
+    tile('50-day line', p1(L.line), 'mean of the 49 closes before', 'ma') +
+    tile('Last close', p1(L.last), `${dayName(L.lastK)} · ${sg(gap)}`) +
+    (T ? tile('Entry', p1(T.e), `${sideTxt(T.side)} at ${hm(T.t0)} ${z}${g != null ? ` · open ${sg(g)}` : ''}`) +
+         tile('Target', p1(T.tg), `${sg(T.tg - T.e)} pts`) +
+         tile('Stop', p1(T.st), `${sg(T.st - T.e)} pts`) +
+         tile('Out at', `${hm(T.exitT)} ${z}`, 'if neither is hit')
+       : tile('Entry', 'at the open', dwhm(openOf(k))) + tile('Target', `${toward}${TGT}`, 'pts from the entry') + tile('Stop', `${against}${STOP}`, 'pts from the entry') + tile('Out at', `${hm(openOf(k) + EXIT_AFTER)} ${z}`, 'if neither is hit')) +
+    res;
+  const notes = [];
+  if (!mon && T && T.test && T.test[0] !== T.side) notes.push(`The test took ${sideTxt(T.test[0])} this day (its closes differ slightly), so its result is not shown.`);
+  if (R && R.roll) notes.push(`The futures switched contract at this open (${sg(R.roll)} pts); the open move above has it taken out.`);
+  $('scNote').textContent = notes.join(' ');
 }
 let xsync = false;  // the other chart's crosshair follows (its own move event must not echo back)
 function hover(p, other, series, key) {
@@ -538,14 +627,17 @@ function seg(el, items, on) {  // built once; a redraw only moves aria-pressed (
   el.onclick = e => { const b = e.target.closest('button'); if (b) on(b.dataset.v); };
 }
 const pressed = (el, cur) => { for (const b of el.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === cur)); };
-const repaint = () => { if (built) { draw(built, false); readout(hoverT); stratChip(built); if (built.S) drawDaily(built.S); } };
+const repaint = () => { if (built && built.k === DAYK) { draw(built, true); readout(hoverT); stratCard(built); if (built.S) drawDaily(built.S); } };  // (a day still loading draws with the new setting when it lands)
 seg($('tzSeg'), [['New York', 'et', 'Times in New York (CME)'], ['India', 'ist', 'Times in India']], v => { TZ = v; store('nsb.gold.tz', v); controls(); repaint(); });
 seg($('matchSeg'), [['Real prices', '0', 'Both lines at their real prices'], ['Line up at close', '1', 'Hyperliquid moved onto the futures at each futures close, to compare the moves']], v => { MATCH = v === '1'; store('nsb.gold.match', v); controls(); repaint(); });
+seg($('emaSeg'), [['Off', '0', 'No EMA'], ...EMAS.map(n => [String(n), String(n), `EMA of the futures over ${n} one-minute bars`])], v => { EMA = +v; store('nsb.gold.ema', v); controls(); repaint(); });
 $('stratBtn').onclick = () => { STRAT = !STRAT; store('nsb.gold.strat', STRAT ? '1' : '0'); controls(); repaint(); };
 function controls() {
-  pressed($('tzSeg'), TZ); pressed($('matchSeg'), MATCH ? '1' : '0');
+  pressed($('tzSeg'), TZ); pressed($('matchSeg'), MATCH ? '1' : '0'); pressed($('emaSeg'), String(EMA));
   $('liveBtn').setAttribute('aria-pressed', String(LIVE && DAYK === curKey())); $('stratBtn').setAttribute('aria-pressed', String(STRAT));
   for (const e of document.querySelectorAll('.legend .sl')) e.hidden = !STRAT;
+  for (const e of document.querySelectorAll('.legend .el')) e.hidden = !EMA;
+  $('lgE').textContent = EMA ? `EMA ${EMA}` : 'EMA';
   const i = days.indexOf(DAYK); $('prevBtn').disabled = i < 0 || i >= days.length - 1; $('nextBtn').disabled = i <= 0;
 }
 $('prevBtn').onclick = () => { const i = days.indexOf(DAYK); if (i >= 0 && i < days.length - 1) { LIVE = false; show(days[i + 1]); } };
@@ -557,7 +649,7 @@ async function show(k, keepView = false) {
   const my = ++busy; DAYK = k;
   if (!keepView) $('loading-text').textContent = `Loading ${k}…`;
   const [D, S] = await Promise.all([load(k), sessionsUpTo(curKey() > k ? curKey() : k)]); if (my !== busy) return;
-  BY = new Map(D.rows.map(r => [r.x, r])); built = D; D.reopen = reopenOf(D, k); D.S = S;
+  BY = new Map(D.rows.map(r => [r.x, r])); built = D; D.k = k; D.reopen = reopenOf(D, k); D.S = S;
   D.tonl = tonlOf(S, k);
   const iK = S.findIndex(s => s.k === k); D.lineK = iK >= 0 ? lineOf(S, iK) : D.tonl ? (() => { const P = S.filter(s => s.k < k && s.closed); return lineOf(P, P.length); })() : null;
   // the side the bot takes: TONL; on Mondays from 30 Nov Hyperliquid's weekend side (its 17:45 price vs its price at Friday's close)
@@ -565,7 +657,7 @@ async function show(k, keepView = false) {
   const hlSide = R && R.h1745 != null && R.closeH != null && R.h1745 !== R.closeH ? (R.h1745 > R.closeH ? 1 : -1) : null;
   const side = mon && hlSide ? hlSide : D.tonl ? D.tonl.side : null;
   D.trade = side ? tradeOf(D, k, side) : null;
-  draw(D, keepView); if (hoverT == null || !keepView) readout(null); stratChip(D); drawDaily(S);
+  draw(D, keepView); if (hoverT == null || !keepView) readout(null); stratCard(D); drawDaily(S);
   days = dayList(); const pk = days.join() + '|' + k; if (pk !== pickedKey) { pick.set(days, k, curKey()); pickedKey = pk; }
   controls();
   const hlN = D.rows.filter(r => r.hBar).length, fN = D.rows.filter(r => r.fBar).length;
@@ -607,7 +699,7 @@ NsbStatus.add('Hyperliquid', () => {
 
 (async () => {
   controls();
-  NsbLive.start('VPS live stream', () => [FUT], () => ({ want: [FUT], since: endOf(prevWd(curKey())) - 5 * HOUR }));
+  NsbLive.start('VPS live stream', () => [FUT], () => ({ want: [FUT], since: Math.floor((endOf(prevWd(curKey())) - 5 * HOUR) / DAY) * DAY }));
   await Promise.all([readIndexes(), NsbLive.ready(1500)]);
   hlConnect();
   const q = new URLSearchParams(location.search).get('day');
