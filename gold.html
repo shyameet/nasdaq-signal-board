@@ -166,8 +166,8 @@ const store = (k, v) => { try { if (v === undefined) return localStorage.getItem
 let TZ = store('nsb.gold.tz') === 'ist' ? 'ist' : 'et';  // the clock: New York (CME's) or India
 let MATCH = store('nsb.gold.match') === '1';              // Hyperliquid's line moved onto the futures at each close
 let STRAT = store('nsb.gold.strat') !== '0';              // the strategy's 50-day line and trade
-const EMAS = [20, 50, 200];                                // the EMA on the futures, in 1-minute bars (0 = off)
-let EMA = (() => { const v = store('nsb.gold.ema'); return v === null ? 50 : EMAS.includes(+v) ? +v : 0; })();
+const EMAS = [200];                                        // the EMA on the futures, in 1-minute bars (0 = off); owner 27/11: the 200 only
+let EMA = (() => { const v = store('nsb.gold.ema'); return v === '0' ? 0 : 200; })();
 let DAYK = null, LIVE = true, PERPS_DAYS = new Set(), FUT_DAYS = new Set(), GOLD_DAYS = new Set(), BRD_ROLLS = [], ROLLS = [], DAILY = null, BY = new Map();
 
 // ---- clocks and numbers ----------------------------------------------------------------------------------------
@@ -668,7 +668,7 @@ let hlWs = null, hlLast = 0, hlDownAt = 0, redrawT = 0;
 function hlConnect() {
   const ws = hlWs = new WebSocket('wss://api.hyperliquid.xyz/ws');
   ws.onopen = () => { hlDownAt = 0; ws.send(JSON.stringify({ method: 'subscribe', subscription: { type: 'candle', coin: HL_COIN, interval: '1m' } })); };
-  ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (x) { return; } hlLast = Date.now(); if (m.channel === 'candle' && m.data && m.data.s === HL_COIN) { const b = toBar(m.data); liveHl.set(b.t, { t: b.t, o: b.o, h: b.h, l: b.l, c: b.c, r: 1 }); redraw(); } };
+  ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (x) { return; } hlLast = Date.now(); if (m.channel === 'candle' && m.data && m.data.s === HL_COIN) { const b = toBar(m.data); liveHl.set(b.t, { t: b.t, o: b.o, h: b.h, l: b.l, c: b.c, r: 1 }); tick(); } };
   ws.onclose = () => { if (hlWs !== ws) return; if (!hlDownAt) hlDownAt = Date.now(); setTimeout(hlConnect, 3000); };
   ws.onerror = () => ws.close();
 }
@@ -678,9 +678,37 @@ setInterval(() => { const cut = Date.now() - 2 * DAY; for (const t of liveHl.key
 // (any=true: a slow Hyperliquid answer arrived, redraw whatever day is shown)
 function redraw(any = false) {
   if ((!LIVE && !any) || redrawT) return;
-  redrawT = setTimeout(() => { redrawT = 0; const k = LIVE ? curKey() : DAYK; show(k, k === DAYK); }, 1000);
+  redrawT = setTimeout(() => { redrawT = 0; const k = LIVE ? curKey() : DAYK; show(k, k === DAYK); }, 300);  // (prices between rebuilds: tick() / fast())
 }
-NsbLive.on((kind, s) => { if (kind === 'snapshot' || s === FUT) redraw(); });
+NsbLive.on((kind, s) => { if (kind === 'snapshot') redraw(); else if (s === FUT) tick(); });
+// The fast path (owner 27/11: "the price to be updated like real time"): a new futures or Hyperliquid price moves the
+// newest minute's point on each line, the gap, the EMA and the corner reading straight away (at most 10 times a second);
+// a price for a minute the chart does not have yet (a new minute) rebuilds the whole chart, as does a slow check every 15 s.
+let tickT = 0;
+function tick() { if (!tickT) tickT = setTimeout(() => { tickT = 0; fast(); }, 100); }
+function fast() {
+  const D = built; if (!LIVE || !D || D.k !== DAYK || DAYK !== curKey()) return;
+  const fb = NsbLive.bars(FUT), fl = fb.length ? fb[fb.length - 1] : null;
+  let hl = null; for (const x of liveHl.values()) if (!hl || x.t > hl.t) hl = x;
+  const last = D.rows[D.rows.length - 1];
+  if (!last || (fl && fl.t > last.t) || (hl && hl.t > last.t)) { redraw(); return; }  // a new minute: rebuild
+  const r = last, x = toChart(r.x);
+  if (fl && fl.t === r.t && !r.shut) { r.fBar = { t: fl.t, o: fl.o, h: fl.h, l: fl.l, c: fl.c }; r.f = fl.c; }
+  if (hl && hl.t === r.t) { r.hBar = hl; r.h = hl.c; }
+  const hv = r.h == null ? null : MATCH ? (r.basis == null ? null : r.h - r.basis) : r.h, ref = r.shut ? r.closeF : r.f;
+  try {
+    if (!r.shut && r.f != null) sFut.update({ time: x, value: r.f });
+    if (hv != null) sHl.update({ time: x, value: hv });
+    if (hv != null && ref != null) sDiff.update({ time: x, value: +(hv - ref).toFixed(2) });
+    if (EMA && !r.shut && r.fBar) {  // the EMA's newest point: the minute before it, one step towards the forming close
+      const prev = D.rows.slice(-3, -1).reverse().find(q => EMAV.has(q.x)), a = 2 / (EMA + 1);
+      if (prev) { const e = EMAV.get(prev.x) + a * (r.fBar.c - EMAV.get(prev.x)); EMAV.set(r.x, e); sEma.update({ time: x, value: +e.toFixed(2) }); }
+    }
+  } catch (e) { redraw(); return; }
+  VAL.set(x, { h: hv, d: hv != null && ref != null ? +(hv - ref).toFixed(2) : null });
+  if (hoverT == null) readout(null);
+}
+setInterval(() => { if (LIVE && built && DAYK === curKey()) redraw(); }, 15000);  // the strategy line, markers and the rest catch up
 setInterval(() => { if (LIVE && DAYK !== curKey()) redraw(); }, 20000);
 setInterval(async () => { if (await readIndexes() && built) show(DAYK, true); }, 5 * MIN);  // a saved day published since (the VPS writes them after midnight UTC)
 NsbStatus.add('Hyperliquid', () => {
