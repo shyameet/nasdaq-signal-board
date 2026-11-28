@@ -34,7 +34,7 @@
     color-scheme: dark;
     --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --tile-2: #161e29; --line: #1c2430; --line-strong: #283240;
     --text: #e8eef6; --muted: #8d99ab; --faint: #5c6879; --up: #2bb68a; --down: #f0555f; --accent: #5b8cff; --warn: #f2b33d;
-    --fut: #e8eef6; --hl: #e3a72f; --ma: #5b8cff; --ema: #c084fc;
+    --fut: #e8eef6; --hl: #e3a72f; --ma: #5b8cff;
     --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
     --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   }
@@ -142,7 +142,6 @@
     <button type="button" class="live-btn" id="liveBtn" aria-pressed="true" title="Follow the latest minute">Live</button></div>
   <div class="grp"><div class="seg" id="tzSeg" role="group" aria-label="Clock"></div></div>
   <div class="grp"><div class="seg" id="matchSeg" role="group" aria-label="Hyperliquid line"></div></div>
-  <div class="grp"><span class="seglab" title="EMA of the futures over 1-minute bars (50m = about the last 50 minutes)">EMA</span><div class="seg" id="emaSeg" role="group" aria-label="EMA on the futures (1-minute bars)"></div></div>
   <div class="grp"><button type="button" class="live-btn" id="stratBtn" aria-pressed="true" title="The gold strategy (TONL): its 50-day line and the day's trade">Strategy</button></div>
   <div class="spacer"></div>
   <a class="devtab" href="devices.html" title="The machines and the bus">Devices</a>
@@ -169,8 +168,6 @@ const store = (k, v) => { try { if (v === undefined) return localStorage.getItem
 let TZ = store('nsb.gold.tz') === 'ist' ? 'ist' : 'et';  // the clock: New York (CME's) or India
 let MATCH = store('nsb.gold.match') === '1';              // Hyperliquid's line moved onto the futures at each close
 let STRAT = store('nsb.gold.strat') !== '0';              // the strategy's 50-day line and trade
-const EMAS = [200];                                        // the EMA on the futures, in 1-minute bars (0 = off); owner 27/11: the 200 only
-let EMA = (() => { const v = store('nsb.gold.ema'); return v === '0' ? 0 : 200; })();
 let DAYK = null, LIVE = true, PERPS_DAYS = new Set(), FUT_DAYS = new Set(), GOLD_DAYS = new Set(), BRD_ROLLS = [], ROLLS = [], DAILY = null, BY = new Map();
 
 // ---- clocks and numbers ----------------------------------------------------------------------------------------
@@ -394,7 +391,6 @@ const shade = shadeOf(chart), shadeD = shadeOf(chartD);
 const sLine = chart.addLineSeries({ color: '#5b8cff', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, title: '50-day line', autoscaleInfoProvider: () => null });
 const sTgt = chart.addLineSeries({ color: '#2bb68a', lineWidth: 1, lineStyle: LC.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
 const sStp = chart.addLineSeries({ color: '#f0555f', lineWidth: 1, lineStyle: LC.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
-const sEma = chart.addLineSeries({ color: '#c084fc', priceLineColor: '#c084fc', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, title: 'EMA' });
 const sFut = chart.addLineSeries({ color: '#e8eef6', priceLineColor: '#e8eef6', crosshairMarkerBackgroundColor: '#e8eef6', lineWidth: 2, priceLineVisible: false, title: 'Futures' });
 const sShut = chart.addLineSeries({ color: 'rgba(232, 238, 246, 0.6)', lineWidth: 2, lineStyle: LC.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
 // the weekend closing lines (dotted): the futures' last price and Hyperliquid's at that minute, on to the end of the Monday
@@ -417,27 +413,6 @@ chartDay.priceScale('side').applyOptions({ scaleMargins: { top: 0.94, bottom: 0 
 const sCandle = chartDay.addCandlestickSeries({ upColor: '#2bb68a', downColor: '#f0555f', borderVisible: false, wickUpColor: '#2bb68a', wickDownColor: '#f0555f', priceLineVisible: false });
 const sDayLine = chartDay.addLineSeries({ color: '#5b8cff', lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, title: '50-day line' });
 
-// The EMA of the futures' 1-minute closes (trading minutes only; it waits through the breaks, a contract switch moves it by
-// the switch so the jump is no move). Seeded with the plain mean of its first n closes; warmed up on the bars before the
-// range (D.warm, the rest of that UTC day), so a minute reads the same whichever day is open; a trading minute with no
-// trade yet keeps the last value.
-function emaRows(D, n) {
-  const out = new Map(); if (!n) return out;
-  const a = 2 / (n + 1); let ema = null, cnt = 0, sum = 0, lastT = null;
-  const step = (t, c) => {
-    if (lastT != null) { const g = rollsBetween(lastT, t); if (g) { if (ema != null) ema += g; sum += g * cnt; } }
-    lastT = t;
-    if (ema == null) { sum += c; cnt++; if (cnt === n) ema = sum / n; }
-    else ema += a * (c - ema);
-  };
-  for (const b of D.warm || []) step(b.t, b.c);
-  for (const r of D.rows) {
-    if (r.shut) continue;
-    if (r.fBar) step(r.t, r.fBar.c); else if (r.f == null) continue;
-    if (ema != null) out.set(r.x, ema);
-  }
-  return out;
-}
 // The weekend close in the range: the futures' last minute before the weekend (s, a short Friday's real last minute), their
 // last price (f) and Hyperliquid's price at that same minute (h), read off the shut's first row; e = the Sunday reopen.
 function weekendOf(D) {
@@ -461,17 +436,15 @@ function wkLabels(D) {
   if (w !== LBL.w) { sWkH.applyOptions({ title: w }); LBL.w = w; }
   if (h !== LBL.h) { sHl.applyOptions({ title: h }); LBL.h = h; }
 }
-let built = null, hoverT = null, lastFit = '', REV = new Map(), VAL = new Map(), EMAV = new Map(), dayFit = false, DAYV = new Map();
+let built = null, hoverT = null, lastFit = '', REV = new Map(), VAL = new Map(), dayFit = false, DAYV = new Map();
 function draw(D, keepView) {
   const W = x => ({ time: x });
-  const fut = [], shut = [], hl = [], diff = [], sh = [], ln = [], tg = [], st = [], em = [], wf = [], wh = [];
+  const fut = [], shut = [], hl = [], diff = [], sh = [], ln = [], tg = [], st = [], wf = [], wh = [];
   const WK = D.wk = weekendOf(D);
   const T = STRAT ? D.trade : null, L0 = D.tonl, openT = openOf(DAYK), endT = T ? (T.out && T.out.kind !== 'first' && T.out.kind !== 'both' ? T.out.x : T.exitT) : 0;
-  EMAV = emaRows(D, EMA);
   REV = new Map(); let lastX = -Infinity;
   for (const r of D.rows) {
     const x = toChart(r.x); if (x <= lastX) continue; lastX = x; REV.set(x, r.x);
-    const ev = r.shut ? null : EMAV.get(r.x); em.push(ev == null ? W(x) : { time: x, value: +ev.toFixed(2) });
     // "Line up at close": Hyperliquid less the gap it had at the last futures close, so its move reads straight off the
     // futures' line; the dashed line stays the futures' real last price
     const hv = r.h == null ? null : MATCH ? (r.basis == null ? null : r.h - r.basis) : r.h, ref = r.shut ? r.closeF : r.f;
@@ -490,14 +463,13 @@ function draw(D, keepView) {
     const inT = T && r.x >= T.x0 && r.x <= endT;
     tg.push(inT ? { time: x, value: T.tg } : W(x)); st.push(inT ? { time: x, value: T.st } : W(x));
   }
-  sEma.applyOptions({ title: EMA ? `EMA ${EMA}m` : '' });
   // Lightweight Charts joins a line across empty minutes: the point before each gap gets a see-through colour, so the
   // segment that would bridge a shut (or a data gap) is not drawn
   const cut = arr => { for (let i = 0; i < arr.length - 1; i++) if (arr[i].value != null && arr[i + 1].value == null) arr[i].color = 'rgba(0, 0, 0, 0)'; return arr; };
-  cut(fut); cut(shut); cut(em); cut(hl);
+  cut(fut); cut(shut); cut(hl);
   for (let i = 0; i < diff.length - 1; i++) if (diff[i].value != null && diff[i + 1].value == null)  // the gap pane: same cut, its own colour names
     Object.assign(diff[i], { topLineColor: 'rgba(0, 0, 0, 0)', bottomLineColor: 'rgba(0, 0, 0, 0)', topFillColor1: 'rgba(0, 0, 0, 0)', topFillColor2: 'rgba(0, 0, 0, 0)', bottomFillColor1: 'rgba(0, 0, 0, 0)', bottomFillColor2: 'rgba(0, 0, 0, 0)' });
-  shade.setData(sh); shadeD.setData(sh); sFut.setData(fut); sShut.setData(shut); sHl.setData(hl); sDiff.setData(diff); sLine.setData(ln); sTgt.setData(tg); sStp.setData(st); sEma.setData(EMA ? em : []);
+  shade.setData(sh); shadeD.setData(sh); sFut.setData(fut); sShut.setData(shut); sHl.setData(hl); sDiff.setData(diff); sLine.setData(ln); sTgt.setData(tg); sStp.setData(st);
   sWkF.setData(wf); sWkH.setData(wh); wkLabels(D);
   VAL = new Map(hl.map((p, i) => [p.time, { h: p.value, d: diff[i].value }]));
   // markers: the trade (or, with the strategy off, the futures' open and its move) and any contract switch; on
@@ -571,12 +543,10 @@ function readout(t) {
   let r = t != null ? BY.get(t) : null; if (!r) r = D.rows[D.rows.length - 1];
   const ct = contractAt(D.contracts, r.shut ? r.shut.s - MIN : r.t);  // in a shut: the contract whose last price is shown
   const f = r.shut ? r.closeF : r.f, hv = r.h == null ? null : MATCH ? (r.basis == null ? null : r.h - r.basis) : r.h, d = hv != null && f != null ? hv - f : null;  // the gap as the pane draws it
-  const ev = EMA ? EMAV.get(r.shut ? r.shut.s : r.x) : null;
   const lv = STRAT && D.tonl ? D.tonl.line : null;
   const state = r.shut ? '<span class="pill shut">SHUT</span>' : r.f == null ? '<span class="pill shut">NO PRICE</span>' : '<span class="pill open">TRADING</span>';
   let row1 = it('style="background:var(--fut)"', `Futures${ct ? '<span class="opt"> (MGC ' + contractName(ct) + ')</span>' : ''}`, p1(f), '&nbsp;' + state) +
              it('style="background:var(--hl)"', 'Hyperliquid', p1(r.h), MATCH ? '&nbsp;<span class="hint">(real price; its line is moved onto the futures)</span>' : '');
-  if (EMA) row1 += it('style="background:var(--ema)"', `EMA ${EMA}m`, p1(ev ?? null));
   if (STRAT && lv != null) { const y = sLine.priceToCoordinate(lv), off = y == null || y < 0 || y > $('chart').clientHeight;
     row1 += it('style="background:var(--ma)"', '50-day line', p1(lv), off && f != null ? `&nbsp;<span class="hint">(${sg(lv - f)}, off the chart)</span>` : ''); }
   let row2 = `<span class="t">${dwhm(r.x)}${t == null && LIVE && DAYK === curKey() ? ' · latest' : ''}</span>`;
@@ -660,10 +630,9 @@ const pressed = (el, cur) => { for (const b of el.querySelectorAll('button')) b.
 const repaint = () => { if (built && built.k === DAYK) { draw(built, true); readout(hoverT); stratBar(built); if (built.S) drawDaily(built.S); } };  // (a day still loading draws with the new setting when it lands)
 seg($('tzSeg'), [['New York', 'et', 'Times in New York (CME)'], ['India', 'ist', 'Times in India']], v => { TZ = v; store('nsb.gold.tz', v); controls(); repaint(); });
 seg($('matchSeg'), [['Real prices', '0', 'Both lines at their real prices'], ['Line up at close', '1', 'Hyperliquid moved onto the futures at each futures close, to compare the moves']], v => { MATCH = v === '1'; store('nsb.gold.match', v); controls(); repaint(); });
-seg($('emaSeg'), [['Off', '0', 'No EMA'], ...EMAS.map(n => [`${n}m`, String(n), `EMA of the futures over the last ${n} one-minute bars (about ${n} minutes)`])], v => { EMA = +v; store('nsb.gold.ema', v); controls(); repaint(); });
 $('stratBtn').onclick = () => { STRAT = !STRAT; store('nsb.gold.strat', STRAT ? '1' : '0'); controls(); repaint(); $('lgDay').innerHTML = DAY_KEY(); $('sbarTip').textContent = ''; };
 function controls() {
-  pressed($('tzSeg'), TZ); pressed($('matchSeg'), MATCH ? '1' : '0'); pressed($('emaSeg'), String(EMA));
+  pressed($('tzSeg'), TZ); pressed($('matchSeg'), MATCH ? '1' : '0');
   $('liveBtn').setAttribute('aria-pressed', String(LIVE && DAYK === curKey())); $('stratBtn').setAttribute('aria-pressed', String(STRAT));
   const i = days.indexOf(DAYK); $('prevBtn').disabled = i < 0 || i >= days.length - 1; $('nextBtn').disabled = i <= 0;
 }
@@ -719,7 +688,7 @@ function redraw(any = false) {
 }
 NsbLive.on((kind, s) => { if (kind === 'snapshot') redraw(); else if (s === FUT) tick(); });
 // The fast path (owner 27/11: "the price to be updated like real time"): a new futures or Hyperliquid price moves the
-// newest minute's point on each line, the gap, the EMA and the corner reading straight away (at most 10 times a second);
+// newest minute's point on each line, the gap and the corner reading straight away (at most 10 times a second);
 // a price for a minute the chart does not have yet (a new minute) rebuilds the whole chart, as does a slow check every 15 s.
 let tickT = 0;
 function tick() { if (!tickT) tickT = setTimeout(() => { tickT = 0; fast(); }, 100); }
@@ -737,10 +706,6 @@ function fast() {
     if (!r.shut && r.f != null) sFut.update({ time: x, value: r.f });
     if (hv != null) sHl.update({ time: x, value: hv });
     if (hv != null && ref != null) sDiff.update({ time: x, value: +(hv - ref).toFixed(2) });
-    if (EMA && !r.shut && r.fBar) {  // the EMA's newest point: the minute before it, one step towards the forming close
-      const prev = D.rows.slice(-3, -1).reverse().find(q => EMAV.has(q.x)), a = 2 / (EMA + 1);
-      if (prev) { const e = EMAV.get(prev.x) + a * (r.fBar.c - EMAV.get(prev.x)); EMAV.set(r.x, e); sEma.update({ time: x, value: +e.toFixed(2) }); }
-    }
     if (D.wk) wkLabels(D);  // Hyperliquid's move since the weekend close, at the newest minute
   } catch (e) { redraw(); return; }
   VAL.set(x, { h: hv, d: hv != null && ref != null ? +(hv - ref).toFixed(2) : null });
