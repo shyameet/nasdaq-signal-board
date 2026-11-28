@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>New Strategy · Indra Quant Signal Board</title>
+<meta name="description" content="The weekend close: US futures (NinjaTrader) and the Nvidia stock beside their Hyperliquid twins, which trade all weekend - gold, silver, S&amp;P 500, Nasdaq.">
+<meta name="theme-color" content="#0a0d12">
+<link rel="stylesheet" href="appbar.css?v=2">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="manifest" href="brand/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="lightweight-charts.js"></script>
+<script>window.LightweightCharts || document.write('<script src="lightweight-charts.js?retry=1"><\/script>');</script>
+<script src="cme.js?v=1"></script>
+<script src="engine.js?v=19"></script>
+<script src="live.js?v=9"></script>
+<script src="daypick.js?v=3"></script>
+<script src="install.js?v=2"></script>
+<style>
+  /* The New Strategy tab (owner 28/11/2026). One market at a time - Gold, Silver, S&P 500, Nasdaq - each a US market
+     (NinjaTrader's futures; for Nvidia the real stock) beside its Hyperliquid twin, which trades through the weekend. The
+     weekend close is marked: two dotted lines from the US market's last minute before the weekend, its close and
+     Hyperliquid's price at that minute, on through the Monday. Clean on purpose (owner: "keep it clean and simple"): no
+     indicators; the numbers read in one short corner reading. Watching only. */
+  :root {
+    color-scheme: dark;
+    --bg: #0a0d12; --surface: #0e131a; --tile: #121922; --line: #1c2430; --line-strong: #283240;
+    --text: #e8eef6; --muted: #8d99ab; --faint: #5c6879; --up: #2bb68a; --down: #f0555f; --accent: #5b8cff; --warn: #f2b33d;
+    --real: #e8eef6; --hl: #e3a72f;
+    --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); background: var(--bg); color: var(--text);
+         font: 13px/1.4 var(--font-ui); -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .iq-lock { height: 26px; width: auto; display: block; flex: none; }
+  /* ---- top bar (as every tab) ---- */
+  .topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; padding: 5px 10px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .topbar .brand .iq-lock { height: 24px; }
+  .tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .tabs a { padding: 4px 9px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+  .tabs a:hover { color: var(--text); }
+  .tabs a[aria-current="page"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .spacer { flex: 1; }
+  .topbar .grp { display: inline-flex; align-items: center; padding: 0 0 0 8px; border-left: 1px solid var(--line); gap: 4px; }
+  .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .seg button { padding: 3px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--tile); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .step-btn { padding: 2px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--muted); font: 600 13px/18px var(--font-num); cursor: pointer; }
+  .step-btn:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); }
+  .step-btn:disabled { opacity: .35; cursor: default; }
+  .live-btn { padding: 3px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 600; }
+  .live-btn[aria-pressed="true"] { border-color: var(--up); color: var(--up); }
+  @media (max-width: 1499px) {
+    .topbar { gap: 4px 6px; padding-left: 8px; padding-right: 8px; }
+    .topbar .grp { padding-left: 6px; gap: 3px; }
+    .topbar .brand .iq-lock { content: url(brand/iq_emblem.svg); height: 24px; }
+    .topbar .tabs a { padding: 4px 7px; }
+  }
+  @media (max-width: 490px) { .topbar .tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; } .topbar .tabs a { flex: none; padding: 4px 4px; font-size: 11.5px; } }
+  /* ---- the market switch, then the chart(s) ---- */
+  .wrap { padding: 8px max(12px, env(safe-area-inset-right)) 20px max(12px, env(safe-area-inset-left)); display: grid; gap: 8px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .mkt { display: flex; flex-wrap: wrap; gap: 6px; }
+  .mkt button { padding: 5px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); cursor: pointer; font-size: 13px; font-weight: 600; }
+  .mkt button:hover { color: var(--text); border-color: var(--line-strong); }
+  .mkt button[aria-pressed="true"] { color: var(--text); background: var(--tile); border-color: var(--hl); }
+  .charts { display: grid; gap: 8px; }
+  .box { position: relative; height: clamp(420px, calc(100vh - 150px), 760px); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); }
+  .charts.two .box { height: clamp(300px, calc((100vh - 166px) / 2), 420px); }
+  .box .cv { position: absolute; inset: 0; }
+  /* the reading in the chart's corner: the two prices, and at the weekend close the gap and Hyperliquid's move */
+  .lg { position: absolute; left: 8px; top: 6px; z-index: 5; display: grid; gap: 2px; max-width: calc(100% - 110px); padding: 3px 7px; border-radius: 7px;
+        background: rgba(10, 13, 18, .8); pointer-events: none; font-size: 12px; color: var(--muted); }
+  .lg .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; }
+  .lg .it { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; }
+  .lg .it i { align-self: center; width: 12px; height: 3px; border-radius: 2px; }
+  .lg .it i.dot { height: 0; border-top: 2px dotted; background: none; }
+  .lg b { color: var(--text); font: 600 13px var(--font-num); font-variant-numeric: tabular-nums; }
+  .lg .t { color: var(--faint); font: 500 11.5px var(--font-num); }
+  .lg .up { color: var(--up); } .lg .down { color: var(--down); }
+  .pill { display: inline-block; padding: 0 6px; border-radius: 9px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; background: rgba(242, 179, 61, .14); color: var(--warn); }
+  .note { margin: 0; color: var(--faint); font-size: 12px; }
+  .note:empty { display: none; }
+  #loading { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--bg); color: var(--muted); }
+  #loading img { width: 64px; height: 64px; }
+  @media (max-width: 700px) {
+    .box { height: 440px; } .charts.two .box { height: 340px; }
+    .lg { max-width: calc(100% - 80px); font-size: 11px; } .lg b { font-size: 12px; } .lg .row { gap: 1px 10px; } .lg .it { white-space: normal; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="replay.html" title="Indra Quant Signal Board"><img class="iq-lock" src="brand/iq_lockup.svg" alt="Indra Quant" height="26"></a>
+  <nav class="tabs" aria-label="Pages"><a href="replay.html">Nasdaq</a><a href="india-replay.html">India</a><a href="commodities.html">Commodities</a><a href="perps.html" title="Stock and crypto perps">Perps</a><a href="gold.html" title="Gold: US futures and Hyperliquid on one chart">Gold</a><a href="new-strategy.html" aria-current="page" title="The weekend close: US markets beside Hyperliquid">New Strategy</a><a href="compare.html" title="One chart or two, any market of the board">Compare</a><a href="paper.html">Paper</a></nav>
+  <div class="grp"><button type="button" class="step-btn" id="prevBtn" aria-label="The trading day before" title="The trading day before">‹</button><div id="dayPick"></div><button type="button" class="step-btn" id="nextBtn" aria-label="The trading day after" title="The trading day after">›</button>
+    <button type="button" class="live-btn" id="liveBtn" aria-pressed="true" title="Follow the latest minute">Live</button></div>
+  <div class="grp"><div class="seg" id="tzSeg" role="group" aria-label="Clock"></div></div>
+  <div class="spacer"></div>
+  <a class="devtab" href="devices.html" title="The machines and the bus">Devices</a>
+</header>
+<main class="wrap">
+  <h1 class="sr">New Strategy: the weekend close, US markets vs Hyperliquid</h1>
+  <div class="mkt" id="mkt" role="group" aria-label="Market"></div>
+  <div class="charts" id="charts"></div>
+  <p class="note" id="note"></p>
+</main>
+<div id="loading"><img src="brand/iq_emblem.svg" alt=""><div id="loading-text">Loading…</div></div>
+<script>
+'use strict';
+const MIN = 60000, HOUR = 3600000, DAY = 86400000, FILL = 15 * MIN;  // a price is carried over quiet minutes for at most 15 minutes
+const { candleRows, toBar } = NdxEngine.internals;
+// the markets (owner 28/11/2026): each pair = a US market and its Hyperliquid twin; Nasdaq has two pairs
+const MARKETS = [
+  { id: 'gold', name: 'Gold', pairs: [{ dp: 1, real: { kind: 'fut', sym: 'MGC', name: 'MGC futures' }, hl: { coin: 'xyz:GOLD', file: 'GOLD', name: 'Hyperliquid GOLD' } }] },
+  { id: 'silver', name: 'Silver', pairs: [{ dp: 3, real: { kind: 'fut', sym: 'SIL', name: 'SIL futures' }, hl: { coin: 'xyz:SILVER', file: 'SILVER', name: 'Hyperliquid SILVER' } }] },
+  { id: 'sp', name: 'S&P 500', pairs: [{ dp: 2, real: { kind: 'fut', sym: 'MES', name: 'MES futures' }, hl: { coin: 'xyz:SP500', file: 'SP500', name: 'Hyperliquid SP500' } }] },
+  { id: 'nasdaq', name: 'Nasdaq', pairs: [{ dp: 2, real: { kind: 'fut', sym: 'MNQ', name: 'MNQ futures' }, hl: { coin: 'xyz:XYZ100', file: 'XYZ100', name: 'Hyperliquid XYZ100' } },
+                                         { dp: 2, real: { kind: 'stock', sym: 'NVDA', name: 'Nvidia stock' }, hl: { coin: 'xyz:NVDA', file: 'NVDA', name: 'Hyperliquid NVDA' } }] },
+];
+const FUTS = [...new Set(MARKETS.flatMap(m => m.pairs.filter(p => p.real.kind === 'fut').map(p => p.real.sym)))];
+const COINS = [...new Set(MARKETS.flatMap(m => m.pairs.map(p => p.hl.coin)))];
+const $ = id => document.getElementById(id);
+const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } };
+let TZ = store('nsb.ns.tz') === 'ist' ? 'ist' : 'et';
+let MKT = (() => { const q = new URLSearchParams(location.search).get('m') || store('nsb.ns.mkt'); return MARKETS.some(m => m.id === q) ? q : 'gold'; })();
+let DAYK = null, LIVE = false, PERPS_DAYS = new Set(), FUT_DAYS = new Set(), STOCK_DAYS = new Set(), STOCK_CLOSE = {}, ROLLS = {};
+
+// ---- clocks and numbers ----------------------------------------------------------------------------------------
+const ZONE = { et: 'America/New_York', ist: 'Asia/Kolkata' }, ZN = { et: 'ET', ist: 'IST' };
+const fmtCache = new Map();
+const fmt = (ms, z, o) => { const k = z + JSON.stringify(o); if (!fmtCache.has(k)) fmtCache.set(k, new Intl.DateTimeFormat('en-GB', { timeZone: ZONE[z], ...o })); return fmtCache.get(k).format(new Date(ms)); };
+const hm = (ms, z = TZ) => fmt(ms, z, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const dwhm = (ms, z = TZ) => `${fmt(ms, z, { weekday: 'short', day: 'numeric', month: 'short' })} ${hm(ms, z)} ${ZN[z]}`;
+const pr = (v, dp = 2) => v == null || !isFinite(v) ? '—' : v.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });  // dp: the market's decimals
+const sg = (v, dp = 2) => v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(dp);
+const cls = v => v == null ? '' : v > 0 ? 'up' : v < 0 ? 'down' : '';
+const MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], WK3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const pad = n => String(n).padStart(2, '0');
+const utcKey = t => new Date(t).toISOString().slice(0, 10);
+const offCache = new Map();
+function offsetOf(t, z = TZ) {  // the zone's offset at ms t (New York's moves with summer time)
+  const hk = z + Math.floor(t / HOUR);
+  if (!offCache.has(hk)) {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: ZONE[z], hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      .formatToParts(new Date(Math.floor(t / HOUR) * HOUR)).map(x => [x.type, x.value]));
+    offCache.set(hk, Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute) - Math.floor(t / HOUR) * HOUR);
+  }
+  return offCache.get(hk);
+}
+const toChart = t => (t + offsetOf(t)) / 1000;  // real ms -> the chart's seconds (local clock written as UTC)
+const nyAt = (k, h, m) => { const w = Date.parse(`${k}T${pad(h)}:${pad(m)}:00Z`); return w - offsetOf(w - offsetOf(w, 'et'), 'et'); };  // ms of h:m New York on day k
+const nyKey = t => fmt(t, 'et', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
+
+// ---- the two calendars: CME (day k = 18:00 New York the evening before to 17:00) and the US stock market (09:30-16:00) --
+const isWd = k => { const w = new Date(k + 'T00:00:00Z').getUTCDay(); return w >= 1 && w <= 5; };
+const prevWd = k => { let p = NsbCme.prev(k); while (!isWd(p)) p = NsbCme.prev(p); return p; };
+const nextWd = k => { let p = NsbCme.next(k); while (!isWd(p)) p = NsbCme.next(p); return p; };
+const openOf = k => NsbCme.open(k), endOf = k => NsbCme.open(k) + 23 * HOUR;
+const curKey = () => { const now = Date.now(); let k = NsbCme.key(now); if (isWd(k) && now >= endOf(k)) k = NsbCme.next(k); while (!isWd(k)) k = NsbCme.next(k); return k; };
+const SCHED = {
+  fut: { open: openOf, close: endOf },
+  stock: { open: k => nyAt(k, 9, 30), close: k => nyAt(k, 16, 0) },
+};
+const shutsOf = (kind, a, b) => {  // [from, to) the market is shut by its schedule, touching [a, b]: each night and the weekend
+  const S = SCHED[kind], out = []; let k = prevWd(prevWd(NsbCme.key(a)));
+  for (let i = 0; i < 40; i++) { const s = S.close(k), n = nextWd(k), e = S.open(n); if (s > b) break; if (e > a) out.push([s, e]); k = n; }
+  return out;
+};
+
+// ---- data: the site's saved days, Hyperliquid's own recent candles, the live streams ----------------------------------
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function getJson(url) {  // a failed load is tried twice more (one lost request left a hole in a line)
+  for (let i = 0; ; i++) {
+    try { const r = await fetch(url, { cache: 'no-cache' }); if (r.status === 404) throw Object.assign(new Error(`${url}: 404`), { final: true }); if (!r.ok) throw new Error(`${url}: ${r.status}`); return await r.json(); }
+    catch (e) { if (e.final || i >= 2) throw e; await sleep(500 * (i + 1)); }
+  }
+}
+async function readIndexes() {
+  const [p, f, r, s] = await Promise.all(['data/perps/1m/index.json', 'data/futures/1m/index.json', 'data/futures/1m/rolls.json', 'data/stocks/1m/index.json'].map(u => getJson(u).catch(() => null)));
+  if (p) PERPS_DAYS = new Set((p.dates || []).map(String));
+  if (f) FUT_DAYS = new Set((Array.isArray(f) ? f : f.dates || []).map(String));
+  if (r) ROLLS = r.rolls || {};
+  if (s) { STOCK_DAYS = new Set((s.dates || []).map(String)); STOCK_CLOSE = s.close || {}; }
+}
+const cache = new Map();
+function cached(key, fetcher) {  // a day not over yet is kept a minute; a request under way is shared
+  const c = cache.get(key), now = Date.now();
+  if (c && c.val !== undefined && (c.done || now - c.at < MIN)) return Promise.resolve(c.val);
+  if (c && c.p) return c.p;
+  const p = fetcher(c && c.val).then(([val, done]) => { cache.set(key, { val, done, at: Date.now() }); return val; }, e => { cache.delete(key); throw e; });
+  cache.set(key, { ...(c || {}), p });
+  return p;
+}
+const futFile = key => cached('f|' + key, async () => {  // one UTC day of the futures' saved candles (every name)
+  if (!FUT_DAYS.has(key)) return [null, false];
+  try { return [await getJson(`data/futures/1m/${key}.json`), true]; } catch (e) { return [null, false]; }
+});
+const hlDay = (hl, key) => cached(`h|${hl.coin}|${key}`, async prev => {  // -> [{t, c}] of one UTC day
+  const d0 = Date.parse(key + 'T00:00:00Z'), now = Date.now(), over = now > d0 + DAY + MIN;
+  let bars = null;
+  if (over && PERPS_DAYS.has(key)) { try { bars = (await getJson(`data/perps/1m/${key}/${hl.file}.json`)).map(([t, o, h, l, c]) => ({ t, c })); } catch (e) { bars = null; } }
+  if (!bars && d0 + DAY > now - 4990 * MIN && d0 <= now) {
+    try { bars = (await candleRows(hl.coin, '1m', d0, Math.min(d0 + DAY - 1, now), prev && prev.length ? () => { throw new Error('busy'); } : undefined)).map(toBar).map(b => ({ t: b.t, c: b.c })); }
+    catch (e) { bars = prev || []; }
+  }
+  return [bars || [], over && !!(bars && bars.length)];
+});
+const stockDay = (sym, key) => cached(`s|${sym}|${key}`, async () => {  // one New York day of the stock's saved candles
+  if (!STOCK_DAYS.has(key)) return [[], false];
+  try { return [(await getJson(`data/stocks/1m/${key}/${sym}.json`)).map(([t, o, h, l, c]) => ({ t, c })), true]; } catch (e) { return [[], false]; }
+});
+const liveHl = new Map(COINS.map(c => [c, new Map()]));
+
+// ---- one pair over the range: a row per minute with both prices; the weekend close -----------------------------------
+// The range of day k: the last 5 h of the trading day before, the night or the weekend, and day k (as the Gold tab).
+// A close whose last minute came more than 30 minutes before its time (a short Friday, a holiday) starts the shut at
+// that last minute. The weekend close: the US market's last price (a stock: its official close) and Hyperliquid's price
+// at that same minute.
+async function loadPair(pair, k) {
+  const now = Date.now(), a = endOf(prevWd(k)) - 5 * HOUR, b = Math.min(endOf(k), now);
+  const keys = []; for (let t = Math.floor(a / DAY) * DAY; t <= b; t += DAY) keys.push(utcKey(t));
+  const R = new Map(), H = new Map(), contracts = [];
+  const hlP = Promise.all(keys.map(x => hlDay(pair.hl, x)));
+  if (pair.real.kind === 'fut') {
+    for (const j of await Promise.all(keys.map(futFile))) if (j) { for (const [t, o, h, l, c] of j[pair.real.sym] || []) R.set(t * 1000, c); contracts.push(...((j.contracts || {})[pair.real.sym] || [])); }
+    for (const x of NsbLive.bars(pair.real.sym)) if (x && x.t >= a && x.t <= b) R.set(x.t, x.c);
+  } else {
+    const nk = [...new Set(keys.flatMap(x => [x, NsbCme.prev(x)]).map(x => x))].filter(isWd);
+    for (const d of await Promise.all(nk.map(x => stockDay(pair.real.sym, x)))) for (const x of d) R.set(x.t, x.c);
+  }
+  for (const d of await hlP) for (const x of d) H.set(x.t, x.c);
+  for (const x of liveHl.get(pair.hl.coin).values()) if (x.t >= a && x.t <= b) H.set(x.t, x.c);
+  const rt = [...R.keys()].sort((x, y) => x - y);
+  const lastBefore = t => { let lo = 0, hi = rt.length - 1, ans = null; while (lo <= hi) { const m = (lo + hi) >> 1; if (rt[m] < t) { ans = rt[m]; lo = m + 1; } else hi = m - 1; } return ans; };
+  const S = shutsOf(pair.real.kind, a, b).map(([s, e]) => {
+    const lt = s <= now ? lastBefore(s) : null, early = lt != null && lt >= a - DAY && s - (lt + MIN) > 30 * MIN;
+    return { s: early ? lt + MIN : s, e, sched: s, early };
+  }).filter((x, i, arr) => !arr.some((y, j) => j !== i && y.s <= x.s && y.e >= x.e && (y.s < x.s || y.e > x.e)));
+  const inShut = t => S.find(x => t >= x.s && t < x.e) || null;
+  const rows = []; let cur = null, lastR = null, lastRt = -Infinity, lastH = null, lastHt = -Infinity, closeR = null, closeH = null;
+  for (let t = Math.floor(a / MIN) * MIN; t < b; t += MIN) {
+    const sh = inShut(t), rv = R.get(t), hv = H.get(t);
+    if (sh && cur !== sh) { cur = sh; closeR = lastRt >= sh.s - 30 * MIN ? lastR : null; closeH = lastHt >= sh.s - FILL ? lastH : null; }
+    if (hv != null) { lastH = hv; lastHt = t; }
+    if (!sh && rv != null) { lastR = rv; lastRt = t; }
+    if (lastH == null && lastR == null) continue;
+    rows.push({ t, x: t + MIN, h: lastH != null && t - lastHt <= FILL ? lastH : null, r: sh ? null : rv != null ? rv : lastR != null && t - lastRt <= FILL ? lastR : null, shut: sh, closeR: sh ? closeR : null, closeH: sh ? closeH : null });
+  }
+  // the weekend close (a shut over a day long)
+  let wk = null; const w = S.find(x => x.e - x.sched > DAY && x.s <= b);
+  if (w) {
+    const r0 = rows.find(q => q.shut === w);
+    if (r0 && (r0.closeR != null || r0.closeH != null)) {
+      let f = r0.closeR;
+      if (pair.real.kind === 'stock') { const ok = STOCK_CLOSE[pair.real.sym] && STOCK_CLOSE[pair.real.sym][nyKey(w.s - MIN)]; if (ok != null) f = ok; }  // the official close
+      wk = { s: w.s, e: w.e, f, h: r0.closeH, wd: fmt(w.s - MIN, 'et', { weekday: 'short' }) };
+    }
+  }
+  const rolls = pair.real.kind === 'fut' ? (ROLLS[pair.real.sym] || []).filter(x => x.t * 1000 >= a && x.t * 1000 <= b + MIN) : [];
+  return { pair, a, b, rows, shuts: S, wk, rolls, contracts };
+}
+
+// ---- the charts ---------------------------------------------------------------------------------------------------
+const LC = LightweightCharts;
+const TS = { borderColor: '#1c2430', timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 0.02,
+             tickMarkFormatter: (t, type) => { const d = new Date(t * 1000); return type < 3 ? `${WK3[d.getUTCDay()]} ${d.getUTCDate()} ${MON3[d.getUTCMonth()]}` : `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`; } };
+const BASE = {
+  autoSize: true,
+  layout: { background: { type: 'solid', color: '#0a0d12' }, textColor: '#8d99ab', fontFamily: 'IBM Plex Mono, Consolas, monospace', fontSize: 11 },
+  grid: { vertLines: { color: '#141b24' }, horzLines: { color: '#141b24' } },
+  localization: { timeFormatter: t => { const d = new Date(t * 1000); return `${WK3[d.getUTCDay()]} ${d.getUTCDate()} ${MON3[d.getUTCMonth()]} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} ${ZN[TZ]}`; } },
+  crosshair: { mode: LC.CrosshairMode.Normal },
+};
+const NARROW = matchMedia('(max-width: 700px)').matches;  // a phone: more room above the lines for the corner reading
+let VIEWS = [];  // one per pair on screen: { el, chart, series..., D, REV, BY }
+function makeView(pair) {
+  const box = document.createElement('div'); box.className = 'box';
+  box.innerHTML = `<div class="cv"></div><div class="lg" aria-live="polite"></div>`;
+  $('charts').appendChild(box);
+  const chart = LC.createChart(box.querySelector('.cv'), { ...BASE, localization: { ...BASE.localization, priceFormatter: p => pr(p, pair.dp) }, timeScale: TS, rightPriceScale: { borderColor: '#1c2430', minimumWidth: 80, scaleMargins: { top: NARROW ? 0.36 : 0.16, bottom: 0.06 } } });
+  const shade = chart.addHistogramSeries({ priceScaleId: 'shade', color: 'rgba(141, 153, 171, 0.10)', priceLineVisible: false, lastValueVisible: false });
+  chart.priceScale('shade').applyOptions({ scaleMargins: { top: 0, bottom: 0 }, visible: false });
+  const line = (color, style, width = 2, last = true) => chart.addLineSeries({ color, lineWidth: width, lineStyle: style, priceLineVisible: false, lastValueVisible: last, crosshairMarkerVisible: style === LC.LineStyle.Solid, title: '' });
+  const v = { box, lg: box.querySelector('.lg'), chart, shade, wkR: line('rgba(232, 238, 246, 0.8)', LC.LineStyle.Dotted), wkH: line('#e3a72f', LC.LineStyle.Dotted),
+              real: line('#e8eef6', LC.LineStyle.Solid), hl: line('#e3a72f', LC.LineStyle.Solid), D: null, REV: new Map(), BY: new Map(), hoverT: null };
+  chart.subscribeCrosshairMove(p => { v.hoverT = p && p.time ? (v.REV.get(p.time) ?? null) : null; readout(v); });
+  return v;
+}
+let syncing = false;
+function linkViews() {  // Nasdaq's two charts move together
+  for (const v of VIEWS) v.chart.timeScale().subscribeVisibleTimeRangeChange(r => {
+    if (syncing || !r) return; syncing = true;
+    try { for (const o of VIEWS) if (o !== v) o.chart.timeScale().setVisibleRange(r); } catch (e) {} finally { syncing = false; }
+  });
+}
+function buildViews() {
+  for (const v of VIEWS) v.chart.remove();
+  $('charts').innerHTML = ''; VIEWS = [];
+  const M = MARKETS.find(m => m.id === MKT);
+  $('charts').classList.toggle('two', M.pairs.length > 1);
+  M.pairs.forEach(p => VIEWS.push(makeView(p)));
+  if (VIEWS.length > 1) linkViews();
+}
+function draw(v, D, keepView) {
+  v.D = D; const W = x => ({ time: x });
+  const sh = [], re = [], hl = [], wr = [], wh = [];
+  v.REV = new Map(); v.BY = new Map(); let lastX = -Infinity;
+  for (const r of D.rows) {
+    const x = toChart(r.x); if (x <= lastX) continue; lastX = x; v.REV.set(x, r.x); v.BY.set(r.x, r);
+    sh.push(r.shut ? { time: x, value: 1 } : W(x));
+    re.push(r.r == null ? W(x) : { time: x, value: r.r });
+    hl.push(r.h == null ? W(x) : { time: x, value: r.h });
+    const on = D.wk && r.x >= D.wk.s;
+    wr.push(on && D.wk.f != null ? { time: x, value: D.wk.f } : W(x));
+    wh.push(on && D.wk.h != null ? { time: x, value: D.wk.h } : W(x));
+  }
+  // Lightweight Charts joins a line across empty minutes: the point before each gap gets a see-through colour
+  const cut = arr => { for (let i = 0; i < arr.length - 1; i++) if (arr[i].value != null && arr[i + 1].value == null) arr[i].color = 'rgba(0, 0, 0, 0)'; return arr; };
+  v.shade.setData(sh); v.real.setData(cut(re)); v.hl.setData(cut(hl)); v.wkR.setData(wr); v.wkH.setData(wh);
+  const reT = new Set(re.filter(p => p.value != null).map(p => p.time)), mk = [];
+  for (const ro of D.rolls) { const t = toChart(Math.floor(ro.t * 1000 / MIN) * MIN + MIN); if (reT.has(t)) mk.push({ time: t, position: 'aboveBar', color: '#f2b33d', shape: 'square', text: `contract switch ${sg(ro.gap, D.pair.dp)}` }); }
+  v.real.setMarkers(mk);
+}
+// fit every chart to its day; the charts' own range events meanwhile are not passed on (a stale one undid the fit)
+function fitAll() { syncing = true; for (const v of VIEWS) v.chart.timeScale().fitContent(); setTimeout(() => { syncing = false; }, 150); }
+// the corner reading: the two prices at the minute under the cursor (else the newest); with a weekend close in view, the
+// close, Hyperliquid's price then, the gap between them and Hyperliquid's move since
+function readout(v) {
+  const D = v.D; if (!D) return;
+  if (!D.rows.length) { v.lg.innerHTML = `<div class="row"><span class="it">${D.pair.real.name}: no data for this day yet</span></div>`; return; }
+  const r = (v.hoverT != null && v.BY.get(v.hoverT)) || D.rows[D.rows.length - 1], C = D.wk;
+  const it = (sw, name, val, extra = '') => `<span class="it">${sw ? `<i ${sw}></i>` : ''}${name}${val != null ? ` <b>${val}</b>` : ''}${extra}</span>`;
+  const realV = r.shut ? (C && r.shut.s === C.s ? C.f : r.closeR) : r.r, dp = D.pair.dp, P = x => pr(x, dp);
+  let h = `<div class="row">${it('style="background:var(--real)"', D.pair.real.name, P(realV), r.shut ? '&nbsp;<span class="pill">SHUT</span>' : '')}${it('style="background:var(--hl)"', D.pair.hl.name, P(r.h))}<span class="t">${dwhm(r.x)}</span></div>`;
+  if (C && r.x >= C.s) {
+    const gap = C.f != null && C.h != null ? C.h - C.f : null, mv = C.h != null && r.h != null ? r.h - C.h : null;
+    h += `<div class="row">${it('class="dot" style="border-color:var(--real)"', `${C.wd} close`, P(C.f))}${it('class="dot" style="border-color:var(--hl)"', 'Hyperliquid then', P(C.h), gap != null ? `&nbsp;<span class="${cls(gap)}">(${sg(gap, dp)})</span>` : '')}` +
+         `${it('', 'Hyperliquid since', mv == null ? null : `<span class="${cls(mv)}">${sg(mv, dp)}</span>`)}</div>`;
+  }
+  v.lg.innerHTML = h;
+}
+
+// ---- the day shown, the controls ---------------------------------------------------------------------------------
+let days = [], pickedKey = '';
+function dayList() {
+  const s = new Set([...FUT_DAYS].filter(isWd)); for (const k of PERPS_DAYS) if (isWd(k)) s.add(k);
+  for (let t = Date.now(); t > Date.now() - 4 * DAY; t -= DAY) { const k = NsbCme.key(t); if (isWd(k)) s.add(k); }
+  s.add(curKey());
+  return [...s].filter(k => endOf(prevWd(k)) - 5 * HOUR <= Date.now()).sort().reverse();
+}
+const pick = DayPick($('dayPick'), { onPick: k => { LIVE = k === curKey(); show(k); }, title: 'Trading day (18:00 New York the evening before to 17:00)' });
+function seg(el, items, on) {
+  el.innerHTML = items.map(([lab, v, tip]) => `<button type="button" data-v="${v}" aria-pressed="false" title="${tip}">${lab}</button>`).join('');
+  el.onclick = e => { const b = e.target.closest('button'); if (b) on(b.dataset.v); };
+}
+const pressed = (el, cur) => { for (const b of el.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === cur)); };
+seg($('tzSeg'), [['New York', 'et', 'Times in New York'], ['India', 'ist', 'Times in India']], v => { TZ = v; store('nsb.ns.tz', v); controls(); for (const w of VIEWS) if (w.D) { draw(w, w.D, false); readout(w); } fitAll(); });
+seg($('mkt'), MARKETS.map(m => [m.name, m.id, m.pairs.map(p => `${p.real.name} vs ${p.hl.name}`).join(' · ')]), v => {
+  if (v === MKT) return; MKT = v; store('nsb.ns.mkt', v);
+  try { const u = new URL(location.href); u.searchParams.set('m', v); history.replaceState(null, '', u); } catch (e) {}
+  buildViews(); controls(); show(DAYK || curKey());
+});
+function controls() {
+  pressed($('tzSeg'), TZ); pressed($('mkt'), MKT);
+  $('liveBtn').setAttribute('aria-pressed', String(LIVE && DAYK === curKey()));
+  const i = days.indexOf(DAYK); $('prevBtn').disabled = i < 0 || i >= days.length - 1; $('nextBtn').disabled = i <= 0;
+}
+$('prevBtn').onclick = () => { const i = days.indexOf(DAYK); if (i >= 0 && i < days.length - 1) { LIVE = false; show(days[i + 1]); } };
+$('nextBtn').onclick = () => { const i = days.indexOf(DAYK); if (i > 0) { LIVE = days[i - 1] === curKey(); show(days[i - 1]); } };
+$('liveBtn').onclick = () => { LIVE = true; show(curKey()); };
+
+let busy = 0;
+async function show(k, keepView = false) {
+  const my = ++busy; DAYK = k;
+  if (!keepView) $('loading-text').textContent = `Loading ${k}…`;
+  const M = MARKETS.find(m => m.id === MKT);
+  const Ds = await Promise.all(M.pairs.map(p => loadPair(p, k))); if (my !== busy || VIEWS.length !== Ds.length) return;
+  Ds.forEach((D, i) => { draw(VIEWS[i], D, keepView); readout(VIEWS[i]); });
+  if (!keepView) fitAll();
+  days = dayList(); const pk = days.join() + '|' + k; if (pk !== pickedKey) { pick.set(days, k, curKey()); pickedKey = pk; }
+  controls();
+  const n = [];
+  for (const D of Ds) {
+    if (!D.rows.some(r => r.h != null)) n.push(`No Hyperliquid ${D.pair.hl.file} minutes for this day.`);
+    if (!D.rows.some(r => r.r != null)) n.push(D.pair.real.kind === 'stock' ? `No ${D.pair.real.sym} stock minutes for this day yet (they are saved each evening, from 30 Oct 2026).` : `No ${D.pair.real.sym} minutes for this day yet.`);
+    for (const x of D.shuts.filter(x => x.early && x.s >= D.a)) n.push(`${D.pair.real.name} stopped at ${dwhm(x.s)}, before the usual close.`);
+    for (const ro of D.rolls) n.push(`${D.pair.real.sym} contract switch at ${dwhm(ro.t * 1000)} (${sg(ro.gap, D.pair.dp)}): the futures line jumps by that much; it is no move.`);
+  }
+  $('note').textContent = n.join(' ');
+  $('loading').hidden = true;
+}
+
+// ---- live: Hyperliquid's candles and the VPS stream; the newest day is rebuilt at most once a second --------------------
+let hlWs = null, hlLast = 0, hlDownAt = 0, redrawT = 0;
+function hlConnect() {
+  const ws = hlWs = new WebSocket('wss://api.hyperliquid.xyz/ws');
+  ws.onopen = () => { hlDownAt = 0; for (const coin of COINS) ws.send(JSON.stringify({ method: 'subscribe', subscription: { type: 'candle', coin, interval: '1m' } })); };
+  ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (x) { return; } hlLast = Date.now(); if (m.channel === 'candle' && m.data && liveHl.has(m.data.s)) { const b = toBar(m.data); liveHl.get(m.data.s).set(b.t, { t: b.t, c: b.c }); redraw(); } };
+  ws.onclose = () => { if (hlWs !== ws) return; if (!hlDownAt) hlDownAt = Date.now(); setTimeout(hlConnect, 3000); };
+  ws.onerror = () => ws.close();
+}
+setInterval(() => { if (hlWs && hlWs.readyState === WebSocket.OPEN) hlWs.send('{"method":"ping"}'); }, 30000);
+setInterval(() => { const cut = Date.now() - 2 * DAY; for (const m of liveHl.values()) for (const t of m.keys()) if (t < cut) m.delete(t); }, 10 * MIN);
+function redraw() {
+  if (!LIVE || !DAYK || redrawT) return;  // (not before the first day is shown: a ?day= link must stay on its day)
+  redrawT = setTimeout(() => { redrawT = 0; if (!LIVE) return; const k = curKey(); show(k, k === DAYK); }, 1000);
+}
+NsbLive.on(() => redraw());
+setInterval(() => { if (LIVE && DAYK !== curKey()) show(curKey()); }, 20000);
+setInterval(async () => { await readIndexes(); if (DAYK) show(DAYK, true); }, 5 * MIN);  // a day saved since
+NsbStatus.add('Hyperliquid', () => {
+  const open = hlWs && hlWs.readyState === WebSocket.OPEN, fresh = open && Date.now() - hlLast < 90000;
+  return { state: fresh ? 'live' : open ? 'quiet' : hlDownAt && Date.now() - hlDownAt > 60000 ? 'down' : 'reconnecting', last: hlLast || undefined };
+});
+
+(async () => {
+  buildViews(); controls();
+  NsbLive.start('VPS live stream', () => FUTS, () => ({ want: FUTS, since: Math.floor((endOf(prevWd(curKey())) - 5 * HOUR) / DAY) * DAY }));
+  // (the chart font first: the charts keep a label's first measured width, so a label measured in the stand-in font is cut short)
+  await Promise.all([readIndexes(), NsbLive.ready(1500), Promise.race([document.fonts.load('11px "IBM Plex Mono"').catch(() => null), sleep(3000)])]);
+  hlConnect();
+  const q = new URLSearchParams(location.search).get('day');
+  const start = q && /^\d{4}-\d\d-\d\d$/.test(q) && isWd(q) ? q : curKey(); LIVE = start === curKey();
+  await show(start);
+})().catch(e => { $('loading-text').textContent = 'Could not load: ' + (e && e.message || e); });
+</script>
+</body>
+</html>
